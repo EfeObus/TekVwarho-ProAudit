@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="reportsPage()" x-init="init()">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
+        <p class="text-gray-600">Financial and tax reports for compliance</p>
+    </div>
+
+    <!-- Report Type Selector -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="border-b border-gray-200">
+            <nav class="flex -mb-px">
+                <button 
+                    @click="activeTab = 'financial'"
+                    :class="activeTab === 'financial' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors"
+                >
+                    Financial Reports
+                </button>
+                <button 
+                    @click="activeTab = 'tax'"
+                    :class="activeTab === 'tax' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors"
+                >
+                    Tax Reports
+                </button>
+            </nav>
+        </div>
+
+        <!-- Date Range Selector -->
+        <div class="p-4 bg-gray-50 border-b border-gray-200">
+            <div class="flex items-center gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">From</label>
+                    <input type="date" x-model="startDate" class="border-gray-300 rounded-md shadow-sm text-sm focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">To</label>
+                    <input type="date" x-model="endDate" class="border-gray-300 rounded-md shadow-sm text-sm focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div class="flex gap-2 mt-5">
+                    <button @click="setPreset('thisMonth')" class="px-3 py-1 text-xs border rounded hover:bg-gray-100">This Month</button>
+                    <button @click="setPreset('lastMonth')" class="px-3 py-1 text-xs border rounded hover:bg-gray-100">Last Month</button>
+                    <button @click="setPreset('thisQuarter')" class="px-3 py-1 text-xs border rounded hover:bg-gray-100">This Quarter</button>
+                    <button @click="setPreset('thisYear')" class="px-3 py-1 text-xs border rounded hover:bg-gray-100">This Year</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Reports -->
+    <div x-show="activeTab === 'financial'" class="space-y-6">
+        <!-- Profit & Loss -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Profit & Loss Statement</h3>
+                    <p class="text-sm text-gray-500">Income and expenses summary</p>
+                </div>
+                <button @click="generatePnL()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                    Generate Report
+                </button>
+            </div>
+            <div x-show="reports.pnl" class="p-6">
+                <div class="grid grid-cols-3 gap-6 mb-6">
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <p class="text-sm text-green-600 font-medium">Total Revenue</p>
+                        <p class="text-2xl font-bold text-green-700" x-text="formatCurrency(reports.pnl?.summary?.total_revenue)">₦0</p>
+                    </div>
+                    <div class="text-center p-4 bg-red-50 rounded-lg">
+                        <p class="text-sm text-red-600 font-medium">Total Expenses</p>
+                        <p class="text-2xl font-bold text-red-700" x-text="formatCurrency(reports.pnl?.summary?.total_expenses)">₦0</p>
+                    </div>
+                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-blue-600 font-medium">Net Profit</p>
+                        <p class="text-2xl font-bold" 
+                           :class="(reports.pnl?.summary?.net_profit || 0) >= 0 ? 'text-green-700' : 'text-red-700'"
+                           x-text="formatCurrency(reports.pnl?.summary?.net_profit)">₦0</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-6">
+                    <!-- Revenue Breakdown -->
+                    <div>
+                        <h4 class="font-medium text-gray-900 mb-3">Revenue by Category</h4>
+                        <div class="space-y-2">
+                            <template x-for="(amount, category) in reports.pnl?.revenue?.categories" :key="category">
+                                <div class="flex justify-between py-2 border-b border-gray-100">
+                                    <span class="text-sm text-gray-600" x-text="category"></span>
+                                    <span class="text-sm font-medium text-green-600" x-text="formatCurrency(amount)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Expense Breakdown -->
+                    <div>
+                        <h4 class="font-medium text-gray-900 mb-3">Expenses by Category</h4>
+                        <div class="space-y-2">
+                            <template x-for="(data, category) in reports.pnl?.expenses?.categories" :key="category">
+                                <div class="flex justify-between py-2 border-b border-gray-100">
+                                    <div>
+                                        <span class="text-sm text-gray-600" x-text="category"></span>
+                                        <span x-show="data.wren_status" class="ml-2 text-xs px-1 rounded bg-gray-100" x-text="data.wren_status"></span>
+                                    </div>
+                                    <span class="text-sm font-medium text-red-600" x-text="formatCurrency(data.total)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cash Flow -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Cash Flow Statement</h3>
+                    <p class="text-sm text-gray-500">Operating cash flow analysis</p>
+                </div>
+                <button @click="generateCashFlow()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                    Generate Report
+                </button>
+            </div>
+            <div x-show="reports.cashflow" class="p-6">
+                <div class="grid grid-cols-3 gap-6">
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <p class="text-sm text-green-600 font-medium">Cash Received</p>
+                        <p class="text-xl font-bold text-green-700" x-text="formatCurrency(reports.cashflow?.operating_activities?.cash_received)">₦0</p>
+                    </div>
+                    <div class="text-center p-4 bg-red-50 rounded-lg">
+                        <p class="text-sm text-red-600 font-medium">Cash Paid</p>
+                        <p class="text-xl font-bold text-red-700" x-text="formatCurrency(reports.cashflow?.operating_activities?.cash_paid)">₦0</p>
+                    </div>
+                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-blue-600 font-medium">Net Cash Flow</p>
+                        <p class="text-xl font-bold text-blue-700" x-text="formatCurrency(reports.cashflow?.summary?.net_cash_flow)">₦0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tax Reports -->
+    <div x-show="activeTab === 'tax'" class="space-y-6">
+        <!-- VAT Return -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">VAT Return</h3>
+                    <p class="text-sm text-gray-500">Monthly VAT filing report</p>
+                </div>
+                <div class="flex gap-2">
+                    <select x-model="taxMonth" class="border-gray-300 rounded-md text-sm">
+                        <template x-for="m in 12">
+                            <option :value="m" x-text="new Date(2024, m-1).toLocaleString('default', {month: 'long'})"></option>
+                        </template>
+                    </select>
+                    <select x-model="taxYear" class="border-gray-300 rounded-md text-sm">
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                    <button @click="generateVATReturn()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                        Generate
+                    </button>
+                </div>
+            </div>
+            <div x-show="reports.vat" class="p-6">
+                <div class="grid grid-cols-3 gap-6 mb-6">
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <p class="text-sm text-green-600 font-medium">Output VAT (Sales)</p>
+                        <p class="text-xl font-bold text-green-700" x-text="formatCurrency(reports.vat?.output_vat?.amount)">₦0</p>
+                    </div>
+                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-blue-600 font-medium">Input VAT (Purchases)</p>
+                        <p class="text-xl font-bold text-blue-700" x-text="formatCurrency(reports.vat?.input_vat?.amount)">₦0</p>
+                    </div>
+                    <div class="text-center p-4 rounded-lg" :class="reports.vat?.is_refund ? 'bg-amber-50' : 'bg-red-50'">
+                        <p class="text-sm font-medium" :class="reports.vat?.is_refund ? 'text-amber-600' : 'text-red-600'" x-text="reports.vat?.is_refund ? 'VAT Refundable' : 'VAT Payable'"></p>
+                        <p class="text-xl font-bold" :class="reports.vat?.is_refund ? 'text-amber-700' : 'text-red-700'" x-text="formatCurrency(Math.abs(reports.vat?.net_vat_payable || 0))">₦0</p>
+                    </div>
+                </div>
+                <div class="text-sm text-gray-500">
+                    Filing deadline: <span class="font-medium" x-text="reports.vat?.filing_deadline"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- WHT Summary -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Withholding Tax Summary</h3>
+                    <p class="text-sm text-gray-500">WHT deducted on payments</p>
+                </div>
+                <button @click="generateWHT()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                    Generate Report
+                </button>
+            </div>
+            <div x-show="reports.wht" class="p-6">
+                <div class="grid grid-cols-3 gap-6">
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 font-medium">Transactions</p>
+                        <p class="text-xl font-bold text-gray-700" x-text="reports.wht?.summary?.transaction_count || 0">0</p>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 font-medium">Gross Payments</p>
+                        <p class="text-xl font-bold text-gray-700" x-text="formatCurrency(reports.wht?.summary?.total_gross_payments)">₦0</p>
+                    </div>
+                    <div class="text-center p-4 bg-purple-50 rounded-lg">
+                        <p class="text-sm text-purple-600 font-medium">Total WHT Deducted</p>
+                        <p class="text-xl font-bold text-purple-700" x-text="formatCurrency(reports.wht?.summary?.total_wht_deducted)">₦0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CIT Report -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Company Income Tax (CIT)</h3>
+                    <p class="text-sm text-gray-500">Annual CIT calculation</p>
+                </div>
+                <div class="flex gap-2">
+                    <select x-model="fiscalYear" class="border-gray-300 rounded-md text-sm">
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                    <button @click="generateCIT()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                        Generate
+                    </button>
+                </div>
+            </div>
+            <div x-show="reports.cit" class="p-6">
+                <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-600">Company Size: <span class="font-semibold" x-text="reports.cit?.cit_calculation?.company_size"></span></p>
+                    <p class="text-sm text-gray-600">CIT Rate: <span class="font-semibold" x-text="(reports.cit?.cit_calculation?.cit_rate * 100) + '%'"></span></p>
+                </div>
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-medium text-gray-900 mb-3">Financial Summary</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Gross Turnover:</span>
+                                <span class="font-medium" x-text="formatCurrency(reports.cit?.financial_summary?.gross_turnover)"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Total Expenses:</span>
+                                <span class="font-medium" x-text="formatCurrency(reports.cit?.financial_summary?.total_expenses)"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Assessable Profit:</span>
+                                <span class="font-medium" x-text="formatCurrency(reports.cit?.financial_summary?.assessable_profit)"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-900 mb-3">Tax Calculation</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">CIT Payable:</span>
+                                <span class="font-medium" x-text="formatCurrency(reports.cit?.cit_calculation?.cit_payable)"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Tertiary Education Tax:</span>
+                                <span class="font-medium" x-text="formatCurrency(reports.cit?.cit_calculation?.tertiary_education_tax)"></span>
+                            </div>
+                            <div class="flex justify-between pt-2 border-t border-gray-200">
+                                <span class="text-gray-900 font-semibold">Total Tax:</span>
+                                <span class="font-bold text-red-600" x-text="formatCurrency(reports.cit?.cit_calculation?.total_tax)"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function reportsPage() {
+    const today = new Date();
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    return {
+        entityId: '{{ entity_id }}',
+        activeTab: 'financial',
+        startDate: firstOfMonth.toISOString().split('T')[0],
+        endDate: today.toISOString().split('T')[0],
+        taxMonth: today.getMonth() + 1,
+        taxYear: today.getFullYear(),
+        fiscalYear: today.getFullYear(),
+        reports: {},
+        
+        init() {
+            // Auto-load P&L on init
+        },
+        
+        setPreset(preset) {
+            const now = new Date();
+            let start, end;
+            
+            switch(preset) {
+                case 'thisMonth':
+                    start = new Date(now.getFullYear(), now.getMonth(), 1);
+                    end = now;
+                    break;
+                case 'lastMonth':
+                    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    end = new Date(now.getFullYear(), now.getMonth(), 0);
+                    break;
+                case 'thisQuarter':
+                    const quarter = Math.floor(now.getMonth() / 3);
+                    start = new Date(now.getFullYear(), quarter * 3, 1);
+                    end = now;
+                    break;
+                case 'thisYear':
+                    start = new Date(now.getFullYear(), 0, 1);
+                    end = now;
+                    break;
+            }
+            
+            this.startDate = start.toISOString().split('T')[0];
+            this.endDate = end.toISOString().split('T')[0];
+        },
+        
+        async generatePnL() {
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/profit-loss?start_date=${this.startDate}&end_date=${this.endDate}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.pnl = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate P&L:', error);
+            }
+        },
+        
+        async generateCashFlow() {
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/cash-flow?start_date=${this.startDate}&end_date=${this.endDate}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.cashflow = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate cash flow:', error);
+            }
+        },
+        
+        async generateVATReturn() {
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/tax/vat-return?year=${this.taxYear}&month=${this.taxMonth}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.vat = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate VAT return:', error);
+            }
+        },
+        
+        async generateWHT() {
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/tax/wht-summary?start_date=${this.startDate}&end_date=${this.endDate}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.wht = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate WHT summary:', error);
+            }
+        },
+        
+        async generateCIT() {
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/tax/cit?fiscal_year=${this.fiscalYear}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.cit = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate CIT report:', error);
+            }
+        },
+        
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 2
+            }).format(amount || 0);
+        }
+    }
+}
+</script>
+{% endblock %}

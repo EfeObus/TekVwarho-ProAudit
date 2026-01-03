@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="dashboard()" x-init="loadDashboard()">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p class="text-gray-600">Welcome back! Here's your business overview.</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- This Month Income -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">This Month Income</p>
+                    <p class="text-2xl font-bold text-green-600" x-text="formatCurrency(metrics.this_month?.income || 0)">₦0.00</p>
+                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- This Month Expenses -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">This Month Expenses</p>
+                    <p class="text-2xl font-bold text-red-600" x-text="formatCurrency(metrics.this_month?.expense || 0)">₦0.00</p>
+                </div>
+                <div class="p-3 bg-red-100 rounded-full">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Net This Month -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Net This Month</p>
+                    <p class="text-2xl font-bold" 
+                       :class="(metrics.this_month?.net || 0) >= 0 ? 'text-green-600' : 'text-red-600'"
+                       x-text="formatCurrency(metrics.this_month?.net || 0)">₦0.00</p>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Outstanding Receivables -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Outstanding</p>
+                    <p class="text-2xl font-bold text-amber-600" x-text="formatCurrency(metrics.receivables?.outstanding || 0)">₦0.00</p>
+                    <p class="text-xs text-red-500" x-show="(metrics.receivables?.overdue || 0) > 0">
+                        <span x-text="formatCurrency(metrics.receivables?.overdue || 0)"></span> overdue
+                    </p>
+                </div>
+                <div class="p-3 bg-amber-100 rounded-full">
+                    <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- YTD Summary and Quick Actions -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Year to Date Summary -->
+        <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Year to Date Summary</h2>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-600">YTD Income</p>
+                    <p class="text-xl font-bold text-green-600" x-text="formatCurrency(metrics.year_to_date?.income || 0)">₦0.00</p>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-600">YTD Expenses</p>
+                    <p class="text-xl font-bold text-red-600" x-text="formatCurrency(metrics.year_to_date?.expense || 0)">₦0.00</p>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-600">YTD Net</p>
+                    <p class="text-xl font-bold" 
+                       :class="(metrics.year_to_date?.net || 0) >= 0 ? 'text-green-600' : 'text-red-600'"
+                       x-text="formatCurrency(metrics.year_to_date?.net || 0)">₦0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <div class="space-y-3">
+                <a href="/transactions/new" class="block w-full text-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                    + New Transaction
+                </a>
+                <a href="/invoices/new" class="block w-full text-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                    + Create Invoice
+                </a>
+                <a href="/receipts/upload" class="block w-full text-center bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition">
+                    📷 Scan Receipt
+                </a>
+                <a href="/tax-2026" class="block w-full text-center bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 transition">
+                    🏛️ 2026 Tax Reform
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+            <a href="/transactions" class="text-sm text-green-600 hover:text-green-700">View All →</a>
+        </div>
+        <div class="divide-y divide-gray-200">
+            <template x-for="tx in recentTransactions" :key="tx.id">
+                <div class="px-6 py-4 flex justify-between items-center hover:bg-gray-50">
+                    <div>
+                        <p class="font-medium text-gray-900" x-text="tx.description"></p>
+                        <p class="text-sm text-gray-500" x-text="formatDate(tx.transaction_date)"></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-semibold" 
+                           :class="tx.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'"
+                           x-text="(tx.transaction_type === 'income' ? '+' : '-') + formatCurrency(tx.amount)"></p>
+                        <p class="text-xs text-gray-400" x-text="tx.category_name || 'Uncategorized'"></p>
+                    </div>
+                </div>
+            </template>
+            <div x-show="recentTransactions.length === 0" class="px-6 py-8 text-center text-gray-500">
+                No transactions yet. <a href="/transactions/new" class="text-green-600 hover:underline">Add your first transaction</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function dashboard() {
+    return {
+        metrics: {},
+        recentTransactions: [],
+        entityId: '{{ entity_id }}',
+        
+        async loadDashboard() {
+            try {
+                // Load dashboard metrics
+                const metricsRes = await fetch(`/api/v1/entities/${this.entityId}/reports/dashboard`, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (metricsRes.ok) {
+                    this.metrics = await metricsRes.json();
+                }
+                
+                // Load recent transactions
+                const txRes = await fetch(`/api/v1/entities/${this.entityId}/transactions?limit=5`, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (txRes.ok) {
+                    const data = await txRes.json();
+                    this.recentTransactions = data.items || [];
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+            }
+        },
+        
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 2
+            }).format(amount);
+        },
+        
+        formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="transactionsPage()" x-init="loadTransactions()">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Transactions</h1>
+            <p class="text-gray-600">Manage your income and expenses</p>
+        </div>
+        <button 
+            @click="showModal = true; resetForm()"
+            class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition flex items-center"
+        >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            New Transaction
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select x-model="filters.type" @change="loadTransactions()" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                    <option value="">All Types</option>
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                <input type="date" x-model="filters.startDate" @change="loadTransactions()" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                <input type="date" x-model="filters.endDate" @change="loadTransactions()" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input type="text" x-model="filters.search" @input.debounce.300ms="loadTransactions()" placeholder="Description..." class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+            <p class="text-sm text-green-600 font-medium">Total Income</p>
+            <p class="text-xl font-bold text-green-700" x-text="formatCurrency(summary.income)">₦0.00</p>
+        </div>
+        <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+            <p class="text-sm text-red-600 font-medium">Total Expenses</p>
+            <p class="text-xl font-bold text-red-700" x-text="formatCurrency(summary.expense)">₦0.00</p>
+        </div>
+        <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <p class="text-sm text-blue-600 font-medium">Net</p>
+            <p class="text-xl font-bold" :class="summary.net >= 0 ? 'text-green-700' : 'text-red-700'" x-text="formatCurrency(summary.net)">₦0.00</p>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">VAT</th>
+                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                <template x-for="tx in transactions" :key="tx.id">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="formatDate(tx.transaction_date)"></td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                            <div x-text="tx.description"></div>
+                            <div class="text-xs text-gray-500" x-text="tx.vendor_name || tx.customer_name || ''"></div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="tx.category_name || 'Uncategorized'"></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium"
+                            :class="tx.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'"
+                            x-text="(tx.transaction_type === 'income' ? '+' : '-') + formatCurrency(tx.amount)">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500" x-text="formatCurrency(tx.vat_amount || 0)"></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                            <button @click="editTransaction(tx)" class="text-blue-600 hover:text-blue-800 mr-2">Edit</button>
+                            <button @click="deleteTransaction(tx.id)" class="text-red-600 hover:text-red-800">Delete</button>
+                        </td>
+                    </tr>
+                </template>
+                <tr x-show="transactions.length === 0">
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                        No transactions found. <button @click="showModal = true" class="text-green-600 hover:underline">Add your first transaction</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <!-- Pagination -->
+        <div class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+            <div class="text-sm text-gray-500">
+                Showing <span x-text="(page - 1) * pageSize + 1"></span> to <span x-text="Math.min(page * pageSize, total)"></span> of <span x-text="total"></span> results
+            </div>
+            <div class="flex space-x-2">
+                <button @click="page--; loadTransactions()" :disabled="page <= 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                <button @click="page++; loadTransactions()" :disabled="page * pageSize >= total" class="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div x-show="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900" x-text="editingId ? 'Edit Transaction' : 'New Transaction'"></h3>
+                <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <form @submit.prevent="saveTransaction()" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <div class="flex space-x-4">
+                        <label class="flex items-center">
+                            <input type="radio" x-model="form.transaction_type" value="income" class="text-green-600 focus:ring-green-500">
+                            <span class="ml-2 text-sm">Income</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" x-model="form.transaction_type" value="expense" class="text-red-600 focus:ring-red-500">
+                            <span class="ml-2 text-sm">Expense</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input type="text" x-model="form.description" required class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount (₦)</label>
+                        <input type="number" x-model="form.amount" step="0.01" min="0" required class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                        <input type="date" x-model="form.transaction_date" required class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select x-model="form.category_id" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                        <option value="">Select Category</option>
+                        <template x-for="cat in categories" :key="cat.id">
+                            <option :value="cat.id" x-text="cat.name"></option>
+                        </template>
+                    </select>
+                </div>
+                
+                <div class="flex items-center">
+                    <input type="checkbox" x-model="form.include_vat" id="include_vat" class="text-green-600 focus:ring-green-500 rounded">
+                    <label for="include_vat" class="ml-2 text-sm text-gray-700">Include VAT (7.5%)</label>
+                </div>
+                
+                <div x-show="form.include_vat" class="bg-gray-50 p-3 rounded-md">
+                    <p class="text-sm text-gray-600">VAT Amount: <span class="font-semibold" x-text="formatCurrency(form.amount * 0.075)"></span></p>
+                    <p class="text-sm text-gray-600">Total: <span class="font-semibold" x-text="formatCurrency(form.amount * 1.075)"></span></p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                    <textarea x-model="form.notes" rows="2" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" @click="showModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700" :disabled="saving">
+                        <span x-text="saving ? 'Saving...' : 'Save Transaction'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function transactionsPage() {
+    return {
+        transactions: [],
+        categories: [],
+        entityId: '{{ entity_id }}',
+        showModal: false,
+        editingId: null,
+        saving: false,
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        summary: { income: 0, expense: 0, net: 0 },
+        filters: {
+            type: '',
+            startDate: '',
+            endDate: '',
+            search: '',
+        },
+        form: {
+            transaction_type: 'expense',
+            description: '',
+            amount: '',
+            transaction_date: new Date().toISOString().split('T')[0],
+            category_id: '',
+            include_vat: true,
+            notes: '',
+        },
+        
+        async loadTransactions() {
+            const params = new URLSearchParams({
+                skip: (this.page - 1) * this.pageSize,
+                limit: this.pageSize,
+            });
+            
+            if (this.filters.type) params.append('transaction_type', this.filters.type);
+            if (this.filters.startDate) params.append('start_date', this.filters.startDate);
+            if (this.filters.endDate) params.append('end_date', this.filters.endDate);
+            
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/transactions?${params}`, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.transactions = data.items || [];
+                    this.total = data.total || 0;
+                    
+                    // Calculate summary
+                    this.summary.income = this.transactions
+                        .filter(t => t.transaction_type === 'income')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                    this.summary.expense = this.transactions
+                        .filter(t => t.transaction_type === 'expense')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                    this.summary.net = this.summary.income - this.summary.expense;
+                }
+                
+                // Load categories
+                const catRes = await fetch(`/api/v1/entities/${this.entityId}/categories`, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (catRes.ok) {
+                    this.categories = await catRes.json();
+                }
+            } catch (error) {
+                console.error('Failed to load transactions:', error);
+            }
+        },
+        
+        resetForm() {
+            this.editingId = null;
+            this.form = {
+                transaction_type: 'expense',
+                description: '',
+                amount: '',
+                transaction_date: new Date().toISOString().split('T')[0],
+                category_id: '',
+                include_vat: true,
+                notes: '',
+            };
+        },
+        
+        editTransaction(tx) {
+            this.editingId = tx.id;
+            this.form = {
+                transaction_type: tx.transaction_type,
+                description: tx.description,
+                amount: tx.amount,
+                transaction_date: tx.transaction_date,
+                category_id: tx.category_id || '',
+                include_vat: tx.vat_amount > 0,
+                notes: tx.notes || '',
+            };
+            this.showModal = true;
+        },
+        
+        async saveTransaction() {
+            this.saving = true;
+            const url = this.editingId 
+                ? `/api/v1/entities/${this.entityId}/transactions/${this.editingId}`
+                : `/api/v1/entities/${this.entityId}/transactions`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: this.editingId ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                    },
+                    body: JSON.stringify(this.form),
+                });
+                
+                if (response.ok) {
+                    this.showModal = false;
+                    this.loadTransactions();
+                }
+            } catch (error) {
+                console.error('Failed to save transaction:', error);
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async deleteTransaction(id) {
+            if (!confirm('Are you sure you want to delete this transaction?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/transactions/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                });
+                
+                if (response.ok) {
+                    this.loadTransactions();
+                }
+            } catch (error) {
+                console.error('Failed to delete transaction:', error);
+            }
+        },
+        
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 2
+            }).format(amount || 0);
+        },
+        
+        formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

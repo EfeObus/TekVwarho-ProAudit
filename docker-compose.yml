@@ -1,0 +1,186 @@
+# =============================================
+# TekVwarho ProAudit - Docker Compose
+# Local development and production deployment
+# =============================================
+
+version: "3.9"
+
+services:
+  # =============================================
+  # WEB APPLICATION
+  # =============================================
+  web:
+    build:
+      context: .
+      target: development
+    container_name: tekvwarho-web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://tekvwarho:tekvwarho_secret@db:5432/tekvwarho_proaudit
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-supersecretkey_change_in_production}
+      - ENVIRONMENT=development
+      - DEBUG=true
+      # NRS Integration (Sandbox)
+      - NRS_API_BASE_URL=https://api-dev.i-fis.com
+      - NRS_API_KEY=${NRS_API_KEY:-}
+      - NRS_BUSINESS_ID=${NRS_BUSINESS_ID:-}
+      # Azure Services
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING:-}
+      - AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:-}
+      - AZURE_DOCUMENT_INTELLIGENCE_KEY=${AZURE_DOCUMENT_INTELLIGENCE_KEY:-}
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - tekvwarho-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # =============================================
+  # POSTGRESQL DATABASE
+  # =============================================
+  db:
+    image: postgres:15-alpine
+    container_name: tekvwarho-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tekvwarho
+      POSTGRES_PASSWORD: tekvwarho_secret
+      POSTGRES_DB: tekvwarho_proaudit
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - tekvwarho-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tekvwarho -d tekvwarho_proaudit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================
+  # REDIS CACHE
+  # =============================================
+  redis:
+    image: redis:7-alpine
+    container_name: tekvwarho-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - tekvwarho-network
+    command: redis-server --appendonly yes
+
+  # =============================================
+  # CELERY WORKER (Background Tasks)
+  # =============================================
+  celery-worker:
+    build:
+      context: .
+      target: production
+    container_name: tekvwarho-celery-worker
+    restart: unless-stopped
+    command: celery -A app.tasks worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://tekvwarho:tekvwarho_secret@db:5432/tekvwarho_proaudit
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-supersecretkey_change_in_production}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - tekvwarho-network
+    profiles:
+      - production
+
+  # =============================================
+  # CELERY BEAT (Scheduled Tasks)
+  # =============================================
+  celery-beat:
+    build:
+      context: .
+      target: production
+    container_name: tekvwarho-celery-beat
+    restart: unless-stopped
+    command: celery -A app.tasks beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://tekvwarho:tekvwarho_secret@db:5432/tekvwarho_proaudit
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-supersecretkey_change_in_production}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - tekvwarho-network
+    profiles:
+      - production
+
+  # =============================================
+  # PGADMIN (Database Management)
+  # =============================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tekvwarho-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@tekvwarho.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - tekvwarho-network
+    depends_on:
+      - db
+    profiles:
+      - dev-tools
+
+  # =============================================
+  # MAILHOG (Email Testing)
+  # =============================================
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: tekvwarho-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - tekvwarho-network
+    profiles:
+      - dev-tools
+
+# =============================================
+# NETWORKS
+# =============================================
+networks:
+  tekvwarho-network:
+    driver: bridge
+
+# =============================================
+# VOLUMES
+# =============================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local

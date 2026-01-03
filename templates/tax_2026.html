@@ -1,0 +1,849 @@
+{% extends "base.html" %}
+
+{% block title %}2026 Tax Reform - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="tax2026Dashboard()" x-init="init()">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">🏛️ 2026 Tax Reform Hub</h1>
+                <p class="text-gray-600">Nigeria Tax Administration Act 2026 Compliance Dashboard</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center space-x-3">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    <span class="w-2 h-2 mr-2 bg-green-500 rounded-full animate-pulse"></span>
+                    NRS Connected
+                </span>
+                <button @click="refreshAll()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tax Regime Indicator -->
+    <div class="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 mb-8 text-white">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h2 class="text-xl font-bold mb-1">Your Tax Regime</h2>
+                <p class="text-green-100 text-sm">Based on your business structure and turnover</p>
+            </div>
+            <div class="mt-4 md:mt-0 text-right">
+                <p class="text-3xl font-bold" x-text="businessType.tax_regime || 'PIT'">PIT</p>
+                <p class="text-green-100 text-sm" x-text="businessType.entity_name || 'Select Entity'"></p>
+            </div>
+        </div>
+        <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white/10 rounded-lg p-3">
+                <p class="text-green-100 text-xs">Business Type</p>
+                <p class="font-semibold" x-text="formatBusinessType(businessType.business_type)">-</p>
+            </div>
+            <div class="bg-white/10 rounded-lg p-3">
+                <p class="text-green-100 text-xs">Annual Turnover</p>
+                <p class="font-semibold" x-text="formatCurrency(businessType.annual_turnover || 0)">₦0</p>
+            </div>
+            <div class="bg-white/10 rounded-lg p-3">
+                <p class="text-green-100 text-xs">Fixed Assets</p>
+                <p class="font-semibold" x-text="formatCurrency(businessType.fixed_assets_value || 0)">₦0</p>
+            </div>
+            <div class="bg-white/10 rounded-lg p-3">
+                <p class="text-green-100 text-xs">Dev. Levy Status</p>
+                <p class="font-semibold" x-text="businessType.is_development_levy_exempt ? '✅ Exempt' : '📋 Liable'">-</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
+        <div class="border-b border-gray-200">
+            <nav class="flex -mb-px overflow-x-auto" aria-label="Tabs">
+                <button @click="activeTab = 'buyer-review'" 
+                        :class="activeTab === 'buyer-review' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>🕐</span>
+                    <span>72-Hour Buyer Review</span>
+                    <span x-show="pendingReviews.length > 0" class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" x-text="pendingReviews.length"></span>
+                </button>
+                <button @click="activeTab = 'vat-recovery'" 
+                        :class="activeTab === 'vat-recovery' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>📊</span>
+                    <span>VAT Recovery</span>
+                </button>
+                <button @click="activeTab = 'development-levy'" 
+                        :class="activeTab === 'development-levy' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>💰</span>
+                    <span>Development Levy (4%)</span>
+                </button>
+                <button @click="activeTab = 'pit-relief'" 
+                        :class="activeTab === 'pit-relief' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>📄</span>
+                    <span>PIT Reliefs</span>
+                </button>
+                <button @click="activeTab = 'credit-notes'" 
+                        :class="activeTab === 'credit-notes' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>📝</span>
+                    <span>Credit Notes</span>
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div>
+        <!-- 72-Hour Buyer Review Tab -->
+        <div x-show="activeTab === 'buyer-review'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <!-- Summary Cards -->
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Pending Review</h3>
+                        <span class="p-2 bg-yellow-100 rounded-lg">⏳</span>
+                    </div>
+                    <p class="text-3xl font-bold text-yellow-600" x-text="pendingReviews.length">0</p>
+                    <p class="text-sm text-gray-500 mt-1">Awaiting buyer confirmation</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Overdue</h3>
+                        <span class="p-2 bg-red-100 rounded-lg">⚠️</span>
+                    </div>
+                    <p class="text-3xl font-bold text-red-600" x-text="overdueReviews.length">0</p>
+                    <p class="text-sm text-gray-500 mt-1">72-hour window expired</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Auto-Confirmed</h3>
+                        <span class="p-2 bg-green-100 rounded-lg">✅</span>
+                    </div>
+                    <p class="text-3xl font-bold text-green-600" x-text="overdueReviews.length">0</p>
+                    <p class="text-sm text-gray-500 mt-1">Deemed accepted by law</p>
+                </div>
+            </div>
+
+            <!-- Info Banner -->
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-blue-800">2026 Tax Reform: 72-Hour Buyer Review</h3>
+                        <div class="mt-2 text-sm text-blue-700">
+                            <p>Under the 2026 Tax Administration Act, buyers have <strong>72 hours</strong> to review and dispute e-invoices. If no response is received within this window, the invoice is <strong>deemed accepted</strong>. Disputed invoices require automatic Credit Note generation.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Poll NRS Button -->
+            <div class="flex justify-end mb-4">
+                <button @click="pollNRS()" 
+                        :disabled="polling"
+                        class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2">
+                    <span x-show="!polling">🔄 Poll NRS for Responses</span>
+                    <span x-show="polling" class="flex items-center">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Polling...
+                    </span>
+                </button>
+            </div>
+
+            <!-- Pending Reviews Table -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Invoices Pending Buyer Review</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time Left</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="review in pendingReviews" :key="review.invoice_id">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-gray-900" x-text="review.invoice_number"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                              :class="getStatusClass(review.buyer_status)"
+                                              x-text="formatStatus(review.buyer_status)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDateTime(review.dispute_deadline)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-medium" 
+                                              :class="getTimeLeftClass(review.dispute_deadline)"
+                                              x-text="getTimeLeft(review.dispute_deadline)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button @click="viewInvoice(review.invoice_id)" class="text-green-600 hover:text-green-900 mr-3">View</button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="pendingReviews.length === 0">
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                    No invoices pending buyer review 🎉
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- VAT Recovery Tab -->
+        <div x-show="activeTab === 'vat-recovery'" x-transition>
+            <!-- VAT Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Total Recoverable VAT</h3>
+                    <p class="text-2xl font-bold text-green-600" x-text="formatCurrency(vatSummary.total_recoverable || 0)">₦0</p>
+                    <p class="text-xs text-gray-400 mt-1">With valid vendor IRN</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Non-Recoverable VAT</h3>
+                    <p class="text-2xl font-bold text-red-600" x-text="formatCurrency(vatSummary.total_non_recoverable || 0)">₦0</p>
+                    <p class="text-xs text-gray-400 mt-1">Missing or invalid IRN</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Total Input VAT</h3>
+                    <p class="text-2xl font-bold text-blue-600" x-text="formatCurrency(vatSummary.total_input_vat || 0)">₦0</p>
+                    <p class="text-xs text-gray-400 mt-1">This period</p>
+                </div>
+            </div>
+
+            <!-- Info Banner -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-amber-800">2026 Tax Reform: Expanded VAT Recovery</h3>
+                        <div class="mt-2 text-sm text-amber-700">
+                            <p>The 2026 Act now allows recovery of VAT on <strong>services</strong> and <strong>capital assets</strong> (previously restricted to stock-in-trade). However, recovery is <strong>ONLY permitted</strong> when the vendor provides a valid NRS Invoice Reference Number (IRN).</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VAT Recovery by Type Chart -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">VAT Recovery by Type</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-gray-600">Stock-in-Trade</span>
+                            <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Standard</span>
+                        </div>
+                        <p class="text-xl font-bold text-gray-900" x-text="formatCurrency(vatSummary.by_type?.stock_in_trade || 0)">₦0</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-gray-600">Services</span>
+                            <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">NEW 2026</span>
+                        </div>
+                        <p class="text-xl font-bold text-gray-900" x-text="formatCurrency(vatSummary.by_type?.services || 0)">₦0</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-gray-600">Capital Expenditure</span>
+                            <span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">NEW 2026</span>
+                        </div>
+                        <p class="text-xl font-bold text-gray-900" x-text="formatCurrency(vatSummary.by_type?.capital_expenditure || 0)">₦0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Record New VAT Recovery -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Record VAT Recovery</h3>
+                <form @submit.prevent="recordVATRecovery()" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Recovery Type</label>
+                        <select x-model="vatForm.recovery_type" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="stock_in_trade">Stock-in-Trade</option>
+                            <option value="services">Services (2026)</option>
+                            <option value="capital_expenditure">Capital Expenditure (2026)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">VAT Amount (₦)</label>
+                        <input type="number" step="0.01" x-model="vatForm.vat_amount" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="0.00" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Vendor IRN <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="vatForm.vendor_irn" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="NRS Invoice Reference Number" required>
+                        <p class="text-xs text-gray-500 mt-1">Required for VAT recovery under 2026 law</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Date</label>
+                        <input type="date" x-model="vatForm.transaction_date" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
+                        <input type="text" x-model="vatForm.vendor_name" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Vendor name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Vendor TIN</label>
+                        <input type="text" x-model="vatForm.vendor_tin" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Tax Identification Number">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea x-model="vatForm.description" rows="2" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Description of the purchase/service"></textarea>
+                    </div>
+                    <div class="md:col-span-2 flex justify-end">
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                            Record VAT Recovery
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Development Levy Tab -->
+        <div x-show="activeTab === 'development-levy'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-purple-800">2026 Tax Reform: Development Levy (4%)</h3>
+                        <div class="mt-2 text-sm text-purple-700">
+                            <p>The 2026 Act consolidates multiple levies (Tertiary Education Tax, Police Fund, etc.) into a single <strong>4% Development Levy</strong> on assessable profit.</p>
+                            <p class="mt-1"><strong>Exemption:</strong> Businesses with annual turnover ≤ ₦100M AND fixed assets ≤ ₦250M are exempt.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Levy Calculator -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Calculate Development Levy</h3>
+                <form @submit.prevent="calculateLevy()" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fiscal Year</label>
+                            <select x-model="levyForm.fiscal_year" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="2026">2026</option>
+                                <option value="2025">2025</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Assessable Profit (₦)</label>
+                            <input type="number" step="0.01" x-model="levyForm.assessable_profit" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Enter assessable profit" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Annual Turnover (₦) <span class="text-gray-400">(for exemption check)</span></label>
+                            <input type="number" step="0.01" x-model="levyForm.turnover" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Optional">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fixed Assets Value (₦) <span class="text-gray-400">(for exemption check)</span></label>
+                            <input type="number" step="0.01" x-model="levyForm.fixed_assets" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Optional">
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                            Calculate Levy
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Calculation Result -->
+            <div x-show="levyResult" class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Calculation Result</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Fiscal Year</span>
+                            <span class="font-semibold" x-text="levyResult?.fiscal_year || '-'"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Assessable Profit</span>
+                            <span class="font-semibold" x-text="formatCurrency(levyResult?.assessable_profit || 0)"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Levy Rate</span>
+                            <span class="font-semibold text-purple-600" x-text="levyResult?.levy_rate_percentage || '4%'"></span>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-6 text-center">
+                        <p class="text-sm text-gray-500 mb-2">Development Levy Payable</p>
+                        <p class="text-3xl font-bold" :class="levyResult?.is_exempt ? 'text-green-600' : 'text-purple-600'" x-text="levyResult?.is_exempt ? 'EXEMPT' : formatCurrency(levyResult?.levy_amount || 0)">₦0</p>
+                        <p x-show="levyResult?.is_exempt" class="text-sm text-green-600 mt-2" x-text="levyResult?.exemption_reason"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PIT Relief Tab -->
+        <div x-show="activeTab === 'pit-relief'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-teal-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-teal-800">2026 Tax Reform: PIT Reliefs (CRA Abolished)</h3>
+                        <div class="mt-2 text-sm text-teal-700">
+                            <p>The 2026 Act <strong>abolishes the Consolidated Relief Allowance (CRA)</strong> and replaces it with specific, document-based reliefs:</p>
+                            <ul class="list-disc list-inside mt-1">
+                                <li><strong>Rent Relief:</strong> 20% of actual rent paid (max ₦500,000)</li>
+                                <li><strong>Life Insurance:</strong> Actual premium paid</li>
+                                <li><strong>Pension, NHF, NHIS:</strong> Actual contributions</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Relief Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <template x-for="relief in pitReliefs" :key="relief.id">
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-gray-600" x-text="formatReliefType(relief.relief_type)"></span>
+                            <span class="text-xs px-2 py-1 rounded-full"
+                                  :class="relief.status === 'approved' ? 'bg-green-100 text-green-700' : relief.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'"
+                                  x-text="relief.status"></span>
+                        </div>
+                        <p class="text-lg font-bold text-gray-900" x-text="formatCurrency(relief.claimed_amount)">₦0</p>
+                        <p class="text-xs text-gray-400" x-text="'FY ' + relief.fiscal_year"></p>
+                    </div>
+                </template>
+                <div x-show="pitReliefs.length === 0" class="md:col-span-4 bg-gray-50 rounded-xl p-8 text-center text-gray-500">
+                    No relief documents yet. Add your first relief claim below.
+                </div>
+            </div>
+
+            <!-- Add Relief Form -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Claim PIT Relief</h3>
+                <form @submit.prevent="claimRelief()" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Relief Type</label>
+                        <select x-model="reliefForm.relief_type" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="rent">Rent Relief (20%, max ₦500k)</option>
+                            <option value="life_insurance">Life Insurance Premium</option>
+                            <option value="pension">Pension Contribution</option>
+                            <option value="nhf">National Housing Fund (NHF)</option>
+                            <option value="nhis">National Health Insurance (NHIS)</option>
+                            <option value="gratuity">Gratuity Contribution</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fiscal Year</label>
+                        <select x-model="reliefForm.fiscal_year" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="2026">2026</option>
+                            <option value="2025">2025</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Claimed Amount (₦)</label>
+                        <input type="number" step="0.01" x-model="reliefForm.claimed_amount" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Amount to claim" required>
+                    </div>
+                    <div x-show="reliefForm.relief_type === 'rent'">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Annual Rent Paid (₦)</label>
+                        <input type="number" step="0.01" x-model="reliefForm.annual_rent" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Total annual rent">
+                        <p class="text-xs text-gray-500 mt-1">Relief = 20% of rent, max ₦500,000</p>
+                    </div>
+                    <div class="md:col-span-2 flex justify-end">
+                        <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                            Submit Relief Claim
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Credit Notes Tab -->
+        <div x-show="activeTab === 'credit-notes'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-orange-800">2026 Tax Reform: Credit Notes</h3>
+                        <div class="mt-2 text-sm text-orange-700">
+                            <p>When a buyer disputes an invoice within the 72-hour window, the system automatically generates a <strong>Credit Note</strong>. Credit Notes must be submitted to NRS within <strong>30 days</strong> of the original invoice date.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Credit Notes Table -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Credit Notes</h3>
+                    <div class="flex space-x-2">
+                        <select x-model="creditNoteFilter" class="text-sm rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="">All Status</option>
+                            <option value="draft">Draft</option>
+                            <option value="submitted">Submitted</option>
+                            <option value="accepted">Accepted</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Credit Note #</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Original Invoice</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="note in filteredCreditNotes" :key="note.id">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-gray-900" x-text="note.credit_note_number"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="note.original_invoice_id ? '...' + String(note.original_invoice_id).slice(-8) : '-'"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(note.issue_date)"></td>
+                                    <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" x-text="note.reason"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <span class="text-sm font-semibold text-red-600" x-text="formatCurrency(note.total_amount)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                              :class="note.status === 'accepted' ? 'bg-green-100 text-green-800' : note.status === 'submitted' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'"
+                                              x-text="note.status"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button x-show="note.status === 'draft'" @click="submitCreditNote(note.id)" class="text-green-600 hover:text-green-900">Submit to NRS</button>
+                                        <span x-show="note.status !== 'draft'" class="text-gray-400" x-text="note.nrs_irn ? 'IRN: ' + note.nrs_irn.slice(0,12) + '...' : ''"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="creditNotes.length === 0">
+                                <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                                    No credit notes found
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div x-show="toast.show" x-transition
+         class="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50"
+         :class="toast.type === 'success' ? 'bg-green-500 text-white' : toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'">
+        <div class="flex items-center space-x-2">
+            <span x-text="toast.message"></span>
+            <button @click="toast.show = false" class="ml-2 text-white/80 hover:text-white">×</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function tax2026Dashboard() {
+    const today = new Date().toISOString().split('T')[0];
+    
+    return {
+        entityId: '{{ entity_id }}',
+        activeTab: 'buyer-review',
+        polling: false,
+        
+        // Data
+        businessType: {},
+        pendingReviews: [],
+        overdueReviews: [],
+        vatSummary: { total_recoverable: 0, total_non_recoverable: 0, total_input_vat: 0, by_type: {} },
+        pitReliefs: [],
+        creditNotes: [],
+        levyResult: null,
+        creditNoteFilter: '',
+        
+        // Forms
+        vatForm: {
+            recovery_type: 'stock_in_trade',
+            vat_amount: '',
+            vendor_irn: '',
+            transaction_date: today,
+            vendor_name: '',
+            vendor_tin: '',
+            description: ''
+        },
+        levyForm: {
+            fiscal_year: 2026,
+            assessable_profit: '',
+            turnover: '',
+            fixed_assets: ''
+        },
+        reliefForm: {
+            relief_type: 'rent',
+            fiscal_year: 2026,
+            claimed_amount: '',
+            annual_rent: ''
+        },
+        
+        // Toast
+        toast: { show: false, message: '', type: 'success' },
+        
+        async init() {
+            await this.loadBusinessType();
+            await this.loadBuyerReviews();
+            await this.loadVATSummary();
+            await this.loadPITReliefs();
+            await this.loadCreditNotes();
+        },
+        
+        async refreshAll() {
+            await this.init();
+            this.showToast('Data refreshed', 'success');
+        },
+        
+        getAuthHeaders() {
+            return {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'Content-Type': 'application/json'
+            };
+        },
+        
+        async loadBusinessType() {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/business-type`, {
+                    headers: this.getAuthHeaders()
+                });
+                if (res.ok) this.businessType = await res.json();
+            } catch (e) {
+                console.error('Failed to load business type:', e);
+            }
+        },
+        
+        async loadBuyerReviews() {
+            try {
+                const [pendingRes, overdueRes] = await Promise.all([
+                    fetch(`/api/v1/tax-2026/${this.entityId}/buyer-review/pending`, { headers: this.getAuthHeaders() }),
+                    fetch(`/api/v1/tax-2026/${this.entityId}/buyer-review/overdue`, { headers: this.getAuthHeaders() })
+                ]);
+                if (pendingRes.ok) this.pendingReviews = await pendingRes.json();
+                if (overdueRes.ok) this.overdueReviews = await overdueRes.json();
+            } catch (e) {
+                console.error('Failed to load buyer reviews:', e);
+            }
+        },
+        
+        async loadVATSummary() {
+            try {
+                const now = new Date();
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/vat-recovery/summary/${now.getFullYear()}/${now.getMonth() + 1}`, {
+                    headers: this.getAuthHeaders()
+                });
+                if (res.ok) this.vatSummary = await res.json();
+            } catch (e) {
+                console.error('Failed to load VAT summary:', e);
+            }
+        },
+        
+        async loadPITReliefs() {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/pit-reliefs/my-reliefs`, { headers: this.getAuthHeaders() });
+                if (res.ok) this.pitReliefs = await res.json();
+            } catch (e) {
+                console.error('Failed to load PIT reliefs:', e);
+            }
+        },
+        
+        async loadCreditNotes() {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/credit-notes`, { headers: this.getAuthHeaders() });
+                if (res.ok) this.creditNotes = await res.json();
+            } catch (e) {
+                console.error('Failed to load credit notes:', e);
+            }
+        },
+        
+        async pollNRS() {
+            this.polling = true;
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/buyer-review/poll-nrs`, {
+                    method: 'POST',
+                    headers: this.getAuthHeaders()
+                });
+                const data = await res.json();
+                await this.loadBuyerReviews();
+                this.showToast(`Processed ${data.processed} responses`, 'success');
+            } catch (e) {
+                this.showToast('Failed to poll NRS', 'error');
+            }
+            this.polling = false;
+        },
+        
+        async recordVATRecovery() {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/vat-recovery`, {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify(this.vatForm)
+                });
+                if (res.ok) {
+                    await this.loadVATSummary();
+                    this.showToast('VAT recovery recorded', 'success');
+                    this.vatForm = { recovery_type: 'stock_in_trade', vat_amount: '', vendor_irn: '', transaction_date: today, vendor_name: '', vendor_tin: '', description: '' };
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to record', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to record VAT recovery', 'error');
+            }
+        },
+        
+        async calculateLevy() {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/development-levy/calculate`, {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify(this.levyForm)
+                });
+                if (res.ok) {
+                    this.levyResult = await res.json();
+                    this.showToast('Levy calculated', 'success');
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Calculation failed', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to calculate levy', 'error');
+            }
+        },
+        
+        async claimRelief() {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/pit-reliefs`, {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify(this.reliefForm)
+                });
+                if (res.ok) {
+                    await this.loadPITReliefs();
+                    this.showToast('Relief claim submitted', 'success');
+                    this.reliefForm = { relief_type: 'rent', fiscal_year: 2026, claimed_amount: '', annual_rent: '' };
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to claim relief', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to claim relief', 'error');
+            }
+        },
+        
+        async submitCreditNote(creditNoteId) {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/credit-notes/${creditNoteId}/submit-nrs`, {
+                    method: 'POST',
+                    headers: this.getAuthHeaders()
+                });
+                if (res.ok) {
+                    await this.loadCreditNotes();
+                    this.showToast('Credit note submitted to NRS', 'success');
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Submission failed', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to submit credit note', 'error');
+            }
+        },
+        
+        viewInvoice(invoiceId) {
+            window.location.href = `/invoices?id=${invoiceId}`;
+        },
+        
+        get filteredCreditNotes() {
+            if (!this.creditNoteFilter) return this.creditNotes;
+            return this.creditNotes.filter(n => n.status === this.creditNoteFilter);
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => this.toast.show = false, 3000);
+        },
+        
+        // Formatters
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(amount);
+        },
+        formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+        formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleString('en-NG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        },
+        formatStatus(status) {
+            const map = { pending: 'Pending', accepted: 'Accepted', disputed: 'Disputed', auto_accepted: 'Auto-Accepted' };
+            return map[status] || status;
+        },
+        formatBusinessType(type) {
+            const map = { sole_proprietor: 'Sole Proprietor', partnership: 'Partnership', llc: 'LLC', plc: 'PLC', non_profit: 'Non-Profit' };
+            return map[type] || type || '-';
+        },
+        formatReliefType(type) {
+            const map = { rent: 'Rent', life_insurance: 'Life Insurance', pension: 'Pension', nhf: 'NHF', nhis: 'NHIS', gratuity: 'Gratuity' };
+            return map[type] || type;
+        },
+        getStatusClass(status) {
+            const map = { pending: 'bg-yellow-100 text-yellow-800', accepted: 'bg-green-100 text-green-800', disputed: 'bg-red-100 text-red-800', auto_accepted: 'bg-blue-100 text-blue-800' };
+            return map[status] || 'bg-gray-100 text-gray-800';
+        },
+        getTimeLeft(deadline) {
+            if (!deadline) return '-';
+            const diff = new Date(deadline) - new Date();
+            if (diff < 0) return 'Expired';
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            return `${hours}h ${mins}m`;
+        },
+        getTimeLeftClass(deadline) {
+            if (!deadline) return 'text-gray-500';
+            const diff = new Date(deadline) - new Date();
+            if (diff < 0) return 'text-red-600';
+            if (diff < 12 * 60 * 60 * 1000) return 'text-red-600'; // < 12 hours
+            if (diff < 24 * 60 * 60 * 1000) return 'text-amber-600'; // < 24 hours
+            return 'text-green-600';
+        }
+    }
+}
+</script>
+{% endblock %}

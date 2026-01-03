@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Register - TekVwarho ProAudit{% endblock %}
+
+{% block nav %}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 -mt-12">
+    <div class="max-w-md w-full space-y-8">
+        <div class="text-center">
+            <div class="flex justify-center mb-4">
+                <img src="/static/images/logo.jpg" alt="TekVwarho ProAudit" class="h-20 w-20 rounded-xl shadow-lg">
+            </div>
+            <h1 class="text-3xl font-bold">
+                <span class="text-green-600">TekVwarho</span>
+                <span class="text-gray-700">ProAudit</span>
+            </h1>
+            <h2 class="mt-6 text-2xl font-bold text-gray-900">Create your account</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Already have an account? <a href="/login" class="font-medium text-green-600 hover:text-green-500">Sign in</a>
+            </p>
+        </div>
+        
+        <form x-data="registerForm()" @submit.prevent="submit()" class="mt-8 space-y-6">
+            <div x-show="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm" x-text="error"></div>
+            <div x-show="success" class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm" x-text="success"></div>
+            
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
+                        <input 
+                            id="first_name" 
+                            name="first_name" 
+                            type="text" 
+                            required 
+                            x-model="firstName"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+                        >
+                    </div>
+                    <div>
+                        <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
+                        <input 
+                            id="last_name" 
+                            name="last_name" 
+                            type="text" 
+                            required 
+                            x-model="lastName"
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+                        >
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email address</label>
+                    <input 
+                        id="email" 
+                        name="email" 
+                        type="email" 
+                        autocomplete="email" 
+                        required 
+                        x-model="email"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+                        placeholder="you@example.com"
+                    >
+                </div>
+                
+                <div>
+                    <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
+                    <input 
+                        id="phone" 
+                        name="phone" 
+                        type="tel" 
+                        x-model="phone"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+                        placeholder="+234 800 000 0000"
+                    >
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input 
+                        id="password" 
+                        name="password" 
+                        type="password" 
+                        autocomplete="new-password" 
+                        required 
+                        x-model="password"
+                        minlength="8"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+                        placeholder="At least 8 characters"
+                    >
+                </div>
+                
+                <div>
+                    <label for="confirm_password" class="block text-sm font-medium text-gray-700">Confirm Password</label>
+                    <input 
+                        id="confirm_password" 
+                        name="confirm_password" 
+                        type="password" 
+                        required 
+                        x-model="confirmPassword"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500"
+                        placeholder="Confirm your password"
+                    >
+                </div>
+            </div>
+
+            <div class="flex items-center">
+                <input id="terms" name="terms" type="checkbox" required class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded">
+                <label for="terms" class="ml-2 block text-sm text-gray-900">
+                    I agree to the <a href="/terms" class="text-green-600 hover:underline">Terms of Service</a> and <a href="/privacy" class="text-green-600 hover:underline">Privacy Policy</a>
+                </label>
+            </div>
+
+            <div>
+                <button 
+                    type="submit" 
+                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="loading"
+                >
+                    <span x-show="!loading">Create Account</span>
+                    <span x-show="loading">Creating...</span>
+                </button>
+            </div>
+        </form>
+        
+        <div class="text-center text-xs text-gray-500 mt-8">
+            <p>Nigeria Revenue Service (NRS) 2026 Compliant</p>
+            <p class="mt-1">Your data is encrypted and secure</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function registerForm() {
+    return {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        password: '',
+        confirmPassword: '',
+        loading: false,
+        error: null,
+        success: null,
+        
+        async submit() {
+            this.loading = true;
+            this.error = null;
+            this.success = null;
+            
+            if (this.password !== this.confirmPassword) {
+                this.error = 'Passwords do not match';
+                this.loading = false;
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/v1/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: this.email,
+                        password: this.password,
+                        first_name: this.firstName,
+                        last_name: this.lastName,
+                        phone_number: this.phone,
+                    }),
+                });
+                
+                if (response.ok) {
+                    this.success = 'Account created successfully! Redirecting to login...';
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 2000);
+                } else {
+                    const errorData = await response.json();
+                    this.error = errorData.detail || 'Registration failed. Please try again.';
+                }
+            } catch (err) {
+                this.error = 'An error occurred. Please try again.';
+            } finally {
+                this.loading = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}
+
+{% block footer %}{% endblock %}

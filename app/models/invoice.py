@@ -1,0 +1,280 @@
+"""
+TekVwarho ProAudit - Invoice Model
+
+Invoice model for sales invoices with NRS e-invoicing support.
+"""
+
+import uuid
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
+from typing import TYPE_CHECKING, List, Optional
+
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import BaseModel, AuditMixin
+
+if TYPE_CHECKING:
+    from app.models.entity import BusinessEntity
+    from app.models.customer import Customer
+
+
+class InvoiceStatus(str, Enum):
+    """Invoice status workflow."""
+    DRAFT = "draft"           # Not yet finalized
+    PENDING = "pending"       # Awaiting NRS submission
+    SUBMITTED = "submitted"   # Submitted to NRS
+    ACCEPTED = "accepted"     # Accepted by NRS
+    REJECTED = "rejected"     # Rejected by NRS or buyer
+    DISPUTED = "disputed"     # Under dispute (72-hour window)
+    CANCELLED = "cancelled"   # Cancelled
+    PAID = "paid"             # Payment received
+    PARTIALLY_PAID = "partially_paid"
+
+class BuyerStatus(str, Enum):
+    """Buyer confirmation status (72-hour window)."""
+    PENDING = "pending"       # Awaiting buyer response
+    ACCEPTED = "accepted"     # Buyer accepted the invoice
+    REJECTED = "rejected"     # Buyer rejected the invoice
+
+class VATTreatment(str, Enum):
+    """VAT treatment for invoice."""
+    STANDARD = "standard"      # 7.5% VAT
+    ZERO_RATED = "zero_rated"  # 0% VAT
+    EXEMPT = "exempt"          # VAT exempt
+
+
+class Invoice(BaseModel, AuditMixin):
+    """
+    Invoice model for sales invoices.
+    
+    Supports NRS e-invoicing with IRN generation and QR codes.
+    """
+    
+    __tablename__ = "invoices"
+    
+    # Entity
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("business_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    
+    # Invoice Number
+    invoice_number: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True,
+    )
+    
+    # Customer
+    customer_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("customers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    
+    # Dates
+    invoice_date: Mapped[date] = mapped_column(Date, nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    
+    # Amounts
+    subtotal: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    vat_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    discount_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    amount_paid: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    
+    # VAT
+    vat_treatment: Mapped[VATTreatment] = mapped_column(
+        SQLEnum(VATTreatment),
+        default=VATTreatment.STANDARD,
+        nullable=False,
+    )
+    vat_rate: Mapped[Decimal] = mapped_column(
+        Numeric(precision=5, scale=2),
+        default=Decimal("7.50"),
+        nullable=False,
+    )
+    
+    # Status
+    status: Mapped[InvoiceStatus] = mapped_column(
+        SQLEnum(InvoiceStatus),
+        default=InvoiceStatus.DRAFT,
+        nullable=False,
+        index=True,
+    )
+    
+    # NRS E-Invoicing
+    nrs_irn: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        unique=True,
+        comment="NRS Invoice Reference Number",
+    )
+    nrs_qr_code_data: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="QR code data from NRS",
+    )
+    nrs_submitted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    nrs_response: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Raw NRS API response",
+    )
+    
+    # Dispute Tracking (72-hour window)
+    dispute_deadline: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Deadline for buyer dispute",
+    )
+    is_disputed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    dispute_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Buyer Review (72-hour NRS mandate)
+    buyer_status: Mapped[Optional[BuyerStatus]] = mapped_column(
+        SQLEnum(BuyerStatus),
+        default=BuyerStatus.PENDING,
+        nullable=True,
+        comment="Buyer confirmation status (72-hour window)",
+    )
+    buyer_response_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When buyer responded",
+    )
+    
+    # Credit Note Tracking
+    credit_note_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Reference to credit note if rejected",
+    )
+    is_credit_note: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    original_invoice_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Reference to original invoice if this is a credit note",
+    )
+    
+    # Notes
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    terms: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # PDF
+    pdf_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
+    # Relationships
+    entity: Mapped["BusinessEntity"] = relationship(
+        "BusinessEntity",
+        back_populates="invoices",
+    )
+    customer: Mapped[Optional["Customer"]] = relationship(
+        "Customer",
+        back_populates="invoices",
+    )
+    line_items: Mapped[List["InvoiceLineItem"]] = relationship(
+        "InvoiceLineItem",
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+    )
+    
+    @property
+    def balance_due(self) -> Decimal:
+        """Calculate remaining balance."""
+        return self.total_amount - self.amount_paid
+    
+    @property
+    def is_fully_paid(self) -> bool:
+        """Check if invoice is fully paid."""
+        return self.balance_due <= Decimal("0")
+    
+    @property
+    def is_b2b(self) -> bool:
+        """Check if this is a B2B invoice (requires NRS e-invoicing)."""
+        return self.customer is not None and self.customer.is_business
+    
+    def __repr__(self) -> str:
+        return f"<Invoice(id={self.id}, number={self.invoice_number}, status={self.status})>"
+
+
+class InvoiceLineItem(BaseModel):
+    """
+    Invoice line item model.
+    """
+    
+    __tablename__ = "invoice_line_items"
+    
+    # Invoice
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("invoices.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    # Item Details
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(
+        Numeric(precision=10, scale=2),
+        nullable=False,
+        default=Decimal("1.00"),
+    )
+    unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+    )
+    
+    # Amounts
+    subtotal: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+    )
+    vat_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    total: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+    )
+    
+    # Ordering
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
+    # Relationships
+    invoice: Mapped["Invoice"] = relationship(
+        "Invoice",
+        back_populates="line_items",
+    )
+    
+    def __repr__(self) -> str:
+        return f"<InvoiceLineItem(id={self.id}, description={self.description[:30]}...)>"

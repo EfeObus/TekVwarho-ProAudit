@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Select Business Entity - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="entitySelector()" x-init="loadEntities()" class="max-w-2xl mx-auto py-8">
+    <div class="text-center mb-8">
+        <h1 class="text-2xl font-bold text-gray-900">Select Business Entity</h1>
+        <p class="text-gray-600 mt-2">Choose the business you want to manage</p>
+    </div>
+    
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-8">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+        <p class="mt-2 text-gray-500">Loading your businesses...</p>
+    </div>
+    
+    <!-- Entity List -->
+    <div x-show="!loading && entities.length > 0" class="space-y-4">
+        <template x-for="entity in entities" :key="entity.id">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-green-500 hover:shadow-md transition cursor-pointer"
+                 @click="selectEntity(entity.id)">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-semibold text-gray-900" x-text="entity.name"></h3>
+                        <p class="text-sm text-gray-500" x-text="entity.legal_name || entity.name"></p>
+                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                            <span x-show="entity.tin">TIN: <span x-text="entity.tin"></span></span>
+                            <span x-show="entity.city" x-text="entity.city + ', ' + (entity.state || '')"></span>
+                        </div>
+                    </div>
+                    <div class="text-green-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+    
+    <!-- No Entities -->
+    <div x-show="!loading && entities.length === 0" class="text-center py-8">
+        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No Business Entities</h3>
+        <p class="text-gray-500 mb-4">You don't have any business entities yet. Create one to get started.</p>
+        <button @click="showCreateModal = true" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+            + Create Business Entity
+        </button>
+    </div>
+    
+    <!-- Error Message -->
+    <div x-show="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm" x-text="error"></div>
+</div>
+
+<script>
+function entitySelector() {
+    return {
+        entities: [],
+        loading: true,
+        error: null,
+        showCreateModal: false,
+        
+        async loadEntities() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/v1/entities', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('token');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.entities = data.entities || [];
+                    
+                    // If only one entity, auto-select it
+                    if (this.entities.length === 1) {
+                        this.selectEntity(this.entities[0].id);
+                    }
+                } else {
+                    this.error = 'Failed to load entities';
+                }
+            } catch (err) {
+                this.error = 'An error occurred. Please try again.';
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async selectEntity(entityId) {
+            // Post to set cookie and redirect
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/select-entity/${entityId}`;
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+}
+</script>
+{% endblock %}

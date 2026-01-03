@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="inventoryPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Inventory</h1>
+            <p class="text-gray-600">Manage your stock and inventory items</p>
+        </div>
+        <button @click="showModal = true" class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            Add Item
+        </button>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Total Items</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="stats.total_items || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Total Value</p>
+                    <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCurrency(stats.total_value || 0)"></span></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-yellow-100">
+                    <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Low Stock</p>
+                    <p class="text-2xl font-bold text-yellow-600" x-text="stats.low_stock || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-red-100">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Out of Stock</p>
+                    <p class="text-2xl font-bold text-red-600" x-text="stats.out_of_stock || 0"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Search & Filter -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+                <input type="text" x-model="searchQuery" @input="filterItems()" placeholder="Search inventory..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+                <select x-model="stockFilter" @change="filterItems()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <option value="">All Stock Levels</option>
+                    <option value="in_stock">In Stock</option>
+                    <option value="low_stock">Low Stock</option>
+                    <option value="out_of_stock">Out of Stock</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Inventory Table -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="item in filteredItems" :key="item.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900" x-text="item.name"></div>
+                                <div class="text-sm text-gray-500" x-text="item.description || ''"></div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="item.sku || '-'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-sm font-medium text-gray-900" x-text="item.quantity_on_hand"></span>
+                                <span class="text-sm text-gray-500" x-text="' ' + (item.unit || 'units')"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                ₦<span x-text="formatCurrency(item.unit_cost || 0)"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                ₦<span x-text="formatCurrency((item.quantity_on_hand || 0) * (item.unit_cost || 0))"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span x-show="item.quantity_on_hand === 0" class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">Out of Stock</span>
+                                <span x-show="item.quantity_on_hand > 0 && item.quantity_on_hand <= (item.reorder_level || 10)" class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">Low Stock</span>
+                                <span x-show="item.quantity_on_hand > (item.reorder_level || 10)" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">In Stock</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button @click="receiveStock(item)" class="text-blue-600 hover:text-blue-900 mr-2">Receive</button>
+                                <button @click="adjustStock(item)" class="text-green-600 hover:text-green-900 mr-2">Adjust</button>
+                                <button @click="editItem(item)" class="text-gray-600 hover:text-gray-900">Edit</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        
+        <template x-if="filteredItems.length === 0">
+            <div class="text-center py-12">
+                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">No inventory items</h3>
+                <p class="mt-2 text-gray-500">Get started by adding your first inventory item.</p>
+            </div>
+        </template>
+    </div>
+    
+    <!-- Add/Edit Item Modal -->
+    <div x-show="showModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black opacity-50" @click="showModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4" x-text="editingItem ? 'Edit Item' : 'Add Inventory Item'"></h3>
+                
+                <form @submit.prevent="saveItem()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                            <input type="text" x-model="form.name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                                <input type="text" x-model="form.sku" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                                <select x-model="form.unit" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                    <option value="units">Units</option>
+                                    <option value="pcs">Pieces</option>
+                                    <option value="kg">Kilograms</option>
+                                    <option value="liters">Liters</option>
+                                    <option value="boxes">Boxes</option>
+                                    <option value="packs">Packs</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea x-model="form.description" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Unit Cost (₦)</label>
+                                <input type="number" step="0.01" x-model="form.unit_cost" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Selling Price (₦)</label>
+                                <input type="number" step="0.01" x-model="form.selling_price" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
+                                <input type="number" x-model="form.quantity_on_hand" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                                <input type="number" x-model="form.reorder_level" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showModal = false" class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
+                        <button type="submit" class="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700">
+                            <span x-text="editingItem ? 'Update' : 'Create'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stock Adjustment Modal -->
+    <div x-show="showAdjustModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black opacity-50" @click="showAdjustModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4" x-text="adjustType === 'receive' ? 'Receive Stock' : 'Adjust Stock'"></h3>
+                
+                <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-600">Item: <span class="font-medium text-gray-900" x-text="selectedItem?.name"></span></p>
+                    <p class="text-sm text-gray-600">Current Quantity: <span class="font-medium text-gray-900" x-text="selectedItem?.quantity_on_hand"></span></p>
+                </div>
+                
+                <form @submit.prevent="submitAdjustment()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input type="number" x-model="adjustForm.quantity" required min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div x-show="adjustType === 'adjust'">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Adjustment Type</label>
+                            <select x-model="adjustForm.adjustment_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <option value="add">Add Stock</option>
+                                <option value="remove">Remove Stock</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reason/Notes</label>
+                            <textarea x-model="adjustForm.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showAdjustModal = false" class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
+                        <button type="submit" class="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700">Submit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function inventoryPage() {
+    return {
+        items: [],
+        filteredItems: [],
+        stats: {},
+        showModal: false,
+        showAdjustModal: false,
+        editingItem: null,
+        selectedItem: null,
+        adjustType: 'receive',
+        searchQuery: '',
+        stockFilter: '',
+        form: {
+            name: '',
+            sku: '',
+            unit: 'units',
+            description: '',
+            unit_cost: '',
+            selling_price: '',
+            quantity_on_hand: 0,
+            reorder_level: 10,
+        },
+        adjustForm: {
+            quantity: 1,
+            adjustment_type: 'add',
+            notes: '',
+        },
+        
+        async init() {
+            await this.loadItems();
+        },
+        
+        async loadItems() {
+            try {
+                const entityId = localStorage.getItem('currentEntityId');
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch(`/api/v1/entities/${entityId}/inventory`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    this.items = await response.json();
+                    this.filteredItems = this.items;
+                    this.calculateStats();
+                }
+            } catch (error) {
+                console.error('Failed to load inventory:', error);
+            }
+        },
+        
+        calculateStats() {
+            this.stats = {
+                total_items: this.items.length,
+                total_value: this.items.reduce((sum, i) => sum + ((i.quantity_on_hand || 0) * (i.unit_cost || 0)), 0),
+                low_stock: this.items.filter(i => i.quantity_on_hand > 0 && i.quantity_on_hand <= (i.reorder_level || 10)).length,
+                out_of_stock: this.items.filter(i => i.quantity_on_hand === 0).length,
+            };
+        },
+        
+        filterItems() {
+            let filtered = this.items;
+            
+            if (this.searchQuery) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(i => 
+                    i.name.toLowerCase().includes(query) ||
+                    (i.sku && i.sku.toLowerCase().includes(query))
+                );
+            }
+            
+            if (this.stockFilter === 'in_stock') {
+                filtered = filtered.filter(i => i.quantity_on_hand > (i.reorder_level || 10));
+            } else if (this.stockFilter === 'low_stock') {
+                filtered = filtered.filter(i => i.quantity_on_hand > 0 && i.quantity_on_hand <= (i.reorder_level || 10));
+            } else if (this.stockFilter === 'out_of_stock') {
+                filtered = filtered.filter(i => i.quantity_on_hand === 0);
+            }
+            
+            this.filteredItems = filtered;
+        },
+        
+        editItem(item) {
+            this.editingItem = item;
+            this.form = { ...item };
+            this.showModal = true;
+        },
+        
+        receiveStock(item) {
+            this.selectedItem = item;
+            this.adjustType = 'receive';
+            this.adjustForm = { quantity: 1, adjustment_type: 'add', notes: '' };
+            this.showAdjustModal = true;
+        },
+        
+        adjustStock(item) {
+            this.selectedItem = item;
+            this.adjustType = 'adjust';
+            this.adjustForm = { quantity: 1, adjustment_type: 'add', notes: '' };
+            this.showAdjustModal = true;
+        },
+        
+        async saveItem() {
+            try {
+                const entityId = localStorage.getItem('currentEntityId');
+                const token = localStorage.getItem('token');
+                const url = this.editingItem 
+                    ? `/api/v1/entities/${entityId}/inventory/${this.editingItem.id}`
+                    : `/api/v1/entities/${entityId}/inventory`;
+                const method = this.editingItem ? 'PATCH' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.form),
+                });
+                
+                if (response.ok) {
+                    this.showModal = false;
+                    this.resetForm();
+                    await this.loadItems();
+                }
+            } catch (error) {
+                console.error('Failed to save item:', error);
+            }
+        },
+        
+        async submitAdjustment() {
+            try {
+                const entityId = localStorage.getItem('currentEntityId');
+                const token = localStorage.getItem('token');
+                
+                const endpoint = this.adjustType === 'receive' ? 'receive' : 'adjust';
+                const response = await fetch(`/api/v1/entities/${entityId}/inventory/${this.selectedItem.id}/${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.adjustForm),
+                });
+                
+                if (response.ok) {
+                    this.showAdjustModal = false;
+                    await this.loadItems();
+                }
+            } catch (error) {
+                console.error('Failed to adjust stock:', error);
+            }
+        },
+        
+        resetForm() {
+            this.editingItem = null;
+            this.form = {
+                name: '',
+                sku: '',
+                unit: 'units',
+                description: '',
+                unit_cost: '',
+                selling_price: '',
+                quantity_on_hand: 0,
+                reorder_level: 10,
+            };
+        },
+        
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG').format(amount);
+        }
+    };
+}
+</script>
+{% endblock %}

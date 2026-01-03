@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}FAQ - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-8">Frequently Asked Questions</h1>
+    
+    <div x-data="{ openItem: null }">
+        <!-- General Questions -->
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">General</h2>
+            
+            <div class="space-y-4">
+                <div class="border border-gray-200 rounded-lg">
+                    <button @click="openItem = openItem === 1 ? null : 1" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50">
+                        <span class="font-medium text-gray-900">What is TekVwarho ProAudit?</span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform" :class="{ 'rotate-180': openItem === 1 }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="openItem === 1" x-collapse class="px-4 pb-4 text-gray-600">
+                        TekVwarho ProAudit is Nigeria's premier tax compliance and business management platform, designed specifically for the 2026 Tax Reform era. It provides automated VAT, PAYE, WHT, and CIT calculations, NRS e-invoicing integration, transaction recording, and comprehensive financial reporting.
+                    </div>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg">
+                    <button @click="openItem = openItem === 2 ? null : 2" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50">
+                        <span class="font-medium text-gray-900">Is TekVwarho ProAudit NRS compliant?</span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform" :class="{ 'rotate-180': openItem === 2 }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="openItem === 2" x-collapse class="px-4 pb-4 text-gray-600">
+                        Yes! TekVwarho ProAudit is fully compliant with the Nigeria Revenue Service (NRS) e-invoicing requirements. Our platform integrates directly with the FIRS e-Invoice system to generate IRN (Invoice Reference Numbers) and submit invoices electronically.
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Tax & Compliance Questions -->
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Tax & Compliance</h2>
+            
+            <div class="space-y-4">
+                <div class="border border-gray-200 rounded-lg">
+                    <button @click="openItem = openItem === 3 ? null : 3" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50">
+                        <span class="font-medium text-gray-900">What tax calculations does ProAudit support?</span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform" :class="{ 'rotate-180': openItem === 3 }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="openItem === 3" x-collapse class="px-4 pb-4 text-gray-600">
+                        <p>We support all major Nigerian taxes including:</p>
+                        <ul class="list-disc list-inside mt-2 space-y-1">
+                            <li><strong>VAT (7.5%):</strong> Input/Output VAT tracking and return preparation</li>
+                            <li><strong>PAYE:</strong> Updated 2026 tax bands (0%, 15%, 20%, 25%, 30%)</li>
+                            <li><strong>WHT:</strong> Automatic calculation by service type and payee</li>
+                            <li><strong>CIT:</strong> Company size-based rates (0%, 20%, 30%)</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg">
+                    <button @click="openItem = openItem === 4 ? null : 4" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50">
+                        <span class="font-medium text-gray-900">How do I submit invoices to NRS?</span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform" :class="{ 'rotate-180': openItem === 4 }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="openItem === 4" x-collapse class="px-4 pb-4 text-gray-600">
+                        Once you finalize an invoice, simply click the "Submit to NRS" button. ProAudit will automatically submit the invoice to FIRS and retrieve the Invoice Reference Number (IRN). The IRN and QR code will be added to your invoice for compliance.
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Account & Billing Questions -->
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Account & Billing</h2>
+            
+            <div class="space-y-4">
+                <div class="border border-gray-200 rounded-lg">
+                    <button @click="openItem = openItem === 5 ? null : 5" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50">
+                        <span class="font-medium text-gray-900">Is there a free trial?</span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform" :class="{ 'rotate-180': openItem === 5 }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="openItem === 5" x-collapse class="px-4 pb-4 text-gray-600">
+                        Yes! We offer a free Starter plan for small businesses with up to 50 transactions per month. You can also try our Professional plan free for 14 days with no credit card required.
+                    </div>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg">
+                    <button @click="openItem = openItem === 6 ? null : 6" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50">
+                        <span class="font-medium text-gray-900">How do I cancel my subscription?</span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform" :class="{ 'rotate-180': openItem === 6 }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="openItem === 6" x-collapse class="px-4 pb-4 text-gray-600">
+                        You can cancel your subscription anytime from Settings → Account → Subscription. Your data will remain accessible until the end of your billing period, and you can export all your data before cancellation.
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Support Questions -->
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Support</h2>
+            
+            <div class="space-y-4">
+                <div class="border border-gray-200 rounded-lg">
+                    <button @click="openItem = openItem === 7 ? null : 7" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50">
+                        <span class="font-medium text-gray-900">How do I contact support?</span>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform" :class="{ 'rotate-180': openItem === 7 }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="openItem === 7" x-collapse class="px-4 pb-4 text-gray-600">
+                        <p>You can reach our support team through:</p>
+                        <ul class="list-disc list-inside mt-2 space-y-1">
+                            <li>Email: support@tekvwarho.com</li>
+                            <li>Phone: +234 800 000 0000</li>
+                            <li>Live chat (available in the app)</li>
+                        </ul>
+                        <p class="mt-2">Professional and Enterprise customers receive priority support with faster response times.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <div class="mt-8 p-6 bg-green-50 rounded-lg border border-green-200">
+        <h3 class="font-semibold text-gray-900 mb-2">Still have questions?</h3>
+        <p class="text-gray-600 mb-4">Our support team is here to help.</p>
+        <a href="mailto:support@tekvwarho.com" class="inline-block bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+            Contact Support
+        </a>
+    </div>
+    
+    <div class="mt-8 pt-8 border-t border-gray-200">
+        <a href="/" class="text-green-600 hover:text-green-700">← Back to Home</a>
+    </div>
+</div>
+{% endblock %}

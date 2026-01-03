@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Security - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-8">Security Policy</h1>
+    
+    <div class="prose prose-green max-w-none">
+        <p class="text-gray-600 mb-6"><strong>Last Updated:</strong> January 3, 2026</p>
+        
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-8">
+            <div class="flex items-start">
+                <svg class="w-6 h-6 text-green-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+                <div>
+                    <h3 class="font-semibold text-green-800">Your Security is Our Priority</h3>
+                    <p class="text-green-700 text-sm mt-1">TekVwarho ProAudit employs industry-leading security measures to protect your financial data.</p>
+                </div>
+            </div>
+        </div>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">1. Data Encryption</h2>
+            <ul class="list-disc list-inside text-gray-600 mb-4 space-y-2">
+                <li><strong>In Transit:</strong> All data transmitted between your browser and our servers is encrypted using 256-bit TLS/SSL encryption</li>
+                <li><strong>At Rest:</strong> All stored data is encrypted using AES-256 encryption</li>
+                <li><strong>Database:</strong> Sensitive fields such as passwords and API keys are additionally encrypted with per-field encryption</li>
+            </ul>
+        </section>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">2. Authentication & Access Control</h2>
+            <ul class="list-disc list-inside text-gray-600 mb-4 space-y-2">
+                <li><strong>Password Hashing:</strong> Passwords are hashed using bcrypt with appropriate work factors</li>
+                <li><strong>JWT Tokens:</strong> Secure, short-lived access tokens with refresh token rotation</li>
+                <li><strong>Role-Based Access:</strong> Granular permissions for Owner, Admin, Accountant, and Viewer roles</li>
+                <li><strong>Session Management:</strong> Automatic session timeout and secure cookie handling</li>
+            </ul>
+        </section>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">3. Infrastructure Security</h2>
+            <ul class="list-disc list-inside text-gray-600 mb-4 space-y-2">
+                <li><strong>Cloud Hosting:</strong> Hosted on enterprise-grade cloud infrastructure with ISO 27001 certification</li>
+                <li><strong>Firewall Protection:</strong> Multiple layers of firewall protection and DDoS mitigation</li>
+                <li><strong>Regular Backups:</strong> Automated daily backups with point-in-time recovery</li>
+                <li><strong>Geographic Redundancy:</strong> Data replicated across multiple availability zones</li>
+            </ul>
+        </section>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">4. Application Security</h2>
+            <ul class="list-disc list-inside text-gray-600 mb-4 space-y-2">
+                <li><strong>Input Validation:</strong> All user inputs are validated and sanitized to prevent injection attacks</li>
+                <li><strong>CSRF Protection:</strong> Cross-Site Request Forgery tokens on all forms</li>
+                <li><strong>XSS Prevention:</strong> Content Security Policy headers and output encoding</li>
+                <li><strong>Dependency Scanning:</strong> Regular scanning for vulnerabilities in dependencies</li>
+            </ul>
+        </section>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">5. Compliance</h2>
+            <ul class="list-disc list-inside text-gray-600 mb-4 space-y-2">
+                <li><strong>NRS Compliant:</strong> Meets all Nigeria Revenue Service e-invoicing requirements</li>
+                <li><strong>FIRS Approved:</strong> Integrated with FIRS e-Invoice system</li>
+                <li><strong>Data Retention:</strong> Compliant with Nigerian tax record retention requirements (6 years)</li>
+            </ul>
+        </section>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">6. Audit & Monitoring</h2>
+            <ul class="list-disc list-inside text-gray-600 mb-4 space-y-2">
+                <li><strong>Audit Logging:</strong> All actions are logged for compliance and security review</li>
+                <li><strong>Real-time Monitoring:</strong> 24/7 monitoring of systems and security events</li>
+                <li><strong>Intrusion Detection:</strong> Automated alerts for suspicious activities</li>
+                <li><strong>Regular Audits:</strong> Periodic security assessments and penetration testing</li>
+            </ul>
+        </section>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">7. Reporting Security Issues</h2>
+            <p class="text-gray-600 mb-4">
+                If you discover a security vulnerability, please report it responsibly:
+            </p>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p class="text-gray-600">
+                    <strong>Security Team Email:</strong> security@tekvwarho.com<br>
+                    <strong>Response Time:</strong> We aim to acknowledge reports within 24 hours
+                </p>
+            </div>
+        </section>
+    </div>
+    
+    <div class="mt-8 pt-8 border-t border-gray-200">
+        <a href="/" class="text-green-600 hover:text-green-700">← Back to Home</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,8 @@
+"""
+TekVwarho ProAudit - App Package
+
+Nigeria's Premier Tax Compliance & Business Management Platform
+"""
+
+__version__ = "0.1.0"
+__author__ = "Tekvwarho LTD"

@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Receipt - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="receiptScanner()" class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Scan Receipt</h1>
+        <p class="text-gray-600">Upload a receipt and we'll extract the details automatically</p>
+    </div>
+
+    <!-- Upload Area -->
+    <div 
+        class="bg-white rounded-lg shadow-lg p-8 mb-6"
+        :class="{ 'border-2 border-dashed border-green-400 bg-green-50': dragOver }"
+        @dragover.prevent="dragOver = true"
+        @dragleave.prevent="dragOver = false"
+        @drop.prevent="handleDrop($event)"
+    >
+        <div x-show="!file && !processing" class="text-center">
+            <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            <div class="mt-4">
+                <label for="file-upload" class="cursor-pointer">
+                    <span class="mt-2 block text-sm font-medium text-gray-900">
+                        Drop your receipt here, or <span class="text-green-600 hover:text-green-500">browse</span>
+                    </span>
+                    <input id="file-upload" type="file" class="sr-only" accept="image/*,.pdf" @change="handleFileSelect($event)">
+                </label>
+                <p class="mt-1 text-xs text-gray-500">PNG, JPG, PDF up to 10MB</p>
+            </div>
+            
+            <!-- Camera capture on mobile -->
+            <div class="mt-4 md:hidden">
+                <label for="camera-capture" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    Take Photo
+                    <input id="camera-capture" type="file" class="sr-only" accept="image/*" capture="environment" @change="handleFileSelect($event)">
+                </label>
+            </div>
+        </div>
+
+        <!-- Processing -->
+        <div x-show="processing" class="text-center py-8">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+            <p class="mt-4 text-sm text-gray-600">Processing receipt...</p>
+            <p class="text-xs text-gray-400 mt-1">Using AI to extract details</p>
+        </div>
+
+        <!-- Preview & Results -->
+        <div x-show="file && !processing" class="space-y-6">
+            <div class="flex gap-6">
+                <!-- Image Preview -->
+                <div class="w-1/3">
+                    <img :src="previewUrl" alt="Receipt preview" class="w-full rounded-lg shadow border">
+                    <button @click="reset()" class="mt-2 text-sm text-red-600 hover:text-red-700">Remove & Upload New</button>
+                </div>
+                
+                <!-- Extracted Data -->
+                <div class="flex-1" x-show="extractedData">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Extracted Information</h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Vendor/Store Name</label>
+                            <input type="text" x-model="extractedData.vendor_name" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-2 text-gray-500">₦</span>
+                                    <input type="number" x-model="extractedData.total_amount" step="0.01" class="w-full pl-8 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                                <input type="date" x-model="extractedData.date" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">VAT Amount</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-2 text-gray-500">₦</span>
+                                    <input type="number" x-model="extractedData.vat_amount" step="0.01" class="w-full pl-8 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                <select x-model="extractedData.category_id" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                    <option value="">Select Category</option>
+                                    <template x-for="cat in categories" :key="cat.id">
+                                        <option :value="cat.id" x-text="cat.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description/Notes</label>
+                            <textarea x-model="extractedData.description" rows="2" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"></textarea>
+                        </div>
+                        
+                        <!-- Line Items (if detected) -->
+                        <div x-show="extractedData.line_items && extractedData.line_items.length > 0">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Items Detected</label>
+                            <div class="bg-gray-50 rounded-md p-3 max-h-40 overflow-y-auto">
+                                <template x-for="(item, idx) in extractedData.line_items" :key="idx">
+                                    <div class="flex justify-between text-sm py-1 border-b border-gray-200 last:border-0">
+                                        <span x-text="item.description"></span>
+                                        <span class="font-medium" x-text="formatCurrency(item.amount)"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Confidence indicator -->
+                        <div class="flex items-center text-sm">
+                            <span class="text-gray-600 mr-2">Extraction confidence:</span>
+                            <div class="flex-1 bg-gray-200 rounded-full h-2">
+                                <div class="bg-green-600 h-2 rounded-full" :style="'width: ' + (extractedData.confidence * 100) + '%'"></div>
+                            </div>
+                            <span class="ml-2 font-medium" x-text="Math.round(extractedData.confidence * 100) + '%'"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 flex gap-3">
+                        <button @click="createTransaction()" :disabled="saving" class="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50">
+                            <span x-text="saving ? 'Creating...' : 'Create Expense Transaction'"></span>
+                        </button>
+                        <button @click="saveOnly()" class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
+                            Save Receipt Only
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Uploads -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Recent Uploads</h3>
+        </div>
+        <div class="divide-y divide-gray-200">
+            <template x-for="receipt in recentReceipts" :key="receipt.id">
+                <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
+                            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-900" x-text="receipt.filename"></p>
+                            <p class="text-sm text-gray-500" x-text="formatDate(receipt.uploaded_at)"></p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-semibold text-gray-900" x-text="formatCurrency(receipt.total_amount)"></p>
+                        <span class="text-xs px-2 py-1 rounded-full" 
+                              :class="receipt.transaction_created ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'"
+                              x-text="receipt.transaction_created ? 'Transaction Created' : 'Pending'">
+                        </span>
+                    </div>
+                </div>
+            </template>
+            <div x-show="recentReceipts.length === 0" class="px-6 py-8 text-center text-gray-500">
+                No receipts uploaded yet
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function receiptScanner() {
+    return {
+        entityId: '{{ entity_id }}',
+        dragOver: false,
+        file: null,
+        previewUrl: null,
+        processing: false,
+        saving: false,
+        fileId: null,
+        extractedData: null,
+        categories: [],
+        recentReceipts: [],
+        
+        async init() {
+            // Load categories
+            try {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/categories`, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (res.ok) {
+                    this.categories = await res.json();
+                }
+                
+                // Load recent receipts
+                const receiptsRes = await fetch(`/api/v1/entities/${this.entityId}/files?category=receipts&limit=5`, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (receiptsRes.ok) {
+                    this.recentReceipts = await receiptsRes.json();
+                }
+            } catch (error) {
+                console.error('Failed to load data:', error);
+            }
+        },
+        
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) this.processFile(file);
+        },
+        
+        handleDrop(event) {
+            this.dragOver = false;
+            const file = event.dataTransfer.files[0];
+            if (file) this.processFile(file);
+        },
+        
+        async processFile(file) {
+            this.file = file;
+            this.previewUrl = URL.createObjectURL(file);
+            this.processing = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('auto_create_transaction', 'false');
+                
+                const response = await fetch(`/api/v1/entities/${this.entityId}/receipts/upload`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                    body: formData,
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.fileId = data.file_id;
+                    this.extractedData = data.extracted_data || {
+                        vendor_name: '',
+                        total_amount: '',
+                        vat_amount: '',
+                        date: new Date().toISOString().split('T')[0],
+                        description: '',
+                        category_id: '',
+                        confidence: 0.5,
+                        line_items: [],
+                    };
+                } else {
+                    alert('Failed to process receipt');
+                    this.reset();
+                }
+            } catch (error) {
+                console.error('Upload failed:', error);
+                alert('Failed to upload receipt');
+                this.reset();
+            } finally {
+                this.processing = false;
+            }
+        },
+        
+        async createTransaction() {
+            this.saving = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/receipts/${this.fileId}/create-transaction`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                    },
+                    body: JSON.stringify({
+                        amount: parseFloat(this.extractedData.total_amount),
+                        vat_amount: parseFloat(this.extractedData.vat_amount) || 0,
+                        description: this.extractedData.description || this.extractedData.vendor_name,
+                        transaction_date: this.extractedData.date,
+                        category_id: this.extractedData.category_id || null,
+                    }),
+                });
+                
+                if (response.ok) {
+                    alert('Transaction created successfully!');
+                    window.location.href = '/transactions';
+                } else {
+                    alert('Failed to create transaction');
+                }
+            } catch (error) {
+                console.error('Failed to create transaction:', error);
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        saveOnly() {
+            alert('Receipt saved to documents');
+            this.reset();
+        },
+        
+        reset() {
+            this.file = null;
+            this.previewUrl = null;
+            this.fileId = null;
+            this.extractedData = null;
+        },
+        
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 2
+            }).format(amount || 0);
+        },
+        
+        formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

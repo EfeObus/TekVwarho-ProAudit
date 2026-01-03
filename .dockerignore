@@ -1,0 +1,89 @@
+# =============================================
+# TekVwarho ProAudit - Docker Ignore
+# Files to exclude from Docker build context
+# =============================================
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+*.egg
+.pytest_cache
+.coverage
+htmlcov
+.tox
+.nox
+.mypy_cache
+.ruff_cache
+
+# Virtual environments
+venv
+.venv
+env
+.env
+ENV
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist
+build
+*.log
+
+# Documentation
+docs
+
+# Testing
+tests
+.pytest_cache
+coverage.xml
+*.cover
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.docker
+
+# Local development
+*.local
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+tmp
+temp
+*.tmp
+*.temp
+
+# Logs
+logs
+*.log
+
+# Node (if frontend is added later)
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Secrets (never include)
+*.pem
+*.key
+secrets.json
+credentials.json

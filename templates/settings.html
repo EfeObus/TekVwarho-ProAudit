@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="settingsPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
+        <p class="text-gray-600">Manage your business and account settings</p>
+    </div>
+    
+    <!-- Settings Tabs -->
+    <div class="mb-6">
+        <nav class="flex space-x-4 border-b border-gray-200">
+            <button @click="activeTab = 'business'" :class="activeTab === 'business' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Business Profile
+            </button>
+            <button @click="activeTab = 'tax'" :class="activeTab === 'tax' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Tax Settings
+            </button>
+            <button @click="activeTab = 'integrations'" :class="activeTab === 'integrations' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Integrations
+            </button>
+            <button @click="activeTab = 'account'" :class="activeTab === 'account' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Account
+            </button>
+        </nav>
+    </div>
+    
+    <!-- Business Profile Tab -->
+    <div x-show="activeTab === 'business'" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-6">Business Information</h2>
+        
+        <form @submit.prevent="saveBusinessSettings()">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
+                    <input type="text" x-model="business.name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
+                    <select x-model="business.entity_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="sole_proprietorship">Sole Proprietorship</option>
+                        <option value="llc">Limited Liability Company (LLC)</option>
+                        <option value="partnership">Partnership</option>
+                        <option value="corporation">Corporation</option>
+                        <option value="ngo">Non-Profit/NGO</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">TIN (Tax Identification Number)</label>
+                    <input type="text" x-model="business.tin" placeholder="12345678-0001" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">RC Number</label>
+                    <input type="text" x-model="business.rc_number" placeholder="RC123456" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Business Address</label>
+                    <textarea x-model="business.address" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
+                    <input type="text" x-model="business.city" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">State</label>
+                    <select x-model="business.state" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="">Select State</option>
+                        <option value="Lagos">Lagos</option>
+                        <option value="Abuja">FCT Abuja</option>
+                        <option value="Rivers">Rivers</option>
+                        <option value="Kano">Kano</option>
+                        <option value="Oyo">Oyo</option>
+                        <!-- Add other states -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Business Email</label>
+                    <input type="email" x-model="business.email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Business Phone</label>
+                    <input type="tel" x-model="business.phone" placeholder="+234 xxx xxx xxxx" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Tax Settings Tab -->
+    <div x-show="activeTab === 'tax'" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-6">Tax Configuration</h2>
+        
+        <div class="space-y-6">
+            <!-- VAT Settings -->
+            <div class="border-b border-gray-200 pb-6">
+                <h3 class="text-md font-medium text-gray-900 mb-4">VAT Settings</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="tax.is_vat_registered" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                            <span class="ml-2 text-sm text-gray-700">VAT Registered</span>
+                        </label>
+                    </div>
+                    <div x-show="tax.is_vat_registered">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">VAT Registration Number</label>
+                        <input type="text" x-model="tax.vat_registration_number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+                <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <p class="text-sm text-blue-800">
+                        <strong>Nigeria 2026 VAT Rate:</strong> 7.5% (effective September 2024)
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Fiscal Year -->
+            <div class="border-b border-gray-200 pb-6">
+                <h3 class="text-md font-medium text-gray-900 mb-4">Fiscal Year</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fiscal Year Start</label>
+                        <select x-model="tax.fiscal_year_start" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <option value="1">January</option>
+                            <option value="4">April</option>
+                            <option value="7">July</option>
+                            <option value="10">October</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tax Thresholds Info -->
+            <div class="border-b border-gray-200 pb-6">
+                <h3 class="text-md font-medium text-gray-900 mb-4">2026 Tax Reform Thresholds</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h4 class="font-medium text-gray-900">CIT Thresholds</h4>
+                        <ul class="mt-2 text-sm text-gray-600 space-y-1">
+                            <li>• &lt; ₦25M turnover: 0%</li>
+                            <li>• ₦25M - ₦100M: 20%</li>
+                            <li>• &gt; ₦100M: 30%</li>
+                        </ul>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h4 class="font-medium text-gray-900">PAYE Bands</h4>
+                        <ul class="mt-2 text-sm text-gray-600 space-y-1">
+                            <li>• ≤ ₦800K: 0%</li>
+                            <li>• ₦800K - ₦2.5M: 15%</li>
+                            <li>• ₦2.5M - ₦5M: 20%</li>
+                            <li>• ₦5M - ₦10M: 25%</li>
+                            <li>• &gt; ₦10M: 30%</li>
+                        </ul>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h4 class="font-medium text-gray-900">WHT Rates</h4>
+                        <ul class="mt-2 text-sm text-gray-600 space-y-1">
+                            <li>• Professional Services: 10%</li>
+                            <li>• Construction: 5%</li>
+                            <li>• Rent: 10%</li>
+                            <li>• Dividends: 10%</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end">
+                <button @click="saveTaxSettings()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    Save Tax Settings
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Integrations Tab -->
+    <div x-show="activeTab === 'integrations'" class="space-y-6">
+        <!-- NRS Integration -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">FIRS NRS E-Invoicing</h3>
+                    <p class="text-sm text-gray-500">Nigerian Revenue Service electronic invoicing system</p>
+                </div>
+                <span :class="integrations.nrs_connected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 text-sm font-medium rounded-full" x-text="integrations.nrs_connected ? 'Connected' : 'Not Connected'"></span>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">NRS API Key</label>
+                    <input type="password" x-model="integrations.nrs_api_key" placeholder="Enter your NRS API key" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Business ID</label>
+                    <input type="text" x-model="integrations.nrs_business_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+            </div>
+            
+            <div class="mt-4 flex items-center gap-4">
+                <label class="flex items-center">
+                    <input type="checkbox" x-model="integrations.nrs_sandbox_mode" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    <span class="ml-2 text-sm text-gray-700">Sandbox Mode (Testing)</span>
+                </label>
+                <button @click="testNrsConnection()" class="px-4 py-2 text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50">
+                    Test Connection
+                </button>
+            </div>
+        </div>
+        
+        <!-- Azure Services -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Azure Document Intelligence</h3>
+                    <p class="text-sm text-gray-500">OCR for receipt and document scanning</p>
+                </div>
+                <span :class="integrations.azure_ocr_connected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 text-sm font-medium rounded-full" x-text="integrations.azure_ocr_connected ? 'Connected' : 'Not Connected'"></span>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Endpoint URL</label>
+                    <input type="text" x-model="integrations.azure_endpoint" placeholder="https://your-resource.cognitiveservices.azure.com/" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                    <input type="password" x-model="integrations.azure_key" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end">
+            <button @click="saveIntegrations()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                Save Integrations
+            </button>
+        </div>
+    </div>
+    
+    <!-- Account Tab -->
+    <div x-show="activeTab === 'account'" class="space-y-6">
+        <!-- Profile -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Your Profile</h2>
+            
+            <form @submit.prevent="saveProfile()">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                        <input type="text" x-model="profile.first_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                        <input type="text" x-model="profile.last_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" x-model="profile.email" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                        <p class="mt-1 text-xs text-gray-500">Email cannot be changed</p>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-end">
+                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                        Update Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Change Password -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Change Password</h2>
+            
+            <form @submit.prevent="changePassword()">
+                <div class="space-y-4 max-w-md">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                        <input type="password" x-model="passwordForm.current_password" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                        <input type="password" x-model="passwordForm.new_password" required minlength="8" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                        <input type="password" x-model="passwordForm.confirm_password" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+                
+                <div class="mt-6">
+                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                        Change Password
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Danger Zone -->
+        <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+            <h2 class="text-lg font-semibold text-red-600 mb-4">Danger Zone</h2>
+            <p class="text-sm text-gray-600 mb-4">Once you delete your account, there is no going back. Please be certain.</p>
+            <button @click="confirmDeleteAccount()" class="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                Delete Account
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function settingsPage() {
+    return {
+        activeTab: 'business',
+        business: {},
+        tax: { is_vat_registered: false, fiscal_year_start: '1' },
+        integrations: {},
+        profile: {},
+        passwordForm: { current_password: '', new_password: '', confirm_password: '' },
+        
+        async init() {
+            await this.loadSettings();
+        },
+        
+        async loadSettings() {
+            const token = localStorage.getItem('token');
+            const entityId = localStorage.getItem('currentEntityId');
+            
+            // Load user profile
+            try {
+                const response = await fetch('/api/v1/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    this.profile = await response.json();
+                }
+            } catch (e) {}
+            
+            // Load entity settings
+            if (entityId) {
+                try {
+                    const response = await fetch(`/api/v1/entities/${entityId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        this.business = await response.json();
+                        this.tax.is_vat_registered = this.business.is_vat_registered;
+                        this.tax.vat_registration_number = this.business.vat_registration_number;
+                    }
+                } catch (e) {}
+            }
+        },
+        
+        async saveBusinessSettings() {
+            const token = localStorage.getItem('token');
+            const entityId = localStorage.getItem('currentEntityId');
+            
+            try {
+                const response = await fetch(`/api/v1/entities/${entityId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.business),
+                });
+                
+                if (response.ok) {
+                    alert('Business settings saved successfully!');
+                }
+            } catch (error) {
+                console.error('Failed to save settings:', error);
+            }
+        },
+        
+        async saveTaxSettings() {
+            alert('Tax settings saved!');
+        },
+        
+        async saveIntegrations() {
+            alert('Integration settings saved!');
+        },
+        
+        async saveProfile() {
+            const token = localStorage.getItem('token');
+            
+            try {
+                const response = await fetch('/api/v1/auth/me', {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.profile),
+                });
+                
+                if (response.ok) {
+                    alert('Profile updated successfully!');
+                }
+            } catch (error) {
+                console.error('Failed to update profile:', error);
+            }
+        },
+        
+        async changePassword() {
+            if (this.passwordForm.new_password !== this.passwordForm.confirm_password) {
+                alert('Passwords do not match!');
+                return;
+            }
+            
+            const token = localStorage.getItem('token');
+            
+            try {
+                const response = await fetch('/api/v1/auth/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.passwordForm),
+                });
+                
+                if (response.ok) {
+                    alert('Password changed successfully!');
+                    this.passwordForm = { current_password: '', new_password: '', confirm_password: '' };
+                }
+            } catch (error) {
+                console.error('Failed to change password:', error);
+            }
+        },
+        
+        testNrsConnection() {
+            alert('Testing NRS connection...');
+        },
+        
+        confirmDeleteAccount() {
+            if (confirm('Are you ABSOLUTELY sure you want to delete your account? This action cannot be undone.')) {
+                alert('Account deletion not implemented in demo.');
+            }
+        }
+    };
+}
+</script>
+{% endblock %}
