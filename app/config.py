@@ -57,11 +57,16 @@ class Settings(BaseSettings):
     # NRS/FIRS E-INVOICING API (Federal Inland Revenue Service)
     # Development: https://api-dev.i-fis.com
     # Production: https://atrs-api.firs.gov.ng
+    # TIN Verification: https://taxid.nrs.gov.ng/
     # ===========================================
     nrs_api_url: str = "https://api-dev.i-fis.com"
     nrs_api_url_prod: str = "https://atrs-api.firs.gov.ng"
     nrs_api_key: str = ""
     nrs_sandbox_mode: bool = True
+    
+    # NRS TIN Verification Portal
+    nrs_tin_api_url: str = "https://api.taxid.nrs.gov.ng"
+    nrs_tin_api_key: str = ""  # May use same key as main NRS API
     
     @property
     def nrs_active_url(self) -> str:

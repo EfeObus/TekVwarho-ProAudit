@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-01-03
+
+### 🇳🇬 2026 Nigeria Tax Reform - Complete Compliance Implementation
+
+This release implements ALL mandatory 2026 Nigeria Tax Reform compliance requirements including TIN Validation, Penalty Tracking, Minimum ETR, CGT at 30%, Peppol BIS Billing 3.0, and Zero-Rated VAT tracking.
+
+### Added
+
+#### TIN Validation Service (NRS Portal Integration)
+- **New Service**: `TINValidationService` for real-time TIN validation via https://taxid.nrs.gov.ng/
+  - Individual TIN validation via NIN (National Identification Number)
+  - Corporate TIN validation (Business Name, Company, Incorporated Trustee, Limited Partnership, LLP)
+  - `validate_tin()` - Validate any TIN with format checking
+  - `validate_individual_by_nin()` - Validate individual TIN using 11-digit NIN
+  - `bulk_validate_tins()` - Bulk validation for multiple TINs
+  - `check_vendor_compliance()` - Pre-contract vendor TIN verification with ₦5M penalty warning
+  - Sandbox mode simulation for development/testing
+  - Caching support for reduced API calls
+
+#### Compliance Penalty Tracker (2026 Penalty Schedule)
+- **New Service**: `CompliancePenaltyService` for penalty calculation and tracking
+  - `calculate_late_filing_penalty()` - ₦100,000 first month + ₦50,000 subsequent months
+  - `calculate_unregistered_vendor_penalty()` - ₦5,000,000 fixed penalty
+  - `calculate_b2c_late_reporting_penalty()` - ₦10,000 per transaction (max ₦500,000/day)
+  - `calculate_tax_remittance_penalty()` - 10% + 2% monthly interest for VAT/PAYE/WHT
+- **New Model**: `PenaltyRecord` for tracking incurred penalties
+- Penalty types: Late Filing, Unregistered Vendor, B2C Late Reporting, E-Invoice Non-Compliance, Invalid TIN, Missing Records, NRS Access Denial, VAT/PAYE/WHT Non-Remittance
+
+#### 15% Minimum Effective Tax Rate (ETR) Calculator
+- **New Calculator**: `MinimumETRCalculator` for large companies and MNE constituents
+  - Applies to companies with turnover >= ₦50 billion
+  - Applies to MNE constituents with group revenue >= €750 million
+  - Calculates ETR shortfall and top-up tax required
+  - `check_minimum_etr_applicability()` - Check if company is subject
+  - `calculate_minimum_etr()` - Calculate top-up tax to meet 15% minimum
+
+#### Capital Gains Tax (CGT) at 30% for Large Companies
+- **New Calculator**: `CGTCalculator` with 2026 rates
+  - CGT rate increased from 10% to 30% for large companies
+  - Small company exemption (turnover <= ₦100M AND assets <= ₦250M)
+  - Indexation allowance for inflation adjustment
+  - `classify_company()` - Determine company classification for CGT
+  - `calculate_cgt()` - Full CGT calculation with exemptions
+
+#### Zero-Rated VAT Input Credit Tracker
+- **New Tracker**: `ZeroRatedVATTracker` for refund claim management
+  - Track zero-rated sales (food, education, healthcare, exports)
+  - Track input VAT paid with IRN validation
+  - Only purchases with valid NRS IRN are refund-eligible
+  - `record_zero_rated_sale()` - Record zero-rated transactions
+  - `record_input_vat()` - Record input VAT for potential refund
+  - `calculate_refund_claim()` - Calculate total refundable VAT
+
+#### Peppol BIS Billing 3.0 E-Invoice Export
+- **New Service**: `PeppolExportService` for structured digital invoice formats
+  - UBL 2.1 XML export (Peppol BIS Billing 3.0 compliant)
+  - JSON representation for API integration
+  - CSID (Cryptographic Stamp Identifier) generation
+  - QR code data embedding with invoice verification info
+  - `to_ubl_xml()` - Export as UBL 2.1 XML
+  - `to_json()` - Export as Peppol JSON
+  - `generate_csid()` - Generate cryptographic stamp
+  - `generate_qr_code_data()` - Generate QR verification data
+
+### Enhanced
+
+#### Configuration
+- Added `nrs_tin_api_url` for TIN validation portal
+- Added `nrs_tin_api_key` for separate TIN API authentication
+
+#### Tax Calculators Package
+- Exported all new calculators from `tax_calculators/__init__.py`
+- Added convenience functions for Minimum ETR and CGT calculations
+
+### Tests
+
+#### New Test Suite: `test_2026_compliance.py`
+- TIN validation format tests (10+ tests)
+- Penalty calculation tests (late filing, vendor, VAT)
+- Minimum ETR threshold and calculation tests
+- CGT calculation and exemption tests
+- Zero-rated VAT refund eligibility tests
+- Peppol export XML and JSON tests
+
+---
+
 ## [1.3.0] - 2026-01-03
 
 ### 🇳🇬 2026 Nigeria Tax Reform - Full Compliance Update

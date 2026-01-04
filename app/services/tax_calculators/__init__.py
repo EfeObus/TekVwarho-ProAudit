@@ -16,6 +16,17 @@ from app.services.tax_calculators.vat_service import VATCalculator, VATService, 
 from app.services.tax_calculators.paye_service import PAYECalculator, PAYEService
 from app.services.tax_calculators.wht_service import WHTCalculator, WHTService, WHTServiceType, PayeeType
 from app.services.tax_calculators.cit_service import CITCalculator, CITService, CompanySize
+from app.services.tax_calculators.minimum_etr_cgt_service import (
+    MinimumETRCalculator,
+    CGTCalculator,
+    ZeroRatedVATTracker,
+    CompanyClassification,
+    MinimumETRResult,
+    CGTResult,
+    get_minimum_etr_calculator,
+    get_cgt_calculator,
+    get_zero_rated_vat_tracker,
+)
 
 
 # ===========================================
@@ -144,6 +155,16 @@ __all__ = [
     "CITCalculator",
     "CITService",
     "CompanySize",
+    # Minimum ETR & CGT (2026)
+    "MinimumETRCalculator",
+    "CGTCalculator",
+    "ZeroRatedVATTracker",
+    "CompanyClassification",
+    "MinimumETRResult",
+    "CGTResult",
+    "get_minimum_etr_calculator",
+    "get_cgt_calculator",
+    "get_zero_rated_vat_tracker",
     # Convenience functions
     "calculate_vat",
     "calculate_paye",

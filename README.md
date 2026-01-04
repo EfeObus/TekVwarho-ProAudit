@@ -30,7 +30,44 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 ---
 
-## 🆕 Version 1.3.0 Highlights
+## 🆕 Version 1.4.0 - Complete 2026 Compliance
+
+### TIN Validation (NRS Portal Integration)
+- **Real-time TIN Verification**: Validate TINs via [NRS TaxID Portal](https://taxid.nrs.gov.ng/)
+- **Individual Validation**: Verify individuals using 11-digit NIN (National Identification Number)
+- **Corporate Validation**: Support for Business Name, Company, Incorporated Trustee, Limited Partnership, LLP
+- **Vendor Compliance Check**: Pre-contract verification with **₦5,000,000** penalty warning
+
+### 15% Minimum Effective Tax Rate (ETR)
+- **Large Company Threshold**: Applies to businesses with turnover >= **₦50 billion**
+- **MNE Constituents**: Applies to groups with revenue >= **€750 million**
+- **Top-up Tax Calculation**: Automatic ETR shortfall detection and top-up calculation
+
+### Capital Gains Tax (CGT) at 30%
+- **New Rate for Large Companies**: CGT increased from 10% to **30%**
+- **Small Company Exemption**: Turnover ≤ ₦100M AND assets ≤ ₦250M retain 10% rate
+- **Indexation Allowance**: Inflation adjustment for long-held assets
+
+### Zero-Rated VAT Input Credit Tracking
+- **Refund Eligibility**: Track input VAT on zero-rated supplies (food, education, healthcare, exports)
+- **IRN Validation**: Only purchases with valid NRS IRN qualify for refund
+- **Claim Generation**: Automated refund claim calculation
+
+### Peppol BIS Billing 3.0 Export
+- **UBL 2.1 XML Export**: Peppol-compliant structured invoice format
+- **JSON Export**: API-friendly invoice representation
+- **CSID Generation**: Cryptographic Stamp Identifier for invoice integrity
+- **QR Code Embedding**: Verification data for invoice authentication
+
+### Compliance Penalty Tracker
+- **Late Filing**: ₦100,000 first month + ₦50,000 subsequent months
+- **Unregistered Vendor**: ₦5,000,000 fixed penalty
+- **B2C Late Reporting**: ₦10,000 per transaction (max ₦500,000/day)
+- **Tax Remittance**: 10% + 2% monthly interest for VAT/PAYE/WHT
+
+---
+
+## Version 1.3.0 - Fixed Assets & Dashboard
 
 ### Fixed Asset Register
 - Complete capital asset tracking with depreciation (Straight Line, Reducing Balance, Units of Production)
@@ -68,11 +105,17 @@ With Nigeria's historic 2026 tax reforms introducing:
 | Feature | Description |
 |---------|-------------|
 | **NRS E-Invoicing** | Real-time B2B/B2C invoice validation, automatic IRN and QR Code generation |
+| **TIN Validation** | Real-time TIN verification via NRS TaxID portal (Individual/Corporate) |
 | **Input VAT Recovery** | Track VAT paid on services and fixed assets as credits to reduce final VAT liability |
+| **Zero-Rated VAT Tracker** | Track refund-eligible input VAT on zero-rated supplies (IRN validated) |
 | **Smart Tax Logic** | Automatic 0% CIT for small businesses, 4% Development Levy for larger companies |
+| **Minimum ETR (15%)** | Top-up tax calculation for companies with ₦50B+ turnover |
+| **CGT at 30%** | Capital Gains Tax for large companies (small company exemption) |
 | **Progressive PAYE** | Payroll module with 2026 tax bands (₦800,000 tax-free bracket support) |
 | **72-Hour Dispute Window** | Track buyer rejections within the 72-hour window with legal lock protection |
 | **B2C Real-time Reporting** | 24-hour NRS reporting for B2C transactions over ₦50,000 |
+| **Compliance Penalties** | Automatic penalty calculation (late filing, unregistered vendor, B2C late) |
+| **Peppol BIS 3.0** | Export invoices as UBL 2.1 XML/JSON for international trade |
 
 ### Advanced Financial Pipeline
 
@@ -98,7 +141,12 @@ All tax calculators verified with comprehensive test coverage:
 | **WHT** (By Service Type) | 7 tests | ✅ Passing |
 | **CIT** (0%/20%/30%) | 6 tests | ✅ Passing |
 | **Band Detection** | 5 tests | ✅ Passing |
-| **Total** | **28 tests** | **✅ All Passing** |
+| **Minimum ETR** (15%) | 5 tests | ✅ Passing |
+| **CGT** (30% Large Co.) | 6 tests | ✅ Passing |
+| **TIN Validation** | 10 tests | ✅ Passing |
+| **Penalty Tracking** | 8 tests | ✅ Passing |
+| **Peppol Export** | 6 tests | ✅ Passing |
+| **Total** | **63 tests** | **✅ All Passing** |
 
 ---
 
