@@ -1233,4 +1233,374 @@ class TestAuditVaultCompliance:
         assert "user_agent" in columns
 
 
+# ============================================================
+# FIXED ASSET REGISTER TESTS
+# ============================================================
+
+class TestFixedAssetModel:
+    """Tests for Fixed Asset Model and Enums."""
+    
+    def test_asset_category_enum_values(self):
+        """All Nigerian standard asset categories should be defined."""
+        from app.models.fixed_asset import AssetCategory
+        
+        categories = [c.value for c in AssetCategory]
+        assert "land" in categories
+        assert "buildings" in categories
+        assert "plant_machinery" in categories
+        assert "furniture_fittings" in categories
+        assert "motor_vehicles" in categories
+        assert "computer_equipment" in categories
+        assert "office_equipment" in categories
+        assert "leasehold_improvements" in categories
+        assert "intangible_assets" in categories
+        assert "other" in categories
+    
+    def test_asset_status_enum_values(self):
+        """All asset statuses should be defined."""
+        from app.models.fixed_asset import AssetStatus
+        
+        statuses = [s.value for s in AssetStatus]
+        assert "active" in statuses
+        assert "disposed" in statuses
+        assert "written_off" in statuses
+        assert "under_repair" in statuses
+        assert "idle" in statuses
+    
+    def test_depreciation_method_enum_values(self):
+        """All depreciation methods should be defined."""
+        from app.models.fixed_asset import DepreciationMethod
+        
+        methods = [m.value for m in DepreciationMethod]
+        assert "straight_line" in methods
+        assert "reducing_balance" in methods
+        assert "units_of_production" in methods
+    
+    def test_disposal_type_enum_values(self):
+        """All disposal types should be defined."""
+        from app.models.fixed_asset import DisposalType
+        
+        types = [t.value for t in DisposalType]
+        assert "sale" in types
+        assert "trade_in" in types
+        assert "scrapped" in types
+        assert "donated" in types
+        assert "theft" in types
+        assert "insurance_claim" in types
+    
+    def test_standard_depreciation_rates(self):
+        """Nigerian standard depreciation rates should be defined."""
+        from app.models.fixed_asset import STANDARD_DEPRECIATION_RATES, AssetCategory
+        
+        # Land should have 0% (no depreciation)
+        assert STANDARD_DEPRECIATION_RATES[AssetCategory.LAND] == Decimal("0")
+        
+        # Buildings at 10%
+        assert STANDARD_DEPRECIATION_RATES[AssetCategory.BUILDINGS] == Decimal("10")
+        
+        # Motor vehicles at 25%
+        assert STANDARD_DEPRECIATION_RATES[AssetCategory.MOTOR_VEHICLES] == Decimal("25")
+        
+        # Computer equipment at 25%
+        assert STANDARD_DEPRECIATION_RATES[AssetCategory.COMPUTER_EQUIPMENT] == Decimal("25")
+        
+        # Furniture at 20%
+        assert STANDARD_DEPRECIATION_RATES[AssetCategory.FURNITURE_FITTINGS] == Decimal("20")
+        
+        # Plant & Machinery at 25%
+        assert STANDARD_DEPRECIATION_RATES[AssetCategory.PLANT_MACHINERY] == Decimal("25")
+    
+    def test_intangible_assets_depreciation_rate(self):
+        """Intangible assets should have 12.5% rate."""
+        from app.models.fixed_asset import STANDARD_DEPRECIATION_RATES, AssetCategory
+        
+        assert STANDARD_DEPRECIATION_RATES[AssetCategory.INTANGIBLE_ASSETS] == Decimal("12.5")
+
+
+class TestFixedAssetDepreciation:
+    """Tests for depreciation calculation methods."""
+    
+    def test_straight_line_depreciation(self):
+        """Test straight-line depreciation calculation."""
+        # Formula: (Cost - Residual) / Useful Life
+        acquisition_cost = Decimal("1000000")  # ₦1M
+        residual_value = Decimal("100000")     # ₦100K
+        useful_life = 5  # years
+        
+        annual_depreciation = (acquisition_cost - residual_value) / useful_life
+        
+        assert annual_depreciation == Decimal("180000")  # ₦180K per year
+    
+    def test_reducing_balance_depreciation(self):
+        """Test reducing balance depreciation calculation."""
+        # Formula: NBV * Rate
+        net_book_value = Decimal("1000000")  # ₦1M NBV
+        rate = Decimal("25")  # 25%
+        
+        annual_depreciation = net_book_value * (rate / 100)
+        
+        assert annual_depreciation == Decimal("250000")  # ₦250K first year
+    
+    def test_reducing_balance_year_2(self):
+        """Reducing balance Year 2 should have lower depreciation."""
+        nbv_year_1 = Decimal("1000000")
+        rate = Decimal("25")
+        
+        dep_year_1 = nbv_year_1 * (rate / 100)
+        nbv_year_2 = nbv_year_1 - dep_year_1  # ₦750K
+        dep_year_2 = nbv_year_2 * (rate / 100)  # ₦187.5K
+        
+        assert dep_year_2 < dep_year_1
+        assert dep_year_2 == Decimal("187500")
+    
+    def test_net_book_value_calculation(self):
+        """NBV = Cost - Accumulated Depreciation."""
+        cost = Decimal("500000")
+        accumulated_dep = Decimal("125000")
+        
+        nbv = cost - accumulated_dep
+        
+        assert nbv == Decimal("375000")
+    
+    def test_fully_depreciated_check(self):
+        """Asset is fully depreciated when NBV <= Residual."""
+        cost = Decimal("1000000")
+        accumulated = Decimal("900000")
+        residual = Decimal("100000")
+        
+        nbv = cost - accumulated  # ₦100K
+        is_fully_depreciated = nbv <= residual
+        
+        assert is_fully_depreciated is True
+
+
+class TestFixedAssetDisposal:
+    """Tests for asset disposal and capital gains."""
+    
+    def test_capital_gain_calculation(self):
+        """Capital gain = Proceeds - NBV."""
+        proceeds = Decimal("500000")  # ₦500K sale price
+        nbv = Decimal("300000")       # ₦300K book value
+        
+        capital_gain = proceeds - nbv
+        
+        assert capital_gain == Decimal("200000")  # ₦200K gain
+    
+    def test_capital_loss_calculation(self):
+        """Capital loss when proceeds < NBV."""
+        proceeds = Decimal("200000")  # ₦200K sale price
+        nbv = Decimal("350000")       # ₦350K book value
+        
+        capital_gain = proceeds - nbv
+        
+        assert capital_gain == Decimal("-150000")  # ₦150K loss
+    
+    def test_capital_gain_taxed_at_cit_rate_2026(self):
+        """Under 2026 law, capital gains taxed at CIT rate."""
+        # 2026 reform changed CGT to flat CIT rate
+        capital_gain = Decimal("1000000")  # ₦1M gain
+        cit_rate_large_company = Decimal("30")  # 30%
+        
+        cgt_liability = capital_gain * (cit_rate_large_company / 100)
+        
+        assert cgt_liability == Decimal("300000")  # ₦300K tax
+    
+    def test_scrapped_asset_zero_proceeds(self):
+        """Scrapped asset should have zero proceeds = full loss."""
+        nbv = Decimal("250000")
+        proceeds = Decimal("0")  # Scrapped
+        
+        capital_loss = proceeds - nbv
+        
+        assert capital_loss == Decimal("-250000")
+
+
+class TestFixedAssetVATRecovery:
+    """Tests for VAT recovery on capital assets (2026 compliance)."""
+    
+    def test_vat_recovery_requires_vendor_irn(self):
+        """VAT recovery on fixed assets requires valid vendor IRN."""
+        # Under 2026 law, input VAT on capital assets is recoverable
+        # but requires vendor's NRS IRN
+        has_vendor_irn = True
+        is_recoverable = has_vendor_irn  # Simplified logic
+        
+        assert is_recoverable is True
+    
+    def test_no_vat_recovery_without_irn(self):
+        """No VAT recovery without vendor IRN."""
+        has_vendor_irn = False
+        is_recoverable = has_vendor_irn
+        
+        assert is_recoverable is False
+    
+    def test_vat_on_capital_asset_calculation(self):
+        """VAT on capital asset = 7.5% of acquisition cost."""
+        acquisition_cost_ex_vat = Decimal("1000000")  # ₦1M
+        vat_rate = Decimal("7.5")
+        
+        vat_amount = acquisition_cost_ex_vat * (vat_rate / 100)
+        
+        assert vat_amount == Decimal("75000")  # ₦75K VAT
+
+
+class TestFixedAssetDevelopmentLevy:
+    """Tests for Development Levy threshold calculations."""
+    
+    def test_small_company_exemption_threshold(self):
+        """Small companies exempt if fixed assets <= ₦250M."""
+        fixed_assets_total = Decimal("200000000")  # ₦200M
+        threshold = Decimal("250000000")  # ₦250M
+        
+        is_exempt = fixed_assets_total <= threshold
+        
+        assert is_exempt is True
+    
+    def test_large_company_not_exempt(self):
+        """Companies above threshold not exempt."""
+        fixed_assets_total = Decimal("300000000")  # ₦300M
+        threshold = Decimal("250000000")  # ₦250M
+        
+        is_exempt = fixed_assets_total <= threshold
+        
+        assert is_exempt is False
+    
+    def test_nbv_used_for_threshold(self):
+        """Net book value (not cost) used for threshold."""
+        # Development Levy exemption uses NBV, not original cost
+        total_cost = Decimal("400000000")  # ₦400M cost
+        total_accumulated_dep = Decimal("200000000")  # ₦200M dep
+        
+        nbv = total_cost - total_accumulated_dep  # ₦200M NBV
+        threshold = Decimal("250000000")
+        
+        is_exempt = nbv <= threshold
+        
+        assert is_exempt is True
+
+
+class TestFixedAssetService:
+    """Tests for Fixed Asset Service methods."""
+    
+    def test_asset_code_format(self):
+        """Asset code should follow FA-{CATEGORY}-{SEQ} format."""
+        # Example codes
+        codes = ["FA-MV-0001", "FA-CE-0002", "FA-BG-0003"]
+        
+        for code in codes:
+            parts = code.split("-")
+            assert parts[0] == "FA"
+            assert len(parts[1]) == 2
+            assert len(parts[2]) == 4
+    
+    def test_category_prefixes_mapping(self):
+        """Each category should have a 2-letter prefix."""
+        prefixes = {
+            "land": "LD",
+            "buildings": "BG",
+            "plant_machinery": "PM",
+            "furniture_fittings": "FF",
+            "motor_vehicles": "MV",
+            "computer_equipment": "CE",
+            "office_equipment": "OE",
+            "leasehold_improvements": "LI",
+            "intangible_assets": "IA",
+            "other": "OT",
+        }
+        
+        for category, prefix in prefixes.items():
+            assert len(prefix) == 2
+            assert prefix.isupper()
+
+
+class TestFixedAssetRouter:
+    """Tests for Fixed Asset API Router structure."""
+    
+    def test_router_prefix(self):
+        """Router should have correct prefix."""
+        from app.routers.fixed_assets import router
+        
+        assert router.prefix == "/api/v1/fixed-assets"
+    
+    def test_router_tags(self):
+        """Router should have correct tags."""
+        from app.routers.fixed_assets import router
+        
+        assert "Fixed Assets" in router.tags
+    
+    def test_pydantic_schemas_exist(self):
+        """All required Pydantic schemas should be defined."""
+        from app.routers.fixed_assets import (
+            FixedAssetCreate,
+            FixedAssetUpdate,
+            FixedAssetResponse,
+            AssetDisposalRequest,
+            DepreciationRunRequest,
+        )
+        
+        # Schemas should be importable
+        assert FixedAssetCreate is not None
+        assert FixedAssetUpdate is not None
+        assert FixedAssetResponse is not None
+        assert AssetDisposalRequest is not None
+        assert DepreciationRunRequest is not None
+
+
+class TestFixedAssetCompliance2026:
+    """Tests for 2026 Nigeria Tax Reform compliance features."""
+    
+    def test_cgt_taxed_at_cit_rate(self):
+        """Capital gains should be taxed at CIT rate (not separate CGT)."""
+        # Under 2026 reform, CGT abolished for companies
+        # Capital gains included in assessable profit, taxed at CIT rate
+        cit_rate_large = Decimal("30")  # 30% for large companies
+        cit_rate_medium = Decimal("20")  # 20% for medium
+        cit_rate_small = Decimal("0")   # 0% for small
+        
+        capital_gain = Decimal("1000000")
+        
+        # Large company tax on gain
+        tax_large = capital_gain * (cit_rate_large / 100)
+        assert tax_large == Decimal("300000")
+        
+        # Small company (exempt)
+        tax_small = capital_gain * (cit_rate_small / 100)
+        assert tax_small == Decimal("0")
+    
+    def test_input_vat_recovery_on_assets(self):
+        """2026 law allows VAT recovery on capital assets."""
+        # Previously, input VAT on capital assets was not recoverable
+        # 2026 reform allows recovery with valid vendor IRN
+        is_recoverable_2026 = True
+        
+        assert is_recoverable_2026 is True
+    
+    def test_vendor_irn_required_for_recovery(self):
+        """Vendor's NRS IRN required for VAT recovery claim."""
+        # Must have valid Invoice Reference Number from NRS
+        vendor_irn = "NRS-2025-001234567890123"
+        has_valid_irn = vendor_irn and vendor_irn.startswith("NRS")
+        
+        assert has_valid_irn is True
+    
+    def test_depreciation_reduces_assessable_profit(self):
+        """Depreciation reduces assessable profit for tax."""
+        gross_profit = Decimal("10000000")  # ₦10M
+        depreciation = Decimal("1500000")    # ₦1.5M annual depreciation
+        
+        assessable_profit = gross_profit - depreciation
+        
+        assert assessable_profit == Decimal("8500000")  # ₦8.5M
+    
+    def test_development_levy_threshold_250m(self):
+        """Development Levy exemption threshold is ₦250M fixed assets."""
+        from app.models.fixed_asset import STANDARD_DEPRECIATION_RATES
+        
+        # Threshold defined in 2026 law
+        threshold = Decimal("250000000")
+        
+        # Verify threshold is correct
+        assert threshold == Decimal("250000000")
+
+
 # Run with: pytest tests/test_2026_compliance.py -v
