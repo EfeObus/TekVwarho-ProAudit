@@ -134,6 +134,12 @@
                     <span>Penalties</span>
                     <span x-show="penaltySummary.total_outstanding > 0" class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" x-text="formatCurrency(penaltySummary.total_outstanding)"></span>
                 </button>
+                <button @click="activeTab = 'peppol'" 
+                        :class="activeTab === 'peppol' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>📄</span>
+                    <span>Peppol Export</span>
+                </button>
             </nav>
         </div>
     </div>
@@ -1899,6 +1905,280 @@
                 </div>
             </div>
         </div>
+
+        <!-- Peppol BIS 3.0 Export Tab -->
+        <div x-show="activeTab === 'peppol'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
+                <div class="flex items-start space-x-3">
+                    <span class="text-2xl">📄</span>
+                    <div>
+                        <h3 class="text-sm font-medium text-blue-800">Peppol BIS Billing 3.0 Export</h3>
+                        <p class="text-sm text-blue-700 mt-1">Generate NRS-compliant structured digital invoices in <strong>UBL 2.1 XML</strong> or <strong>JSON</strong> format. Includes CSID (Cryptographic Stamp ID) and QR code data for invoice verification.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Features -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">XML Export</h3>
+                        <span class="p-2 bg-green-100 rounded-lg">📝</span>
+                    </div>
+                    <p class="text-sm text-gray-600">UBL 2.1 compliant XML for cross-border e-invoicing</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">JSON Export</h3>
+                        <span class="p-2 bg-purple-100 rounded-lg">{ }</span>
+                    </div>
+                    <p class="text-sm text-gray-600">API-friendly JSON representation</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">CSID</h3>
+                        <span class="p-2 bg-orange-100 rounded-lg">🔐</span>
+                    </div>
+                    <p class="text-sm text-gray-600">Cryptographic Stamp ID for integrity</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">QR Code</h3>
+                        <span class="p-2 bg-blue-100 rounded-lg">📱</span>
+                    </div>
+                    <p class="text-sm text-gray-600">Embedded verification data</p>
+                </div>
+            </div>
+
+            <!-- Manual Invoice Export Form -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">📤 Export Invoice</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Seller Info -->
+                    <div class="space-y-4">
+                        <h4 class="font-medium text-gray-700 border-b pb-2">Seller Information</h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
+                            <input type="text" x-model="peppolForm.seller.name" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">TIN *</label>
+                            <input type="text" x-model="peppolForm.seller.tin" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                            <input type="text" x-model="peppolForm.seller.street_address" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
+                                <input type="text" x-model="peppolForm.seller.city" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">State</label>
+                                <input type="text" x-model="peppolForm.seller.state" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Buyer Info -->
+                    <div class="space-y-4">
+                        <h4 class="font-medium text-gray-700 border-b pb-2">Buyer Information</h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+                            <input type="text" x-model="peppolForm.buyer.name" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">TIN (Optional for B2C)</label>
+                            <input type="text" x-model="peppolForm.buyer.tin" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                            <input type="text" x-model="peppolForm.buyer.street_address" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
+                                <input type="text" x-model="peppolForm.buyer.city" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">State</label>
+                                <input type="text" x-model="peppolForm.buyer.state" 
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice Details -->
+                <div class="mt-6 space-y-4">
+                    <h4 class="font-medium text-gray-700 border-b pb-2">Invoice Details</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Number *</label>
+                            <input type="text" x-model="peppolForm.invoice_number" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Date *</label>
+                            <input type="date" x-model="peppolForm.invoice_date" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Due Date *</label>
+                            <input type="date" x-model="peppolForm.due_date" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Type</label>
+                            <select x-model="peppolForm.invoice_type" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                <option value="380">Commercial Invoice</option>
+                                <option value="381">Credit Note</option>
+                                <option value="383">Debit Note</option>
+                                <option value="384">Corrected Invoice</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Line Items -->
+                <div class="mt-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-medium text-gray-700">Line Items</h4>
+                        <button @click="addPeppolLineItem()" 
+                                class="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-sm hover:bg-green-200">
+                            + Add Item
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">VAT %</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                    <th class="px-4 py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="(item, index) in peppolForm.line_items" :key="index">
+                                    <tr>
+                                        <td class="px-4 py-2">
+                                            <input type="text" x-model="item.description" 
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            <input type="number" x-model="item.quantity" step="1" 
+                                                   class="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-right">
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            <input type="number" x-model="item.unit_price" step="0.01" 
+                                                   class="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right">
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            <input type="number" x-model="item.vat_rate" step="0.1" 
+                                                   class="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-right">
+                                        </td>
+                                        <td class="px-4 py-2 text-right text-sm font-medium" x-text="formatCurrency(item.quantity * item.unit_price * (1 + item.vat_rate/100))"></td>
+                                        <td class="px-4 py-2">
+                                            <button @click="peppolForm.line_items.splice(index, 1)" 
+                                                    class="text-red-600 hover:text-red-800 text-sm">✕</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Export Buttons -->
+                <div class="mt-6 flex items-center space-x-4">
+                    <button @click="exportPeppolXML()" 
+                            :disabled="peppolExporting || !peppolForm.invoice_number"
+                            class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2">
+                        <span>📝</span>
+                        <span x-show="!peppolExporting">Export XML</span>
+                        <span x-show="peppolExporting">Exporting...</span>
+                    </button>
+                    <button @click="exportPeppolJSON()" 
+                            :disabled="peppolExporting || !peppolForm.invoice_number"
+                            class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center space-x-2">
+                        <span>{ }</span>
+                        <span x-show="!peppolExporting">Export JSON</span>
+                        <span x-show="peppolExporting">Exporting...</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Export Result -->
+            <div x-show="peppolResult" class="bg-white rounded-xl shadow-sm p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Export Result</h3>
+                    <div class="flex items-center space-x-2">
+                        <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">✅ Compliant</span>
+                        <span class="text-sm text-gray-500">Format: <span class="font-medium" x-text="peppolResult?.format?.toUpperCase()"></span></span>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">CSID (Cryptographic Stamp ID)</h4>
+                        <code class="text-xs text-green-700 break-all" x-text="peppolResult?.csid"></code>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Invoice Number</h4>
+                        <span class="text-lg font-bold text-gray-900" x-text="peppolResult?.invoice_number"></span>
+                    </div>
+                </div>
+                
+                <div class="p-4 bg-gray-50 rounded-lg mb-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">QR Code Data</h4>
+                    <code class="text-xs text-gray-600 break-all block max-h-20 overflow-auto" x-text="peppolResult?.qr_code_data"></code>
+                </div>
+                
+                <div class="p-4 bg-gray-900 rounded-lg overflow-auto max-h-96">
+                    <pre class="text-xs text-green-400 whitespace-pre-wrap" x-text="peppolResult?.content"></pre>
+                </div>
+                
+                <div class="mt-4 flex items-center space-x-4">
+                    <button @click="downloadPeppolExport()" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        ⬇️ Download File
+                    </button>
+                    <button @click="copyPeppolContent()" 
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                        📋 Copy to Clipboard
+                    </button>
+                </div>
+            </div>
+
+            <!-- Peppol Compliance Reference -->
+            <div class="mt-6 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <h4 class="font-medium text-gray-800 mb-2">Peppol BIS Billing 3.0 Compliance</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-600">
+                    <div><strong>Standard:</strong> Peppol BIS Billing 3.0</div>
+                    <div><strong>Format:</strong> UBL 2.1 XML / JSON</div>
+                    <div><strong>Profile ID:</strong> urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</div>
+                    <div><strong>Tax Scheme:</strong> NG:NRS (Nigeria Revenue Service)</div>
+                    <div><strong>VAT Rate:</strong> 7.5% Standard</div>
+                    <div><strong>Compliance:</strong> Nigeria Tax Administration Act 2026</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->
@@ -1948,6 +2228,19 @@ function tax2026Dashboard() {
         penaltyCalcForm: { penalty_type: '', original_due_date: '', filing_date: '', contract_amount: '', tax_amount: '', due_date: '', payment_date: '' },
         penaltyCalcResult: null,
         penaltyCalculating: false,
+        
+        // Peppol BIS 3.0 Export Data
+        peppolForm: {
+            invoice_number: '',
+            invoice_date: '',
+            due_date: '',
+            invoice_type: '380',
+            seller: { name: '', tin: '', street_address: '', city: '', state: '', country: 'NG' },
+            buyer: { name: '', tin: '', street_address: '', city: '', state: '', country: 'NG' },
+            line_items: []
+        },
+        peppolResult: null,
+        peppolExporting: false,
         
         // Forms
         vatForm: {
@@ -2236,6 +2529,128 @@ function tax2026Dashboard() {
                 'wht_non_remittance': 'WHT Non-Remittance'
             };
             return types[type] || type;
+        },
+        
+        // Peppol BIS 3.0 Export Methods
+        addPeppolLineItem() {
+            this.peppolForm.line_items.push({
+                description: '',
+                quantity: 1,
+                unit_price: 0,
+                vat_rate: 7.5,
+                unit_code: 'EA'
+            });
+        },
+        
+        async exportPeppolXML() {
+            if (!this.peppolForm.invoice_number) {
+                this.showToast('Invoice number is required', 'error');
+                return;
+            }
+            this.peppolExporting = true;
+            try {
+                const payload = {
+                    invoice_number: this.peppolForm.invoice_number,
+                    invoice_date: this.peppolForm.invoice_date || new Date().toISOString().split('T')[0],
+                    due_date: this.peppolForm.due_date || new Date().toISOString().split('T')[0],
+                    invoice_type_code: this.peppolForm.invoice_type,
+                    currency_code: 'NGN',
+                    seller: this.peppolForm.seller,
+                    buyer: this.peppolForm.buyer,
+                    line_items: this.peppolForm.line_items.map((item, idx) => ({
+                        line_id: String(idx + 1),
+                        description: item.description,
+                        quantity: parseFloat(item.quantity),
+                        unit_price: parseFloat(item.unit_price),
+                        vat_rate: parseFloat(item.vat_rate),
+                        unit_code: item.unit_code || 'EA'
+                    }))
+                };
+                const res = await fetch('/api/v1/tax-2026/peppol/export/xml', {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    this.peppolResult = await res.json();
+                    this.peppolResult.format = 'xml';
+                    this.showToast('Invoice exported to XML successfully', 'success');
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Export failed', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to export XML', 'error');
+            }
+            this.peppolExporting = false;
+        },
+        
+        async exportPeppolJSON() {
+            if (!this.peppolForm.invoice_number) {
+                this.showToast('Invoice number is required', 'error');
+                return;
+            }
+            this.peppolExporting = true;
+            try {
+                const payload = {
+                    invoice_number: this.peppolForm.invoice_number,
+                    invoice_date: this.peppolForm.invoice_date || new Date().toISOString().split('T')[0],
+                    due_date: this.peppolForm.due_date || new Date().toISOString().split('T')[0],
+                    invoice_type_code: this.peppolForm.invoice_type,
+                    currency_code: 'NGN',
+                    seller: this.peppolForm.seller,
+                    buyer: this.peppolForm.buyer,
+                    line_items: this.peppolForm.line_items.map((item, idx) => ({
+                        line_id: String(idx + 1),
+                        description: item.description,
+                        quantity: parseFloat(item.quantity),
+                        unit_price: parseFloat(item.unit_price),
+                        vat_rate: parseFloat(item.vat_rate),
+                        unit_code: item.unit_code || 'EA'
+                    }))
+                };
+                const res = await fetch('/api/v1/tax-2026/peppol/export/json', {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    this.peppolResult = await res.json();
+                    this.peppolResult.format = 'json';
+                    this.showToast('Invoice exported to JSON successfully', 'success');
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Export failed', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to export JSON', 'error');
+            }
+            this.peppolExporting = false;
+        },
+        
+        downloadPeppolExport() {
+            if (!this.peppolResult) return;
+            const ext = this.peppolResult.format === 'xml' ? 'xml' : 'json';
+            const mimeType = this.peppolResult.format === 'xml' ? 'application/xml' : 'application/json';
+            const content = this.peppolResult.content;
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${this.peppolResult.invoice_number || 'invoice'}_peppol.${ext}`;
+            a.click();
+            URL.revokeObjectURL(url);
+            this.showToast('File downloaded', 'success');
+        },
+        
+        async copyPeppolContent() {
+            if (!this.peppolResult) return;
+            try {
+                await navigator.clipboard.writeText(this.peppolResult.content);
+                this.showToast('Copied to clipboard', 'success');
+            } catch (e) {
+                this.showToast('Failed to copy', 'error');
+            }
         },
         
         async pollNRS() {

@@ -42,6 +42,14 @@ from app.services.compliance_penalty_service import (
     PenaltyStatus,
     PENALTY_SCHEDULE,
 )
+from app.services.peppol_export_service import (
+    PeppolExportService,
+    PeppolInvoice,
+    PeppolParty,
+    PeppolLineItem,
+    InvoiceTypeCode,
+    TaxCategoryCode,
+)
 from app.schemas.auth import MessageResponse
 
 
@@ -297,6 +305,59 @@ class UpdatePenaltyStatusRequest(BaseModel):
     status: str = Field(..., description="New status: paid, waived, disputed")
     payment_reference: Optional[str] = None
     notes: Optional[str] = None
+
+
+# Peppol BIS 3.0 Export Schemas
+class PeppolPartyRequest(BaseModel):
+    """Party information for Peppol invoice."""
+    name: str
+    tin: Optional[str] = None
+    registration_name: Optional[str] = None
+    street_address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country_code: str = "NG"
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+
+class PeppolLineItemRequest(BaseModel):
+    """Line item for Peppol invoice."""
+    item_id: str
+    description: str
+    quantity: Decimal = Field(..., ge=0)
+    unit_code: str = "EA"  # Each
+    unit_price: Decimal = Field(..., ge=0)
+    vat_rate: Decimal = Field(default=Decimal("7.5"))
+    tax_category: str = "S"  # Standard rate
+    item_classification_code: Optional[str] = None
+
+
+class PeppolExportRequest(BaseModel):
+    """Request to export invoice in Peppol format."""
+    invoice_number: str
+    invoice_date: date
+    due_date: date
+    invoice_type: str = "380"  # Commercial invoice
+    seller: PeppolPartyRequest
+    buyer: PeppolPartyRequest
+    line_items: List[PeppolLineItemRequest]
+    currency_code: str = "NGN"
+    payment_terms: Optional[str] = None
+    nrs_irn: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PeppolExportResponse(BaseModel):
+    """Peppol export response."""
+    invoice_number: str
+    format: str
+    content: str
+    csid: str
+    qr_code_data: str
+    is_compliant: bool
 
 
 # ===========================================
@@ -2512,3 +2573,518 @@ async def update_penalty_status(
     await db.commit()
     
     return MessageResponse(message=f"Penalty status updated to {new_status.value}")
+
+
+# ===========================================
+# PEPPOL BIS 3.0 EXPORT ENDPOINTS
+# ===========================================
+
+@router.get(
+    "/peppol/info",
+    summary="Get Peppol BIS 3.0 information",
+    tags=["2026 Reform - Peppol Export"],
+)
+async def get_peppol_info():
+    """
+    Get information about Peppol BIS Billing 3.0 export capabilities.
+    
+    Peppol BIS Billing 3.0 is the mandated standard for:
+    - Structured digital invoices
+    - Cross-border e-invoicing
+    - NRS compliance
+    """
+    return {
+        "standard": "Peppol BIS Billing 3.0",
+        "formats": ["xml", "json"],
+        "ubl_version": "2.1",
+        "profile_id": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+        "customization_id": "urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0",
+        "invoice_types": {
+            "380": "Commercial Invoice",
+            "381": "Credit Note",
+            "383": "Debit Note",
+            "384": "Corrected Invoice",
+            "386": "Prepayment Invoice",
+        },
+        "tax_categories": {
+            "S": "Standard Rate (7.5%)",
+            "Z": "Zero Rated",
+            "E": "Exempt",
+            "O": "Not Subject to Tax",
+        },
+        "features": [
+            "UBL 2.1 XML export",
+            "JSON representation",
+            "CSID (Cryptographic Stamp ID) generation",
+            "QR code data embedding",
+            "NRS compliance metadata",
+        ],
+        "compliance_reference": "Nigeria Tax Administration Act 2026",
+    }
+
+
+@router.post(
+    "/peppol/export/xml",
+    response_model=PeppolExportResponse,
+    summary="Export invoice as Peppol XML",
+    tags=["2026 Reform - Peppol Export"],
+)
+async def export_peppol_xml(
+    request: PeppolExportRequest,
+):
+    """
+    Export an invoice in Peppol BIS Billing 3.0 XML format (UBL 2.1).
+    
+    The export includes:
+    - Complete UBL 2.1 structured XML
+    - NRS CSID (Cryptographic Stamp ID)
+    - QR code data for verification
+    - All required Peppol metadata
+    """
+    service = PeppolExportService()
+    
+    # Convert request to PeppolInvoice
+    seller = PeppolParty(
+        name=request.seller.name,
+        tin=request.seller.tin,
+        registration_name=request.seller.registration_name,
+        street_address=request.seller.street_address,
+        city=request.seller.city,
+        state=request.seller.state,
+        postal_code=request.seller.postal_code,
+        country_code=request.seller.country_code,
+        contact_name=request.seller.contact_name,
+        contact_email=request.seller.contact_email,
+        contact_phone=request.seller.contact_phone,
+    )
+    
+    buyer = PeppolParty(
+        name=request.buyer.name,
+        tin=request.buyer.tin,
+        registration_name=request.buyer.registration_name,
+        street_address=request.buyer.street_address,
+        city=request.buyer.city,
+        state=request.buyer.state,
+        postal_code=request.buyer.postal_code,
+        country_code=request.buyer.country_code,
+        contact_name=request.buyer.contact_name,
+        contact_email=request.buyer.contact_email,
+        contact_phone=request.buyer.contact_phone,
+    )
+    
+    line_items = []
+    subtotal = Decimal("0")
+    total_vat = Decimal("0")
+    
+    for item in request.line_items:
+        line_total = item.quantity * item.unit_price
+        vat_amount = line_total * (item.vat_rate / 100)
+        subtotal += line_total
+        total_vat += vat_amount
+        
+        line_items.append(PeppolLineItem(
+            item_id=item.item_id,
+            description=item.description,
+            quantity=item.quantity,
+            unit_code=item.unit_code,
+            unit_price=item.unit_price,
+            line_total=line_total,
+            vat_rate=item.vat_rate,
+            vat_amount=vat_amount,
+            tax_category=TaxCategoryCode(item.tax_category),
+            item_classification_code=item.item_classification_code,
+        ))
+    
+    invoice = PeppolInvoice(
+        invoice_number=request.invoice_number,
+        invoice_date=request.invoice_date,
+        due_date=request.due_date,
+        invoice_type=InvoiceTypeCode(request.invoice_type),
+        seller=seller,
+        buyer=buyer,
+        line_items=line_items,
+        currency_code=request.currency_code,
+        subtotal=subtotal,
+        total_vat=total_vat,
+        total_amount=subtotal + total_vat,
+        payment_terms=request.payment_terms,
+        nrs_irn=request.nrs_irn,
+        notes=request.notes,
+    )
+    
+    # Generate CSID and QR data
+    csid = service.generate_csid(invoice)
+    qr_data = service.generate_qr_code_data(invoice)
+    
+    # Update invoice with generated data
+    invoice.nrs_csid = csid
+    invoice.nrs_qr_code_data = qr_data
+    
+    # Generate XML
+    xml_content = service.to_ubl_xml(invoice)
+    
+    return PeppolExportResponse(
+        invoice_number=invoice.invoice_number,
+        format="xml",
+        content=xml_content,
+        csid=csid,
+        qr_code_data=qr_data,
+        is_compliant=True,
+    )
+
+
+@router.post(
+    "/peppol/export/json",
+    response_model=PeppolExportResponse,
+    summary="Export invoice as Peppol JSON",
+    tags=["2026 Reform - Peppol Export"],
+)
+async def export_peppol_json(
+    request: PeppolExportRequest,
+):
+    """
+    Export an invoice in Peppol BIS Billing 3.0 JSON format.
+    
+    The export includes:
+    - Structured JSON representation
+    - NRS compliance metadata
+    - CSID and QR code data
+    """
+    service = PeppolExportService()
+    
+    # Convert request to PeppolInvoice (same as XML)
+    seller = PeppolParty(
+        name=request.seller.name,
+        tin=request.seller.tin,
+        registration_name=request.seller.registration_name,
+        street_address=request.seller.street_address,
+        city=request.seller.city,
+        state=request.seller.state,
+        postal_code=request.seller.postal_code,
+        country_code=request.seller.country_code,
+        contact_name=request.seller.contact_name,
+        contact_email=request.seller.contact_email,
+        contact_phone=request.seller.contact_phone,
+    )
+    
+    buyer = PeppolParty(
+        name=request.buyer.name,
+        tin=request.buyer.tin,
+        registration_name=request.buyer.registration_name,
+        street_address=request.buyer.street_address,
+        city=request.buyer.city,
+        state=request.buyer.state,
+        postal_code=request.buyer.postal_code,
+        country_code=request.buyer.country_code,
+        contact_name=request.buyer.contact_name,
+        contact_email=request.buyer.contact_email,
+        contact_phone=request.buyer.contact_phone,
+    )
+    
+    line_items = []
+    subtotal = Decimal("0")
+    total_vat = Decimal("0")
+    
+    for item in request.line_items:
+        line_total = item.quantity * item.unit_price
+        vat_amount = line_total * (item.vat_rate / 100)
+        subtotal += line_total
+        total_vat += vat_amount
+        
+        line_items.append(PeppolLineItem(
+            item_id=item.item_id,
+            description=item.description,
+            quantity=item.quantity,
+            unit_code=item.unit_code,
+            unit_price=item.unit_price,
+            line_total=line_total,
+            vat_rate=item.vat_rate,
+            vat_amount=vat_amount,
+            tax_category=TaxCategoryCode(item.tax_category),
+            item_classification_code=item.item_classification_code,
+        ))
+    
+    invoice = PeppolInvoice(
+        invoice_number=request.invoice_number,
+        invoice_date=request.invoice_date,
+        due_date=request.due_date,
+        invoice_type=InvoiceTypeCode(request.invoice_type),
+        seller=seller,
+        buyer=buyer,
+        line_items=line_items,
+        currency_code=request.currency_code,
+        subtotal=subtotal,
+        total_vat=total_vat,
+        total_amount=subtotal + total_vat,
+        payment_terms=request.payment_terms,
+        nrs_irn=request.nrs_irn,
+        notes=request.notes,
+    )
+    
+    # Generate CSID and QR data
+    csid = service.generate_csid(invoice)
+    qr_data = service.generate_qr_code_data(invoice)
+    
+    # Update invoice with generated data
+    invoice.nrs_csid = csid
+    invoice.nrs_qr_code_data = qr_data
+    
+    # Generate JSON
+    json_content = service.to_json(invoice)
+    
+    return PeppolExportResponse(
+        invoice_number=invoice.invoice_number,
+        format="json",
+        content=json_content,
+        csid=csid,
+        qr_code_data=qr_data,
+        is_compliant=True,
+    )
+
+
+@router.get(
+    "/{entity_id}/peppol/export/{invoice_id}/xml",
+    response_model=PeppolExportResponse,
+    summary="Export existing invoice as Peppol XML",
+    tags=["2026 Reform - Peppol Export"],
+)
+async def export_existing_invoice_xml(
+    entity_id: UUID,
+    invoice_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Export an existing invoice as Peppol BIS 3.0 XML."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    # Get invoice from database
+    from app.models.invoice import Invoice
+    from app.models.customer import Customer
+    from app.models.entity import BusinessEntity
+    from sqlalchemy import select
+    
+    query = select(Invoice).where(
+        Invoice.id == invoice_id,
+        Invoice.entity_id == entity_id,
+    )
+    result = await db.execute(query)
+    invoice = result.scalar_one_or_none()
+    
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found",
+        )
+    
+    # Get entity (seller)
+    entity_query = select(BusinessEntity).where(BusinessEntity.id == entity_id)
+    entity_result = await db.execute(entity_query)
+    entity = entity_result.scalar_one_or_none()
+    
+    # Get customer (buyer) if exists
+    customer = None
+    if invoice.customer_id:
+        customer_query = select(Customer).where(Customer.id == invoice.customer_id)
+        customer_result = await db.execute(customer_query)
+        customer = customer_result.scalar_one_or_none()
+    
+    service = PeppolExportService()
+    
+    # Build seller party from entity
+    seller = PeppolParty(
+        name=entity.name,
+        tin=entity.tin,
+        registration_name=entity.name,
+        street_address=entity.address,
+        city=entity.city,
+        state=entity.state,
+        country_code="NG",
+        contact_email=entity.email,
+        contact_phone=entity.phone,
+    )
+    
+    # Build buyer party
+    buyer = PeppolParty(
+        name=customer.name if customer else "Walk-in Customer",
+        tin=customer.tin if customer else None,
+        street_address=customer.address if customer else None,
+        city=customer.city if customer else None,
+        state=customer.state if customer else None,
+        country_code="NG",
+        contact_email=customer.email if customer else None,
+        contact_phone=customer.phone if customer else None,
+    )
+    
+    # Build line items from invoice items
+    line_items = []
+    for item in invoice.items:
+        line_items.append(PeppolLineItem(
+            item_id=str(item.id),
+            description=item.description,
+            quantity=Decimal(str(item.quantity)),
+            unit_code="EA",
+            unit_price=Decimal(str(item.unit_price)),
+            line_total=Decimal(str(item.line_total)),
+            vat_rate=Decimal("7.5"),
+            vat_amount=Decimal(str(item.vat_amount)) if hasattr(item, 'vat_amount') else Decimal("0"),
+            tax_category=TaxCategoryCode.STANDARD_RATE,
+        ))
+    
+    peppol_invoice = PeppolInvoice(
+        invoice_number=invoice.invoice_number,
+        invoice_date=invoice.invoice_date,
+        due_date=invoice.due_date or invoice.invoice_date,
+        invoice_type=InvoiceTypeCode.COMMERCIAL_INVOICE,
+        seller=seller,
+        buyer=buyer,
+        line_items=line_items,
+        currency_code="NGN",
+        subtotal=Decimal(str(invoice.subtotal)),
+        total_vat=Decimal(str(invoice.vat_amount)),
+        total_amount=Decimal(str(invoice.total_amount)),
+        nrs_irn=invoice.irn,
+        notes=invoice.notes,
+    )
+    
+    # Generate CSID and QR data
+    csid = service.generate_csid(peppol_invoice)
+    qr_data = service.generate_qr_code_data(peppol_invoice)
+    
+    peppol_invoice.nrs_csid = csid
+    peppol_invoice.nrs_qr_code_data = qr_data
+    
+    # Generate XML
+    xml_content = service.to_ubl_xml(peppol_invoice)
+    
+    return PeppolExportResponse(
+        invoice_number=peppol_invoice.invoice_number,
+        format="xml",
+        content=xml_content,
+        csid=csid,
+        qr_code_data=qr_data,
+        is_compliant=True,
+    )
+
+
+@router.get(
+    "/{entity_id}/peppol/export/{invoice_id}/json",
+    response_model=PeppolExportResponse,
+    summary="Export existing invoice as Peppol JSON",
+    tags=["2026 Reform - Peppol Export"],
+)
+async def export_existing_invoice_json(
+    entity_id: UUID,
+    invoice_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Export an existing invoice as Peppol BIS 3.0 JSON."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    # Get invoice from database
+    from app.models.invoice import Invoice
+    from app.models.customer import Customer
+    from app.models.entity import BusinessEntity
+    from sqlalchemy import select
+    
+    query = select(Invoice).where(
+        Invoice.id == invoice_id,
+        Invoice.entity_id == entity_id,
+    )
+    result = await db.execute(query)
+    invoice = result.scalar_one_or_none()
+    
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found",
+        )
+    
+    # Get entity (seller)
+    entity_query = select(BusinessEntity).where(BusinessEntity.id == entity_id)
+    entity_result = await db.execute(entity_query)
+    entity = entity_result.scalar_one_or_none()
+    
+    # Get customer (buyer) if exists
+    customer = None
+    if invoice.customer_id:
+        customer_query = select(Customer).where(Customer.id == invoice.customer_id)
+        customer_result = await db.execute(customer_query)
+        customer = customer_result.scalar_one_or_none()
+    
+    service = PeppolExportService()
+    
+    # Build seller party from entity
+    seller = PeppolParty(
+        name=entity.name,
+        tin=entity.tin,
+        registration_name=entity.name,
+        street_address=entity.address,
+        city=entity.city,
+        state=entity.state,
+        country_code="NG",
+        contact_email=entity.email,
+        contact_phone=entity.phone,
+    )
+    
+    # Build buyer party
+    buyer = PeppolParty(
+        name=customer.name if customer else "Walk-in Customer",
+        tin=customer.tin if customer else None,
+        street_address=customer.address if customer else None,
+        city=customer.city if customer else None,
+        state=customer.state if customer else None,
+        country_code="NG",
+        contact_email=customer.email if customer else None,
+        contact_phone=customer.phone if customer else None,
+    )
+    
+    # Build line items from invoice items
+    line_items = []
+    for item in invoice.items:
+        line_items.append(PeppolLineItem(
+            item_id=str(item.id),
+            description=item.description,
+            quantity=Decimal(str(item.quantity)),
+            unit_code="EA",
+            unit_price=Decimal(str(item.unit_price)),
+            line_total=Decimal(str(item.line_total)),
+            vat_rate=Decimal("7.5"),
+            vat_amount=Decimal(str(item.vat_amount)) if hasattr(item, 'vat_amount') else Decimal("0"),
+            tax_category=TaxCategoryCode.STANDARD_RATE,
+        ))
+    
+    peppol_invoice = PeppolInvoice(
+        invoice_number=invoice.invoice_number,
+        invoice_date=invoice.invoice_date,
+        due_date=invoice.due_date or invoice.invoice_date,
+        invoice_type=InvoiceTypeCode.COMMERCIAL_INVOICE,
+        seller=seller,
+        buyer=buyer,
+        line_items=line_items,
+        currency_code="NGN",
+        subtotal=Decimal(str(invoice.subtotal)),
+        total_vat=Decimal(str(invoice.vat_amount)),
+        total_amount=Decimal(str(invoice.total_amount)),
+        nrs_irn=invoice.irn,
+        notes=invoice.notes,
+    )
+    
+    # Generate CSID and QR data
+    csid = service.generate_csid(peppol_invoice)
+    qr_data = service.generate_qr_code_data(peppol_invoice)
+    
+    peppol_invoice.nrs_csid = csid
+    peppol_invoice.nrs_qr_code_data = qr_data
+    
+    # Generate JSON
+    json_content = service.to_json(peppol_invoice)
+    
+    return PeppolExportResponse(
+        invoice_number=peppol_invoice.invoice_number,
+        format="json",
+        content=json_content,
+        csid=csid,
+        qr_code_data=qr_data,
+        is_compliant=True,
+    )
