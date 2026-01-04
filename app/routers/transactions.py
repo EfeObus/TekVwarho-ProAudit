@@ -325,6 +325,81 @@ async def get_transaction(
     )
 
 
+class TransactionUpdateRequest(BaseModel):
+    """Schema for updating a transaction."""
+    transaction_date: Optional[date] = None
+    amount: Optional[float] = Field(None, gt=0)
+    vat_amount: Optional[float] = Field(None, ge=0)
+    description: Optional[str] = Field(None, min_length=1, max_length=500)
+    reference: Optional[str] = Field(None, max_length=100)
+    category_id: Optional[UUID] = None
+
+
+@router.patch(
+    "/{entity_id}/transactions/{transaction_id}",
+    response_model=TransactionResponse,
+    summary="Update transaction",
+)
+async def update_transaction(
+    entity_id: UUID,
+    transaction_id: UUID,
+    request: TransactionUpdateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Update an existing transaction."""
+    entity_service = EntityService(db)
+    entity = await entity_service.get_entity_by_id(entity_id, current_user)
+    if not entity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entity not found or access denied",
+        )
+    
+    can_write = await entity_service.check_user_can_write(current_user, entity_id)
+    if not can_write:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Write access denied for this entity",
+        )
+    
+    transaction_service = TransactionService(db)
+    transaction = await transaction_service.get_transaction_by_id(transaction_id, entity_id)
+    
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaction not found",
+        )
+    
+    update_data = request.model_dump(exclude_unset=True)
+    transaction = await transaction_service.update_transaction(transaction, **update_data)
+    
+    # Reload with relationships
+    transaction = await transaction_service.get_transaction_by_id(transaction.id, entity_id)
+    
+    return TransactionResponse(
+        id=transaction.id,
+        entity_id=transaction.entity_id,
+        transaction_type=transaction.transaction_type.value,
+        transaction_date=transaction.transaction_date,
+        amount=float(transaction.amount),
+        vat_amount=float(transaction.vat_amount),
+        total_amount=float(transaction.total_amount),
+        description=transaction.description,
+        reference=transaction.reference,
+        category_id=transaction.category_id,
+        category_name=transaction.category.name if transaction.category else None,
+        vendor_id=transaction.vendor_id,
+        vendor_name=transaction.vendor.name if transaction.vendor else None,
+        wren_status=transaction.wren_status.value,
+        vat_recoverable=transaction.vat_recoverable,
+        receipt_url=transaction.receipt_url,
+        created_at=transaction.created_at,
+        updated_at=transaction.updated_at,
+    )
+
+
 @router.delete(
     "/{entity_id}/transactions/{transaction_id}",
     response_model=MessageResponse,
