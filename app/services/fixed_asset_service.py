@@ -43,16 +43,17 @@ class FixedAssetService:
     async def create_asset(
         self,
         entity_id: uuid.UUID,
-        asset_code: str,
         name: str,
         category: AssetCategory,
         acquisition_date: date,
         acquisition_cost: Decimal,
+        asset_code: Optional[str] = None,
         description: Optional[str] = None,
         location: Optional[str] = None,
         department: Optional[str] = None,
         vendor_name: Optional[str] = None,
         vendor_invoice_number: Optional[str] = None,
+        invoice_number: Optional[str] = None,  # Alias for vendor_invoice_number
         vendor_irn: Optional[str] = None,
         vat_amount: Decimal = Decimal("0"),
         depreciation_method: DepreciationMethod = DepreciationMethod.REDUCING_BALANCE,
@@ -62,11 +63,25 @@ class FixedAssetService:
         serial_number: Optional[str] = None,
         warranty_expiry: Optional[date] = None,
         insured_value: Optional[Decimal] = None,
+        insurance_value: Optional[Decimal] = None,  # Alias for insured_value
         insurance_policy_number: Optional[str] = None,
         insurance_expiry: Optional[date] = None,
+        insurance_expiry_date: Optional[date] = None,  # Alias for insurance_expiry
         notes: Optional[str] = None,
+        condition: Optional[str] = None,
+        is_insured: bool = False,
+        created_by_id: Optional[uuid.UUID] = None,  # For audit trail
     ) -> FixedAsset:
-        """Create a new fixed asset."""
+        """Create a new fixed asset with auto-generated asset code if not provided."""
+        # Handle parameter aliases
+        vendor_invoice_number = vendor_invoice_number or invoice_number
+        insured_value = insured_value or insurance_value
+        insurance_expiry = insurance_expiry or insurance_expiry_date
+        
+        # Auto-generate asset code if not provided
+        if not asset_code:
+            asset_code = await self._generate_asset_code(entity_id, category)
+        
         # Check for duplicate asset code
         existing = await self.get_asset_by_code(entity_id, asset_code)
         if existing:
@@ -110,6 +125,43 @@ class FixedAssetService:
         await self.db.refresh(asset)
         
         return asset
+    
+    async def _generate_asset_code(
+        self, 
+        entity_id: uuid.UUID, 
+        category: AssetCategory
+    ) -> str:
+        """
+        Auto-generate a unique asset code.
+        
+        Format: {CATEGORY_PREFIX}-{SEQUENTIAL_NUMBER}
+        E.g., FA-MV-001, FA-CE-002
+        """
+        # Category prefixes
+        prefixes = {
+            AssetCategory.LAND: "LD",
+            AssetCategory.BUILDINGS: "BG",
+            AssetCategory.PLANT_MACHINERY: "PM",
+            AssetCategory.FURNITURE_FITTINGS: "FF",
+            AssetCategory.MOTOR_VEHICLES: "MV",
+            AssetCategory.COMPUTER_EQUIPMENT: "CE",
+            AssetCategory.OFFICE_EQUIPMENT: "OE",
+            AssetCategory.LEASEHOLD_IMPROVEMENTS: "LI",
+            AssetCategory.INTANGIBLE_ASSETS: "IA",
+            AssetCategory.OTHER: "OT",
+        }
+        prefix = prefixes.get(category, "FA")
+        
+        # Get count of existing assets in this category
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(FixedAsset)
+            .where(FixedAsset.entity_id == entity_id)
+            .where(FixedAsset.category == category)
+        )
+        count = result.scalar() or 0
+        
+        return f"FA-{prefix}-{count + 1:04d}"
     
     async def get_asset_by_id(self, asset_id: uuid.UUID) -> Optional[FixedAsset]:
         """Get an asset by ID."""
