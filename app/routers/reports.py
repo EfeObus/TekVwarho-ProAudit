@@ -135,6 +135,129 @@ async def get_dashboard_metrics(
 
 
 # ===========================================
+# COMPLIANCE HEALTH & THRESHOLD MONITORING
+# ===========================================
+
+@router.get("/{entity_id}/reports/compliance-health")
+async def get_compliance_health(
+    entity_id: uuid.UUID,
+    include_alerts: bool = Query(True, description="Include threshold alerts"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get real-time Compliance Health score with automated threshold monitoring.
+    
+    2026 Tax Reforms Compliance Checks:
+    - TIN Registration (required for NRS e-invoicing)
+    - CAC Registration
+    - Small Company Status (0% CIT eligibility: Turnover ≤₦50M, Assets ≤₦250M)
+    - Development Levy Exemption (Turnover ≤₦100M, Assets ≤₦250M)
+    - VAT Registration threshold (₦25M annual turnover)
+    
+    Threshold Monitoring:
+    - Automatic alerts when approaching threshold limits
+    - Warning when turnover reaches 80% of threshold
+    - Critical alerts when compliance issues detected
+    
+    Returns:
+    - overall_status: 'excellent', 'good', 'warning', or 'critical'
+    - score: 0-100 percentage
+    - checks: Array of individual compliance check results
+    - alerts: Threshold alerts (if include_alerts=True)
+    - thresholds: Current values vs threshold limits
+    """
+    from app.services.compliance_health_service import ComplianceHealthService
+    
+    service = ComplianceHealthService(db)
+    health = await service.get_compliance_health(
+        entity_id=entity_id,
+        include_alerts=include_alerts,
+    )
+    
+    return health
+
+
+@router.get("/{entity_id}/reports/compliance-health/thresholds")
+async def get_compliance_thresholds(
+    entity_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get current threshold status for all compliance metrics.
+    
+    Shows:
+    - Current values vs threshold limits
+    - Percentage of threshold used
+    - Estimated time to threshold breach (based on trend)
+    """
+    from app.services.compliance_health_service import ComplianceHealthService
+    
+    service = ComplianceHealthService(db)
+    thresholds = await service.get_threshold_status(entity_id=entity_id)
+    
+    return thresholds
+
+
+@router.get("/{entity_id}/reports/compliance-health/alerts")
+async def get_compliance_alerts(
+    entity_id: uuid.UUID,
+    severity: Optional[str] = Query(None, description="Filter by severity: critical, warning, info"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get compliance threshold alerts.
+    
+    Alert Types:
+    - VAT registration threshold approaching (80% of ₦25M)
+    - Small Company status at risk (approaching ₦50M turnover)
+    - Development Levy exemption at risk (approaching ₦100M turnover)
+    - Missing required registrations (TIN, CAC)
+    
+    Severity Levels:
+    - critical: Requires immediate action
+    - warning: Threshold approaching
+    - info: Informational notice
+    """
+    from app.services.compliance_health_service import ComplianceHealthService
+    
+    service = ComplianceHealthService(db)
+    alerts = await service.get_alerts(entity_id=entity_id, severity=severity)
+    
+    return alerts
+
+
+@router.post("/{entity_id}/reports/compliance-health/subscribe")
+async def subscribe_to_compliance_alerts(
+    entity_id: uuid.UUID,
+    alert_types: list = Query(["critical", "warning"], description="Alert types to subscribe to"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Subscribe to compliance threshold alerts.
+    
+    Users will receive notifications when:
+    - Approaching VAT registration threshold
+    - Risk of losing Small Company status
+    - Risk of losing Development Levy exemption
+    - Critical compliance issues detected
+    """
+    from app.services.compliance_health_service import ComplianceHealthService
+    
+    service = ComplianceHealthService(db)
+    subscription = await service.subscribe_alerts(
+        entity_id=entity_id,
+        user_id=current_user.id,
+        alert_types=alert_types,
+    )
+    
+    return subscription
+
+
+# ===========================================
 # TAX REPORTS
 # ===========================================
 

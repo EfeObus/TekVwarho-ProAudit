@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] - 2026-01-04
+
+### Compliance Health & Threshold Monitoring
+
+This release adds dedicated compliance health API endpoints with real-time threshold monitoring for 2026 Nigeria Tax Reform compliance.
+
+### Added
+
+#### Compliance Health API Endpoints
+- **New Endpoint**: `GET /{entity_id}/reports/compliance-health` - Real-time compliance score with automated threshold monitoring
+- **New Endpoint**: `GET /{entity_id}/reports/compliance-health/thresholds` - Current threshold status for all compliance metrics
+- **New Endpoint**: `GET /{entity_id}/reports/compliance-health/alerts` - Compliance threshold alerts by severity
+- **New Endpoint**: `POST /{entity_id}/reports/compliance-health/subscribe` - Subscribe to compliance threshold notifications
+
+#### ComplianceHealthService
+- **New Service**: `app/services/compliance_health_service.py` - Dedicated service for compliance monitoring
+- Real-time compliance score calculation (0-100%)
+- 6 comprehensive compliance checks:
+  - TIN Registration (required for NRS)
+  - CAC Registration
+  - Small Company Status (0% CIT: Turnover ≤₦50M, Assets ≤₦250M)
+  - Development Levy Exemption (Turnover ≤₦100M, Assets ≤₦250M)
+  - VAT Registration (₦25M threshold)
+  - NRS e-Invoicing Readiness
+
+#### Threshold Monitoring Features
+- Automatic alerts at 80% of threshold limits
+- Critical alerts for exceeded thresholds
+- Warning alerts for approaching thresholds
+- Info alerts for status changes
+- Headroom calculation (remaining before threshold)
+- Percentage usage tracking
+
+#### Compliance Health Tests
+- **47 new tests** for compliance health feature:
+  - `TestComplianceHealthThresholds` - Threshold value verification
+  - `TestComplianceHealthScoring` - Score calculation tests
+  - `TestComplianceHealthChecks` - Individual check verification
+  - `TestComplianceAlerts` - Alert generation tests
+  - `TestComplianceThresholdCalculations` - Percentage and headroom calculations
+  - `TestComplianceHealthIntegration` - Integration tests
+
+### 2026 Tax Reform Thresholds Implemented
+| Threshold | Value | Purpose |
+|-----------|-------|---------|
+| VAT Registration | ₦25M annual turnover | Mandatory VAT registration |
+| Small Company Turnover | ₦50M | 0% CIT eligibility |
+| Small Company Assets | ₦250M | 0% CIT eligibility |
+| Development Levy Turnover | ₦100M | 4% levy exemption |
+| Development Levy Assets | ₦250M | 4% levy exemption |
+
+### Test Results
+- **313 tests passing** (up from 266)
+- **3 skipped** (optional features)
+- All compliance health tests pass
+
+---
+
 ## [1.6.0] - 2026-01-04
 
 ### Security & Authentication Enhancements

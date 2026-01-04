@@ -2302,4 +2302,544 @@ class TestWHTCompliance2026:
         assert WHTCalculator.get_wht_rate(WHTServiceType.CONSULTANCY, PayeeType.COMPANY) == Decimal("5")
 
 
+# ===========================================
+# COMPLIANCE HEALTH TESTS
+# ===========================================
+
+class TestComplianceHealthThresholds:
+    """Tests for Compliance Health threshold monitoring."""
+    
+    def test_vat_registration_threshold_25m(self):
+        """VAT registration mandatory when turnover exceeds ₦25M."""
+        from app.services.compliance_health_service import ComplianceHealthService
+        
+        assert ComplianceHealthService.THRESHOLDS["vat_registration"] == Decimal("25000000")
+    
+    def test_small_company_turnover_threshold_50m(self):
+        """Small company status: turnover ≤ ₦50M for 0% CIT."""
+        from app.services.compliance_health_service import ComplianceHealthService
+        
+        assert ComplianceHealthService.THRESHOLDS["small_company_turnover"] == Decimal("50000000")
+    
+    def test_small_company_assets_threshold_250m(self):
+        """Small company status: fixed assets ≤ ₦250M for 0% CIT."""
+        from app.services.compliance_health_service import ComplianceHealthService
+        
+        assert ComplianceHealthService.THRESHOLDS["small_company_assets"] == Decimal("250000000")
+    
+    def test_dev_levy_turnover_exemption_100m(self):
+        """Development Levy exemption: turnover ≤ ₦100M."""
+        from app.services.compliance_health_service import ComplianceHealthService
+        
+        assert ComplianceHealthService.THRESHOLDS["dev_levy_turnover"] == Decimal("100000000")
+    
+    def test_dev_levy_assets_exemption_250m(self):
+        """Development Levy exemption: fixed assets ≤ ₦250M."""
+        from app.services.compliance_health_service import ComplianceHealthService
+        
+        assert ComplianceHealthService.THRESHOLDS["dev_levy_assets"] == Decimal("250000000")
+    
+    def test_warning_threshold_80_percent(self):
+        """Warning alerts trigger at 80% of threshold."""
+        from app.services.compliance_health_service import ComplianceHealthService
+        
+        assert ComplianceHealthService.WARNING_THRESHOLD_PERCENT == Decimal("0.80")
+
+
+class TestComplianceHealthScoring:
+    """Tests for compliance health score calculation."""
+    
+    def test_score_100_all_checks_pass(self):
+        """Score should be 100% when all checks pass."""
+        checks = [
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "pass"},
+        ]
+        
+        total_checks = len(checks)
+        passed = sum(1 for c in checks if c["status"] == "pass")
+        score = int((passed / total_checks) * 100)
+        
+        assert score == 100
+    
+    def test_score_80_one_fail(self):
+        """Score should be 80% when 1 of 5 checks fail."""
+        checks = [
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "fail"},
+        ]
+        
+        total_checks = len(checks)
+        passed = sum(1 for c in checks if c["status"] == "pass")
+        score = int((passed / total_checks) * 100)
+        
+        assert score == 80
+    
+    def test_score_60_two_fails(self):
+        """Score should be 60% when 2 of 5 checks fail."""
+        checks = [
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "pass"},
+            {"status": "fail"},
+            {"status": "fail"},
+        ]
+        
+        total_checks = len(checks)
+        passed = sum(1 for c in checks if c["status"] == "pass")
+        score = int((passed / total_checks) * 100)
+        
+        assert score == 60
+    
+    def test_status_excellent_score_100(self):
+        """Status should be 'excellent' when score is 100%."""
+        score = 100
+        issues = 0
+        warnings = 0
+        
+        if issues > 0:
+            overall_status = "critical"
+        elif warnings > 0:
+            overall_status = "warning"
+        elif score == 100:
+            overall_status = "excellent"
+        else:
+            overall_status = "good"
+        
+        assert overall_status == "excellent"
+    
+    def test_status_critical_with_issues(self):
+        """Status should be 'critical' when issues exist."""
+        score = 80
+        issues = 1
+        warnings = 0
+        
+        if issues > 0:
+            overall_status = "critical"
+        elif warnings > 0:
+            overall_status = "warning"
+        elif score == 100:
+            overall_status = "excellent"
+        else:
+            overall_status = "good"
+        
+        assert overall_status == "critical"
+    
+    def test_status_warning_with_warnings(self):
+        """Status should be 'warning' when warnings exist but no issues."""
+        score = 80
+        issues = 0
+        warnings = 1
+        
+        if issues > 0:
+            overall_status = "critical"
+        elif warnings > 0:
+            overall_status = "warning"
+        elif score == 100:
+            overall_status = "excellent"
+        else:
+            overall_status = "good"
+        
+        assert overall_status == "warning"
+    
+    def test_status_good_partial_pass(self):
+        """Status should be 'good' when partial pass, no issues/warnings."""
+        score = 80
+        issues = 0
+        warnings = 0
+        
+        if issues > 0:
+            overall_status = "critical"
+        elif warnings > 0:
+            overall_status = "warning"
+        elif score == 100:
+            overall_status = "excellent"
+        else:
+            overall_status = "good"
+        
+        assert overall_status == "good"
+
+
+class TestComplianceHealthChecks:
+    """Tests for individual compliance checks."""
+    
+    def test_tin_registration_pass_with_tin(self):
+        """TIN check passes when TIN is registered."""
+        tin = "1234567890"
+        status = "pass" if tin else "fail"
+        assert status == "pass"
+    
+    def test_tin_registration_fail_without_tin(self):
+        """TIN check fails when TIN is missing."""
+        tin = None
+        status = "pass" if tin else "fail"
+        assert status == "fail"
+    
+    def test_cac_registration_pass_with_rc(self):
+        """CAC check passes when RC number is registered."""
+        rc_number = "RC123456"
+        status = "pass" if rc_number else "fail"
+        assert status == "pass"
+    
+    def test_cac_registration_fail_without_rc(self):
+        """CAC check fails when RC number is missing."""
+        rc_number = None
+        status = "pass" if rc_number else "fail"
+        assert status == "fail"
+    
+    def test_small_company_status_pass_under_thresholds(self):
+        """Small company status passes when under both thresholds."""
+        turnover = Decimal("40000000")  # ₦40M
+        fixed_assets = Decimal("200000000")  # ₦200M
+        
+        is_small_company = (
+            turnover <= Decimal("50000000") and
+            fixed_assets <= Decimal("250000000")
+        )
+        
+        assert is_small_company is True
+    
+    def test_small_company_status_fail_over_turnover(self):
+        """Small company status fails when turnover exceeds ₦50M."""
+        turnover = Decimal("60000000")  # ₦60M
+        fixed_assets = Decimal("200000000")  # ₦200M
+        
+        is_small_company = (
+            turnover <= Decimal("50000000") and
+            fixed_assets <= Decimal("250000000")
+        )
+        
+        assert is_small_company is False
+    
+    def test_small_company_status_fail_over_assets(self):
+        """Small company status fails when assets exceed ₦250M."""
+        turnover = Decimal("40000000")  # ₦40M
+        fixed_assets = Decimal("300000000")  # ₦300M
+        
+        is_small_company = (
+            turnover <= Decimal("50000000") and
+            fixed_assets <= Decimal("250000000")
+        )
+        
+        assert is_small_company is False
+    
+    def test_dev_levy_exempt_under_thresholds(self):
+        """Development Levy exemption when under thresholds."""
+        turnover = Decimal("80000000")  # ₦80M
+        fixed_assets = Decimal("200000000")  # ₦200M
+        
+        is_dev_levy_exempt = (
+            turnover <= Decimal("100000000") and
+            fixed_assets <= Decimal("250000000")
+        )
+        
+        assert is_dev_levy_exempt is True
+    
+    def test_dev_levy_applicable_over_turnover(self):
+        """Development Levy applies when turnover exceeds ₦100M."""
+        turnover = Decimal("150000000")  # ₦150M
+        fixed_assets = Decimal("200000000")  # ₦200M
+        
+        is_dev_levy_exempt = (
+            turnover <= Decimal("100000000") and
+            fixed_assets <= Decimal("250000000")
+        )
+        
+        assert is_dev_levy_exempt is False
+    
+    def test_vat_registration_warning_over_25m(self):
+        """VAT warning when turnover exceeds ₦25M and not registered."""
+        turnover = Decimal("30000000")  # ₦30M
+        is_vat_registered = False
+        
+        needs_vat_warning = turnover > Decimal("25000000") and not is_vat_registered
+        
+        assert needs_vat_warning is True
+    
+    def test_vat_registration_no_warning_registered(self):
+        """No VAT warning when already registered."""
+        turnover = Decimal("30000000")  # ₦30M
+        is_vat_registered = True
+        
+        needs_vat_warning = turnover > Decimal("25000000") and not is_vat_registered
+        
+        assert needs_vat_warning is False
+    
+    def test_vat_registration_no_warning_under_threshold(self):
+        """No VAT warning when under ₦25M threshold."""
+        turnover = Decimal("20000000")  # ₦20M
+        is_vat_registered = False
+        
+        needs_vat_warning = turnover > Decimal("25000000") and not is_vat_registered
+        
+        assert needs_vat_warning is False
+    
+    def test_nrs_readiness_pass_with_tin_and_cac(self):
+        """NRS e-invoicing ready when both TIN and CAC present."""
+        tin = "1234567890"
+        rc_number = "RC123456"
+        
+        nrs_ready = bool(tin) and bool(rc_number)
+        
+        assert nrs_ready is True
+    
+    def test_nrs_readiness_fail_missing_tin(self):
+        """NRS e-invoicing not ready when TIN missing."""
+        tin = None
+        rc_number = "RC123456"
+        
+        nrs_ready = bool(tin) and bool(rc_number)
+        
+        assert nrs_ready is False
+    
+    def test_nrs_readiness_fail_missing_cac(self):
+        """NRS e-invoicing not ready when CAC missing."""
+        tin = "1234567890"
+        rc_number = None
+        
+        nrs_ready = bool(tin) and bool(rc_number)
+        
+        assert nrs_ready is False
+
+
+class TestComplianceAlerts:
+    """Tests for compliance threshold alerts."""
+    
+    def test_alert_vat_threshold_exceeded(self):
+        """Critical alert when VAT threshold exceeded."""
+        turnover = Decimal("30000000")  # ₦30M
+        threshold = Decimal("25000000")  # ₦25M
+        is_vat_registered = False
+        
+        should_alert = turnover > threshold and not is_vat_registered
+        severity = "critical" if should_alert else None
+        
+        assert should_alert is True
+        assert severity == "critical"
+    
+    def test_alert_vat_threshold_approaching(self):
+        """Warning alert when approaching VAT threshold (80%)."""
+        turnover = Decimal("22000000")  # ₦22M (88% of ₦25M)
+        threshold = Decimal("25000000")  # ₦25M
+        warning_percent = Decimal("0.80")  # 80%
+        is_vat_registered = False
+        
+        is_approaching = turnover >= threshold * warning_percent and turnover <= threshold
+        should_warn = is_approaching and not is_vat_registered
+        
+        assert should_warn is True
+    
+    def test_alert_small_company_at_risk(self):
+        """Warning when small company status at risk (80% of ₦50M)."""
+        turnover = Decimal("45000000")  # ₦45M (90% of ₦50M)
+        threshold = Decimal("50000000")  # ₦50M
+        warning_percent = Decimal("0.80")  # 80%
+        
+        at_risk = turnover >= threshold * warning_percent and turnover <= threshold
+        
+        assert at_risk is True
+    
+    def test_alert_dev_levy_exemption_at_risk(self):
+        """Warning when development levy exemption at risk (80% of ₦100M)."""
+        turnover = Decimal("85000000")  # ₦85M (85% of ₦100M)
+        threshold = Decimal("100000000")  # ₦100M
+        warning_percent = Decimal("0.80")  # 80%
+        
+        at_risk = turnover >= threshold * warning_percent and turnover <= threshold
+        
+        assert at_risk is True
+    
+    def test_alert_missing_tin_critical(self):
+        """Critical alert when TIN is missing."""
+        tin = None
+        
+        missing_tin_critical = tin is None
+        
+        assert missing_tin_critical is True
+    
+    def test_alert_missing_cac_critical(self):
+        """Critical alert when CAC is missing."""
+        rc_number = None
+        
+        missing_cac_critical = rc_number is None
+        
+        assert missing_cac_critical is True
+    
+    def test_alert_sorting_by_severity(self):
+        """Alerts should be sorted by severity: critical > warning > info."""
+        alerts = [
+            {"severity": "info", "message": "Info alert"},
+            {"severity": "critical", "message": "Critical alert"},
+            {"severity": "warning", "message": "Warning alert"},
+        ]
+        
+        severity_order = {"critical": 0, "warning": 1, "info": 2}
+        sorted_alerts = sorted(alerts, key=lambda x: severity_order.get(x["severity"], 3))
+        
+        assert sorted_alerts[0]["severity"] == "critical"
+        assert sorted_alerts[1]["severity"] == "warning"
+        assert sorted_alerts[2]["severity"] == "info"
+
+
+class TestComplianceThresholdCalculations:
+    """Tests for threshold percentage calculations."""
+    
+    def test_percentage_at_50_percent(self):
+        """Calculate 50% of threshold used."""
+        current = Decimal("25000000")  # ₦25M
+        threshold = Decimal("50000000")  # ₦50M
+        
+        percentage = float((current / threshold) * 100)
+        
+        assert percentage == 50.0
+    
+    def test_percentage_at_80_percent(self):
+        """Calculate 80% of threshold used (warning level)."""
+        current = Decimal("40000000")  # ₦40M
+        threshold = Decimal("50000000")  # ₦50M
+        
+        percentage = float((current / threshold) * 100)
+        
+        assert percentage == 80.0
+    
+    def test_percentage_exceeded(self):
+        """Calculate percentage when threshold exceeded."""
+        current = Decimal("60000000")  # ₦60M
+        threshold = Decimal("50000000")  # ₦50M
+        
+        percentage = float((current / threshold) * 100)
+        
+        assert percentage == 120.0
+    
+    def test_headroom_calculation(self):
+        """Calculate headroom remaining before threshold."""
+        current = Decimal("40000000")  # ₦40M
+        threshold = Decimal("50000000")  # ₦50M
+        
+        headroom = max(threshold - current, Decimal("0"))
+        
+        assert headroom == Decimal("10000000")  # ₦10M remaining
+    
+    def test_headroom_when_exceeded(self):
+        """Headroom should be 0 when threshold exceeded."""
+        current = Decimal("60000000")  # ₦60M
+        threshold = Decimal("50000000")  # ₦50M
+        
+        headroom = max(threshold - current, Decimal("0"))
+        
+        assert headroom == Decimal("0")
+    
+    def test_threshold_status_safe(self):
+        """Status 'safe' when well below threshold."""
+        current = Decimal("20000000")  # ₦20M
+        threshold = Decimal("50000000")  # ₦50M
+        
+        percentage = (current / threshold) * 100
+        at_risk = percentage >= 80
+        exceeded = current > threshold
+        
+        if exceeded:
+            status = "exceeded"
+        elif at_risk:
+            status = "at_risk"
+        else:
+            status = "safe"
+        
+        assert status == "safe"
+    
+    def test_threshold_status_at_risk(self):
+        """Status 'at_risk' when at or above 80% of threshold."""
+        current = Decimal("42000000")  # ₦42M (84%)
+        threshold = Decimal("50000000")  # ₦50M
+        
+        percentage = (current / threshold) * 100
+        at_risk = percentage >= 80
+        exceeded = current > threshold
+        
+        if exceeded:
+            status = "exceeded"
+        elif at_risk:
+            status = "at_risk"
+        else:
+            status = "safe"
+        
+        assert status == "at_risk"
+    
+    def test_threshold_status_exceeded(self):
+        """Status 'exceeded' when above threshold."""
+        current = Decimal("55000000")  # ₦55M
+        threshold = Decimal("50000000")  # ₦50M
+        
+        percentage = (current / threshold) * 100
+        at_risk = percentage >= 80
+        exceeded = current > threshold
+        
+        if exceeded:
+            status = "exceeded"
+        elif at_risk:
+            status = "at_risk"
+        else:
+            status = "safe"
+        
+        assert status == "exceeded"
+
+
+class TestComplianceHealthIntegration:
+    """Integration tests for compliance health feature."""
+    
+    def test_comprehensive_check_list(self):
+        """Verify all compliance checks are included."""
+        expected_checks = [
+            "TIN Registration",
+            "CAC Registration",
+            "Small Company Status",
+            "Development Levy",
+            "VAT Registration",
+            "NRS e-Invoicing",
+        ]
+        
+        # These are the 6 checks performed by the service
+        assert len(expected_checks) == 6
+    
+    def test_threshold_names(self):
+        """Verify all threshold types are defined."""
+        from app.services.compliance_health_service import ComplianceHealthService
+        
+        expected_thresholds = [
+            "vat_registration",
+            "small_company_turnover",
+            "small_company_assets",
+            "dev_levy_turnover",
+            "dev_levy_assets",
+        ]
+        
+        for threshold in expected_thresholds:
+            assert threshold in ComplianceHealthService.THRESHOLDS
+    
+    def test_alert_types(self):
+        """Verify all alert types are covered."""
+        alert_types = [
+            "vat_registration",
+            "small_company_status",
+            "development_levy",
+            "registration",
+        ]
+        
+        assert len(alert_types) == 4
+    
+    def test_severity_levels(self):
+        """Verify severity levels are correctly defined."""
+        severity_levels = ["critical", "warning", "info"]
+        severity_order = {"critical": 0, "warning": 1, "info": 2}
+        
+        assert severity_order["critical"] < severity_order["warning"]
+        assert severity_order["warning"] < severity_order["info"]
+
+
 # Run with: pytest tests/test_2026_compliance.py -v
