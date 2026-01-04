@@ -1,7 +1,7 @@
 """2026 Tax Reform Updates - Buyer Review, VAT Recovery, Development Levy, PIT Reliefs, Business Type
 
 Revision ID: 2026_tax_reform
-Revises: 20260103_1251_initial_migration_create_all_tables
+Revises: 864ffbd2f5c4
 Create Date: 2026-01-03 14:30:00.000000
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '2026_tax_reform'
-down_revision: Union[str, None] = '20260103_1251_initial_migration_create_all_tables'
+down_revision: Union[str, None] = '864ffbd2f5c4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

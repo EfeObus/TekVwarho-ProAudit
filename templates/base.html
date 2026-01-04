@@ -75,20 +75,18 @@
     {% endblock %}
     
     <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
+    {% if flash_messages %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-        {% for category, message in messages %}
+        {% for message in flash_messages %}
         <div class="rounded-md p-4 mb-2 
-            {% if category == 'error' %}bg-red-50 text-red-800
-            {% elif category == 'success' %}bg-green-50 text-green-800
+            {% if message.category == 'error' %}bg-red-50 text-red-800
+            {% elif message.category == 'success' %}bg-green-50 text-green-800
             {% else %}bg-blue-50 text-blue-800{% endif %}">
-            {{ message }}
+            {{ message.text }}
         </div>
         {% endfor %}
     </div>
     {% endif %}
-    {% endwith %}
     
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">

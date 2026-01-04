@@ -6,6 +6,7 @@ Business logic for transaction (expense/income) recording.
 
 import uuid
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import select, func
@@ -20,8 +21,24 @@ from app.models.vendor import Vendor
 class TransactionService:
     """Service for transaction operations."""
     
+    # Nigeria VAT rate (7.5% per 2026 Tax Reform)
+    VAT_RATE = Decimal("0.075")
+    
     def __init__(self, db: AsyncSession):
         self.db = db
+    
+    def calculate_vat(self, amount: Decimal) -> Decimal:
+        """
+        Calculate VAT on an amount at 7.5% rate.
+        
+        Args:
+            amount: Base amount to calculate VAT on
+            
+        Returns:
+            VAT amount rounded to 2 decimal places
+        """
+        vat = amount * self.VAT_RATE
+        return vat.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     
     async def get_transactions_for_entity(
         self,

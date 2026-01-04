@@ -35,7 +35,8 @@ def calculate_vat(amount: Decimal, is_exempt: bool = False) -> Decimal:
     """
     if is_exempt:
         return Decimal("0.00")
-    return VATCalculator.calculate_vat(amount)
+    _, vat_amount, _ = VATCalculator.calculate_vat(amount)
+    return vat_amount
 
 
 def calculate_paye(annual_income: Decimal) -> Decimal:
@@ -55,7 +56,9 @@ def calculate_paye(annual_income: Decimal) -> Decimal:
     Returns:
         Total PAYE tax amount
     """
-    return PAYECalculator.calculate_tax(annual_income)
+    calculator = PAYECalculator()
+    total_tax, _ = calculator.calculate_tax(annual_income)
+    return total_tax
 
 
 def calculate_wht(amount: Decimal, service_type: str) -> Decimal:
@@ -76,7 +79,8 @@ def calculate_wht(amount: Decimal, service_type: str) -> Decimal:
         WHT amount
     """
     wht_type = WHTServiceType(service_type)
-    return WHTCalculator.calculate_wht(amount, wht_type)
+    result = WHTCalculator.calculate_wht(float(amount), wht_type)
+    return Decimal(str(result["wht_amount"]))
 
 
 def calculate_cit(profit: Decimal, turnover: Decimal) -> Decimal:
@@ -97,7 +101,8 @@ def calculate_cit(profit: Decimal, turnover: Decimal) -> Decimal:
     """
     if profit <= 0:
         return Decimal("0.00")
-    return CITCalculator.calculate_cit(profit, turnover)
+    result = CITCalculator.calculate_cit(float(turnover), float(profit))
+    return Decimal(str(result.get("cit_on_profit", 0)))
 
 
 def get_paye_band(annual_income: Decimal) -> str:

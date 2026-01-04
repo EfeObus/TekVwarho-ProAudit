@@ -60,7 +60,7 @@ class TestPAYECalculation:
         assert paye == Decimal("0.00")
     
     def test_paye_band_1_15_percent(self):
-        """₦800,001 - ₦2,500,000 at 15%."""
+        """₦800,001 - ₦2,400,000 at 15%."""
         annual_income = Decimal("1500000.00")  # 1.5 million
         paye = calculate_paye(annual_income)
         
@@ -69,39 +69,39 @@ class TestPAYECalculation:
         assert paye == expected
     
     def test_paye_band_2_20_percent(self):
-        """₦2,500,001 - ₦5,000,000 at 20%."""
+        """₦2,400,001 - ₦4,800,000 at 20%."""
         annual_income = Decimal("4000000.00")  # 4 million
         paye = calculate_paye(annual_income)
         
-        # Band 1: (2,500,000 - 800,000) = 1,700,000 at 15% = 255,000
-        # Band 2: (4,000,000 - 2,500,000) = 1,500,000 at 20% = 300,000
-        # Total: 555,000
-        expected = Decimal("555000.00")
+        # Band 1 (15%): (2,400,000 - 800,000) = 1,600,000 at 15% = 240,000
+        # Band 2 (20%): (4,000,000 - 2,400,000) = 1,600,000 at 20% = 320,000
+        # Total: 560,000
+        expected = Decimal("560000.00")
         assert paye == expected
     
     def test_paye_band_3_25_percent(self):
-        """₦5,000,001 - ₦10,000,000 at 25%."""
-        annual_income = Decimal("8000000.00")  # 8 million
+        """₦4,800,001 - ₦7,200,000 at 25%."""
+        annual_income = Decimal("6000000.00")  # 6 million
         paye = calculate_paye(annual_income)
         
-        # Band 1: 1,700,000 at 15% = 255,000
-        # Band 2: 2,500,000 at 20% = 500,000
-        # Band 3: (8,000,000 - 5,000,000) = 3,000,000 at 25% = 750,000
-        # Total: 1,505,000
-        expected = Decimal("1505000.00")
+        # Band 1 (15%): (2,400,000 - 800,000) = 1,600,000 at 15% = 240,000
+        # Band 2 (20%): (4,800,000 - 2,400,000) = 2,400,000 at 20% = 480,000
+        # Band 3 (25%): (6,000,000 - 4,800,000) = 1,200,000 at 25% = 300,000
+        # Total: 1,020,000
+        expected = Decimal("1020000.00")
         assert paye == expected
     
     def test_paye_band_4_30_percent(self):
-        """Above ₦10,000,000 at 30%."""
-        annual_income = Decimal("15000000.00")  # 15 million
+        """Above ₦7,200,000 at 30%."""
+        annual_income = Decimal("10000000.00")  # 10 million
         paye = calculate_paye(annual_income)
         
-        # Band 1: 1,700,000 at 15% = 255,000
-        # Band 2: 2,500,000 at 20% = 500,000
-        # Band 3: 5,000,000 at 25% = 1,250,000
-        # Band 4: (15,000,000 - 10,000,000) = 5,000,000 at 30% = 1,500,000
-        # Total: 3,505,000
-        expected = Decimal("3505000.00")
+        # Band 1 (15%): (2,400,000 - 800,000) = 1,600,000 at 15% = 240,000
+        # Band 2 (20%): (4,800,000 - 2,400,000) = 2,400,000 at 20% = 480,000
+        # Band 3 (25%): (7,200,000 - 4,800,000) = 2,400,000 at 25% = 600,000
+        # Band 4 (30%): (10,000,000 - 7,200,000) = 2,800,000 at 30% = 840,000
+        # Total: 2,160,000
+        expected = Decimal("2160000.00")
         assert paye == expected
     
     def test_paye_exact_threshold(self):
@@ -116,18 +116,18 @@ class TestWHTCalculation:
     """Test Withholding Tax calculations."""
     
     def test_wht_professional_services(self):
-        """Professional services WHT at 10%."""
+        """Professional services WHT at 5% (company rate)."""
         amount = Decimal("500000.00")
-        wht = calculate_wht(amount, service_type="professional")
-        
-        assert wht == Decimal("50000.00")
+        wht = calculate_wht(amount, service_type="professional_services")
+        # Company rate for professional services is 5%
+        assert wht == Decimal("25000.00")
     
     def test_wht_consultancy(self):
-        """Consultancy WHT at 10%."""
+        """Consultancy WHT at 5%."""
         amount = Decimal("1000000.00")
         wht = calculate_wht(amount, service_type="consultancy")
         
-        assert wht == Decimal("100000.00")
+        assert wht == Decimal("50000.00")
     
     def test_wht_construction(self):
         """Construction WHT at 5%."""
@@ -157,10 +157,10 @@ class TestWHTCalculation:
         
         assert wht == Decimal("50000.00")
     
-    def test_wht_contract(self):
-        """General contracts WHT at 5%."""
+    def test_wht_contract_supply(self):
+        """Contract/supply WHT at 5%."""
         amount = Decimal("3000000.00")
-        wht = calculate_wht(amount, service_type="contract")
+        wht = calculate_wht(amount, service_type="contract_supply")
         
         assert wht == Decimal("150000.00")
 
@@ -197,23 +197,23 @@ class TestCITCalculation:
         assert cit == expected
     
     def test_cit_exact_25m_threshold(self):
-        """Test CIT at exact ₦25M threshold."""
+        """Test CIT at exact ₦25M threshold - still small (0%)."""
         turnover = Decimal("25000000.00")
         profit = Decimal("5000000.00")
         cit = calculate_cit(profit, turnover)
         
-        # At 25M, medium business rate applies
-        expected = Decimal("1000000.00")  # 20%
+        # At exactly 25M, small business rate applies (exempt)
+        expected = Decimal("0.00")
         assert cit == expected
     
     def test_cit_exact_100m_threshold(self):
-        """Test CIT at exact ₦100M threshold."""
+        """Test CIT at exact ₦100M threshold - still medium (20%)."""
         turnover = Decimal("100000000.00")
         profit = Decimal("20000000.00")
         cit = calculate_cit(profit, turnover)
         
-        # At 100M, large business rate applies
-        expected = Decimal("6000000.00")  # 30%
+        # At exactly 100M, medium business rate applies (20%)
+        expected = Decimal("4000000.00")  # 20%
         assert cit == expected
     
     def test_cit_loss_year(self):

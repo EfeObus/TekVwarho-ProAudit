@@ -5,8 +5,13 @@ This package contains all database models for the application.
 """
 
 from app.models.base import BaseModel, TimestampMixin, AuditMixin
-from app.models.user import User, UserRole
-from app.models.organization import Organization
+from app.models.user import User, UserRole, PlatformRole, UserEntityAccess
+from app.models.organization import (
+    Organization, 
+    SubscriptionTier, 
+    OrganizationType, 
+    VerificationStatus
+)
 from app.models.entity import BusinessEntity
 from app.models.category import Category, CategoryType
 from app.models.vendor import Vendor
@@ -27,17 +32,30 @@ from app.models.tax_2026 import (
     CreditNoteStatus,
 )
 from app.models.entity import BusinessType
+from app.models.fixed_asset import (
+    FixedAsset,
+    DepreciationEntry,
+    AssetCategory,
+    AssetStatus,
+    DepreciationMethod,
+    DisposalType,
+)
 
 __all__ = [
     # Base
     "BaseModel",
     "TimestampMixin",
     "AuditMixin",
-    # User
+    # User & RBAC
     "User",
     "UserRole",
+    "PlatformRole",
+    "UserEntityAccess",
     # Organization
     "Organization",
+    "SubscriptionTier",
+    "OrganizationType",
+    "VerificationStatus",
     # Entity
     "BusinessEntity",
     # Category
@@ -72,6 +90,13 @@ __all__ = [
     "CreditNote",
     "CreditNoteStatus",
     "BusinessType",
+    # Fixed Assets (2026)
+    "FixedAsset",
+    "DepreciationEntry",
+    "AssetCategory",
+    "AssetStatus",
+    "DepreciationMethod",
+    "DisposalType",
     # Audit
     "AuditLog",
 ]

@@ -2,6 +2,12 @@
 TekVwarho ProAudit - Invoice Model
 
 Invoice model for sales invoices with NRS e-invoicing support.
+
+NTAA 2025 Compliance Features:
+- 72-Hour Legal Lock: Once submitted to NRS, invoices cannot be edited
+- Only Owner can cancel NRS submissions during the 72-hour window
+- Credit Notes required for any post-submission modifications
+- NRS cryptographic stamp and IRN storage for audit compliance
 """
 
 import uuid
@@ -11,7 +17,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel, AuditMixin
@@ -128,7 +134,10 @@ class Invoice(BaseModel, AuditMixin):
         index=True,
     )
     
-    # NRS E-Invoicing
+    # ===========================================
+    # NRS E-INVOICING (NTAA 2025 COMPLIANT)
+    # ===========================================
+    
     nrs_irn: Mapped[Optional[str]] = mapped_column(
         String(100),
         nullable=True,
@@ -144,10 +153,39 @@ class Invoice(BaseModel, AuditMixin):
         DateTime(timezone=True),
         nullable=True,
     )
-    nrs_response: Mapped[Optional[str]] = mapped_column(
+    nrs_response: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Full NRS API response including cryptographic stamp",
+    )
+    nrs_cryptographic_stamp: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
-        comment="Raw NRS API response",
+        comment="NRS cryptographic signature for audit verification",
+    )
+    
+    # 72-Hour Legal Lock (NTAA 2025)
+    # Once submitted to NRS, invoice is locked. Only Owner can cancel.
+    is_nrs_locked: Mapped[bool] = mapped_column(
+        Boolean, 
+        default=False, 
+        nullable=False,
+        comment="True when submitted to NRS - prevents editing",
+    )
+    nrs_lock_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="72-hour window end for buyer review",
+    )
+    nrs_cancelled_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Owner who cancelled NRS submission (if any)",
+    )
+    nrs_cancellation_reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Reason for NRS cancellation",
     )
     
     # Dispute Tracking (72-hour window)

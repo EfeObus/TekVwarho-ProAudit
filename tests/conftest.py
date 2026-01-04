@@ -12,13 +12,15 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+import httpx
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from app.database import Base, get_async_session
 from app.config import settings
-from app.models.user import User
-from app.models.entity import Entity, EntityType
+from app.models.user import User, UserRole
+from app.models.organization import Organization
+from app.models.entity import BusinessEntity, BusinessType
 from app.models.category import Category, CategoryType
 from app.models.vendor import Vendor
 from app.models.customer import Customer
@@ -82,7 +84,8 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     
     app.dependency_overrides[get_async_session] = override_get_session
     
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     
     app.dependency_overrides.clear()
@@ -93,7 +96,21 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 # ===========================================
 
 @pytest_asyncio.fixture
-async def test_user(db_session: AsyncSession) -> User:
+async def test_organization(db_session: AsyncSession) -> Organization:
+    """Create a test organization."""
+    org = Organization(
+        id=uuid4(),
+        name="Test Organization",
+        slug="test-org",
+    )
+    db_session.add(org)
+    await db_session.commit()
+    await db_session.refresh(org)
+    return org
+
+
+@pytest_asyncio.fixture
+async def test_user(db_session: AsyncSession, test_organization: Organization) -> User:
     """Create a test user."""
     user = User(
         id=uuid4(),
@@ -101,6 +118,8 @@ async def test_user(db_session: AsyncSession) -> User:
         hashed_password=get_password_hash("TestPassword123!"),
         first_name="Test",
         last_name="User",
+        organization_id=test_organization.id,
+        role=UserRole.OWNER,
         is_active=True,
         is_verified=True,
     )
@@ -111,22 +130,21 @@ async def test_user(db_session: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture
-async def test_entity(db_session: AsyncSession, test_user: User) -> Entity:
+async def test_entity(db_session: AsyncSession, test_organization: Organization) -> BusinessEntity:
     """Create a test business entity."""
-    entity = Entity(
+    entity = BusinessEntity(
         id=uuid4(),
         name="Test Business Ltd",
-        entity_type=EntityType.llc,
+        organization_id=test_organization.id,
+        business_type=BusinessType.LIMITED_COMPANY,
         tin="12345678-0001",
         rc_number="RC123456",
-        address="123 Test Street, Lagos",
+        address_line1="123 Test Street",
         city="Lagos",
         state="Lagos",
         email="business@example.com",
         phone="+234 812 345 6789",
-        owner_id=test_user.id,
         is_vat_registered=True,
-        vat_registration_number="VAT123456",
     )
     db_session.add(entity)
     await db_session.commit()
@@ -135,7 +153,7 @@ async def test_entity(db_session: AsyncSession, test_user: User) -> Entity:
 
 
 @pytest_asyncio.fixture
-async def test_category(db_session: AsyncSession, test_entity: Entity) -> Category:
+async def test_category(db_session: AsyncSession, test_entity: BusinessEntity) -> Category:
     """Create a test category."""
     category = Category(
         id=uuid4(),
@@ -151,7 +169,7 @@ async def test_category(db_session: AsyncSession, test_entity: Entity) -> Catego
 
 
 @pytest_asyncio.fixture
-async def test_vendor(db_session: AsyncSession, test_entity: Entity) -> Vendor:
+async def test_vendor(db_session: AsyncSession, test_entity: BusinessEntity) -> Vendor:
     """Create a test vendor."""
     vendor = Vendor(
         id=uuid4(),
@@ -169,7 +187,7 @@ async def test_vendor(db_session: AsyncSession, test_entity: Entity) -> Vendor:
 
 
 @pytest_asyncio.fixture
-async def test_customer(db_session: AsyncSession, test_entity: Entity) -> Customer:
+async def test_customer(db_session: AsyncSession, test_entity: BusinessEntity) -> Customer:
     """Create a test customer."""
     customer = Customer(
         id=uuid4(),
@@ -189,7 +207,7 @@ async def test_customer(db_session: AsyncSession, test_entity: Entity) -> Custom
 @pytest_asyncio.fixture
 async def test_transaction(
     db_session: AsyncSession, 
-    test_entity: Entity,
+    test_entity: BusinessEntity,
     test_category: Category,
     test_vendor: Vendor,
 ) -> Transaction:
@@ -216,7 +234,7 @@ async def test_transaction(
 @pytest_asyncio.fixture
 async def test_invoice(
     db_session: AsyncSession,
-    test_entity: Entity,
+    test_entity: BusinessEntity,
     test_customer: Customer,
 ) -> Invoice:
     """Create a test invoice."""

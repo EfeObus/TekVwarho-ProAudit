@@ -23,6 +23,7 @@ from app.utils.security import (
     create_refresh_token,
     create_password_reset_token,
     verify_password_reset_token,
+    verify_access_token,
 )
 from app.config import settings
 
@@ -248,3 +249,28 @@ class AuthService:
         await self.db.commit()
         
         return True
+    
+    async def get_current_user_from_token(self, token: str) -> Optional[User]:
+        """
+        Get the current user from an access token.
+        
+        Args:
+            token: JWT access token string
+            
+        Returns:
+            User object if token is valid and user exists, None otherwise
+        """
+        payload = verify_access_token(token)
+        
+        if not payload:
+            return None
+        
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        
+        try:
+            user = await self.get_user_by_id(uuid.UUID(user_id))
+            return user
+        except (ValueError, TypeError):
+            return None

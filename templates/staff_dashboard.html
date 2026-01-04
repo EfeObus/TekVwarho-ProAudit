@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+
+{% block title %}Platform Dashboard - TekVwarho ProAudit{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-shield-alt me-2"></i>
+        {% if dashboard.dashboard_type == 'super_admin' %}
+            Super Admin Dashboard
+        {% elif dashboard.dashboard_type == 'admin' %}
+            Admin Dashboard
+        {% elif dashboard.dashboard_type == 'it_developer' %}
+            IT/Developer Dashboard
+        {% elif dashboard.dashboard_type == 'customer_service' %}
+            Customer Service Dashboard
+        {% elif dashboard.dashboard_type == 'marketing' %}
+            Marketing Dashboard
+        {% else %}
+            Platform Dashboard
+        {% endif %}
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <span class="badge bg-primary me-2">{{ dashboard.user.role }}</span>
+        <span class="text-muted">{{ dashboard.user.email }}</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="staffDashboard()" x-init="init()">
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Loading dashboard...</p>
+    </div>
+
+    <!-- Dashboard Content -->
+    <div x-show="!loading">
+        {% if dashboard.dashboard_type == 'super_admin' %}
+            {% include 'partials/dashboard/super_admin.html' ignore missing %}
+        {% elif dashboard.dashboard_type == 'admin' %}
+            {% include 'partials/dashboard/admin.html' ignore missing %}
+        {% elif dashboard.dashboard_type == 'it_developer' %}
+            {% include 'partials/dashboard/it_developer.html' ignore missing %}
+        {% elif dashboard.dashboard_type == 'customer_service' %}
+            {% include 'partials/dashboard/customer_service.html' ignore missing %}
+        {% elif dashboard.dashboard_type == 'marketing' %}
+            {% include 'partials/dashboard/marketing.html' ignore missing %}
+        {% endif %}
+
+        <!-- Fallback if partial not found - inline dashboard -->
+        <!-- Overview Cards -->
+        <div class="row g-4 mb-4">
+            {% if dashboard.overview %}
+            {% if dashboard.overview.total_organizations is defined %}
+            <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0 bg-primary bg-opacity-10 rounded-3 p-3">
+                                <i class="fas fa-building text-primary fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="text-muted mb-1">Organizations</h6>
+                                <h3 class="mb-0">{{ dashboard.overview.total_organizations }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if dashboard.overview.total_users is defined %}
+            <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0 bg-success bg-opacity-10 rounded-3 p-3">
+                                <i class="fas fa-users text-success fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="text-muted mb-1">Total Users</h6>
+                                <h3 class="mb-0">{{ dashboard.overview.total_users }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if dashboard.overview.total_staff is defined %}
+            <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0 bg-info bg-opacity-10 rounded-3 p-3">
+                                <i class="fas fa-user-tie text-info fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="text-muted mb-1">Platform Staff</h6>
+                                <h3 class="mb-0">{{ dashboard.overview.total_staff }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if dashboard.overview.pending_verifications is defined %}
+            <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0 bg-warning bg-opacity-10 rounded-3 p-3">
+                                <i class="fas fa-clock text-warning fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="text-muted mb-1">Pending Verifications</h6>
+                                <h3 class="mb-0">{{ dashboard.overview.pending_verifications }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="row g-4 mb-4">
+            <!-- Quick Actions -->
+            <div class="col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            {% for action in dashboard.quick_actions %}
+                            <a href="{{ action.url }}" class="btn btn-outline-primary text-start">
+                                <i class="fas fa-{{ action.icon }} me-2"></i>{{ action.label }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organizations by Type -->
+            {% if dashboard.organizations_by_type %}
+            <div class="col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-chart-pie me-2 text-primary"></i>Organizations by Type</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            {% for type, count in dashboard.organizations_by_type.items() %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span class="text-capitalize">{{ type.replace('_', ' ') }}</span>
+                                <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Verification Stats -->
+            {% if dashboard.verification_stats %}
+            <div class="col-lg-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-check-circle me-2 text-success"></i>Verification Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            {% for status, count in dashboard.verification_stats.items() %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span class="text-capitalize">{{ status.replace('_', ' ') }}</span>
+                                <span class="badge 
+                                    {% if status == 'verified' %}bg-success
+                                    {% elif status == 'submitted' or status == 'pending' %}bg-warning
+                                    {% elif status == 'rejected' %}bg-danger
+                                    {% else %}bg-secondary{% endif %} 
+                                    rounded-pill">{{ count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Platform Health (IT/Developer) -->
+        {% if dashboard.platform_health %}
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Platform Health</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <i class="fas fa-circle {% if dashboard.platform_health.status == 'healthy' %}text-success{% else %}text-danger{% endif %} fa-lg mb-2"></i>
+                                    <h6 class="mb-0 text-capitalize">{{ dashboard.platform_health.status }}</h6>
+                                    <small class="text-muted">Overall Status</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <i class="fas fa-database text-primary fa-lg mb-2"></i>
+                                    <h6 class="mb-0 text-capitalize">{{ dashboard.platform_health.database }}</h6>
+                                    <small class="text-muted">Database</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <i class="fas fa-clock text-info fa-lg mb-2"></i>
+                                    <h6 class="mb-0">Live</h6>
+                                    <small class="text-muted">Last Check</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if dashboard.system_metrics %}
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-server me-2 text-info"></i>System Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span>Database Status</span>
+                                <span class="badge bg-success">{{ dashboard.system_metrics.database_status }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span>API Uptime</span>
+                                <span class="badge bg-primary">{{ dashboard.system_metrics.api_uptime }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span>NRS Webhook Status</span>
+                                <span class="badge bg-success">{{ dashboard.system_metrics.nrs_webhook_status }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Growth Stats (Marketing) -->
+        {% if dashboard.growth_stats %}
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-chart-line me-2 text-success"></i>User Growth</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h3 class="mb-0 text-primary">{{ dashboard.growth_stats.total_users }}</h3>
+                                    <small class="text-muted">Total Users</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h3 class="mb-0 text-success">{{ dashboard.growth_stats.new_users_30d }}</h3>
+                                    <small class="text-muted">New (30 days)</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h3 class="mb-0 text-info">{{ dashboard.growth_stats.growth_rate }}</h3>
+                                    <small class="text-muted">Growth Rate</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Recent Activity -->
+        {% if dashboard.recent_activity %}
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-history me-2 text-secondary"></i>Recent Platform Activity</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if dashboard.recent_activity %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Action</th>
+                                        <th>Resource</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for activity in dashboard.recent_activity %}
+                                    <tr>
+                                        <td><span class="badge bg-info">{{ activity.action }}</span></td>
+                                        <td>{{ activity.resource_type }}</td>
+                                        <td>{{ activity.created_at }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center mb-0">No recent activity</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Organizations Needing Attention -->
+        {% if dashboard.organizations_needing_attention %}
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Organizations Needing Attention</h5>
+                        <a href="/admin/verifications" class="btn btn-sm btn-outline-primary">View All</a>
+                    </div>
+                    <div class="card-body">
+                        {% if dashboard.organizations_needing_attention %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Organization</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for org in dashboard.organizations_needing_attention %}
+                                    <tr>
+                                        <td>{{ org.name }}</td>
+                                        <td class="text-capitalize">{{ org.type.replace('_', ' ') }}</td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if org.status == 'submitted' %}bg-warning
+                                                {% elif org.status == 'rejected' %}bg-danger
+                                                {% else %}bg-secondary{% endif %}">
+                                                {{ org.status }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <a href="/admin/organizations/{{ org.id }}" class="btn btn-sm btn-outline-primary">Review</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center mb-0">All organizations are up to date</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Permissions Section -->
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h5 class="mb-0"><i class="fas fa-key me-2 text-secondary"></i>Your Permissions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for permission in dashboard.permissions %}
+                            <span class="badge bg-light text-dark border">{{ permission }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function staffDashboard() {
+    return {
+        loading: false,
+        dashboardData: {{ dashboard | tojson | safe }},
+        
+        init() {
+            console.log('Staff Dashboard initialized', this.dashboardData);
+        },
+        
+        refreshDashboard() {
+            window.location.reload();
+        }
+    }
+}
+</script>
+{% endblock %}

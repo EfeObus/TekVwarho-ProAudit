@@ -72,10 +72,12 @@ async def register(
             first_name=user.first_name,
             last_name=user.last_name,
             phone_number=user.phone_number,
-            role=user.role.value,
+            role=user.role.value if user.role else None,
             is_active=user.is_active,
             is_verified=user.is_verified,
             organization_id=user.organization_id,
+            is_platform_staff=user.is_platform_staff,
+            platform_role=user.platform_role.value if user.platform_role else None,
             created_at=user.created_at,
         ),
         tokens=TokenResponse(**tokens),
@@ -86,7 +88,7 @@ async def register(
     "/login",
     response_model=UserWithTokenResponse,
     summary="Login user",
-    description="Authenticate user with email and password.",
+    description="Authenticate user with email and password. Works for both organization users and platform staff.",
 )
 async def login(
     request: UserLoginRequest,
@@ -122,10 +124,12 @@ async def login(
             first_name=user.first_name,
             last_name=user.last_name,
             phone_number=user.phone_number,
-            role=user.role.value,
+            role=user.role.value if user.role else None,
             is_active=user.is_active,
             is_verified=user.is_verified,
             organization_id=user.organization_id,
+            is_platform_staff=user.is_platform_staff,
+            platform_role=user.platform_role.value if user.platform_role else None,
             created_at=user.created_at,
         ),
         tokens=TokenResponse(**tokens),
@@ -179,22 +183,49 @@ async def refresh_token(
     "/me",
     response_model=CurrentUserResponse,
     summary="Get current user",
-    description="Get the current authenticated user with organization and entity access.",
+    description="Get the current authenticated user with organization and entity access. Works for both org users and platform staff.",
 )
 async def get_me(
     current_user: User = Depends(get_current_active_user),
 ):
     """Get current authenticated user."""
-    # Build entity access list
+    from app.utils.permissions import (
+        get_platform_permissions,
+        get_organization_permissions,
+    )
+    
+    # Build entity access list (only for org users)
     entity_access_list = []
-    for access in current_user.entity_access:
-        entity_access_list.append(
-            EntityAccessResponse(
-                entity_id=access.entity_id,
-                entity_name=access.entity.name if access.entity else "Unknown",
-                can_write=access.can_write,
-                can_delete=access.can_delete,
+    if not current_user.is_platform_staff:
+        for access in current_user.entity_access:
+            entity_access_list.append(
+                EntityAccessResponse(
+                    entity_id=access.entity_id,
+                    entity_name=access.entity.name if access.entity else "Unknown",
+                    can_write=access.can_write,
+                    can_delete=access.can_delete,
+                )
             )
+    
+    # Get permissions based on user type
+    permissions = []
+    if current_user.is_platform_staff and current_user.platform_role:
+        permissions = [p.value for p in get_platform_permissions(current_user.platform_role)]
+    elif current_user.role:
+        permissions = [p.value for p in get_organization_permissions(current_user.role)]
+    
+    # Build organization response (only for org users)
+    org_response = None
+    if current_user.organization:
+        org_response = OrganizationResponse(
+            id=current_user.organization.id,
+            name=current_user.organization.name,
+            slug=current_user.organization.slug,
+            subscription_tier=current_user.organization.subscription_tier.value,
+            organization_type=current_user.organization.organization_type.value if hasattr(current_user.organization, 'organization_type') and current_user.organization.organization_type else None,
+            verification_status=current_user.organization.verification_status.value if hasattr(current_user.organization, 'verification_status') and current_user.organization.verification_status else None,
+            is_verified=current_user.organization.is_verified if hasattr(current_user.organization, 'is_verified') else False,
+            created_at=current_user.organization.created_at,
         )
     
     return CurrentUserResponse(
@@ -204,20 +235,17 @@ async def get_me(
             first_name=current_user.first_name,
             last_name=current_user.last_name,
             phone_number=current_user.phone_number,
-            role=current_user.role.value,
+            role=current_user.role.value if current_user.role else None,
             is_active=current_user.is_active,
             is_verified=current_user.is_verified,
             organization_id=current_user.organization_id,
+            is_platform_staff=current_user.is_platform_staff,
+            platform_role=current_user.platform_role.value if current_user.platform_role else None,
             created_at=current_user.created_at,
         ),
-        organization=OrganizationResponse(
-            id=current_user.organization.id,
-            name=current_user.organization.name,
-            slug=current_user.organization.slug,
-            subscription_tier=current_user.organization.subscription_tier.value,
-            created_at=current_user.organization.created_at,
-        ),
+        organization=org_response,
         entity_access=entity_access_list,
+        permissions=permissions,
     )
 
 
@@ -340,3 +368,44 @@ async def reset_password(
         message="Password reset successfully",
         success=True,
     )
+
+
+# ===========================================
+# DASHBOARD API
+# ===========================================
+
+@router.get(
+    "/dashboard",
+    summary="Get user dashboard",
+    description="Get the full dashboard for the current user including 2026 compliance data.",
+)
+async def get_dashboard(
+    entity_id: str = None,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get dashboard with 2026 compliance features.
+    
+    Includes:
+    - TIN/CAC Vault display
+    - Compliance Health indicator
+    - Financial metrics
+    - Recent transactions
+    """
+    from app.services.dashboard_service import DashboardService
+    import uuid as uuid_module
+    
+    dashboard_service = DashboardService(db)
+    
+    # Parse entity_id if provided
+    parsed_entity_id = None
+    if entity_id:
+        try:
+            parsed_entity_id = uuid_module.UUID(entity_id)
+        except ValueError:
+            pass
+    
+    dashboard_data = await dashboard_service.get_dashboard(current_user, parsed_entity_id)
+    
+    return dashboard_data

@@ -2,19 +2,23 @@
 TekVwarho ProAudit - Views Router
 
 Server-side rendered pages using Jinja2 templates.
+Authentication is persistent across all pages via HTTP-only cookies.
 """
 
 import uuid
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import get_db, get_async_session
 from app.dependencies import get_optional_user
 from app.models.user import User
+from app.services.dashboard_service import DashboardService
+from app.services.auth_service import AuthService
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -29,6 +33,69 @@ def get_entity_id_from_session(request: Request) -> Optional[uuid.UUID]:
         except ValueError:
             return None
     return None
+
+
+async def get_user_from_token(request: Request, db: AsyncSession) -> Optional[User]:
+    """Get the authenticated user from the access token cookie."""
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    
+    # Remove 'Bearer ' prefix if present
+    if token.startswith("Bearer "):
+        token = token[7:]
+    
+    auth_service = AuthService(db)
+    try:
+        user = await auth_service.get_current_user_from_token(token)
+        return user
+    except Exception:
+        return None
+
+
+async def require_auth(
+    request: Request, 
+    db: AsyncSession,
+    require_entity: bool = True
+) -> Tuple[Optional[User], Optional[uuid.UUID], Optional[RedirectResponse]]:
+    """
+    Check authentication for protected pages.
+    
+    Returns:
+        Tuple of (user, entity_id, redirect_response)
+        If redirect_response is not None, the caller should return it.
+    """
+    user = await get_user_from_token(request, db)
+    
+    if not user:
+        return None, None, RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    
+    entity_id = get_entity_id_from_session(request)
+    
+    # Platform staff don't need entity
+    if user.is_platform_staff:
+        return user, None, None
+    
+    # Organization users need entity (unless require_entity is False)
+    if require_entity and not entity_id:
+        return user, None, RedirectResponse(url="/select-entity", status_code=status.HTTP_302_FOUND)
+    
+    return user, entity_id, None
+
+
+def get_auth_context(user: Optional[User], entity_id: Optional[uuid.UUID]) -> dict:
+    """
+    Get common authentication context for templates.
+    
+    This ensures user info is available across all pages.
+    """
+    return {
+        "user": user,
+        "is_authenticated": user is not None,
+        "is_platform_staff": user.is_platform_staff if user else False,
+        "user_role": user.effective_role if user else None,
+        "entity_id": str(entity_id) if entity_id else None,
+    }
 
 
 # ===========================================
@@ -58,6 +125,7 @@ async def logout(request: Request):
     """Logout - clear session and redirect to login."""
     response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
     response.delete_cookie("entity_id")
+    response.delete_cookie("access_token")
     return response
 
 
@@ -70,15 +138,56 @@ async def dashboard(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Dashboard page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    """
+    Unified dashboard page.
+    Routes to appropriate dashboard based on user type:
+    - Platform Staff: Staff dashboard with platform metrics
+    - Organization Users: Business dashboard with financial metrics
+    """
+    # Use consistent authentication
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
     
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "entity_id": str(entity_id),
-    })
+    # Get dashboard data
+    dashboard_service = DashboardService(db)
+    
+    try:
+        if user.is_platform_staff:
+            # Platform staff - use staff dashboard
+            dashboard_data = await dashboard_service.get_dashboard(user)
+            return templates.TemplateResponse("staff_dashboard.html", {
+                "request": request,
+                "dashboard": dashboard_data,
+                **get_auth_context(user, None),
+            })
+        else:
+            # Organization user - use business dashboard
+            # If no entity selected, redirect to entity selection
+            if not entity_id:
+                # Check if user has any entities
+                if user.entity_access and len(user.entity_access) > 0:
+                    return RedirectResponse(url="/select-entity", status_code=status.HTTP_302_FOUND)
+            
+            dashboard_data = await dashboard_service.get_dashboard(user, entity_id)
+            
+            return templates.TemplateResponse("dashboard.html", {
+                "request": request,
+                "dashboard": dashboard_data,
+                **get_auth_context(user, entity_id),
+            })
+    except PermissionError as e:
+        return RedirectResponse(url="/login?error=permission", status_code=status.HTTP_302_FOUND)
+    except Exception as e:
+        # Fallback to basic dashboard
+        if not entity_id and not user.is_platform_staff:
+            return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "error": str(e),
+            **get_auth_context(user, entity_id),
+        })
 
 
 @router.get("/transactions", response_class=HTMLResponse)
@@ -87,13 +196,13 @@ async def transactions_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Transactions list page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("transactions.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -112,13 +221,13 @@ async def invoices_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Invoices list page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("invoices.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -137,13 +246,13 @@ async def receipt_upload_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Receipt upload/scan page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("receipts.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -153,13 +262,13 @@ async def reports_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Reports page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("reports.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -169,13 +278,13 @@ async def vendors_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Vendors list page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("vendors.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -185,13 +294,13 @@ async def customers_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Customers list page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("customers.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -201,13 +310,13 @@ async def inventory_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Inventory management page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("inventory.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -217,13 +326,13 @@ async def settings_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Settings page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("settings.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 
@@ -237,8 +346,14 @@ async def select_entity_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Entity selection page."""
+    # Check authentication but don't require entity
+    user, _, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
     return templates.TemplateResponse("select_entity.html", {
         "request": request,
+        **get_auth_context(user, None),
     })
 
 
@@ -303,13 +418,13 @@ async def tax_2026_page(
     db: AsyncSession = Depends(get_db),
 ):
     """2026 Tax Reform compliance page."""
-    entity_id = get_entity_id_from_session(request)
-    if not entity_id:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    user, entity_id, redirect = await require_auth(request, db)
+    if redirect:
+        return redirect
     
     return templates.TemplateResponse("tax_2026.html", {
         "request": request,
-        "entity_id": str(entity_id),
+        **get_auth_context(user, entity_id),
     })
 
 

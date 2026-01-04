@@ -6,6 +6,59 @@
 
 ---
 
+## 🆕 2026 Nigeria Tax Reform Compliance Update
+
+**Date:** January 3, 2026
+
+### Fixed Asset Register (NEW)
+- [x] `FixedAsset` model with category, status, depreciation fields
+- [x] `DepreciationEntry` model for period-by-period tracking
+- [x] Asset categories: Land, Buildings, Plant & Machinery, Motor Vehicles, etc.
+- [x] Depreciation methods: Straight Line, Reducing Balance, Units of Production
+- [x] Standard depreciation rates per Nigerian tax law
+- [x] Disposal tracking with capital gains calculation
+- [x] VAT recovery on capital assets via vendor IRN
+- [x] API endpoints: CRUD, depreciation run, disposal, reports
+- [x] Database migration for fixed_assets tables
+
+### TIN/CAC Vault & Compliance Health
+- [x] TIN/CAC Vault display in dashboard
+- [x] Compliance Health indicator with score
+- [x] Small Company Status check (0% CIT eligibility)
+- [x] Development Levy exemption status
+- [x] VAT registration threshold check
+- [x] Dashboard API endpoint with compliance data
+
+### B2C Real-time Reporting
+- [x] `b2c_realtime_reporting_enabled` field in Entity model
+- [x] `b2c_reporting_threshold` field (default ₦50,000)
+- [x] B2C transaction report submission to NRS
+- [x] B2C reporting status check
+
+### Dashboard Enhancements
+- [x] TIN/CAC Vault section in dashboard template
+- [x] Compliance Health indicator with progress bar
+- [x] Compliance checks display with status icons
+- [x] Business type and tax implication display
+
+### API Endpoints Added
+
+#### Fixed Assets (`/api/v1/fixed-assets`)
+- `POST /` - Create fixed asset
+- `GET /entity/{entity_id}` - List assets for entity
+- `GET /{asset_id}` - Get asset details
+- `PATCH /{asset_id}` - Update asset
+- `POST /depreciation/run` - Run depreciation for period
+- `GET /entity/{entity_id}/depreciation-schedule` - Get depreciation schedule
+- `POST /{asset_id}/dispose` - Dispose of asset
+- `GET /entity/{entity_id}/summary` - Get asset register summary
+- `GET /entity/{entity_id}/capital-gains` - Get capital gains report
+
+#### Dashboard (`/api/v1/auth`)
+- `GET /dashboard` - Get full dashboard with compliance data
+
+---
+
 ## 📋 Build Segments Overview
 
 This document tracks all segments we will build for the TekVwarho ProAudit application.

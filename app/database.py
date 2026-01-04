@@ -60,6 +60,9 @@ async def get_async_session() -> AsyncSession:
 # Alias for backward compatibility
 get_db = get_async_session
 
+# Alias for use in startup seeding (context manager style)
+async_session_factory = async_session_maker
+
 
 async def init_db():
     """

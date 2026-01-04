@@ -121,6 +121,20 @@ class BusinessEntity(BaseModel):
         comment="Exempt if turnover <= ₦100M AND assets <= ₦250M",
     )
     
+    # 2026 Tax Reform - B2C Real-time Reporting
+    b2c_realtime_reporting_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Enable 24-hour NRS reporting for B2C transactions > ₦50,000",
+    )
+    b2c_reporting_threshold: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        default=Decimal("50000.00"),
+        nullable=False,
+        comment="Threshold for B2C real-time reporting (default ₦50,000)",
+    )
+    
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     

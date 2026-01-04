@@ -571,6 +571,138 @@ class NRSApiClient:
                 raw_response=response,
             )
 
+    # ===========================================
+    # B2C REAL-TIME REPORTING (2026 COMPLIANCE)
+    # ===========================================
+    
+    async def submit_b2c_transaction_report(
+        self,
+        seller_tin: str,
+        seller_name: str,
+        transaction_date: str,
+        transaction_reference: str,
+        customer_name: str,
+        transaction_amount: float,
+        vat_amount: float,
+        payment_method: str = "cash",
+        customer_phone: Optional[str] = None,
+        customer_email: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Submit B2C transaction for real-time reporting.
+        
+        2026 Compliance:
+        - B2C transactions > ₦50,000 must be reported within 24 hours
+        - Required for retail, hospitality, and consumer-facing businesses
+        - Enables FIRS real-time monitoring of high-value B2C transactions
+        
+        Args:
+            seller_tin: Seller's Tax Identification Number
+            seller_name: Seller's registered name
+            transaction_date: Date of transaction (YYYY-MM-DD)
+            transaction_reference: Internal transaction reference
+            customer_name: Customer name (can be "Walk-in Customer")
+            transaction_amount: Total transaction amount
+            vat_amount: VAT amount charged
+            payment_method: Payment method (cash, card, transfer)
+            customer_phone: Optional customer phone
+            customer_email: Optional customer email
+        
+        Returns:
+            Dict with submission result and B2C report reference
+        """
+        if self.sandbox_mode and not self.api_key:
+            # Simulate B2C report submission
+            report_ref = f"B2C-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:6].upper()}"
+            return {
+                "success": True,
+                "message": "B2C transaction reported successfully (SANDBOX MODE)",
+                "report_reference": report_ref,
+                "reporting_deadline": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
+                "amount_reported": transaction_amount,
+                "sandbox": True,
+            }
+        
+        payload = {
+            "seller_tin": seller_tin,
+            "seller_name": seller_name,
+            "transaction_date": transaction_date,
+            "transaction_reference": transaction_reference,
+            "transaction_type": "B2C",
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_email": customer_email,
+            "transaction_amount": transaction_amount,
+            "vat_amount": vat_amount,
+            "payment_method": payment_method,
+            "currency": "NGN",
+            "reported_at": datetime.utcnow().isoformat(),
+        }
+        
+        # B2C reporting endpoint (assuming NRS has this endpoint)
+        b2c_endpoint = "/api/v1/b2c/report"
+        
+        success, response = await self._make_request(
+            "POST",
+            b2c_endpoint,
+            payload,
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": response.get("message", "B2C transaction reported"),
+                "report_reference": response.get("report_reference"),
+                "reported_at": datetime.utcnow().isoformat(),
+            }
+        else:
+            return {
+                "success": False,
+                "message": response.get("message", "B2C reporting failed"),
+                "error": response,
+            }
+    
+    async def get_b2c_reporting_status(
+        self,
+        seller_tin: str,
+        start_date: str,
+        end_date: str,
+    ) -> Dict[str, Any]:
+        """
+        Get B2C reporting status for a date range.
+        
+        Shows:
+        - Total transactions reported
+        - Pending transactions (not yet reported)
+        - Overdue transactions (past 24-hour deadline)
+        """
+        if self.sandbox_mode and not self.api_key:
+            return {
+                "success": True,
+                "seller_tin": seller_tin,
+                "period": {"start": start_date, "end": end_date},
+                "summary": {
+                    "total_transactions": 0,
+                    "reported_on_time": 0,
+                    "pending": 0,
+                    "overdue": 0,
+                    "total_amount_reported": 0,
+                },
+                "sandbox": True,
+            }
+        
+        success, response = await self._make_request(
+            "GET",
+            "/api/v1/b2c/status",
+            {
+                "seller_tin": seller_tin,
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+        )
+        
+        return response
+
 
 # ===========================================
 # SERVICE FACTORY

@@ -86,10 +86,13 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     phone_number: Optional[str] = None
-    role: str
+    role: Optional[str] = None  # Organization role (null for platform staff)
     is_active: bool
     is_verified: bool
-    organization_id: UUID
+    organization_id: Optional[UUID] = None  # Null for platform staff
+    # RBAC fields
+    is_platform_staff: bool = False
+    platform_role: Optional[str] = None  # Platform role (null for org users)
     created_at: datetime
     
     class Config:
@@ -108,6 +111,9 @@ class OrganizationResponse(BaseModel):
     name: str
     slug: str
     subscription_tier: str
+    organization_type: Optional[str] = None  # New: organization type
+    verification_status: Optional[str] = None  # New: verification status
+    is_verified: bool = False  # New: convenience field
     created_at: datetime
     
     class Config:
@@ -125,11 +131,32 @@ class EntityAccessResponse(BaseModel):
 class CurrentUserResponse(BaseModel):
     """Schema for current user with organization and entities."""
     user: UserResponse
-    organization: OrganizationResponse
+    organization: Optional[OrganizationResponse] = None  # Null for platform staff
     entity_access: List[EntityAccessResponse] = []
+    # RBAC permissions summary
+    permissions: List[str] = []  # List of permission strings user has
 
 
 class MessageResponse(BaseModel):
     """Generic message response."""
     message: str
     success: bool = True
+
+
+# ===========================================
+# RBAC SCHEMAS
+# ===========================================
+
+class RolePermissionsResponse(BaseModel):
+    """Schema for role permissions."""
+    role: str
+    role_type: str  # "platform" or "organization"
+    permissions: List[str]
+
+
+class UserPermissionsResponse(BaseModel):
+    """Schema for user's permissions."""
+    user_id: UUID
+    is_platform_staff: bool
+    role: str
+    permissions: List[str]

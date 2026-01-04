@@ -109,11 +109,20 @@ function loginForm() {
                 
                 if (response.ok) {
                     const data = await response.json();
+                    
+                    // Store tokens in localStorage
                     localStorage.setItem('token', data.tokens.access_token);
                     localStorage.setItem('refresh_token', data.tokens.refresh_token);
-                    // Set entity cookie if user has entity access
-                    if (data.user && data.user.organization_id) {
-                        // Redirect to entity selection or dashboard
+                    
+                    // Also set access token as cookie for server-side authentication
+                    document.cookie = `access_token=${data.tokens.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+                    
+                    // Check if user is platform staff
+                    if (data.user.is_platform_staff) {
+                        // Platform staff go directly to dashboard
+                        window.location.href = '/dashboard';
+                    } else if (data.user && data.user.organization_id) {
+                        // Organization users go to entity selection
                         window.location.href = '/select-entity';
                     } else {
                         window.location.href = '/dashboard';

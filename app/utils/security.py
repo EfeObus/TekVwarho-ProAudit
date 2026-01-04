@@ -4,6 +4,8 @@ TekVwarho ProAudit - Security Utilities
 Password hashing, JWT token management, and security helpers.
 """
 
+import secrets
+import string
 from datetime import datetime, timedelta
 from typing import Optional, Any
 
@@ -25,6 +27,37 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Hash a password for storing."""
     return pwd_context.hash(password)
+
+
+def generate_random_password(length: int = 12) -> str:
+    """
+    Generate a secure random password.
+    
+    Args:
+        length: Password length (minimum 8)
+    
+    Returns:
+        A random password with uppercase, lowercase, digits, and special chars
+    """
+    if length < 8:
+        length = 8
+    
+    # Ensure at least one of each required character type
+    password_chars = [
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%^&*"),
+    ]
+    
+    # Fill the rest with random chars
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    password_chars.extend(secrets.choice(alphabet) for _ in range(length - 4))
+    
+    # Shuffle the password characters
+    secrets.SystemRandom().shuffle(password_chars)
+    
+    return ''.join(password_chars)
 
 
 def create_access_token(

@@ -11,7 +11,23 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
-from app.database import init_db, close_db
+from app.database import init_db, close_db, async_session_factory
+
+
+async def seed_super_admin():
+    """
+    Seed the hardcoded Super Admin user on startup.
+    This ensures there's always a Super Admin account available.
+    """
+    from app.services.staff_management_service import StaffManagementService
+    
+    async with async_session_factory() as session:
+        service = StaffManagementService(session)
+        try:
+            super_admin = await service.get_or_create_super_admin()
+            print(f"✅ Super Admin ready: {super_admin.email}")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not seed Super Admin: {e}")
 
 
 @asynccontextmanager
@@ -29,6 +45,12 @@ async def lifespan(app: FastAPI):
     if settings.is_development:
         await init_db()
         print("✅ Database tables initialized")
+    
+    # Seed Super Admin
+    try:
+        await seed_super_admin()
+    except Exception as e:
+        print(f"⚠️ Warning: Super Admin seeding skipped: {e}")
     
     yield
     
@@ -68,9 +90,9 @@ templates = Jinja2Templates(directory="templates")
 # API ROUTES
 # ===========================================
 
-@app.get("/")
-async def root():
-    """Root endpoint - API information."""
+@app.get("/api")
+async def api_info():
+    """API information endpoint."""
     return {
         "name": settings.app_name,
         "version": "0.1.0",
@@ -96,6 +118,7 @@ async def api_root():
         "message": f"Welcome to {settings.app_name} API v1",
         "endpoints": {
             "auth": "/api/v1/auth",
+            "staff": "/api/v1/staff",
             "entities": "/api/v1/entities",
             "transactions": "/api/v1/entities/{entity_id}/transactions",
             "invoices": "/api/v1/entities/{entity_id}/invoices",
@@ -112,7 +135,8 @@ async def api_root():
 from app.routers import (
     auth, entities, categories, vendors, customers, 
     transactions, invoices, tax, inventory, receipts,
-    reports, audit, views, tax_2026,
+    reports, audit, views, tax_2026, staff, organization_users,
+    fixed_assets,
 )
 
 # View Routes (HTML pages)
@@ -120,6 +144,12 @@ app.include_router(views.router, tags=["Views"])
 
 # Authentication
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+
+# Platform Staff Management (RBAC)
+app.include_router(staff.router, prefix="/api/v1", tags=["Staff Management"])
+
+# Organization User Management
+app.include_router(organization_users.router, prefix="/api/v1", tags=["Organization Users"])
 
 # Business Entities
 app.include_router(entities.router, prefix="/api/v1/entities", tags=["Business Entities"])
@@ -140,6 +170,9 @@ app.include_router(tax.router, prefix="/api/v1/tax", tags=["Tax Management"])
 
 # 2026 Tax Reform APIs
 app.include_router(tax_2026.router, prefix="/api/v1/tax-2026", tags=["2026 Tax Reform"])
+
+# Fixed Asset Register (2026)
+app.include_router(fixed_assets.router, tags=["Fixed Assets"])
 
 
 if __name__ == "__main__":

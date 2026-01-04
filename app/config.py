@@ -93,6 +93,16 @@ class Settings(BaseSettings):
     mail_password: str = ""
     
     # ===========================================
+    # SUPER ADMIN CONFIGURATION (Hardcoded Credentials)
+    # These are the default credentials for the Super Admin account.
+    # In production, override these via environment variables!
+    # ===========================================
+    super_admin_email: str = "superadmin@tekvwarho.com"
+    super_admin_password: str = "SuperAdmin@TekVwarho2026!"
+    super_admin_first_name: str = "Super"
+    super_admin_last_name: str = "Admin"
+    
+    # ===========================================
     # CORS SETTINGS
     # ===========================================
     cors_origins: str = "http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5120,http://127.0.0.1:5120"

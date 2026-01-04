@@ -2,16 +2,21 @@
 TekVwarho ProAudit - Transaction Model
 
 Transaction model for recording income and expenses.
+
+NTAA 2025 Compliance Features:
+- Maker-Checker (SoD) for WREN expense verification
+- Prevents Accountant from verifying expenses they created
+- Audit trail for "before/after" category changes
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, Date, ForeignKey, Numeric, String, Text, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel, AuditMixin
@@ -103,13 +108,51 @@ class Transaction(BaseModel, AuditMixin):
         nullable=True,
     )
     
-    # WREN Compliance (for expenses)
+    # ===========================================
+    # WREN COMPLIANCE - MAKER-CHECKER (NTAA 2025)
+    # ===========================================
+    
+    # WREN Status (for expenses)
     wren_status: Mapped[WRENStatus] = mapped_column(
         SQLEnum(WRENStatus),
         default=WRENStatus.REVIEW_REQUIRED,
         nullable=False,
     )
     wren_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Maker-Checker Segregation of Duties
+    # Maker: Person who created/uploaded the expense
+    created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Maker: User who created this transaction",
+    )
+    
+    # Checker: Person who verified WREN status (cannot be same as Maker)
+    wren_verified_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Checker: User who verified WREN status (cannot be Maker)",
+    )
+    wren_verified_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When WREN verification was performed",
+    )
+    
+    # Original category before any changes (for audit trail)
+    original_category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Original category for audit trail (if changed)",
+    )
+    category_change_history: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="History of category changes with before/after snapshots",
+    )
     
     # VAT
     vat_recoverable: Mapped[bool] = mapped_column(
