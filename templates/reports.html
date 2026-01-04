@@ -33,7 +33,7 @@
 
         <!-- Date Range Selector -->
         <div class="p-4 bg-gray-50 border-b border-gray-200">
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-4 flex-wrap">
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">From</label>
                     <input type="date" x-model="startDate" class="border-gray-300 rounded-md shadow-sm text-sm focus:ring-green-500 focus:border-green-500">
@@ -41,6 +41,10 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">To</label>
                     <input type="date" x-model="endDate" class="border-gray-300 rounded-md shadow-sm text-sm focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">As of Date</label>
+                    <input type="date" x-model="asOfDate" class="border-gray-300 rounded-md shadow-sm text-sm focus:ring-green-500 focus:border-green-500">
                 </div>
                 <div class="flex gap-2 mt-5">
                     <button @click="setPreset('thisMonth')" class="px-3 py-1 text-xs border rounded hover:bg-gray-100">This Month</button>
@@ -61,9 +65,16 @@
                     <h3 class="text-lg font-semibold text-gray-900">Profit & Loss Statement</h3>
                     <p class="text-sm text-gray-500">Income and expenses summary</p>
                 </div>
-                <button @click="generatePnL()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
-                    Generate Report
-                </button>
+                <div class="flex gap-2">
+                    <button @click="generatePnL()" :disabled="loading.pnl" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                        <svg x-show="loading.pnl" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Generate Report
+                    </button>
+                    <button x-show="reports.pnl" @click="exportPDF('profit-loss')" class="border border-green-600 text-green-600 px-3 py-2 text-sm rounded-md hover:bg-green-50 flex items-center gap-1">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        PDF
+                    </button>
+                </div>
             </div>
             <div x-show="reports.pnl" class="p-6">
                 <div class="grid grid-cols-3 gap-6 mb-6">
@@ -116,6 +127,238 @@
             </div>
         </div>
 
+        <!-- Trial Balance -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Trial Balance</h3>
+                    <p class="text-sm text-gray-500">Account balances summary - debits and credits</p>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="generateTrialBalance()" :disabled="loading.trialBalance" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                        <svg x-show="loading.trialBalance" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Generate Report
+                    </button>
+                    <button x-show="reports.trialBalance" @click="exportPDF('trial-balance')" class="border border-green-600 text-green-600 px-3 py-2 text-sm rounded-md hover:bg-green-50 flex items-center gap-1">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+            <div x-show="reports.trialBalance" class="p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit (₦)</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit (₦)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="account in reports.trialBalance?.accounts" :key="account.account">
+                                <tr>
+                                    <td class="px-4 py-3 text-sm text-gray-900" x-text="account.account"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-500" x-text="account.type"></td>
+                                    <td class="px-4 py-3 text-sm text-right font-medium" x-text="account.debit > 0 ? formatCurrency(account.debit) : '-'"></td>
+                                    <td class="px-4 py-3 text-sm text-right font-medium" x-text="account.credit > 0 ? formatCurrency(account.credit) : '-'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        <tfoot class="bg-green-50">
+                            <tr>
+                                <td colspan="2" class="px-4 py-3 text-sm font-bold text-gray-900">TOTALS</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-gray-900" x-text="formatCurrency(reports.trialBalance?.totals?.total_debit)"></td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-gray-900" x-text="formatCurrency(reports.trialBalance?.totals?.total_credit)"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="mt-4 flex items-center gap-2">
+                    <span class="text-sm font-medium">Status:</span>
+                    <span x-show="reports.trialBalance?.totals?.is_balanced" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">✓ Balanced</span>
+                    <span x-show="!reports.trialBalance?.totals?.is_balanced" class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">✗ Not Balanced</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Balance Sheet -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Balance Sheet</h3>
+                    <p class="text-sm text-gray-500">Assets, liabilities, and equity statement</p>
+                </div>
+                <button @click="generateBalanceSheet()" :disabled="loading.balanceSheet" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                    <svg x-show="loading.balanceSheet" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Generate Report
+                </button>
+            </div>
+            <div x-show="reports.balanceSheet" class="p-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <!-- Assets -->
+                    <div>
+                        <h4 class="font-semibold text-gray-900 mb-4 pb-2 border-b">ASSETS</h4>
+                        <div class="space-y-3">
+                            <div class="font-medium text-gray-700">Current Assets</div>
+                            <div class="pl-4 space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Cash and Bank</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.assets?.current_assets?.cash_and_bank)"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Accounts Receivable</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.assets?.current_assets?.accounts_receivable)"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">VAT Recoverable</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.assets?.current_assets?.vat_recoverable)"></span>
+                                </div>
+                                <div class="flex justify-between font-medium border-t pt-2">
+                                    <span>Total Current Assets</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.assets?.current_assets?.total)"></span>
+                                </div>
+                            </div>
+                            <div class="font-medium text-gray-700 mt-4">Fixed Assets</div>
+                            <div class="pl-4 space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Cost</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.assets?.fixed_assets?.cost)"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Less: Depreciation</span>
+                                    <span x-text="'(' + formatCurrency(reports.balanceSheet?.assets?.fixed_assets?.accumulated_depreciation) + ')'"></span>
+                                </div>
+                                <div class="flex justify-between font-medium border-t pt-2">
+                                    <span>Net Book Value</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.assets?.fixed_assets?.net_book_value)"></span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between font-bold text-lg mt-4 pt-2 border-t-2">
+                                <span>TOTAL ASSETS</span>
+                                <span class="text-green-600" x-text="formatCurrency(reports.balanceSheet?.assets?.total_assets)"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Liabilities & Equity -->
+                    <div>
+                        <h4 class="font-semibold text-gray-900 mb-4 pb-2 border-b">LIABILITIES & EQUITY</h4>
+                        <div class="space-y-3">
+                            <div class="font-medium text-gray-700">Current Liabilities</div>
+                            <div class="pl-4 space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">VAT Payable</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.liabilities?.current_liabilities?.vat_payable)"></span>
+                                </div>
+                                <div class="flex justify-between font-medium border-t pt-2">
+                                    <span>Total Liabilities</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.liabilities?.total_liabilities)"></span>
+                                </div>
+                            </div>
+                            <div class="font-medium text-gray-700 mt-4">Owner's Equity</div>
+                            <div class="pl-4 space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Retained Earnings</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.equity?.retained_earnings)"></span>
+                                </div>
+                                <div class="flex justify-between font-medium border-t pt-2">
+                                    <span>Total Equity</span>
+                                    <span x-text="formatCurrency(reports.balanceSheet?.equity?.total_equity)"></span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between font-bold text-lg mt-4 pt-2 border-t-2">
+                                <span>TOTAL LIAB. & EQUITY</span>
+                                <span class="text-green-600" x-text="formatCurrency((reports.balanceSheet?.liabilities?.total_liabilities || 0) + (reports.balanceSheet?.equity?.total_equity || 0))"></span>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-center gap-2">
+                            <span x-show="reports.balanceSheet?.validation?.assets_equal_liabilities_plus_equity" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">✓ Balanced</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fixed Asset Register -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Fixed Asset Register</h3>
+                    <p class="text-sm text-gray-500">Capital assets with depreciation schedules</p>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="generateFixedAssets()" :disabled="loading.fixedAssets" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                        <svg x-show="loading.fixedAssets" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Generate Report
+                    </button>
+                    <button x-show="reports.fixedAssets" @click="exportPDF('fixed-assets')" class="border border-green-600 text-green-600 px-3 py-2 text-sm rounded-md hover:bg-green-50 flex items-center gap-1">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+            <div x-show="reports.fixedAssets" class="p-6">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="text-center p-3 bg-gray-50 rounded-lg">
+                        <p class="text-xs text-gray-500 font-medium">Active Assets</p>
+                        <p class="text-xl font-bold text-gray-700" x-text="reports.fixedAssets?.summary?.total_assets || 0">0</p>
+                    </div>
+                    <div class="text-center p-3 bg-blue-50 rounded-lg">
+                        <p class="text-xs text-blue-600 font-medium">Total Cost</p>
+                        <p class="text-xl font-bold text-blue-700" x-text="formatCurrency(reports.fixedAssets?.summary?.total_acquisition_cost)">₦0</p>
+                    </div>
+                    <div class="text-center p-3 bg-amber-50 rounded-lg">
+                        <p class="text-xs text-amber-600 font-medium">Depreciation</p>
+                        <p class="text-xl font-bold text-amber-700" x-text="formatCurrency(reports.fixedAssets?.summary?.total_accumulated_depreciation)">₦0</p>
+                    </div>
+                    <div class="text-center p-3 bg-green-50 rounded-lg">
+                        <p class="text-xs text-green-600 font-medium">Net Book Value</p>
+                        <p class="text-xl font-bold text-green-700" x-text="formatCurrency(reports.fixedAssets?.summary?.total_net_book_value)">₦0</p>
+                    </div>
+                </div>
+                
+                <!-- Assets Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Asset</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acquired</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Depreciation</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">NBV</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="asset in reports.fixedAssets?.assets" :key="asset.id">
+                                <tr>
+                                    <td class="px-4 py-3 text-sm text-gray-900" x-text="asset.name"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-500" x-text="asset.asset_type"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-500" x-text="asset.acquisition_date"></td>
+                                    <td class="px-4 py-3 text-sm text-right" x-text="formatCurrency(asset.acquisition_cost)"></td>
+                                    <td class="px-4 py-3 text-sm text-right text-amber-600" x-text="formatCurrency(asset.accumulated_depreciation)"></td>
+                                    <td class="px-4 py-3 text-sm text-right font-medium text-green-600" x-text="formatCurrency(asset.net_book_value)"></td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="px-2 py-1 text-xs rounded-full" 
+                                              :class="asset.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                                              x-text="asset.status"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div x-show="!reports.fixedAssets?.assets?.length" class="text-center py-8 text-gray-500">
+                    No fixed assets found
+                </div>
+            </div>
+        </div>
+
         <!-- Cash Flow -->
         <div class="bg-white rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -123,7 +366,8 @@
                     <h3 class="text-lg font-semibold text-gray-900">Cash Flow Statement</h3>
                     <p class="text-sm text-gray-500">Operating cash flow analysis</p>
                 </div>
-                <button @click="generateCashFlow()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                <button @click="generateCashFlow()" :disabled="loading.cashflow" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                    <svg x-show="loading.cashflow" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     Generate Report
                 </button>
             </div>
@@ -166,7 +410,8 @@
                         <option value="2025">2025</option>
                         <option value="2024">2024</option>
                     </select>
-                    <button @click="generateVATReturn()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                    <button @click="generateVATReturn()" :disabled="loading.vat" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                        <svg x-show="loading.vat" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         Generate
                     </button>
                 </div>
@@ -199,7 +444,8 @@
                     <h3 class="text-lg font-semibold text-gray-900">Withholding Tax Summary</h3>
                     <p class="text-sm text-gray-500">WHT deducted on payments</p>
                 </div>
-                <button @click="generateWHT()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                <button @click="generateWHT()" :disabled="loading.wht" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                    <svg x-show="loading.wht" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     Generate Report
                 </button>
             </div>
@@ -234,7 +480,8 @@
                         <option value="2025">2025</option>
                         <option value="2024">2024</option>
                     </select>
-                    <button @click="generateCIT()" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700">
+                    <button @click="generateCIT()" :disabled="loading.cit" class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                        <svg x-show="loading.cit" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         Generate
                     </button>
                 </div>
@@ -295,17 +542,27 @@ function reportsPage() {
         activeTab: 'financial',
         startDate: firstOfMonth.toISOString().split('T')[0],
         endDate: today.toISOString().split('T')[0],
+        asOfDate: today.toISOString().split('T')[0],
         taxMonth: today.getMonth() + 1,
         taxYear: today.getFullYear(),
         fiscalYear: today.getFullYear(),
         reports: {},
+        loading: {
+            pnl: false,
+            cashflow: false,
+            trialBalance: false,
+            balanceSheet: false,
+            fixedAssets: false,
+            vat: false,
+            wht: false,
+            cit: false,
+        },
         
         init() {
             if (!this.entityId) {
                 console.warn('No entity selected');
                 return;
             }
-            // Auto-load P&L on init
         },
         
         setPreset(preset) {
@@ -334,9 +591,11 @@ function reportsPage() {
             
             this.startDate = start.toISOString().split('T')[0];
             this.endDate = end.toISOString().split('T')[0];
+            this.asOfDate = end.toISOString().split('T')[0];
         },
         
         async generatePnL() {
+            this.loading.pnl = true;
             try {
                 const response = await fetch(
                     `/api/v1/entities/${this.entityId}/reports/profit-loss?start_date=${this.startDate}&end_date=${this.endDate}`,
@@ -344,13 +603,18 @@ function reportsPage() {
                 );
                 if (response.ok) {
                     this.reports.pnl = await response.json();
+                } else {
+                    console.error('Failed to generate P&L');
                 }
             } catch (error) {
                 console.error('Failed to generate P&L:', error);
+            } finally {
+                this.loading.pnl = false;
             }
         },
         
         async generateCashFlow() {
+            this.loading.cashflow = true;
             try {
                 const response = await fetch(
                     `/api/v1/entities/${this.entityId}/reports/cash-flow?start_date=${this.startDate}&end_date=${this.endDate}`,
@@ -361,10 +625,64 @@ function reportsPage() {
                 }
             } catch (error) {
                 console.error('Failed to generate cash flow:', error);
+            } finally {
+                this.loading.cashflow = false;
+            }
+        },
+        
+        async generateTrialBalance() {
+            this.loading.trialBalance = true;
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/trial-balance?as_of_date=${this.asOfDate}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.trialBalance = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate trial balance:', error);
+            } finally {
+                this.loading.trialBalance = false;
+            }
+        },
+        
+        async generateBalanceSheet() {
+            this.loading.balanceSheet = true;
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/balance-sheet?as_of_date=${this.asOfDate}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.balanceSheet = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate balance sheet:', error);
+            } finally {
+                this.loading.balanceSheet = false;
+            }
+        },
+        
+        async generateFixedAssets() {
+            this.loading.fixedAssets = true;
+            try {
+                const response = await fetch(
+                    `/api/v1/entities/${this.entityId}/reports/fixed-assets?as_of_date=${this.asOfDate}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (response.ok) {
+                    this.reports.fixedAssets = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to generate fixed assets report:', error);
+            } finally {
+                this.loading.fixedAssets = false;
             }
         },
         
         async generateVATReturn() {
+            this.loading.vat = true;
             try {
                 const response = await fetch(
                     `/api/v1/entities/${this.entityId}/reports/tax/vat-return?year=${this.taxYear}&month=${this.taxMonth}`,
@@ -375,10 +693,13 @@ function reportsPage() {
                 }
             } catch (error) {
                 console.error('Failed to generate VAT return:', error);
+            } finally {
+                this.loading.vat = false;
             }
         },
         
         async generateWHT() {
+            this.loading.wht = true;
             try {
                 const response = await fetch(
                     `/api/v1/entities/${this.entityId}/reports/tax/wht-summary?start_date=${this.startDate}&end_date=${this.endDate}`,
@@ -389,10 +710,13 @@ function reportsPage() {
                 }
             } catch (error) {
                 console.error('Failed to generate WHT summary:', error);
+            } finally {
+                this.loading.wht = false;
             }
         },
         
         async generateCIT() {
+            this.loading.cit = true;
             try {
                 const response = await fetch(
                     `/api/v1/entities/${this.entityId}/reports/tax/cit?fiscal_year=${this.fiscalYear}`,
@@ -403,6 +727,49 @@ function reportsPage() {
                 }
             } catch (error) {
                 console.error('Failed to generate CIT report:', error);
+            } finally {
+                this.loading.cit = false;
+            }
+        },
+        
+        async exportPDF(reportType) {
+            let url;
+            switch(reportType) {
+                case 'profit-loss':
+                    url = `/api/v1/entities/${this.entityId}/reports/profit-loss/pdf?start_date=${this.startDate}&end_date=${this.endDate}`;
+                    break;
+                case 'trial-balance':
+                    url = `/api/v1/entities/${this.entityId}/reports/trial-balance/pdf?as_of_date=${this.asOfDate}`;
+                    break;
+                case 'fixed-assets':
+                    url = `/api/v1/entities/${this.entityId}/reports/fixed-assets/pdf?as_of_date=${this.asOfDate}`;
+                    break;
+                default:
+                    return;
+            }
+            
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = `${reportType}_${this.asOfDate || this.endDate}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(downloadUrl);
+                } else {
+                    console.error('Failed to export PDF');
+                    alert('Failed to export PDF. Please try again.');
+                }
+            } catch (error) {
+                console.error('Failed to export PDF:', error);
+                alert('Failed to export PDF. Please try again.');
             }
         },
         

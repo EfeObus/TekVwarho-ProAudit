@@ -241,3 +241,177 @@ async def get_cit_report(
     )
     
     return report
+
+
+# ===========================================
+# TRIAL BALANCE & BALANCE SHEET
+# ===========================================
+
+@router.get("/{entity_id}/reports/trial-balance")
+async def get_trial_balance(
+    entity_id: uuid.UUID,
+    as_of_date: date = Query(..., description="Trial balance as of date"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Generate Trial Balance report.
+    
+    Shows:
+    - All accounts with debit/credit balances
+    - Total debits and credits (should match)
+    - Account category breakdown
+    """
+    service = ReportsService(db)
+    report = await service.generate_trial_balance(
+        entity_id=entity_id,
+        as_of_date=as_of_date,
+    )
+    
+    return report
+
+
+@router.get("/{entity_id}/reports/balance-sheet")
+async def get_balance_sheet(
+    entity_id: uuid.UUID,
+    as_of_date: date = Query(..., description="Balance sheet as of date"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Generate Balance Sheet report.
+    
+    Shows:
+    - Assets (Current and Fixed)
+    - Liabilities
+    - Owner's Equity
+    - Accounting equation validation
+    """
+    service = ReportsService(db)
+    report = await service.generate_balance_sheet(
+        entity_id=entity_id,
+        as_of_date=as_of_date,
+    )
+    
+    return report
+
+
+@router.get("/{entity_id}/reports/fixed-assets")
+async def get_fixed_assets_report(
+    entity_id: uuid.UUID,
+    as_of_date: date = Query(..., description="Report as of date"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Generate Fixed Asset Register report.
+    
+    Shows:
+    - All fixed assets with acquisition details
+    - Depreciation schedules
+    - Net book values
+    - Capital gains/losses on disposals
+    """
+    service = ReportsService(db)
+    report = await service.generate_fixed_assets_report(
+        entity_id=entity_id,
+        as_of_date=as_of_date,
+    )
+    
+    return report
+
+
+# ===========================================
+# PDF EXPORTS
+# ===========================================
+
+@router.get("/{entity_id}/reports/profit-loss/pdf")
+async def export_profit_loss_pdf(
+    entity_id: uuid.UUID,
+    start_date: date = Query(..., description="Report period start date"),
+    end_date: date = Query(..., description="Report period end date"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Export Profit & Loss report as PDF.
+    """
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Start date must be before end date",
+        )
+    
+    service = ReportsService(db)
+    pdf_data = await service.export_profit_loss_pdf(
+        entity_id=entity_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    return StreamingResponse(
+        io.BytesIO(pdf_data),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=profit_loss_{start_date}_{end_date}.pdf"
+        }
+    )
+
+
+@router.get("/{entity_id}/reports/trial-balance/pdf")
+async def export_trial_balance_pdf(
+    entity_id: uuid.UUID,
+    as_of_date: date = Query(..., description="Trial balance as of date"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Export Trial Balance report as PDF.
+    """
+    service = ReportsService(db)
+    pdf_data = await service.export_trial_balance_pdf(
+        entity_id=entity_id,
+        as_of_date=as_of_date,
+    )
+    
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    return StreamingResponse(
+        io.BytesIO(pdf_data),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=trial_balance_{as_of_date}.pdf"
+        }
+    )
+
+
+@router.get("/{entity_id}/reports/fixed-assets/pdf")
+async def export_fixed_assets_pdf(
+    entity_id: uuid.UUID,
+    as_of_date: date = Query(..., description="Report as of date"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Export Fixed Asset Register as PDF.
+    """
+    service = ReportsService(db)
+    pdf_data = await service.export_fixed_assets_pdf(
+        entity_id=entity_id,
+        as_of_date=as_of_date,
+    )
+    
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    return StreamingResponse(
+        io.BytesIO(pdf_data),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=fixed_asset_register_{as_of_date}.pdf"
+        }
+    )
