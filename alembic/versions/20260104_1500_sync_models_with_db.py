@@ -44,6 +44,15 @@ def table_exists(table_name: str) -> bool:
     return table_name in inspector.get_table_names()
 
 
+def enum_exists(enum_name: str) -> bool:
+    """Check if a PostgreSQL enum type exists."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = :name)"
+    ), {"name": enum_name})
+    return result.scalar()
+
+
 def upgrade() -> None:
     """Add missing columns and create notifications table."""
     
@@ -158,21 +167,24 @@ def upgrade() -> None:
     # NOTIFICATIONS TABLE - Create new table
     # =====================================================
     if not table_exists('notifications'):
-        # Create notification type enum
-        op.execute("""
-            CREATE TYPE notificationtype AS ENUM (
-                'TAX_DEADLINE', 'VAT_REMINDER', 'PAYE_REMINDER', 'WHT_REMINDER', 
-                'CIT_REMINDER', 'COMPLIANCE_WARNING',
-                'INVOICE_CREATED', 'INVOICE_SENT', 'INVOICE_PAID', 
-                'INVOICE_OVERDUE', 'INVOICE_DISPUTED',
-                'NRS_SUBMISSION_SUCCESS', 'NRS_SUBMISSION_FAILED',
-                'LOW_STOCK_ALERT', 'STOCK_WRITE_OFF',
-                'SYSTEM_ANNOUNCEMENT', 'SECURITY_ALERT',
-                'INFO', 'WARNING', 'ERROR', 'SUCCESS'
-            )
-        """)
-        op.execute("CREATE TYPE notificationpriority AS ENUM ('LOW', 'NORMAL', 'HIGH', 'URGENT')")
-        op.execute("CREATE TYPE notificationchannel AS ENUM ('IN_APP', 'EMAIL', 'SMS', 'PUSH')")
+        # Create notification type enum (only if doesn't exist)
+        if not enum_exists('notificationtype'):
+            op.execute("""
+                CREATE TYPE notificationtype AS ENUM (
+                    'TAX_DEADLINE', 'VAT_REMINDER', 'PAYE_REMINDER', 'WHT_REMINDER', 
+                    'CIT_REMINDER', 'COMPLIANCE_WARNING',
+                    'INVOICE_CREATED', 'INVOICE_SENT', 'INVOICE_PAID', 
+                    'INVOICE_OVERDUE', 'INVOICE_DISPUTED',
+                    'NRS_SUBMISSION_SUCCESS', 'NRS_SUBMISSION_FAILED',
+                    'LOW_STOCK_ALERT', 'STOCK_WRITE_OFF',
+                    'SYSTEM_ANNOUNCEMENT', 'SECURITY_ALERT',
+                    'INFO', 'WARNING', 'ERROR', 'SUCCESS'
+                )
+            """)
+        if not enum_exists('notificationpriority'):
+            op.execute("CREATE TYPE notificationpriority AS ENUM ('LOW', 'NORMAL', 'HIGH', 'URGENT')")
+        if not enum_exists('notificationchannel'):
+            op.execute("CREATE TYPE notificationchannel AS ENUM ('IN_APP', 'EMAIL', 'SMS', 'PUSH')")
         
         op.create_table(
             'notifications',
@@ -181,7 +193,7 @@ def upgrade() -> None:
             sa.Column('entity_id', postgresql.UUID(as_uuid=True), nullable=True),
             sa.Column('title', sa.String(255), nullable=False),
             sa.Column('message', sa.Text(), nullable=False),
-            sa.Column('notification_type', sa.Enum(
+            sa.Column('notification_type', postgresql.ENUM(
                 'TAX_DEADLINE', 'VAT_REMINDER', 'PAYE_REMINDER', 'WHT_REMINDER', 
                 'CIT_REMINDER', 'COMPLIANCE_WARNING',
                 'INVOICE_CREATED', 'INVOICE_SENT', 'INVOICE_PAID', 
@@ -192,7 +204,7 @@ def upgrade() -> None:
                 'INFO', 'WARNING', 'ERROR', 'SUCCESS',
                 name='notificationtype', create_type=False
             ), nullable=False, server_default='INFO'),
-            sa.Column('priority', sa.Enum(
+            sa.Column('priority', postgresql.ENUM(
                 'LOW', 'NORMAL', 'HIGH', 'URGENT',
                 name='notificationpriority', create_type=False
             ), nullable=False, server_default='NORMAL'),

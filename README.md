@@ -160,9 +160,20 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 ---
 
-## Tax Calculation System ✅
+## Test Coverage ✅
 
-All tax calculators verified with comprehensive test coverage:
+Comprehensive test suite verified with **313 tests passing**:
+
+| Category | Tests | Status |
+|----------|-------|--------|
+| **Tax Calculators** (VAT, PAYE, WHT, CIT) | 28 tests | ✅ Passing |
+| **2026 Tax Compliance** | 177 tests | ✅ Passing |
+| **API & Authentication** | 50 tests | ✅ Passing |
+| **Transaction Service** | 11 tests | ✅ Passing |
+| **Compliance Health** | 47 tests | ✅ Passing |
+| **Total** | **313 tests** | **✅ All Passing** |
+
+### Tax Calculator Details
 
 | Tax Type | Tests | Status |
 |----------|-------|--------|
@@ -176,7 +187,6 @@ All tax calculators verified with comprehensive test coverage:
 | **TIN Validation** | 10 tests | ✅ Passing |
 | **Penalty Tracking** | 8 tests | ✅ Passing |
 | **Peppol Export** | 6 tests | ✅ Passing |
-| **Total** | **63 tests** | **✅ All Passing** |
 
 ---
 

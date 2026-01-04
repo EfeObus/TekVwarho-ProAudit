@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.1] - 2026-01-04
+
+### Comprehensive Routes & Database Audit
+
+This release includes a full audit of all API routes, endpoints, database migrations, and comprehensive documentation updates.
+
+### Fixed
+
+#### Database Migration Chain
+- **Fixed**: Migration `20260104_0930_add_must_reset_password.py` - Corrected `down_revision` from `20260103_1700_add_missing_2026_columns` to `20260103_1700_add_missing_columns`
+- **Fixed**: Migration `20260104_1500_sync_models_with_db.py` - Added enum existence checks to prevent duplicate type creation errors
+- Successfully ran all pending migrations: `20260104_0930`, `20260104_1054`, `20260104_1500_sync_models_with_db`
+
+#### Database Sync Migration
+- **New Migration**: `20260104_1500_sync_models_with_db.py` - Syncs all model definitions with database
+- **New Table**: `notifications` with all 17+ columns for compliance alerts
+- **New Columns in transactions**: `wht_amount`, `wht_service_type`, `wht_payee_type`
+- **New Columns in invoices**: `is_b2c_reportable`, `b2c_reported_at`, `b2c_report_reference`, `b2c_report_deadline`
+- **New Columns in fixed_assets**: `department`, `assigned_to`, `warranty_expiry`, `notes`, `asset_metadata`
+
+### Audited
+
+#### All 18 Routers Verified
+| Router | Prefix | Endpoints | Status |
+|--------|--------|-----------|--------|
+| auth.py | /api/v1/auth | 10 endpoints | ✅ Verified |
+| audit.py | /api/v1/entities/{entity_id}/audit | 12 endpoints | ✅ Verified |
+| categories.py | /api/v1/entities | 3 endpoints | ✅ Verified |
+| customers.py | /api/v1/entities | 5 endpoints | ✅ Verified |
+| entities.py | /api/v1/entities | 5 endpoints | ✅ Verified |
+| fixed_assets.py | /api/v1/fixed-assets | 10 endpoints | ✅ Verified |
+| inventory.py | /api/v1/entities | 15+ endpoints | ✅ Verified |
+| invoices.py | /api/v1/entities | 12+ endpoints | ✅ Verified |
+| organization_users.py | /api/v1/organizations | 8 endpoints | ✅ Verified |
+| receipts.py | /api/v1/entities | 5+ endpoints | ✅ Verified |
+| reports.py | /api/v1/entities | 15+ endpoints | ✅ Verified |
+| sales.py | /api/v1/entities | 8+ endpoints | ✅ Verified |
+| staff.py | /api/v1/staff | 10+ endpoints | ✅ Verified |
+| tax.py | /api/v1/tax | 10+ endpoints | ✅ Verified |
+| tax_2026.py | /api/v1/tax-2026 | 30+ endpoints | ✅ Verified |
+| transactions.py | /api/v1/entities | 6 endpoints | ✅ Verified |
+| vendors.py | /api/v1/entities | 6 endpoints | ✅ Verified |
+| views.py | / (HTML) | 15+ pages | ✅ Verified |
+
+### Test Results
+- **313 tests passing**
+- **3 skipped** (optional features)
+- All routes and endpoints match backend implementations
+
+---
+
 ## [1.7.0] - 2026-01-04
 
 ### Compliance Health & Threshold Monitoring

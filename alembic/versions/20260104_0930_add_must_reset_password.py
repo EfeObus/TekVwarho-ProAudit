@@ -1,7 +1,7 @@
 """Add must_reset_password column to users table
 
 Revision ID: 20260104_0930
-Revises: 20260103_1700_add_missing_2026_columns
+Revises: 20260103_1700_add_missing_columns
 Create Date: 2026-01-04 09:30:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260104_0930'
-down_revision = '20260103_1700_add_missing_2026_columns'
+down_revision = '20260103_1700_add_missing_columns'
 branch_labels = None
 depends_on = None
 
