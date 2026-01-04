@@ -99,6 +99,22 @@
                 <button @click="activeTab = 'zero-rated'" 
                         :class="activeTab === 'zero-rated' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>🏷️</span>
+                    <span>Zero-Rated VAT</span>
+                </button>
+                <button @click="activeTab = 'minimum-etr'" 
+                        :class="activeTab === 'minimum-etr' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>📊</span>
+                    <span>Minimum ETR (15%)</span>
+                </button>
+                <button @click="activeTab = 'cgt'" 
+                        :class="activeTab === 'cgt' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>💎</span>
+                    <span>CGT (30%)</span>
+                </button>
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
                     <span>🧾</span>
                     <span>Zero-Rated VAT</span>
                 </button>
@@ -945,6 +961,282 @@
                 </template>
             </div>
         </div>
+
+        <!-- Minimum ETR (15%) Tab -->
+        <div x-show="activeTab === 'minimum-etr'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-purple-800">2026 Reform: 15% Minimum Effective Tax Rate</h3>
+                        <p class="mt-1 text-sm text-purple-700">
+                            Companies with turnover ≥ ₦50 billion or MNE constituents with group revenue ≥ €750M must pay at least 15% effective tax rate.
+                            If your ETR is below 15%, a top-up tax applies.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ETR Thresholds Card -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Applicability Thresholds</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-purple-50 rounded-lg p-4">
+                        <div class="flex items-center mb-2">
+                            <span class="text-2xl mr-2">🏢</span>
+                            <span class="font-semibold text-purple-900">Large Nigerian Companies</span>
+                        </div>
+                        <p class="text-purple-700 text-sm">Annual Turnover ≥ ₦50,000,000,000</p>
+                        <p class="text-xs text-purple-600 mt-1">(₦50 billion threshold)</p>
+                    </div>
+                    <div class="bg-purple-50 rounded-lg p-4">
+                        <div class="flex items-center mb-2">
+                            <span class="text-2xl mr-2">🌍</span>
+                            <span class="font-semibold text-purple-900">MNE Constituents</span>
+                        </div>
+                        <p class="text-purple-700 text-sm">Group Revenue ≥ €750,000,000</p>
+                        <p class="text-xs text-purple-600 mt-1">(€750 million threshold)</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ETR Calculator -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Calculate Minimum ETR & Top-Up Tax</h3>
+                <form @submit.prevent="calculateMinimumETR()" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Annual Turnover (₦) *</label>
+                        <input type="number" x-model="etrForm.annual_turnover" min="0" step="1000000" required
+                               placeholder="e.g., 60000000000"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Assessable Profit (₦) *</label>
+                        <input type="number" x-model="etrForm.assessable_profit" min="0" step="1000000" required
+                               placeholder="e.g., 10000000000"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Regular Tax Paid (₦) *</label>
+                        <input type="number" x-model="etrForm.regular_tax_paid" min="0" step="1000000" required
+                               placeholder="e.g., 1000000000"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500">
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" x-model="etrForm.is_mne_constituent" id="is_mne" 
+                               class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded">
+                        <label for="is_mne" class="ml-2 block text-sm text-gray-700">MNE Constituent</label>
+                    </div>
+                    <div x-show="etrForm.is_mne_constituent">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">MNE Group Revenue (€)</label>
+                        <input type="number" x-model="etrForm.mne_group_revenue_eur" min="0" step="1000000"
+                               placeholder="e.g., 800000000"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" 
+                                class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                            Calculate ETR
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ETR Result -->
+            <template x-if="etrResult">
+                <div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Calculation Result</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold" :class="etrResult.is_subject_to_minimum_etr ? 'text-purple-600' : 'text-gray-600'" 
+                               x-text="etrResult.calculated_etr_percentage">0%</p>
+                            <p class="text-xs text-gray-500">Calculated ETR</p>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-purple-600" x-text="etrResult.minimum_etr_percentage">15%</p>
+                            <p class="text-xs text-purple-700">Minimum ETR</p>
+                        </div>
+                        <div class="rounded-lg p-4 text-center" :class="etrResult.top_up_tax > 0 ? 'bg-red-50' : 'bg-green-50'">
+                            <p class="text-2xl font-bold" :class="etrResult.top_up_tax > 0 ? 'text-red-600' : 'text-green-600'" 
+                               x-text="formatCurrency(etrResult.top_up_tax)">₦0</p>
+                            <p class="text-xs" :class="etrResult.top_up_tax > 0 ? 'text-red-700' : 'text-green-700'">Top-Up Tax</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(etrResult.total_tax)">₦0</p>
+                            <p class="text-xs text-gray-500">Total Tax</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 p-4 rounded-lg" :class="etrResult.is_subject_to_minimum_etr ? 'bg-purple-50' : 'bg-gray-50'">
+                        <p class="text-sm" :class="etrResult.is_subject_to_minimum_etr ? 'text-purple-800' : 'text-gray-700'" x-text="etrResult.compliance_note"></p>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- CGT (30%) Tab -->
+        <div x-show="activeTab === 'cgt'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-amber-800">2026 Reform: Capital Gains Tax at 30%</h3>
+                        <p class="mt-1 text-sm text-amber-700">
+                            CGT rate increased from 10% to 30% for large companies. Small companies (turnover ≤ ₦100M AND assets ≤ ₦250M) are exempt.
+                            Indexation allowance available for inflation adjustment on long-held assets.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CGT Thresholds Card -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">CGT Rates & Exemptions</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-amber-50 rounded-lg p-4 text-center">
+                        <p class="text-3xl font-bold text-amber-600">30%</p>
+                        <p class="text-sm text-amber-800 font-medium">Large Company Rate</p>
+                        <p class="text-xs text-amber-600 mt-1">Turnover > ₦100M OR Assets > ₦250M</p>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-4 text-center">
+                        <p class="text-3xl font-bold text-green-600">0%</p>
+                        <p class="text-sm text-green-800 font-medium">Small Company Rate</p>
+                        <p class="text-xs text-green-600 mt-1">Turnover ≤ ₦100M AND Assets ≤ ₦250M</p>
+                    </div>
+                    <div class="bg-blue-50 rounded-lg p-4 text-center">
+                        <p class="text-3xl font-bold text-blue-600">~15%</p>
+                        <p class="text-sm text-blue-800 font-medium">Avg. Inflation Allowance</p>
+                        <p class="text-xs text-blue-600 mt-1">Indexation for long-held assets</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Check Exemption -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Check Small Company Exemption</h3>
+                <form @submit.prevent="checkCGTExemption()" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Annual Turnover (₦)</label>
+                        <input type="number" x-model="cgtExemptionForm.annual_turnover" min="0" step="1000000"
+                               placeholder="e.g., 50000000"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fixed Assets Value (₦)</label>
+                        <input type="number" x-model="cgtExemptionForm.fixed_assets_value" min="0" step="1000000"
+                               placeholder="e.g., 100000000"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" 
+                                class="w-full bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg font-medium transition">
+                            Check Exemption
+                        </button>
+                    </div>
+                </form>
+                <template x-if="cgtExemptionResult">
+                    <div class="mt-4 p-4 rounded-lg" :class="cgtExemptionResult.is_exempt ? 'bg-green-50' : 'bg-amber-50'">
+                        <div class="flex items-center">
+                            <span class="text-2xl mr-2" x-text="cgtExemptionResult.is_exempt ? '✅' : '⚠️'"></span>
+                            <div>
+                                <p class="font-medium" :class="cgtExemptionResult.is_exempt ? 'text-green-800' : 'text-amber-800'" 
+                                   x-text="cgtExemptionResult.is_exempt ? 'Small Company - CGT Exempt' : 'Large Company - Subject to 30% CGT'"></p>
+                                <p class="text-sm" :class="cgtExemptionResult.is_exempt ? 'text-green-600' : 'text-amber-600'" 
+                                   x-text="cgtExemptionResult.exemption_reason"></p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- CGT Calculator -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Calculate CGT on Asset Disposal</h3>
+                <form @submit.prevent="calculateCGT()" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Asset Cost (₦) *</label>
+                        <input type="number" x-model="cgtForm.asset_cost" min="0" step="1000" required
+                               placeholder="Original purchase price"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Sale Proceeds (₦) *</label>
+                        <input type="number" x-model="cgtForm.sale_proceeds" min="0" step="1000" required
+                               placeholder="Disposal/sale amount"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Annual Turnover (₦) *</label>
+                        <input type="number" x-model="cgtForm.annual_turnover" min="0" step="1000000" required
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fixed Assets Value (₦) *</label>
+                        <input type="number" x-model="cgtForm.fixed_assets_value" min="0" step="1000000" required
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Acquisition Date</label>
+                        <input type="date" x-model="cgtForm.acquisition_date"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Disposal Date</label>
+                        <input type="date" x-model="cgtForm.disposal_date"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" x-model="cgtForm.apply_indexation" id="apply_indexation" 
+                               class="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded">
+                        <label for="apply_indexation" class="ml-2 block text-sm text-gray-700">Apply Indexation Allowance</label>
+                    </div>
+                    <div class="md:col-span-2 lg:col-span-1 flex items-end">
+                        <button type="submit" 
+                                class="w-full bg-amber-600 hover:bg-amber-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                            Calculate CGT
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- CGT Result -->
+            <template x-if="cgtResult">
+                <div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">CGT Calculation Result</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(cgtResult.capital_gain)">₦0</p>
+                            <p class="text-xs text-gray-500">Capital Gain</p>
+                        </div>
+                        <div class="bg-blue-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-blue-600" x-text="formatCurrency(cgtResult.indexation_allowance)">₦0</p>
+                            <p class="text-xs text-blue-700">Indexation Allowance</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-gray-900" x-text="cgtResult.cgt_rate_percentage">0%</p>
+                            <p class="text-xs text-gray-500">CGT Rate</p>
+                        </div>
+                        <div class="rounded-lg p-4 text-center" :class="cgtResult.is_exempt ? 'bg-green-50' : 'bg-amber-50'">
+                            <p class="text-2xl font-bold" :class="cgtResult.is_exempt ? 'text-green-600' : 'text-amber-600'" 
+                               x-text="formatCurrency(cgtResult.cgt_liability)">₦0</p>
+                            <p class="text-xs" :class="cgtResult.is_exempt ? 'text-green-700' : 'text-amber-700'">CGT Liability</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 p-4 rounded-lg" :class="cgtResult.is_exempt ? 'bg-green-50' : 'bg-amber-50'">
+                        <p class="text-sm" :class="cgtResult.is_exempt ? 'text-green-800' : 'text-amber-800'" x-text="cgtResult.note"></p>
+                    </div>
+                </div>
+            </template>
+        </div>
     </div>
 
     <!-- Toast Notification -->
@@ -1013,6 +1305,16 @@ function tax2026Dashboard() {
         zeroRatedForm: { category: '', sale_amount: '', transaction_date: today, description: '' },
         inputVATForm: { purchase_amount: '', vat_amount: '', transaction_date: today, vendor_tin: '', vendor_irn: '', description: '' },
         refundClaim: null,
+        
+        // Minimum ETR (15%)
+        etrForm: { annual_turnover: '', assessable_profit: '', regular_tax_paid: '', is_mne_constituent: false, mne_group_revenue_eur: '' },
+        etrResult: null,
+        
+        // CGT (30%)
+        cgtForm: { asset_cost: '', sale_proceeds: '', annual_turnover: '', fixed_assets_value: '', acquisition_date: '', disposal_date: today, apply_indexation: true },
+        cgtExemptionForm: { annual_turnover: '', fixed_assets_value: '' },
+        cgtExemptionResult: null,
+        cgtResult: null,
         
         // Toast
         toast: { show: false, message: '', type: 'success' },
@@ -1408,6 +1710,130 @@ function tax2026Dashboard() {
                 }
             } catch (error) {
                 console.error('Load refund claim error:', error);
+            }
+        },
+        
+        // Minimum ETR Methods
+        async calculateMinimumETR() {
+            if (!this.etrForm.annual_turnover || !this.etrForm.assessable_profit || !this.etrForm.regular_tax_paid) {
+                this.showToast('Please fill all required fields', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('token');
+                const payload = {
+                    annual_turnover: parseFloat(this.etrForm.annual_turnover),
+                    assessable_profit: parseFloat(this.etrForm.assessable_profit),
+                    regular_tax_paid: parseFloat(this.etrForm.regular_tax_paid),
+                    is_mne_constituent: this.etrForm.is_mne_constituent,
+                };
+                if (this.etrForm.is_mne_constituent && this.etrForm.mne_group_revenue_eur) {
+                    payload.mne_group_revenue_eur = parseFloat(this.etrForm.mne_group_revenue_eur);
+                }
+                
+                const response = await fetch(`/api/v1/tax-2026/${this.entityId}/minimum-etr/calculate`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+                
+                if (response.ok) {
+                    this.etrResult = await response.json();
+                    const msg = this.etrResult.top_up_tax > 0 
+                        ? `Top-up tax required: ${this.formatCurrency(this.etrResult.top_up_tax)}` 
+                        : 'No top-up tax required - ETR meets 15% minimum';
+                    this.showToast(msg, this.etrResult.top_up_tax > 0 ? 'info' : 'success');
+                } else {
+                    const data = await response.json();
+                    this.showToast(data.detail || 'Failed to calculate ETR', 'error');
+                }
+            } catch (error) {
+                console.error('Calculate ETR error:', error);
+                this.showToast('Failed to calculate ETR', 'error');
+            }
+        },
+        
+        // CGT Methods
+        async checkCGTExemption() {
+            if (!this.cgtExemptionForm.annual_turnover || !this.cgtExemptionForm.fixed_assets_value) {
+                this.showToast('Please enter turnover and fixed assets value', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('token');
+                const params = new URLSearchParams({
+                    annual_turnover: this.cgtExemptionForm.annual_turnover,
+                    fixed_assets_value: this.cgtExemptionForm.fixed_assets_value,
+                });
+                
+                const response = await fetch(`/api/v1/tax-2026/cgt/check-exemption?${params}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+                
+                if (response.ok) {
+                    this.cgtExemptionResult = await response.json();
+                    const msg = this.cgtExemptionResult.is_exempt 
+                        ? 'Small company - CGT exempt!' 
+                        : 'Large company - subject to 30% CGT';
+                    this.showToast(msg, this.cgtExemptionResult.is_exempt ? 'success' : 'info');
+                } else {
+                    const data = await response.json();
+                    this.showToast(data.detail || 'Failed to check exemption', 'error');
+                }
+            } catch (error) {
+                console.error('Check CGT exemption error:', error);
+                this.showToast('Failed to check exemption', 'error');
+            }
+        },
+        
+        async calculateCGT() {
+            if (!this.cgtForm.asset_cost || !this.cgtForm.sale_proceeds || !this.cgtForm.annual_turnover || !this.cgtForm.fixed_assets_value) {
+                this.showToast('Please fill all required fields', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('token');
+                const payload = {
+                    asset_cost: parseFloat(this.cgtForm.asset_cost),
+                    sale_proceeds: parseFloat(this.cgtForm.sale_proceeds),
+                    annual_turnover: parseFloat(this.cgtForm.annual_turnover),
+                    fixed_assets_value: parseFloat(this.cgtForm.fixed_assets_value),
+                    apply_indexation: this.cgtForm.apply_indexation,
+                };
+                if (this.cgtForm.acquisition_date) payload.acquisition_date = this.cgtForm.acquisition_date;
+                if (this.cgtForm.disposal_date) payload.disposal_date = this.cgtForm.disposal_date;
+                
+                const response = await fetch(`/api/v1/tax-2026/${this.entityId}/cgt/calculate`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+                
+                if (response.ok) {
+                    this.cgtResult = await response.json();
+                    const msg = this.cgtResult.is_exempt 
+                        ? 'Small company exempt - no CGT due' 
+                        : `CGT liability: ${this.formatCurrency(this.cgtResult.cgt_liability)}`;
+                    this.showToast(msg, this.cgtResult.is_exempt ? 'success' : 'info');
+                } else {
+                    const data = await response.json();
+                    this.showToast(data.detail || 'Failed to calculate CGT', 'error');
+                }
+            } catch (error) {
+                console.error('Calculate CGT error:', error);
+                this.showToast('Failed to calculate CGT', 'error');
             }
         }
     }

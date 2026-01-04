@@ -670,6 +670,261 @@ async def calculate_refund_claim(
 
 
 # ===========================================
+# MINIMUM ETR ENDPOINTS (15% Large Companies)
+# ===========================================
+
+class MinimumETRRequest(BaseModel):
+    """Request for Minimum ETR calculation."""
+    annual_turnover: float = Field(..., gt=0, description="Annual turnover in NGN")
+    assessable_profit: float = Field(..., ge=0, description="Assessable profit in NGN")
+    regular_tax_paid: float = Field(..., ge=0, description="Regular CIT/taxes already calculated")
+    is_mne_constituent: bool = Field(default=False, description="Part of MNE group with €750M+ revenue")
+    mne_group_revenue_eur: Optional[float] = Field(None, description="MNE group revenue in EUR (if applicable)")
+
+
+@router.get(
+    "/minimum-etr/thresholds",
+    summary="Get Minimum ETR thresholds",
+    tags=["2026 Reform - Minimum ETR"],
+)
+async def get_minimum_etr_thresholds(
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get Minimum ETR thresholds and applicability criteria.
+    
+    Under Section 57 of the 2026 NTAA:
+    - Companies with turnover >= ₦50 billion are subject to 15% minimum ETR
+    - MNE constituents with group revenue >= €750 million are also subject
+    """
+    from app.services.tax_calculators.minimum_etr_cgt_service import (
+        MINIMUM_ETR_RATE, TURNOVER_THRESHOLD_NGN, MNE_REVENUE_THRESHOLD_EUR
+    )
+    
+    return {
+        "minimum_etr_rate": "15%",
+        "turnover_threshold_ngn": float(TURNOVER_THRESHOLD_NGN),
+        "turnover_threshold_formatted": "₦50,000,000,000 (₦50 billion)",
+        "mne_revenue_threshold_eur": float(MNE_REVENUE_THRESHOLD_EUR),
+        "mne_revenue_threshold_formatted": "€750,000,000 (€750 million)",
+        "applicability": [
+            "Companies with annual turnover >= ₦50 billion",
+            "Constituents of MNE groups with aggregate revenue >= €750 million",
+        ],
+        "compliance_note": "If a company's effective tax rate is below 15%, a top-up tax is required to reach 15%",
+        "legislation": "Section 57, Nigeria Tax Administration Act 2026",
+    }
+
+
+@router.post(
+    "/minimum-etr/check-applicability",
+    summary="Check if subject to Minimum ETR",
+    tags=["2026 Reform - Minimum ETR"],
+)
+async def check_minimum_etr_applicability(
+    annual_turnover: float = Query(..., gt=0, description="Annual turnover in NGN"),
+    is_mne_constituent: bool = Query(default=False, description="Part of MNE group"),
+    mne_group_revenue_eur: Optional[float] = Query(None, description="MNE group revenue in EUR"),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Check if a company is subject to Minimum ETR without full calculation.
+    
+    Quick check based on turnover and MNE status.
+    """
+    from app.services.tax_calculators.minimum_etr_cgt_service import MinimumETRCalculator
+    
+    calculator = MinimumETRCalculator()
+    is_subject, reason = calculator.check_minimum_etr_applicability(
+        annual_turnover=Decimal(str(annual_turnover)),
+        is_mne_constituent=is_mne_constituent,
+        mne_group_revenue_eur=Decimal(str(mne_group_revenue_eur)) if mne_group_revenue_eur else None,
+    )
+    
+    return {
+        "is_subject_to_minimum_etr": is_subject,
+        "reason": reason,
+        "annual_turnover": annual_turnover,
+        "threshold": 50_000_000_000,
+    }
+
+
+@router.post(
+    "/{entity_id}/minimum-etr/calculate",
+    summary="Calculate Minimum ETR and top-up tax",
+    tags=["2026 Reform - Minimum ETR"],
+)
+async def calculate_minimum_etr(
+    entity_id: UUID,
+    request: MinimumETRRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Calculate Minimum ETR and any required top-up tax.
+    
+    For companies subject to the 15% Minimum ETR rule, this calculates:
+    - Current effective tax rate
+    - ETR shortfall (if below 15%)
+    - Top-up tax required to reach 15%
+    
+    Top-up tax = (15% × Assessable Profit) - Regular Tax Paid
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.tax_calculators.minimum_etr_cgt_service import MinimumETRCalculator
+    
+    calculator = MinimumETRCalculator()
+    result = calculator.calculate_minimum_etr(
+        annual_turnover=Decimal(str(request.annual_turnover)),
+        assessable_profit=Decimal(str(request.assessable_profit)),
+        regular_tax_paid=Decimal(str(request.regular_tax_paid)),
+        is_mne_constituent=request.is_mne_constituent,
+        mne_group_revenue_eur=Decimal(str(request.mne_group_revenue_eur)) if request.mne_group_revenue_eur else None,
+    )
+    
+    formatted = calculator.format_result(result)
+    
+    return {
+        "entity_id": str(entity_id),
+        **formatted,
+    }
+
+
+# ===========================================
+# CAPITAL GAINS TAX (CGT) ENDPOINTS (30%)
+# ===========================================
+
+class CGTCalculationRequest(BaseModel):
+    """Request for CGT calculation."""
+    asset_cost: float = Field(..., gt=0, description="Original cost of asset")
+    sale_proceeds: float = Field(..., gt=0, description="Sale proceeds")
+    annual_turnover: float = Field(..., gt=0, description="Company's annual turnover")
+    fixed_assets_value: float = Field(..., ge=0, description="Company's total fixed assets value")
+    acquisition_date: Optional[date] = Field(None, description="Date asset was acquired")
+    disposal_date: Optional[date] = Field(None, description="Date asset was disposed")
+    apply_indexation: bool = Field(default=True, description="Apply inflation indexation allowance")
+
+
+@router.get(
+    "/cgt/thresholds",
+    summary="Get CGT thresholds and rates",
+    tags=["2026 Reform - Capital Gains Tax"],
+)
+async def get_cgt_thresholds(
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get CGT rates and small company exemption thresholds.
+    
+    Under the 2026 reform:
+    - CGT rate for large companies: 30%
+    - Small company exemption: Turnover ≤ ₦100M AND Fixed Assets ≤ ₦250M
+    """
+    from app.services.tax_calculators.minimum_etr_cgt_service import (
+        CGT_RATE_LARGE, SMALL_COMPANY_TURNOVER, SMALL_COMPANY_ASSETS
+    )
+    
+    return {
+        "cgt_rate_large_companies": "30%",
+        "cgt_rate_numeric": float(CGT_RATE_LARGE),
+        "small_company_exemption": {
+            "turnover_threshold": float(SMALL_COMPANY_TURNOVER),
+            "turnover_formatted": "₦100,000,000 (₦100 million)",
+            "assets_threshold": float(SMALL_COMPANY_ASSETS),
+            "assets_formatted": "₦250,000,000 (₦250 million)",
+            "note": "Both conditions must be met for exemption (turnover ≤ ₦100M AND assets ≤ ₦250M)",
+        },
+        "indexation_allowance": "Available for assets held > 1 year",
+        "legislation": "Capital Gains Tax (Amendment) Act 2026",
+    }
+
+
+@router.post(
+    "/cgt/check-exemption",
+    summary="Check small company CGT exemption",
+    tags=["2026 Reform - Capital Gains Tax"],
+)
+async def check_cgt_exemption(
+    annual_turnover: float = Query(..., gt=0, description="Annual turnover in NGN"),
+    fixed_assets_value: float = Query(..., ge=0, description="Fixed assets value in NGN"),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Check if company qualifies for small company CGT exemption.
+    
+    Small companies (turnover ≤ ₦100M AND fixed assets ≤ ₦250M) are exempt.
+    """
+    from app.services.tax_calculators.minimum_etr_cgt_service import (
+        CGTCalculator, CompanyClassification
+    )
+    
+    calculator = CGTCalculator()
+    classification = calculator.classify_company(
+        annual_turnover=Decimal(str(annual_turnover)),
+        fixed_assets_value=Decimal(str(fixed_assets_value)),
+    )
+    
+    is_exempt = classification == CompanyClassification.SMALL
+    
+    return {
+        "is_exempt": is_exempt,
+        "company_classification": classification.value,
+        "annual_turnover": annual_turnover,
+        "fixed_assets_value": fixed_assets_value,
+        "exemption_reason": (
+            "Small company exemption: Turnover ≤ ₦100M and Fixed Assets ≤ ₦250M"
+            if is_exempt
+            else "Company exceeds small company thresholds - subject to 30% CGT"
+        ),
+    }
+
+
+@router.post(
+    "/{entity_id}/cgt/calculate",
+    summary="Calculate Capital Gains Tax on asset disposal",
+    tags=["2026 Reform - Capital Gains Tax"],
+)
+async def calculate_cgt(
+    entity_id: UUID,
+    request: CGTCalculationRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Calculate Capital Gains Tax on asset disposal.
+    
+    For large companies (turnover > ₦100M OR assets > ₦250M):
+    - CGT rate is 30% on capital gains
+    - Indexation allowance available for inflation adjustment
+    
+    For small companies:
+    - CGT exemption applies (0% rate)
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.tax_calculators.minimum_etr_cgt_service import CGTCalculator
+    
+    calculator = CGTCalculator()
+    result = calculator.calculate_cgt(
+        asset_cost=Decimal(str(request.asset_cost)),
+        sale_proceeds=Decimal(str(request.sale_proceeds)),
+        annual_turnover=Decimal(str(request.annual_turnover)),
+        fixed_assets_value=Decimal(str(request.fixed_assets_value)),
+        acquisition_date=request.acquisition_date,
+        disposal_date=request.disposal_date,
+        apply_indexation=request.apply_indexation,
+    )
+    
+    formatted = calculator.format_result(result)
+    
+    return {
+        "entity_id": str(entity_id),
+        **formatted,
+    }
+
+
+# ===========================================
 # DEVELOPMENT LEVY ENDPOINTS (4% Consolidated)
 # ===========================================
 
