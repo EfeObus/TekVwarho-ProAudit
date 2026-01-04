@@ -273,6 +273,35 @@ async def get_overdue_reviews(
     ]
 
 
+@router.get(
+    "/{entity_id}/buyer-review/auto-accepted",
+    response_model=List[InvoiceBuyerStatusResponse],
+    summary="Get auto-accepted invoices",
+    tags=["2026 Reform - Buyer Review"],
+)
+async def get_auto_accepted_invoices(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get invoices auto-accepted after 72-hour window expired without buyer response."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = BuyerReviewService(db)
+    invoices = await service.get_auto_accepted_invoices(entity_id)
+    
+    return [
+        InvoiceBuyerStatusResponse(
+            invoice_id=inv.id,
+            invoice_number=inv.invoice_number,
+            buyer_status=inv.buyer_status.value if inv.buyer_status else "unknown",
+            dispute_deadline=inv.dispute_deadline.isoformat() if inv.dispute_deadline else None,
+            buyer_response_at=inv.buyer_response_at.isoformat() if inv.buyer_response_at else None,
+        )
+        for inv in invoices
+    ]
+
+
 @router.post(
     "/{entity_id}/buyer-review/{invoice_id}/respond",
     summary="Process buyer response",

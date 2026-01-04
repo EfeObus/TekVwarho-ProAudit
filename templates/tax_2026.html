@@ -151,7 +151,7 @@
                         <h3 class="text-lg font-semibold text-gray-900">Auto-Confirmed</h3>
                         <span class="p-2 bg-green-100 rounded-lg">✅</span>
                     </div>
-                    <p class="text-3xl font-bold text-green-600" x-text="overdueReviews.length">0</p>
+                    <p class="text-3xl font-bold text-green-600" x-text="autoAcceptedReviews.length">0</p>
                     <p class="text-sm text-gray-500 mt-1">Deemed accepted by law</p>
                 </div>
             </div>
@@ -1467,6 +1467,7 @@ function tax2026Dashboard() {
         businessType: {},
         pendingReviews: [],
         overdueReviews: [],
+        autoAcceptedReviews: [],
         vatSummary: { total_recoverable: 0, total_non_recoverable: 0, total_input_vat: 0, by_type: {} },
         pitReliefs: [],
         creditNotes: [],
@@ -1568,12 +1569,14 @@ function tax2026Dashboard() {
         
         async loadBuyerReviews() {
             try {
-                const [pendingRes, overdueRes] = await Promise.all([
+                const [pendingRes, overdueRes, autoAcceptedRes] = await Promise.all([
                     fetch(`/api/v1/tax-2026/${this.entityId}/buyer-review/pending`, { headers: this.getAuthHeaders() }),
-                    fetch(`/api/v1/tax-2026/${this.entityId}/buyer-review/overdue`, { headers: this.getAuthHeaders() })
+                    fetch(`/api/v1/tax-2026/${this.entityId}/buyer-review/overdue`, { headers: this.getAuthHeaders() }),
+                    fetch(`/api/v1/tax-2026/${this.entityId}/buyer-review/auto-accepted`, { headers: this.getAuthHeaders() })
                 ]);
                 if (pendingRes.ok) this.pendingReviews = await pendingRes.json();
                 if (overdueRes.ok) this.overdueReviews = await overdueRes.json();
+                if (autoAcceptedRes.ok) this.autoAcceptedReviews = await autoAcceptedRes.json();
             } catch (e) {
                 console.error('Failed to load buyer reviews:', e);
             }

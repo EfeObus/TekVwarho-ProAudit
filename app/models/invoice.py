@@ -41,9 +41,10 @@ class InvoiceStatus(str, Enum):
 
 class BuyerStatus(str, Enum):
     """Buyer confirmation status (72-hour window)."""
-    PENDING = "pending"       # Awaiting buyer response
-    ACCEPTED = "accepted"     # Buyer accepted the invoice
-    REJECTED = "rejected"     # Buyer rejected the invoice
+    PENDING = "pending"              # Awaiting buyer response
+    ACCEPTED = "accepted"            # Buyer accepted the invoice
+    AUTO_ACCEPTED = "auto_accepted"  # Auto-accepted (72-hour window expired)
+    REJECTED = "rejected"            # Buyer rejected the invoice
 
 class VATTreatment(str, Enum):
     """VAT treatment for invoice."""

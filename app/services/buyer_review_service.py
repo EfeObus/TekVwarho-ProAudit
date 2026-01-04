@@ -87,6 +87,25 @@ class BuyerReviewService:
         )
         return list(result.scalars().all())
     
+    async def get_auto_accepted_invoices(
+        self,
+        entity_id: uuid.UUID,
+    ) -> List[Invoice]:
+        """Get invoices auto-accepted after 72-hour window expired without response."""
+        result = await self.db.execute(
+            select(Invoice)
+            .options(selectinload(Invoice.customer))
+            .where(
+                and_(
+                    Invoice.entity_id == entity_id,
+                    Invoice.buyer_status == BuyerStatus.AUTO_ACCEPTED,
+                    Invoice.nrs_irn.isnot(None),
+                )
+            )
+            .order_by(Invoice.buyer_response_at.desc())
+        )
+        return list(result.scalars().all())
+    
     async def process_buyer_response(
         self,
         invoice_id: uuid.UUID,
@@ -213,14 +232,26 @@ class BuyerReviewService:
                 
                 if invoice.dispute_deadline and datetime.utcnow() > invoice.dispute_deadline:
                     # Auto-accept if no response within 72 hours
-                    result = await self.process_buyer_response(
-                        invoice.id,
-                        accepted=True,
-                    )
-                    result["auto_accepted"] = True
+                    result = await self._auto_accept_invoice(invoice)
                     results.append(result)
         
         return results
+    
+    async def _auto_accept_invoice(self, invoice: Invoice) -> Dict[str, Any]:
+        """Auto-accept an invoice when 72-hour window expires without response."""
+        invoice.buyer_status = BuyerStatus.AUTO_ACCEPTED
+        invoice.status = InvoiceStatus.ACCEPTED
+        invoice.buyer_response_at = datetime.utcnow()
+        await self.db.commit()
+        
+        return {
+            "success": True,
+            "action": "auto_accepted",
+            "auto_accepted": True,
+            "invoice_id": str(invoice.id),
+            "invoice_number": invoice.invoice_number,
+            "message": "Invoice auto-accepted (72-hour window expired)",
+        }
     
     async def get_credit_notes(
         self,
