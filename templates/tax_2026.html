@@ -127,6 +127,13 @@
                     <span>B2C Reporting</span>
                     <span x-show="b2cPending.length > 0" class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800" x-text="b2cPending.length"></span>
                 </button>
+                <button @click="activeTab = 'penalties'" 
+                        :class="activeTab === 'penalties' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>⚠️</span>
+                    <span>Penalties</span>
+                    <span x-show="penaltySummary.total_outstanding > 0" class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" x-text="formatCurrency(penaltySummary.total_outstanding)"></span>
+                </button>
             </nav>
         </div>
     </div>
@@ -1632,6 +1639,266 @@
                 <p class="text-gray-500">B2C transactions over ₦50,000 will appear here for real-time NRS reporting.</p>
             </div>
         </div>
+
+        <!-- Compliance Penalties Tab -->
+        <div x-show="activeTab === 'penalties'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+                <!-- Summary Cards -->
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Total Penalties</h3>
+                        <span class="p-2 bg-purple-100 rounded-lg">📋</span>
+                    </div>
+                    <p class="text-3xl font-bold text-purple-600" x-text="penaltySummary.total_penalties || 0">0</p>
+                    <p class="text-sm text-gray-500 mt-1">All time records</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Total Incurred</h3>
+                        <span class="p-2 bg-red-100 rounded-lg">💸</span>
+                    </div>
+                    <p class="text-3xl font-bold text-red-600" x-text="formatCurrency(penaltySummary.total_incurred || 0)">₦0</p>
+                    <p class="text-sm text-gray-500 mt-1">Penalties charged</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Outstanding</h3>
+                        <span class="p-2 bg-orange-100 rounded-lg">⚠️</span>
+                    </div>
+                    <p class="text-3xl font-bold text-orange-600" x-text="formatCurrency(penaltySummary.total_outstanding || 0)">₦0</p>
+                    <p class="text-sm text-gray-500 mt-1">Unpaid penalties</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Paid</h3>
+                        <span class="p-2 bg-green-100 rounded-lg">✅</span>
+                    </div>
+                    <p class="text-3xl font-bold text-green-600" x-text="formatCurrency(penaltySummary.total_paid || 0)">₦0</p>
+                    <p class="text-sm text-gray-500 mt-1">Settled penalties</p>
+                </div>
+            </div>
+
+            <!-- Penalty Calculator -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">⚖️ Penalty Calculator</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Penalty Type</label>
+                        <select x-model="penaltyCalcForm.penalty_type" 
+                                @change="penaltyCalcResult = null"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                            <option value="">Select type...</option>
+                            <option value="late_filing">Late Filing</option>
+                            <option value="unregistered_vendor">Unregistered Vendor Contract</option>
+                            <option value="vat_non_remittance">VAT Non-Remittance</option>
+                            <option value="paye_non_remittance">PAYE Non-Remittance</option>
+                            <option value="wht_non_remittance">WHT Non-Remittance</option>
+                            <option value="b2c_late_reporting">B2C Late Reporting</option>
+                            <option value="e_invoice_noncompliance">E-Invoice Non-Compliance</option>
+                            <option value="invalid_tin">Invalid TIN</option>
+                            <option value="missing_records">Missing Records</option>
+                            <option value="nrs_access_denial">NRS Access Denial</option>
+                        </select>
+                    </div>
+                    <!-- Late Filing Fields -->
+                    <template x-if="penaltyCalcForm.penalty_type === 'late_filing'">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Original Due Date</label>
+                            <input type="date" x-model="penaltyCalcForm.original_due_date" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </template>
+                    <template x-if="penaltyCalcForm.penalty_type === 'late_filing'">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Filing Date</label>
+                            <input type="date" x-model="penaltyCalcForm.filing_date" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </template>
+                    <!-- Unregistered Vendor Fields -->
+                    <template x-if="penaltyCalcForm.penalty_type === 'unregistered_vendor'">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contract Amount (₦)</label>
+                            <input type="number" x-model="penaltyCalcForm.contract_amount" step="0.01"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </template>
+                    <!-- Tax Remittance Fields -->
+                    <template x-if="['vat_non_remittance', 'paye_non_remittance', 'wht_non_remittance'].includes(penaltyCalcForm.penalty_type)">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tax Amount (₦)</label>
+                            <input type="number" x-model="penaltyCalcForm.tax_amount" step="0.01"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </template>
+                    <template x-if="['vat_non_remittance', 'paye_non_remittance', 'wht_non_remittance'].includes(penaltyCalcForm.penalty_type)">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                            <input type="date" x-model="penaltyCalcForm.due_date" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </template>
+                    <template x-if="['vat_non_remittance', 'paye_non_remittance', 'wht_non_remittance'].includes(penaltyCalcForm.penalty_type)">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
+                            <input type="date" x-model="penaltyCalcForm.payment_date" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </template>
+                </div>
+                <button @click="calculatePenalty()" 
+                        :disabled="!penaltyCalcForm.penalty_type || penaltyCalculating"
+                        class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                    <span x-show="!penaltyCalculating">Calculate Penalty</span>
+                    <span x-show="penaltyCalculating">Calculating...</span>
+                </button>
+
+                <!-- Calculation Result -->
+                <div x-show="penaltyCalcResult" class="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-semibold text-purple-800">Calculation Result</h4>
+                        <span class="text-2xl font-bold text-purple-700" x-text="formatCurrency(penaltyCalcResult?.total_amount || 0)"></span>
+                    </div>
+                    <p class="text-sm text-purple-700" x-text="penaltyCalcResult?.description"></p>
+                    <div x-show="penaltyCalcResult?.months_late > 0" class="mt-2 text-sm text-purple-600">
+                        <span class="font-medium">Months Late:</span> <span x-text="penaltyCalcResult?.months_late"></span>
+                    </div>
+                    <div class="mt-2 text-xs text-purple-600">
+                        <span class="font-medium">Base:</span> <span x-text="formatCurrency(penaltyCalcResult?.base_amount || 0)"></span>
+                        <span class="mx-2">|</span>
+                        <span class="font-medium">Additional:</span> <span x-text="formatCurrency(penaltyCalcResult?.additional_amount || 0)"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Penalty Rates Reference -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <div class="flex items-start space-x-3">
+                    <span class="text-2xl">📖</span>
+                    <div>
+                        <h3 class="text-sm font-medium text-purple-800">2026 Compliance Penalty Schedule</h3>
+                        <div class="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-700">
+                            <div class="p-2 bg-gray-50 rounded">
+                                <strong>Late Filing:</strong> ₦100,000 (1st month) + ₦50,000/subsequent month
+                            </div>
+                            <div class="p-2 bg-gray-50 rounded">
+                                <strong>Unregistered Vendor:</strong> ₦5,000,000 fixed penalty
+                            </div>
+                            <div class="p-2 bg-gray-50 rounded">
+                                <strong>B2C Late Reporting:</strong> ₦10,000/transaction (max ₦500,000/day)
+                            </div>
+                            <div class="p-2 bg-gray-50 rounded">
+                                <strong>Tax Remittance (VAT/PAYE/WHT):</strong> 10% + 2% monthly interest
+                            </div>
+                            <div class="p-2 bg-gray-50 rounded">
+                                <strong>E-Invoice Non-Compliance:</strong> ₦50,000 per invoice
+                            </div>
+                            <div class="p-2 bg-gray-50 rounded">
+                                <strong>NRS Access Denial:</strong> ₦1,000,000 fixed penalty
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Penalty Records Table -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Penalty Records</h3>
+                    <div class="flex items-center space-x-2">
+                        <select x-model="penaltyFilter" @change="loadPenalties()"
+                                class="px-3 py-1 border border-gray-300 rounded-lg text-sm">
+                            <option value="">All Status</option>
+                            <option value="potential">Potential</option>
+                            <option value="incurred">Incurred</option>
+                            <option value="paid">Paid</option>
+                            <option value="waived">Waived</option>
+                            <option value="disputed">Disputed</option>
+                        </select>
+                        <button @click="loadPenalties()" class="p-2 text-gray-500 hover:text-gray-700">
+                            🔄
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Incurred</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="penalty in penaltyRecords" :key="penalty.id">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-gray-900" x-text="formatPenaltyType(penalty.penalty_type)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="{
+                                                  'bg-yellow-100 text-yellow-800': penalty.status === 'potential',
+                                                  'bg-red-100 text-red-800': penalty.status === 'incurred',
+                                                  'bg-green-100 text-green-800': penalty.status === 'paid',
+                                                  'bg-gray-100 text-gray-800': penalty.status === 'waived',
+                                                  'bg-orange-100 text-orange-800': penalty.status === 'disputed'
+                                              }"
+                                              x-text="penalty.status.charAt(0).toUpperCase() + penalty.status.slice(1)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <span class="text-sm font-bold text-gray-900" x-text="formatCurrency(penalty.total_amount)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(penalty.incurred_date)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(penalty.due_date)"></td>
+                                    <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" x-text="penalty.description"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                                        <template x-if="penalty.status === 'incurred'">
+                                            <div class="flex items-center justify-center space-x-2">
+                                                <button @click="updatePenaltyStatus(penalty.id, 'paid')" 
+                                                        class="text-green-600 hover:text-green-800 text-xs font-medium">
+                                                    Mark Paid
+                                                </button>
+                                                <button @click="updatePenaltyStatus(penalty.id, 'disputed')" 
+                                                        class="text-orange-600 hover:text-orange-800 text-xs font-medium">
+                                                    Dispute
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Empty State -->
+                <div x-show="penaltyRecords.length === 0" class="p-8 text-center">
+                    <div class="text-4xl mb-4">✅</div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">No Penalty Records</h3>
+                    <p class="text-gray-500">Your compliance is in good standing. No penalties have been incurred.</p>
+                </div>
+            </div>
+
+            <!-- By Type Breakdown -->
+            <div x-show="Object.keys(penaltySummary.by_type || {}).length > 0" class="mt-6 bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Penalties by Type</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <template x-for="(data, type) in penaltySummary.by_type" :key="type">
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-gray-700" x-text="formatPenaltyType(type)"></span>
+                                <span class="text-lg font-bold text-gray-900" x-text="formatCurrency(data.total)"></span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1"><span x-text="data.count"></span> occurrences</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->
@@ -1673,6 +1940,14 @@ function tax2026Dashboard() {
         b2cSettings: { b2c_realtime_reporting_enabled: false, b2c_reporting_threshold: 50000 },
         b2cSummary: { potential_penalty: 0 },
         b2cSubmitting: false,
+        
+        // Compliance Penalties Data
+        penaltyRecords: [],
+        penaltySummary: { total_penalties: 0, total_incurred: 0, total_paid: 0, total_outstanding: 0, by_type: {} },
+        penaltyFilter: '',
+        penaltyCalcForm: { penalty_type: '', original_due_date: '', filing_date: '', contract_amount: '', tax_amount: '', due_date: '', payment_date: '' },
+        penaltyCalcResult: null,
+        penaltyCalculating: false,
         
         // Forms
         vatForm: {
@@ -1743,6 +2018,7 @@ function tax2026Dashboard() {
             await this.loadPITReliefs();
             await this.loadCreditNotes();
             await this.loadB2CData();
+            await this.loadPenalties();
         },
         
         async refreshAll() {
@@ -1889,6 +2165,77 @@ function tax2026Dashboard() {
                 this.showToast('Failed to submit B2C reports', 'error');
             }
             this.b2cSubmitting = false;
+        },
+        
+        // Compliance Penalties Methods
+        async loadPenalties() {
+            try {
+                const statusParam = this.penaltyFilter ? `?status=${this.penaltyFilter}` : '';
+                const [recordsRes, summaryRes] = await Promise.all([
+                    fetch(`/api/v1/tax-2026/${this.entityId}/penalties${statusParam}`, { headers: this.getAuthHeaders() }),
+                    fetch(`/api/v1/tax-2026/${this.entityId}/penalties/summary`, { headers: this.getAuthHeaders() })
+                ]);
+                if (recordsRes.ok) this.penaltyRecords = await recordsRes.json();
+                if (summaryRes.ok) this.penaltySummary = await summaryRes.json();
+            } catch (e) {
+                console.error('Failed to load penalties:', e);
+            }
+        },
+        
+        async calculatePenalty() {
+            if (!this.penaltyCalcForm.penalty_type) return;
+            this.penaltyCalculating = true;
+            try {
+                const res = await fetch('/api/v1/tax-2026/penalties/calculate', {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify(this.penaltyCalcForm)
+                });
+                if (res.ok) {
+                    this.penaltyCalcResult = await res.json();
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Calculation failed', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to calculate penalty', 'error');
+            }
+            this.penaltyCalculating = false;
+        },
+        
+        async updatePenaltyStatus(penaltyId, newStatus) {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/penalties/${penaltyId}/status`, {
+                    method: 'PUT',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify({ status: newStatus })
+                });
+                if (res.ok) {
+                    await this.loadPenalties();
+                    this.showToast(`Penalty marked as ${newStatus}`, 'success');
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Update failed', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to update penalty status', 'error');
+            }
+        },
+        
+        formatPenaltyType(type) {
+            const types = {
+                'late_filing': 'Late Filing',
+                'unregistered_vendor': 'Unregistered Vendor',
+                'b2c_late_reporting': 'B2C Late Reporting',
+                'e_invoice_noncompliance': 'E-Invoice Non-Compliance',
+                'invalid_tin': 'Invalid TIN',
+                'missing_records': 'Missing Records',
+                'nrs_access_denial': 'NRS Access Denial',
+                'vat_non_remittance': 'VAT Non-Remittance',
+                'paye_non_remittance': 'PAYE Non-Remittance',
+                'wht_non_remittance': 'WHT Non-Remittance'
+            };
+            return types[type] || type;
         },
         
         async pollNRS() {

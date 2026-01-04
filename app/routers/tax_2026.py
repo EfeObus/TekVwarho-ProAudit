@@ -36,6 +36,12 @@ from app.services.tin_validation_service import (
     TINValidationResult,
 )
 from app.services.b2c_reporting_service import B2CReportingService
+from app.services.compliance_penalty_service import (
+    CompliancePenaltyService,
+    PenaltyType,
+    PenaltyStatus,
+    PENALTY_SCHEDULE,
+)
 from app.schemas.auth import MessageResponse
 
 
@@ -221,6 +227,76 @@ class B2CSummaryResponse(BaseModel):
     potential_penalty: float
     penalty_per_transaction: float
     max_daily_penalty: float
+
+
+# Compliance Penalty Schemas
+class PenaltyCalculationRequest(BaseModel):
+    """Request for penalty calculation."""
+    penalty_type: str = Field(..., description="Type of penalty")
+    # For late filing
+    original_due_date: Optional[date] = Field(None, description="Original due date")
+    filing_date: Optional[date] = Field(None, description="Actual filing date")
+    # For unregistered vendor
+    contract_amount: Optional[Decimal] = Field(None, ge=0, description="Contract amount")
+    # For tax remittance
+    tax_amount: Optional[Decimal] = Field(None, ge=0, description="Tax amount due")
+    due_date: Optional[date] = Field(None, description="Due date for remittance")
+    payment_date: Optional[date] = Field(None, description="Actual payment date")
+
+
+class PenaltyCalculationResponse(BaseModel):
+    """Penalty calculation result."""
+    penalty_type: str
+    base_amount: float
+    additional_amount: float
+    total_amount: float
+    months_late: int
+    description: str
+    breakdown: List[dict]
+
+
+class PenaltyRecordResponse(BaseModel):
+    """Penalty record response."""
+    id: str
+    penalty_type: str
+    status: str
+    base_amount: float
+    additional_amount: float
+    total_amount: float
+    incurred_date: str
+    due_date: str
+    paid_date: Optional[str]
+    description: str
+    related_filing_type: Optional[str]
+    related_filing_period: Optional[str]
+
+
+class PenaltySummaryResponse(BaseModel):
+    """Penalty summary response."""
+    total_penalties: int
+    total_incurred: float
+    total_paid: float
+    total_outstanding: float
+    by_type: dict
+    penalties: List[dict]
+
+
+class CreatePenaltyRequest(BaseModel):
+    """Request to create a penalty record."""
+    penalty_type: str
+    base_amount: Decimal = Field(..., ge=0)
+    additional_amount: Decimal = Field(default=Decimal("0"), ge=0)
+    description: str
+    related_filing_type: Optional[str] = None
+    related_filing_period: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class UpdatePenaltyStatusRequest(BaseModel):
+    """Request to update penalty status."""
+    status: str = Field(..., description="New status: paid, waived, disputed")
+    payment_reference: Optional[str] = None
+    notes: Optional[str] = None
 
 
 # ===========================================
@@ -2115,3 +2191,324 @@ async def get_b2c_summary(
     summary = await service.get_b2c_summary(entity_id, year, month)
     
     return B2CSummaryResponse(**summary)
+
+
+# ===========================================
+# COMPLIANCE PENALTIES ENDPOINTS
+# ===========================================
+
+@router.get(
+    "/penalties/rates",
+    summary="Get penalty rates",
+    tags=["2026 Reform - Compliance Penalties"],
+)
+async def get_penalty_rates():
+    """
+    Get current compliance penalty rates per 2026 Tax Reform.
+    
+    Penalty Schedule:
+    - Late Filing: ₦100,000 (first month) + ₦50,000 (each subsequent month)
+    - Unregistered Vendor Contract: ₦5,000,000
+    - B2C Late Reporting: ₦10,000 per transaction (max ₦500,000/day)
+    - E-Invoice Non-Compliance: ₦50,000 per invoice
+    - Invalid TIN: ₦25,000 per occurrence
+    - Missing Records: ₦100,000 per year
+    - NRS Access Denial: ₦1,000,000
+    - Tax Remittance (VAT/PAYE/WHT): 10% + 2% monthly interest
+    """
+    return {
+        "penalty_types": [pt.value for pt in PenaltyType],
+        "rates": {
+            penalty_type.value: {
+                k: float(v) if isinstance(v, Decimal) else v
+                for k, v in rates.items()
+            }
+            for penalty_type, rates in PENALTY_SCHEDULE.items()
+        },
+        "compliance_reference": "Nigeria Tax Administration Act 2026",
+    }
+
+
+@router.post(
+    "/penalties/calculate",
+    response_model=PenaltyCalculationResponse,
+    summary="Calculate compliance penalty",
+    tags=["2026 Reform - Compliance Penalties"],
+)
+async def calculate_penalty(
+    request: PenaltyCalculationRequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Calculate penalty for a specific compliance violation.
+    
+    Supports:
+    - late_filing: Requires original_due_date, filing_date
+    - unregistered_vendor: Requires contract_amount
+    - vat_non_remittance, paye_non_remittance, wht_non_remittance: 
+      Requires tax_amount, due_date, payment_date
+    """
+    service = CompliancePenaltyService(db)
+    
+    try:
+        penalty_type = PenaltyType(request.penalty_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid penalty type. Valid types: {[pt.value for pt in PenaltyType]}",
+        )
+    
+    if penalty_type == PenaltyType.LATE_FILING:
+        if not request.original_due_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="original_due_date is required for late filing calculation",
+            )
+        result = service.calculate_late_filing_penalty(
+            original_due_date=request.original_due_date,
+            filing_date=request.filing_date,
+        )
+    
+    elif penalty_type == PenaltyType.UNREGISTERED_VENDOR:
+        if not request.contract_amount:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="contract_amount is required for unregistered vendor calculation",
+            )
+        result = service.calculate_unregistered_vendor_penalty(
+            contract_amount=request.contract_amount,
+        )
+    
+    elif penalty_type in [
+        PenaltyType.VAT_NON_REMITTANCE,
+        PenaltyType.PAYE_NON_REMITTANCE,
+        PenaltyType.WHT_NON_REMITTANCE,
+    ]:
+        if not request.tax_amount or not request.due_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="tax_amount and due_date are required for tax remittance calculation",
+            )
+        result = service.calculate_tax_remittance_penalty(
+            penalty_type=penalty_type,
+            tax_amount=request.tax_amount,
+            due_date=request.due_date,
+            payment_date=request.payment_date,
+        )
+    
+    else:
+        # For other penalty types, return their fixed rates
+        rates = PENALTY_SCHEDULE.get(penalty_type, {})
+        amount = rates.get("fixed_amount") or rates.get("per_occurrence") or rates.get("per_invoice") or rates.get("per_year") or Decimal("0")
+        result = PenaltyCalculation(
+            penalty_type=penalty_type,
+            base_amount=amount,
+            additional_amount=Decimal("0"),
+            total_amount=amount,
+            months_late=0,
+            description=rates.get("description", f"Penalty for {penalty_type.value}"),
+            breakdown=[{"type": "fixed", "amount": float(amount)}],
+        )
+    
+    return PenaltyCalculationResponse(
+        penalty_type=result.penalty_type.value,
+        base_amount=float(result.base_amount),
+        additional_amount=float(result.additional_amount),
+        total_amount=float(result.total_amount),
+        months_late=result.months_late,
+        description=result.description,
+        breakdown=result.breakdown,
+    )
+
+
+# Import PenaltyCalculation for the calculate endpoint
+from app.services.compliance_penalty_service import PenaltyCalculation
+
+
+@router.get(
+    "/{entity_id}/penalties",
+    response_model=List[PenaltyRecordResponse],
+    summary="Get entity penalties",
+    tags=["2026 Reform - Compliance Penalties"],
+)
+async def get_entity_penalties(
+    entity_id: UUID,
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status"),
+    start_date: Optional[date] = Query(None, description="Start date filter"),
+    end_date: Optional[date] = Query(None, description="End date filter"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get all penalty records for an entity."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    status_enum = None
+    if status_filter:
+        try:
+            status_enum = PenaltyStatus(status_filter)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status. Valid values: {[s.value for s in PenaltyStatus]}",
+            )
+    
+    service = CompliancePenaltyService(db)
+    penalties = await service.get_entity_penalties(
+        entity_id=entity_id,
+        status=status_enum,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    
+    return [
+        PenaltyRecordResponse(
+            id=str(p.id),
+            penalty_type=p.penalty_type.value,
+            status=p.status.value,
+            base_amount=float(p.base_amount),
+            additional_amount=float(p.additional_amount),
+            total_amount=float(p.total_amount),
+            incurred_date=p.incurred_date.isoformat(),
+            due_date=p.due_date.isoformat(),
+            paid_date=p.paid_date.isoformat() if p.paid_date else None,
+            description=p.description,
+            related_filing_type=p.related_filing_type,
+            related_filing_period=p.related_filing_period,
+        )
+        for p in penalties
+    ]
+
+
+@router.get(
+    "/{entity_id}/penalties/summary",
+    response_model=PenaltySummaryResponse,
+    summary="Get penalty summary",
+    tags=["2026 Reform - Compliance Penalties"],
+)
+async def get_penalty_summary(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get penalty summary for an entity."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = CompliancePenaltyService(db)
+    summary = await service.get_penalty_summary(entity_id)
+    
+    return PenaltySummaryResponse(**summary)
+
+
+@router.post(
+    "/{entity_id}/penalties",
+    response_model=PenaltyRecordResponse,
+    summary="Create penalty record",
+    tags=["2026 Reform - Compliance Penalties"],
+)
+async def create_penalty_record(
+    entity_id: UUID,
+    request: CreatePenaltyRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Create a new penalty record for an entity."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    try:
+        penalty_type = PenaltyType(request.penalty_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid penalty type. Valid types: {[pt.value for pt in PenaltyType]}",
+        )
+    
+    service = CompliancePenaltyService(db)
+    
+    # Create a calculation object for the record
+    calculation = PenaltyCalculation(
+        penalty_type=penalty_type,
+        base_amount=request.base_amount,
+        additional_amount=request.additional_amount,
+        total_amount=request.base_amount + request.additional_amount,
+        months_late=0,
+        description=request.description,
+        breakdown=[],
+    )
+    
+    record = await service.create_penalty_record(
+        entity_id=entity_id,
+        calculation=calculation,
+        related_filing_type=request.related_filing_type,
+        related_filing_period=request.related_filing_period,
+        notes=request.notes,
+    )
+    
+    return PenaltyRecordResponse(
+        id=str(record.id),
+        penalty_type=record.penalty_type.value,
+        status=record.status.value,
+        base_amount=float(record.base_amount),
+        additional_amount=float(record.additional_amount),
+        total_amount=float(record.total_amount),
+        incurred_date=record.incurred_date.isoformat(),
+        due_date=record.due_date.isoformat(),
+        paid_date=record.paid_date.isoformat() if record.paid_date else None,
+        description=record.description,
+        related_filing_type=record.related_filing_type,
+        related_filing_period=record.related_filing_period,
+    )
+
+
+@router.put(
+    "/{entity_id}/penalties/{penalty_id}/status",
+    response_model=MessageResponse,
+    summary="Update penalty status",
+    tags=["2026 Reform - Compliance Penalties"],
+)
+async def update_penalty_status(
+    entity_id: UUID,
+    penalty_id: UUID,
+    request: UpdatePenaltyStatusRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Update penalty status (mark as paid, waived, disputed)."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    try:
+        new_status = PenaltyStatus(request.status)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status. Valid values: {[s.value for s in PenaltyStatus]}",
+        )
+    
+    # Get the penalty record
+    from app.services.compliance_penalty_service import PenaltyRecord
+    from sqlalchemy import select
+    
+    query = select(PenaltyRecord).where(
+        PenaltyRecord.id == penalty_id,
+        PenaltyRecord.entity_id == entity_id,
+    )
+    result = await db.execute(query)
+    record = result.scalar_one_or_none()
+    
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Penalty record not found",
+        )
+    
+    # Update status
+    record.status = new_status
+    if request.payment_reference:
+        record.payment_reference = request.payment_reference
+    if request.notes:
+        record.notes = request.notes
+    if new_status == PenaltyStatus.PAID:
+        record.paid_date = date.today()
+    
+    await db.commit()
+    
+    return MessageResponse(message=f"Penalty status updated to {new_status.value}")

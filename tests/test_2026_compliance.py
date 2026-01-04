@@ -887,4 +887,171 @@ class TestB2CService:
         assert "Section 42" in compliance_ref
 
 
+class TestCompliancePenaltyTypes:
+    """Tests for all penalty types in the 2026 Tax Reform."""
+    
+    def test_late_filing_penalty_rates(self):
+        """Late filing penalty: ₦100,000 first month + ₦50,000 subsequent."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.LATE_FILING]
+        assert rates["first_month"] == Decimal("100000")
+        assert rates["subsequent_month"] == Decimal("50000")
+    
+    def test_unregistered_vendor_fixed_penalty(self):
+        """Unregistered vendor penalty is ₦5,000,000 fixed."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.UNREGISTERED_VENDOR]
+        assert rates["fixed_amount"] == Decimal("5000000")
+    
+    def test_b2c_late_reporting_rates(self):
+        """B2C late reporting: ₦10,000/tx, max ₦500,000/day."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.B2C_LATE_REPORTING]
+        assert rates["per_transaction"] == Decimal("10000")
+        assert rates["max_daily"] == Decimal("500000")
+    
+    def test_e_invoice_noncompliance_penalty(self):
+        """E-invoice non-compliance: ₦50,000 per invoice."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.E_INVOICE_NONCOMPLIANCE]
+        assert rates["per_invoice"] == Decimal("50000")
+    
+    def test_invalid_tin_penalty(self):
+        """Invalid TIN: ₦25,000 per occurrence."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.INVALID_TIN]
+        assert rates["per_occurrence"] == Decimal("25000")
+    
+    def test_missing_records_penalty(self):
+        """Missing records: ₦100,000 per year."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.MISSING_RECORDS]
+        assert rates["per_year"] == Decimal("100000")
+    
+    def test_nrs_access_denial_penalty(self):
+        """NRS access denial: ₦1,000,000 fixed."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.NRS_ACCESS_DENIAL]
+        assert rates["fixed_amount"] == Decimal("1000000")
+    
+    def test_vat_non_remittance_penalty_rates(self):
+        """VAT non-remittance: 10% + 2% monthly interest."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.VAT_NON_REMITTANCE]
+        assert rates["percentage"] == Decimal("10")
+        assert rates["monthly_interest"] == Decimal("2")
+    
+    def test_paye_non_remittance_penalty_rates(self):
+        """PAYE non-remittance: 10% + 2% monthly interest."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.PAYE_NON_REMITTANCE]
+        assert rates["percentage"] == Decimal("10")
+        assert rates["monthly_interest"] == Decimal("2")
+    
+    def test_wht_non_remittance_penalty_rates(self):
+        """WHT non-remittance: 10% + 2% monthly interest."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE, PenaltyType
+        
+        rates = PENALTY_SCHEDULE[PenaltyType.WHT_NON_REMITTANCE]
+        assert rates["percentage"] == Decimal("10")
+        assert rates["monthly_interest"] == Decimal("2")
+    
+    def test_all_penalty_types_have_descriptions(self):
+        """All penalty types should have descriptions."""
+        from app.services.compliance_penalty_service import PENALTY_SCHEDULE
+        
+        for penalty_type, rates in PENALTY_SCHEDULE.items():
+            assert "description" in rates, f"{penalty_type} missing description"
+            assert len(rates["description"]) > 0
+
+
+class TestPenaltyStatus:
+    """Tests for penalty status values."""
+    
+    def test_penalty_status_values(self):
+        """Penalty status should have all expected values."""
+        from app.services.compliance_penalty_service import PenaltyStatus
+        
+        statuses = [s.value for s in PenaltyStatus]
+        assert "potential" in statuses
+        assert "incurred" in statuses
+        assert "paid" in statuses
+        assert "waived" in statuses
+        assert "disputed" in statuses
+    
+    def test_penalty_type_values(self):
+        """Penalty type should have all expected values."""
+        from app.services.compliance_penalty_service import PenaltyType
+        
+        types = [t.value for t in PenaltyType]
+        assert "late_filing" in types
+        assert "unregistered_vendor" in types
+        assert "b2c_late_reporting" in types
+        assert "vat_non_remittance" in types
+        assert "paye_non_remittance" in types
+        assert "wht_non_remittance" in types
+
+
+class TestPenaltyCalculations:
+    """Tests for penalty calculation edge cases."""
+    
+    def test_tax_remittance_on_time_no_penalty(self):
+        """On-time tax remittance should have no penalty."""
+        service = CompliancePenaltyService(db=None)
+        
+        tax_amount = Decimal("500000")
+        due_date = date(2026, 1, 21)
+        payment_date = date(2026, 1, 20)  # Before due date
+        
+        result = service.calculate_tax_remittance_penalty(
+            PenaltyType.VAT_NON_REMITTANCE,
+            tax_amount,
+            due_date,
+            payment_date,
+        )
+        
+        assert result.total_amount == Decimal("0")
+        assert result.months_late == 0
+    
+    def test_paye_late_remittance_calculation(self):
+        """PAYE late remittance penalty calculation."""
+        service = CompliancePenaltyService(db=None)
+        
+        tax_amount = Decimal("200000")
+        due_date = date(2026, 1, 15)
+        payment_date = date(2026, 2, 20)  # 1 month late
+        
+        result = service.calculate_tax_remittance_penalty(
+            PenaltyType.PAYE_NON_REMITTANCE,
+            tax_amount,
+            due_date,
+            payment_date,
+        )
+        
+        # 10% of 200,000 = 20,000 base
+        assert result.base_amount == Decimal("20000")
+        assert result.months_late >= 1
+    
+    def test_late_filing_exact_deadline_no_penalty(self):
+        """Filing on exact deadline should have no penalty."""
+        service = CompliancePenaltyService(db=None)
+        
+        due_date = date(2026, 1, 21)
+        filing_date = date(2026, 1, 21)  # Exact deadline
+        
+        result = service.calculate_late_filing_penalty(due_date, filing_date)
+        
+        assert result.total_amount == Decimal("0")
+        assert result.months_late == 0
+
+
 # Run with: pytest tests/test_2026_compliance.py -v
