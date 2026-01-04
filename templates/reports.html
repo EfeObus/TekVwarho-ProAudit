@@ -28,6 +28,14 @@
                 >
                     Tax Reports
                 </button>
+                <button 
+                    @click="activeTab = 'vault'; loadVaultData()"
+                    :class="activeTab === 'vault' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center space-x-2"
+                >
+                    <span>🔒</span>
+                    <span>Audit Vault</span>
+                </button>
             </nav>
         </div>
 
@@ -530,6 +538,303 @@
             </div>
         </div>
     </div>
+
+    <!-- Audit Vault Tab -->
+    <div x-show="activeTab === 'vault'" class="space-y-6">
+        <!-- Vault Info Banner -->
+        <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <div class="flex items-start space-x-3">
+                <span class="text-2xl">🔒</span>
+                <div>
+                    <h3 class="text-sm font-medium text-blue-800">NTAA 2025 Compliant Audit Vault</h3>
+                    <p class="text-sm text-blue-700 mt-1">5-year digital record keeping with immutable audit trail, cryptographic integrity verification, and regulatory export capabilities.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vault Statistics -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-500">Total Records</span>
+                    <span class="p-2 bg-green-100 rounded-lg">📊</span>
+                </div>
+                <p class="text-2xl font-bold text-gray-900" x-text="vaultStats.total_records?.toLocaleString() || '0'"></p>
+                <p class="text-xs text-gray-500 mt-1">Since <span x-text="vaultStats.oldest_record || 'N/A'"></span></p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-500">Active Records</span>
+                    <span class="p-2 bg-blue-100 rounded-lg">✅</span>
+                </div>
+                <p class="text-2xl font-bold text-blue-600" x-text="vaultStats.active_records?.toLocaleString() || '0'"></p>
+                <p class="text-xs text-gray-500 mt-1">Last 2 years</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-500">Archived Records</span>
+                    <span class="p-2 bg-yellow-100 rounded-lg">📁</span>
+                </div>
+                <p class="text-2xl font-bold text-yellow-600" x-text="vaultStats.archived_records?.toLocaleString() || '0'"></p>
+                <p class="text-xs text-gray-500 mt-1">2-5 years old</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-500">Storage Used</span>
+                    <span class="p-2 bg-purple-100 rounded-lg">💾</span>
+                </div>
+                <p class="text-2xl font-bold text-purple-600" x-text="(vaultStats.storage_size_mb || 0) + ' MB'"></p>
+                <p class="text-xs text-gray-500 mt-1">Estimated</p>
+            </div>
+        </div>
+
+        <!-- Fiscal Years & Retention Timeline -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Available Fiscal Years -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Records by Fiscal Year</h3>
+                    <p class="text-sm text-gray-500">Click to filter records</p>
+                </div>
+                <div class="p-6">
+                    <div class="space-y-2">
+                        <template x-for="(count, year) in vaultStats.by_fiscal_year" :key="year">
+                            <div @click="vaultFilter.fiscal_year = year; loadVaultRecords()" 
+                                 class="flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-gray-50 transition"
+                                 :class="vaultFilter.fiscal_year == year ? 'bg-green-50 border border-green-200' : 'bg-gray-50'">
+                                <span class="font-medium text-gray-900">FY <span x-text="year"></span></span>
+                                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm" x-text="count.toLocaleString()"></span>
+                            </div>
+                        </template>
+                        <div x-show="Object.keys(vaultStats.by_fiscal_year || {}).length === 0" class="text-center text-gray-500 py-4">
+                            No records in vault
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retention Timeline -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Retention Timeline</h3>
+                    <p class="text-sm text-gray-500">Records expiring by year</p>
+                </div>
+                <div class="p-6">
+                    <div class="space-y-3">
+                        <template x-for="item in retentionTimeline" :key="item.expiry_year">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-sm" :class="item.status === 'current' ? 'text-red-600 font-medium' : 'text-gray-600'" x-text="item.expiry_year"></span>
+                                    <span x-show="item.status === 'current'" class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">Current</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div class="bg-green-500 h-2 rounded-full" :style="'width: ' + Math.min(100, (item.record_count / (vaultStats.total_records || 1)) * 100 * 5) + '%'"></div>
+                                    </div>
+                                    <span class="text-sm text-gray-600 w-16 text-right" x-text="item.record_count.toLocaleString()"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Record Browser -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Vault Records</h3>
+                    <p class="text-sm text-gray-500">Browse and verify audit records</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <select x-model="vaultFilter.document_type" @change="loadVaultRecords()" class="text-sm border-gray-300 rounded-md">
+                        <option value="">All Types</option>
+                        <option value="invoice">Invoices</option>
+                        <option value="transaction">Transactions</option>
+                        <option value="receipt">Receipts</option>
+                        <option value="nrs_submission">NRS Submissions</option>
+                        <option value="fixed_asset">Fixed Assets</option>
+                    </select>
+                    <select x-model="vaultFilter.retention_status" @change="loadVaultRecords()" class="text-sm border-gray-300 rounded-md">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="archived">Archived</option>
+                        <option value="pending_purge">Pending Purge</option>
+                    </select>
+                    <button @click="vaultFilter = {}; loadVaultRecords()" class="text-sm text-gray-500 hover:text-gray-700">Clear</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">NRS</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="record in vaultRecords" :key="record.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3 text-sm text-gray-900" x-text="new Date(record.created_at).toLocaleDateString()"></td>
+                                <td class="px-4 py-3 text-sm text-gray-600" x-text="record.document_type"></td>
+                                <td class="px-4 py-3 text-sm font-mono text-gray-600" x-text="record.reference_id.substring(0, 8) + '...'"></td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-1 text-xs rounded-full"
+                                          :class="{
+                                              'bg-green-100 text-green-800': record.action === 'create',
+                                              'bg-blue-100 text-blue-800': record.action === 'update',
+                                              'bg-red-100 text-red-800': record.action === 'delete',
+                                              'bg-purple-100 text-purple-800': record.action === 'nrs_submit',
+                                              'bg-gray-100 text-gray-800': !['create','update','delete','nrs_submit'].includes(record.action)
+                                          }"
+                                          x-text="record.action"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-1 text-xs rounded-full"
+                                          :class="{
+                                              'bg-green-100 text-green-800': record.status === 'active',
+                                              'bg-yellow-100 text-yellow-800': record.status === 'archived',
+                                              'bg-red-100 text-red-800': record.status === 'pending_purge'
+                                          }"
+                                          x-text="record.status"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span x-show="record.has_nrs_data" class="text-green-600">✓</span>
+                                    <span x-show="!record.has_nrs_data" class="text-gray-400">-</span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <button @click="viewRecordDetail(record.id)" class="text-blue-600 hover:text-blue-800 text-sm">View</button>
+                                    <button @click="verifyRecord(record.id)" class="ml-2 text-green-600 hover:text-green-800 text-sm">Verify</button>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="vaultRecords.length === 0">
+                            <td colspan="7" class="px-4 py-8 text-center text-gray-500">No records found</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <p class="text-sm text-gray-600">Showing <span x-text="vaultRecords.length"></span> of <span x-text="vaultTotal"></span> records</p>
+                <div class="flex items-center gap-2">
+                    <button @click="vaultPage > 0 && (vaultPage--, loadVaultRecords())" :disabled="vaultPage === 0" class="px-3 py-1 text-sm border rounded disabled:opacity-50">Previous</button>
+                    <button @click="(vaultPage + 1) * 50 < vaultTotal && (vaultPage++, loadVaultRecords())" :disabled="(vaultPage + 1) * 50 >= vaultTotal" class="px-3 py-1 text-sm border rounded disabled:opacity-50">Next</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compliance Export -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Regulatory Export</h3>
+                <p class="text-sm text-gray-500">Generate audit-ready exports for FIRS/NRS</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fiscal Year</label>
+                        <select x-model="exportYear" class="w-full border-gray-300 rounded-md">
+                            <template x-for="year in Object.keys(vaultStats.by_fiscal_year || {}).sort().reverse()" :key="year">
+                                <option :value="year" x-text="year"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Include Full Data</label>
+                        <select x-model="exportFullData" class="w-full border-gray-300 rounded-md">
+                            <option value="false">Summary Only</option>
+                            <option value="true">Full Data (with old/new values)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button @click="generateExport()" :disabled="exporting" class="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50">
+                            <span x-show="!exporting">Generate Export</span>
+                            <span x-show="exporting">Generating...</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Export Result -->
+                <div x-show="exportResult" class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h4 class="font-medium text-gray-900">Export Ready</h4>
+                            <p class="text-sm text-gray-500">FY <span x-text="exportResult?.export_metadata?.fiscal_year"></span> • <span x-text="exportResult?.export_metadata?.record_count"></span> records</p>
+                        </div>
+                        <button @click="downloadExport()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            ⬇️ Download JSON
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-500">Export Hash:</span>
+                            <code class="ml-2 text-xs text-green-700" x-text="exportResult?.export_metadata?.export_hash?.substring(0, 16) + '...'"></code>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">NRS Submissions:</span>
+                            <span class="ml-2 font-medium" x-text="exportResult?.export_metadata?.nrs_submission_count"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Integrity Verification -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Integrity Verification</h3>
+                <p class="text-sm text-gray-500">Verify cryptographic integrity of vault records</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Verify Fiscal Year</label>
+                        <div class="flex items-center gap-2">
+                            <select x-model="verifyYear" class="flex-1 border-gray-300 rounded-md">
+                                <template x-for="year in Object.keys(vaultStats.by_fiscal_year || {}).sort().reverse()" :key="year">
+                                    <option :value="year" x-text="year"></option>
+                                </template>
+                            </select>
+                            <button @click="verifyFiscalYear()" :disabled="verifying" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                                Verify
+                            </button>
+                        </div>
+                    </div>
+                    <div x-show="verificationResult" class="p-4 rounded-lg" :class="verificationResult?.verified ? 'bg-green-50' : 'bg-red-50'">
+                        <div class="flex items-center space-x-2">
+                            <span x-text="verificationResult?.verified ? '✅' : '❌'" class="text-xl"></span>
+                            <div>
+                                <p class="font-medium" :class="verificationResult?.verified ? 'text-green-800' : 'text-red-800'">
+                                    <span x-text="verificationResult?.verified ? 'Integrity Verified' : 'Verification Failed'"></span>
+                                </p>
+                                <p class="text-sm text-gray-600">
+                                    <span x-text="verificationResult?.record_count"></span> records • Chain hash: 
+                                    <code class="text-xs" x-text="verificationResult?.chain_hash?.substring(0, 12) + '...'"></code>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Retention Policy Info -->
+        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <h4 class="font-medium text-gray-800 mb-2">NTAA 2025 Retention Policy</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
+                <div><strong>Retention Period:</strong> 5 years minimum</div>
+                <div><strong>Archive After:</strong> 2 years</div>
+                <div><strong>Compliance:</strong> NTAA 2025</div>
+                <div><strong>Integrity:</strong> SHA-256 cryptographic verification</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -557,6 +862,22 @@ function reportsPage() {
             wht: false,
             cit: false,
         },
+        
+        // Audit Vault Data
+        vaultStats: {},
+        vaultRecords: [],
+        vaultTotal: 0,
+        vaultPage: 0,
+        vaultFilter: {},
+        retentionTimeline: [],
+        exportYear: today.getFullYear(),
+        exportFullData: 'false',
+        exportResult: null,
+        exporting: false,
+        verifyYear: today.getFullYear(),
+        verificationResult: null,
+        verifying: false,
+        recordDetail: null,
         
         init() {
             if (!this.entityId) {
@@ -779,6 +1100,151 @@ function reportsPage() {
                 currency: 'NGN',
                 minimumFractionDigits: 2
             }).format(amount || 0);
+        },
+        
+        // ===========================================
+        // AUDIT VAULT METHODS
+        // ===========================================
+        
+        async loadVaultData() {
+            if (!this.entityId) return;
+            await Promise.all([
+                this.loadVaultStats(),
+                this.loadVaultRecords(),
+                this.loadRetentionTimeline(),
+            ]);
+        },
+        
+        async loadVaultStats() {
+            try {
+                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/statistics`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    this.vaultStats = await res.json();
+                    // Set default export/verify year to most recent
+                    const years = Object.keys(this.vaultStats.by_fiscal_year || {}).sort().reverse();
+                    if (years.length > 0) {
+                        this.exportYear = years[0];
+                        this.verifyYear = years[0];
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load vault statistics:', e);
+            }
+        },
+        
+        async loadVaultRecords() {
+            try {
+                const params = new URLSearchParams({
+                    skip: this.vaultPage * 50,
+                    limit: 50,
+                });
+                if (this.vaultFilter.fiscal_year) params.append('fiscal_year', this.vaultFilter.fiscal_year);
+                if (this.vaultFilter.document_type) params.append('document_type', this.vaultFilter.document_type);
+                if (this.vaultFilter.retention_status) params.append('retention_status', this.vaultFilter.retention_status);
+                
+                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/records?${params}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.vaultRecords = data.items;
+                    this.vaultTotal = data.total;
+                }
+            } catch (e) {
+                console.error('Failed to load vault records:', e);
+            }
+        },
+        
+        async loadRetentionTimeline() {
+            try {
+                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/retention-timeline`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.retentionTimeline = data.timeline;
+                }
+            } catch (e) {
+                console.error('Failed to load retention timeline:', e);
+            }
+        },
+        
+        async viewRecordDetail(recordId) {
+            try {
+                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/records/${recordId}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    this.recordDetail = await res.json();
+                    alert(`Record ${recordId}\n\nType: ${this.recordDetail.document_type}\nAction: ${this.recordDetail.action}\nIntegrity Hash: ${this.recordDetail.integrity_hash}\nVerified: ${this.recordDetail.integrity_verified ? 'Yes' : 'No'}`);
+                }
+            } catch (e) {
+                console.error('Failed to load record detail:', e);
+            }
+        },
+        
+        async verifyRecord(recordId) {
+            try {
+                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/verify/${recordId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    const result = await res.json();
+                    alert(`✅ Record Verified\n\nHash: ${result.integrity_hash.substring(0, 32)}...`);
+                } else {
+                    alert('❌ Verification failed');
+                }
+            } catch (e) {
+                console.error('Failed to verify record:', e);
+            }
+        },
+        
+        async verifyFiscalYear() {
+            this.verifying = true;
+            try {
+                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/verify-year/${this.verifyYear}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    this.verificationResult = await res.json();
+                }
+            } catch (e) {
+                console.error('Failed to verify fiscal year:', e);
+            }
+            this.verifying = false;
+        },
+        
+        async generateExport() {
+            this.exporting = true;
+            try {
+                const params = new URLSearchParams({
+                    include_full_data: this.exportFullData,
+                });
+                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/export/${this.exportYear}?${params}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    this.exportResult = await res.json();
+                }
+            } catch (e) {
+                console.error('Failed to generate export:', e);
+            }
+            this.exporting = false;
+        },
+        
+        downloadExport() {
+            if (!this.exportResult) return;
+            const blob = new Blob([JSON.stringify(this.exportResult, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit_vault_fy${this.exportResult.export_metadata?.fiscal_year}_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
     }
 }

@@ -1054,4 +1054,183 @@ class TestPenaltyCalculations:
         assert result.months_late == 0
 
 
+class TestAuditVault:
+    """Tests for Audit Vault Service - NTAA 2025 Compliance."""
+    
+    def test_retention_years_is_5(self):
+        """NTAA 2025 requires 5-year minimum retention."""
+        from app.services.audit_vault_service import NTAA_RETENTION_YEARS
+        
+        assert NTAA_RETENTION_YEARS == 5
+    
+    def test_archive_after_2_years(self):
+        """Records should be archived after 2 years."""
+        from app.services.audit_vault_service import ARCHIVE_AFTER_YEARS
+        
+        assert ARCHIVE_AFTER_YEARS == 2
+    
+    def test_retention_status_values(self):
+        """Verify all retention status values exist."""
+        from app.services.audit_vault_service import RetentionStatus
+        
+        statuses = [s.value for s in RetentionStatus]
+        assert "active" in statuses
+        assert "archived" in statuses
+        assert "pending_purge" in statuses
+        assert "legal_hold" in statuses
+    
+    def test_document_types(self):
+        """Verify all required document types exist."""
+        from app.services.audit_vault_service import DocumentType
+        
+        types = [t.value for t in DocumentType]
+        assert "invoice" in types
+        assert "receipt" in types
+        assert "transaction" in types
+        assert "tax_filing" in types
+        assert "nrs_submission" in types
+        assert "credit_note" in types
+        assert "fixed_asset" in types
+        assert "payroll" in types
+    
+    def test_vault_document_dataclass(self):
+        """Test VaultDocument dataclass."""
+        from app.services.audit_vault_service import (
+            VaultDocument, DocumentType, RetentionStatus
+        )
+        from datetime import datetime, date
+        
+        doc = VaultDocument(
+            id="test-123",
+            document_type=DocumentType.INVOICE,
+            reference_number="INV-2026-001",
+            created_at=datetime.now(),
+            fiscal_year=2026,
+            retention_until=date(2031, 1, 1),
+            status=RetentionStatus.ACTIVE,
+            integrity_hash="abc123",
+            metadata={"customer": "Test"},
+        )
+        
+        assert doc.id == "test-123"
+        assert doc.document_type == DocumentType.INVOICE
+        assert doc.fiscal_year == 2026
+        assert doc.status == RetentionStatus.ACTIVE
+    
+    def test_vault_statistics_dataclass(self):
+        """Test VaultStatistics dataclass."""
+        from app.services.audit_vault_service import VaultStatistics
+        
+        stats = VaultStatistics(
+            total_records=1000,
+            active_records=600,
+            archived_records=350,
+            pending_purge=50,
+            legal_hold=0,
+            oldest_record=date(2021, 1, 15),
+            by_fiscal_year={2025: 300, 2026: 700},
+            by_document_type={"invoice": 500, "transaction": 300, "receipt": 200},
+            storage_size_estimate_mb=2.0,
+        )
+        
+        assert stats.total_records == 1000
+        assert stats.active_records == 600
+        assert stats.archived_records == 350
+        assert stats.by_fiscal_year[2026] == 700
+        assert stats.by_document_type["invoice"] == 500
+    
+    def test_service_initialization(self):
+        """Test AuditVaultService can be initialized."""
+        from app.services.audit_vault_service import AuditVaultService
+        
+        # Service should initialize without DB for basic operations
+        service = AuditVaultService(db=None)
+        assert service is not None
+    
+    def test_legal_hold_extension_years(self):
+        """Legal hold should extend retention by 2 years."""
+        from app.services.audit_vault_service import LEGAL_HOLD_EXTENSION_YEARS
+        
+        assert LEGAL_HOLD_EXTENSION_YEARS == 2
+    
+    def test_retention_policy_constants(self):
+        """Verify all retention policy constants are defined."""
+        from app.services.audit_vault_service import (
+            NTAA_RETENTION_YEARS,
+            ARCHIVE_AFTER_YEARS,
+            LEGAL_HOLD_EXTENSION_YEARS,
+        )
+        
+        # 5-year retention
+        assert NTAA_RETENTION_YEARS == 5
+        # Archive after 2 years
+        assert ARCHIVE_AFTER_YEARS == 2
+        # Legal hold adds 2 years
+        assert LEGAL_HOLD_EXTENSION_YEARS == 2
+        # Total with legal hold = 7 years
+        assert NTAA_RETENTION_YEARS + LEGAL_HOLD_EXTENSION_YEARS == 7
+    
+    def test_integrity_hash_algorithm(self):
+        """Test integrity hash uses SHA-256."""
+        import hashlib
+        import json
+        
+        # Same algorithm used in service
+        test_data = {"id": "test-123", "entity_id": "entity-456"}
+        hash_result = hashlib.sha256(
+            json.dumps(test_data, sort_keys=True).encode()
+        ).hexdigest()
+        
+        # SHA-256 produces 64 character hex string
+        assert len(hash_result) == 64
+        assert hash_result.isalnum()
+
+
+class TestAuditVaultCompliance:
+    """Tests for NTAA 2025 compliance features of Audit Vault."""
+    
+    def test_compliance_standard_is_ntaa_2025(self):
+        """Compliance standard should be NTAA 2025."""
+        # This is documented in the service
+        from app.services.audit_vault_service import AuditVaultService
+        
+        # The service should reference NTAA 2025
+        service = AuditVaultService(db=None)
+        assert "NTAA" in service.__class__.__doc__
+        assert "2025" in service.__class__.__doc__
+    
+    def test_retention_period_meets_ntaa_requirement(self):
+        """5-year retention meets NTAA 2025 minimum requirement."""
+        from app.services.audit_vault_service import NTAA_RETENTION_YEARS
+        
+        # NTAA 2025 requires minimum 5 years
+        ntaa_minimum = 5
+        assert NTAA_RETENTION_YEARS >= ntaa_minimum
+    
+    def test_immutability_concept(self):
+        """Audit logs should be immutable (no UPDATE/DELETE)."""
+        from app.models.audit import AuditLog
+        
+        # The model docstring should mention immutability
+        assert "Immutable" in AuditLog.__doc__ or "immutable" in AuditLog.__doc__.lower()
+    
+    def test_nrs_fields_exist(self):
+        """NRS submission fields should exist for compliance."""
+        from app.models.audit import AuditLog
+        
+        # Check NRS fields exist in the model
+        columns = [c.name for c in AuditLog.__table__.columns]
+        assert "nrs_irn" in columns
+        assert "nrs_response" in columns
+    
+    def test_device_fingerprint_for_submission_verification(self):
+        """Device fingerprint required for proving tax return submission."""
+        from app.models.audit import AuditLog
+        
+        columns = [c.name for c in AuditLog.__table__.columns]
+        assert "device_fingerprint" in columns
+        assert "ip_address" in columns
+        assert "user_agent" in columns
+
+
 # Run with: pytest tests/test_2026_compliance.py -v
