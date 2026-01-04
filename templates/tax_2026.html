@@ -90,6 +90,12 @@
                     <span>📝</span>
                     <span>Credit Notes</span>
                 </button>
+                <button @click="activeTab = 'tin-validation'" 
+                        :class="activeTab === 'tin-validation' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>🔍</span>
+                    <span>TIN Validation</span>
+                </button>
             </nav>
         </div>
     </div>
@@ -561,6 +567,198 @@
                 </div>
             </div>
         </div>
+
+        <!-- TIN Validation Tab -->
+        <div x-show="activeTab === 'tin-validation'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-purple-800">2026 Compliance: TIN Validation</h3>
+                        <div class="mt-2 text-sm text-purple-700">
+                            <p>Under the 2026 Tax Administration Act, all vendors/suppliers must have valid TINs before contracts can be awarded. Failure to validate can result in a <strong>₦5,000,000 penalty</strong>. Validate TINs via the <a href="https://taxid.nrs.gov.ng/" target="_blank" class="underline">NRS TaxID Portal</a>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- TIN Validation Form -->
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Validate TIN</h3>
+                    <form @submit.prevent="validateTIN()">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tax Identification Number (TIN) *</label>
+                                <input type="text" x-model="tinForm.tin" required 
+                                       placeholder="1234567890 or 12345-67890-0001"
+                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <p class="mt-1 text-xs text-gray-500">10-14 digits, hyphens allowed</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Entity Type (Optional)</label>
+                                <select x-model="tinForm.entity_type" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                    <option value="">Auto-detect</option>
+                                    <option value="individual">Individual (NIN-based)</option>
+                                    <option value="business_name">Business Name (Sole Proprietorship)</option>
+                                    <option value="company">Limited Liability Company</option>
+                                    <option value="incorporated_trustee">Incorporated Trustee (NGO/Church)</option>
+                                    <option value="limited_partnership">Limited Partnership</option>
+                                    <option value="llp">Limited Liability Partnership</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Search Term (Optional)</label>
+                                <input type="text" x-model="tinForm.search_term" 
+                                       placeholder="NIN for individuals, or business name"
+                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                            <button type="submit" 
+                                    :disabled="tinValidating || !tinForm.tin"
+                                    class="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium transition">
+                                <span x-show="!tinValidating">🔍 Validate TIN</span>
+                                <span x-show="tinValidating">Validating...</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Validation Result -->
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Validation Result</h3>
+                    <template x-if="!tinResult">
+                        <div class="text-center py-8 text-gray-500">
+                            <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p>Enter a TIN and click "Validate TIN" to check its status</p>
+                        </div>
+                    </template>
+                    <template x-if="tinResult">
+                        <div>
+                            <!-- Status Badge -->
+                            <div class="mb-4">
+                                <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium"
+                                      :class="tinResult.is_valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
+                                    <span x-text="tinResult.is_valid ? '✅ Valid TIN' : '❌ Invalid TIN'"></span>
+                                </span>
+                            </div>
+                            
+                            <!-- Result Details -->
+                            <dl class="space-y-3">
+                                <div class="flex justify-between">
+                                    <dt class="text-sm text-gray-500">TIN</dt>
+                                    <dd class="text-sm font-medium text-gray-900" x-text="tinResult.tin"></dd>
+                                </div>
+                                <div class="flex justify-between">
+                                    <dt class="text-sm text-gray-500">Status</dt>
+                                    <dd class="text-sm font-medium" :class="tinResult.is_valid ? 'text-green-600' : 'text-red-600'" x-text="tinResult.status"></dd>
+                                </div>
+                                <template x-if="tinResult.registered_name">
+                                    <div class="flex justify-between">
+                                        <dt class="text-sm text-gray-500">Registered Name</dt>
+                                        <dd class="text-sm font-medium text-gray-900" x-text="tinResult.registered_name"></dd>
+                                    </div>
+                                </template>
+                                <template x-if="tinResult.entity_type">
+                                    <div class="flex justify-between">
+                                        <dt class="text-sm text-gray-500">Entity Type</dt>
+                                        <dd class="text-sm font-medium text-gray-900" x-text="tinResult.entity_type"></dd>
+                                    </div>
+                                </template>
+                                <template x-if="tinResult.rc_number">
+                                    <div class="flex justify-between">
+                                        <dt class="text-sm text-gray-500">RC Number</dt>
+                                        <dd class="text-sm font-medium text-gray-900" x-text="tinResult.rc_number"></dd>
+                                    </div>
+                                </template>
+                                <template x-if="tinResult.tax_office">
+                                    <div class="flex justify-between">
+                                        <dt class="text-sm text-gray-500">Tax Office</dt>
+                                        <dd class="text-sm font-medium text-gray-900" x-text="tinResult.tax_office"></dd>
+                                    </div>
+                                </template>
+                                <template x-if="tinResult.vat_registered !== null">
+                                    <div class="flex justify-between">
+                                        <dt class="text-sm text-gray-500">VAT Registered</dt>
+                                        <dd class="text-sm font-medium" :class="tinResult.vat_registered ? 'text-green-600' : 'text-gray-600'" 
+                                            x-text="tinResult.vat_registered ? 'Yes' : 'No'"></dd>
+                                    </div>
+                                </template>
+                                <div class="border-t pt-3">
+                                    <dt class="text-sm text-gray-500 mb-1">Message</dt>
+                                    <dd class="text-sm text-gray-700 bg-gray-50 p-2 rounded" x-text="tinResult.message"></dd>
+                                </div>
+                                <template x-if="tinResult.validated_at">
+                                    <div class="text-xs text-gray-400 text-right">
+                                        Validated: <span x-text="new Date(tinResult.validated_at).toLocaleString()"></span>
+                                    </div>
+                                </template>
+                            </dl>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Bulk Validation Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Bulk TIN Validation</h3>
+                <p class="text-sm text-gray-500 mb-4">Validate multiple TINs at once. Enter one TIN per line (maximum 50).</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <textarea x-model="bulkTins" rows="10" placeholder="1234567890
+9876543210
+5678901234"
+                                  class="w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 font-mono text-sm"></textarea>
+                        <button @click="validateBulkTINs()" 
+                                :disabled="bulkValidating || !bulkTins.trim()"
+                                class="mt-3 w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium transition">
+                            <span x-show="!bulkValidating">🔍 Validate All TINs</span>
+                            <span x-show="bulkValidating">Validating...</span>
+                        </button>
+                    </div>
+                    <div>
+                        <template x-if="bulkResults">
+                            <div>
+                                <div class="flex space-x-4 mb-4">
+                                    <div class="bg-gray-50 rounded-lg p-3 flex-1 text-center">
+                                        <p class="text-2xl font-bold text-gray-900" x-text="bulkResults.total">0</p>
+                                        <p class="text-xs text-gray-500">Total</p>
+                                    </div>
+                                    <div class="bg-green-50 rounded-lg p-3 flex-1 text-center">
+                                        <p class="text-2xl font-bold text-green-600" x-text="bulkResults.valid_count">0</p>
+                                        <p class="text-xs text-gray-500">Valid</p>
+                                    </div>
+                                    <div class="bg-red-50 rounded-lg p-3 flex-1 text-center">
+                                        <p class="text-2xl font-bold text-red-600" x-text="bulkResults.invalid_count">0</p>
+                                        <p class="text-xs text-gray-500">Invalid</p>
+                                    </div>
+                                </div>
+                                <div class="max-h-64 overflow-y-auto">
+                                    <template x-for="result in bulkResults.results" :key="result.tin">
+                                        <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                                            <span class="font-mono text-sm" x-text="result.tin"></span>
+                                            <span class="text-sm" :class="result.is_valid ? 'text-green-600' : 'text-red-600'"
+                                                  x-text="result.is_valid ? '✓ Valid' : '✕ Invalid'"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!bulkResults">
+                            <div class="text-center py-8 text-gray-500">
+                                <p>Enter TINs in the textarea and click "Validate All" to see results</p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->
@@ -616,6 +814,14 @@ function tax2026Dashboard() {
             claimed_amount: '',
             annual_rent: ''
         },
+        
+        // TIN Validation
+        tinForm: { tin: '', entity_type: '', search_term: '' },
+        tinValidating: false,
+        tinResult: null,
+        bulkTins: '',
+        bulkValidating: false,
+        bulkResults: null,
         
         // Toast
         toast: { show: false, message: '', type: 'success' },
@@ -850,6 +1056,87 @@ function tax2026Dashboard() {
             if (diff < 12 * 60 * 60 * 1000) return 'text-red-600'; // < 12 hours
             if (diff < 24 * 60 * 60 * 1000) return 'text-amber-600'; // < 24 hours
             return 'text-green-600';
+        },
+        
+        // TIN Validation Methods
+        async validateTIN() {
+            if (!this.tinForm.tin) return;
+            
+            this.tinValidating = true;
+            this.tinResult = null;
+            
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/v1/tax-2026/tin/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tin: this.tinForm.tin,
+                        entity_type: this.tinForm.entity_type || null,
+                        search_term: this.tinForm.search_term || null,
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.tinResult = data;
+                    this.showToast(data.is_valid ? 'TIN validated successfully!' : 'TIN validation failed', data.is_valid ? 'success' : 'error');
+                } else {
+                    this.showToast(data.detail || 'Validation failed', 'error');
+                }
+            } catch (error) {
+                console.error('TIN validation error:', error);
+                this.showToast('Failed to validate TIN', 'error');
+            } finally {
+                this.tinValidating = false;
+            }
+        },
+        
+        async validateBulkTINs() {
+            if (!this.bulkTins.trim()) return;
+            
+            const tins = this.bulkTins.split('\n')
+                .map(t => t.trim())
+                .filter(t => t.length > 0)
+                .slice(0, 50); // Max 50
+            
+            if (tins.length === 0) {
+                this.showToast('Please enter at least one TIN', 'error');
+                return;
+            }
+            
+            this.bulkValidating = true;
+            this.bulkResults = null;
+            
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/v1/tax-2026/tin/validate-bulk', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ tins }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.bulkResults = data;
+                    this.showToast(`Validated ${data.total} TINs: ${data.valid_count} valid, ${data.invalid_count} invalid`, 'success');
+                } else {
+                    this.showToast(data.detail || 'Bulk validation failed', 'error');
+                }
+            } catch (error) {
+                console.error('Bulk TIN validation error:', error);
+                this.showToast('Failed to validate TINs', 'error');
+            } finally {
+                this.bulkValidating = false;
+            }
         }
     }
 }
