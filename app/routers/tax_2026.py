@@ -925,6 +925,163 @@ async def calculate_cgt(
 
 
 # ===========================================
+# PROGRESSIVE PAYE ENDPOINTS (2026 Tax Bands)
+# ===========================================
+
+class PAYEQuickCalculateRequest(BaseModel):
+    """Request for quick PAYE calculation."""
+    gross_annual_income: float = Field(..., gt=0, description="Gross annual income in NGN")
+    basic_salary: Optional[float] = Field(None, description="Basic salary for NHF calculation")
+    pension_percentage: float = Field(default=8.0, ge=0, le=20, description="Pension contribution %")
+    other_reliefs: float = Field(default=0, ge=0, description="Other tax reliefs")
+
+
+@router.get(
+    "/paye/bands",
+    summary="Get 2026 PAYE tax bands",
+    tags=["2026 Reform - Progressive PAYE"],
+)
+async def get_paye_bands(
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get the 2026 Nigeria PAYE tax bands.
+    
+    2026 Tax Reform introduced progressive rates with ₦800,000 tax-free threshold:
+    - ₦0 - ₦800,000: 0%
+    - ₦800,001 - ₦2,400,000: 15%
+    - ₦2,400,001 - ₦4,800,000: 20%
+    - ₦4,800,001 - ₦7,200,000: 25%
+    - Above ₦7,200,000: 30%
+    """
+    return {
+        "bands": [
+            {"lower": 0, "upper": 800_000, "rate": "0%", "description": "Tax-free threshold"},
+            {"lower": 800_001, "upper": 2_400_000, "rate": "15%", "description": "First taxable band"},
+            {"lower": 2_400_001, "upper": 4_800_000, "rate": "20%", "description": "Second band"},
+            {"lower": 4_800_001, "upper": 7_200_000, "rate": "25%", "description": "Third band"},
+            {"lower": 7_200_001, "upper": None, "rate": "30%", "description": "Top band (no limit)"},
+        ],
+        "reliefs": {
+            "cra": "₦200,000 + 20% of gross income",
+            "pension": "Up to 8% of gross income (employee contribution)",
+            "nhf": "2.5% of basic salary",
+        },
+        "tax_free_threshold": 800_000,
+        "tax_free_threshold_formatted": "₦800,000",
+        "legislation": "Personal Income Tax (Amendment) Act 2026",
+        "effective_date": "January 1, 2026",
+    }
+
+
+@router.post(
+    "/paye/quick-calculate",
+    summary="Quick PAYE calculation",
+    tags=["2026 Reform - Progressive PAYE"],
+)
+async def quick_calculate_paye(
+    request: PAYEQuickCalculateRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Quick PAYE calculation with automatic reliefs.
+    
+    Automatically applies:
+    - Consolidated Relief Allowance (CRA): ₦200,000 + 20% of gross
+    - Pension contribution relief (default 8%)
+    - NHF relief (2.5% of basic salary if provided)
+    """
+    from app.services.tax_calculators.paye_service import PAYECalculator
+    
+    calculator = PAYECalculator()
+    result = calculator.calculate_paye(
+        gross_annual_income=Decimal(str(request.gross_annual_income)),
+        basic_salary=Decimal(str(request.basic_salary)) if request.basic_salary else None,
+        pension_percentage=Decimal(str(request.pension_percentage)),
+        other_reliefs=Decimal(str(request.other_reliefs)),
+    )
+    
+    return result
+
+
+@router.get(
+    "/paye/threshold-check",
+    summary="Check if income is below tax-free threshold",
+    tags=["2026 Reform - Progressive PAYE"],
+)
+async def check_paye_threshold(
+    gross_annual_income: float = Query(..., gt=0, description="Gross annual income in NGN"),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Check if income falls below the ₦800,000 tax-free threshold.
+    
+    After applying CRA (₦200,000 + 20% of gross), if taxable income
+    is below ₦800,000, no PAYE tax is due.
+    """
+    from app.services.tax_calculators.paye_service import PAYECalculator
+    
+    calculator = PAYECalculator()
+    cra = calculator.calculate_cra(Decimal(str(gross_annual_income)))
+    taxable_income = max(Decimal("0"), Decimal(str(gross_annual_income)) - cra)
+    
+    is_exempt = taxable_income <= Decimal("800000")
+    
+    return {
+        "gross_annual_income": gross_annual_income,
+        "consolidated_relief": float(cra),
+        "taxable_income": float(taxable_income),
+        "tax_free_threshold": 800_000,
+        "is_tax_exempt": is_exempt,
+        "message": (
+            "Income is below ₦800,000 tax-free threshold - no PAYE due"
+            if is_exempt
+            else f"Taxable income (₦{float(taxable_income):,.2f}) exceeds ₦800,000 threshold"
+        ),
+        "monthly_gross": gross_annual_income / 12,
+    }
+
+
+@router.get(
+    "/paye/monthly-breakdown",
+    summary="Get monthly PAYE breakdown",
+    tags=["2026 Reform - Progressive PAYE"],
+)
+async def get_monthly_paye_breakdown(
+    gross_annual_income: float = Query(..., gt=0, description="Gross annual income"),
+    pension_percentage: float = Query(default=8.0, ge=0, le=20),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Calculate PAYE with monthly breakdown for payroll.
+    
+    Useful for employers to understand monthly deductions.
+    """
+    from app.services.tax_calculators.paye_service import PAYECalculator
+    
+    calculator = PAYECalculator()
+    result = calculator.calculate_paye(
+        gross_annual_income=Decimal(str(gross_annual_income)),
+        pension_percentage=Decimal(str(pension_percentage)),
+    )
+    
+    annual_tax = result.get("annual_paye_tax", 0)
+    monthly_tax = annual_tax / 12
+    monthly_gross = gross_annual_income / 12
+    monthly_net = monthly_gross - monthly_tax - (gross_annual_income * pension_percentage / 100 / 12)
+    
+    return {
+        **result,
+        "monthly_breakdown": {
+            "gross_monthly_salary": round(monthly_gross, 2),
+            "monthly_paye_deduction": round(monthly_tax, 2),
+            "monthly_pension_deduction": round(gross_annual_income * pension_percentage / 100 / 12, 2),
+            "estimated_net_monthly": round(monthly_net, 2),
+        },
+    }
+
+
+# ===========================================
 # DEVELOPMENT LEVY ENDPOINTS (4% Consolidated)
 # ===========================================
 
