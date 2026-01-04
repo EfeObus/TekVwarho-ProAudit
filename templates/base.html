@@ -36,12 +36,8 @@
                         <a href="/dashboard" :class="currentPath === '/dashboard' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
                         <a href="/transactions" :class="currentPath === '/transactions' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">Transactions</a>
                         <a href="/invoices" :class="currentPath === '/invoices' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">Invoices</a>
-                        <a href="/sales" :class="currentPath === '/sales' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium flex items-center">
-                            <span class="mr-1">🛒</span> Sales
-                        </a>
-                        <a href="/tax-2026" :class="currentPath === '/tax-2026' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium flex items-center">
-                            <span class="mr-1">🏛️</span> 2026 Tax
-                        </a>
+                        <a href="/sales" :class="currentPath === '/sales' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">Sales</a>
+                        <a href="/tax-2026" :class="currentPath === '/tax-2026' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">2026 Tax</a>
                         <a href="/reports" :class="currentPath === '/reports' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">Reports</a>
                         <div class="relative" x-data="{ open: false }">
                             <button @click="open = !open" class="text-gray-600 hover:bg-gray-50 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium flex items-center">

@@ -4,14 +4,29 @@ TekVwarho ProAudit - FastAPI Application Entry Point
 This is the main entry point for the FastAPI application.
 """
 
+import logging
+import traceback
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from typing import Any
+
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from pydantic import ValidationError
 
 from app.config import settings
 from app.database import init_db, close_db, async_session_factory
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if not settings.debug else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 async def seed_super_admin():
@@ -25,9 +40,9 @@ async def seed_super_admin():
         service = StaffManagementService(session)
         try:
             super_admin = await service.get_or_create_super_admin()
-            print(f"✅ Super Admin ready: {super_admin.email}")
+            logger.info(f"Super Admin ready: {super_admin.email}")
         except Exception as e:
-            print(f"⚠️ Warning: Could not seed Super Admin: {e}")
+            logger.warning(f"Could not seed Super Admin: {e}")
 
 
 async def seed_platform_test_entity():
@@ -41,9 +56,9 @@ async def seed_platform_test_entity():
         service = StaffManagementService(session)
         try:
             demo_entity = await service.get_or_create_platform_test_entity()
-            print(f"✅ Platform Test Entity ready: {demo_entity.name}")
+            logger.info(f"Platform Test Entity ready: {demo_entity.name}")
         except Exception as e:
-            print(f"⚠️ Warning: Could not seed Test Entity: {e}")
+            logger.warning(f"Could not seed Test Entity: {e}")
 
 
 @asynccontextmanager
@@ -53,33 +68,33 @@ async def lifespan(app: FastAPI):
     Handles startup and shutdown events.
     """
     # Startup
-    print(f"🚀 Starting {settings.app_name}...")
-    print(f"📊 Environment: {settings.app_env}")
-    print(f"🔗 Database: {settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}")
+    logger.info(f"Starting {settings.app_name}...")
+    logger.info(f"Environment: {settings.app_env}")
+    logger.info(f"Database: {settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}")
     
     # Initialize database (dev only - use migrations in production)
     if settings.is_development:
         await init_db()
-        print("✅ Database tables initialized")
+        logger.info("Database tables initialized")
     
     # Seed Super Admin
     try:
         await seed_super_admin()
     except Exception as e:
-        print(f"⚠️ Warning: Super Admin seeding skipped: {e}")
+        logger.warning(f"Super Admin seeding skipped: {e}")
     
     # Seed Platform Test Entity for staff testing
     try:
         await seed_platform_test_entity()
     except Exception as e:
-        print(f"⚠️ Warning: Test Entity seeding skipped: {e}")
+        logger.warning(f"Test Entity seeding skipped: {e}")
     
     yield
     
     # Shutdown
-    print(f"🛑 Shutting down {settings.app_name}...")
+    logger.info(f"Shutting down {settings.app_name}...")
     await close_db()
-    print("✅ Database connections closed")
+    logger.info("Database connections closed")
 
 
 # Create FastAPI application
@@ -106,6 +121,138 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory="templates")
+
+
+# ===========================================
+# GLOBAL ERROR HANDLERS
+# ===========================================
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Handle HTTP exceptions with consistent error format."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": exc.status_code,
+                "message": exc.detail,
+                "type": "http_error"
+            }
+        }
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Handle request validation errors with detailed field info."""
+    errors = []
+    for error in exc.errors():
+        field = ".".join(str(loc) for loc in error["loc"])
+        errors.append({
+            "field": field,
+            "message": error["msg"],
+            "type": error["type"]
+        })
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "error": {
+                "code": 422,
+                "message": "Validation error",
+                "type": "validation_error",
+                "details": errors
+            }
+        }
+    )
+
+
+@app.exception_handler(ValidationError)
+async def pydantic_validation_handler(request: Request, exc: ValidationError) -> JSONResponse:
+    """Handle Pydantic validation errors."""
+    errors = []
+    for error in exc.errors():
+        field = ".".join(str(loc) for loc in error["loc"])
+        errors.append({
+            "field": field,
+            "message": error["msg"],
+            "type": error["type"]
+        })
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "error": {
+                "code": 422,
+                "message": "Data validation error",
+                "type": "validation_error",
+                "details": errors
+            }
+        }
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+    """Handle value errors (business logic errors)."""
+    logger.warning(f"ValueError: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "success": False,
+            "error": {
+                "code": 400,
+                "message": str(exc),
+                "type": "value_error"
+            }
+        }
+    )
+
+
+@app.exception_handler(PermissionError)
+async def permission_error_handler(request: Request, exc: PermissionError) -> JSONResponse:
+    """Handle permission errors."""
+    logger.warning(f"PermissionError: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={
+            "success": False,
+            "error": {
+                "code": 403,
+                "message": str(exc) or "Permission denied",
+                "type": "permission_error"
+            }
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all handler for unhandled exceptions."""
+    # Log the full traceback for debugging
+    logger.error(f"Unhandled exception: {exc}")
+    logger.error(traceback.format_exc())
+    
+    # Return generic error in production, detailed in development
+    if settings.is_development:
+        message = f"{type(exc).__name__}: {str(exc)}"
+    else:
+        message = "An unexpected error occurred. Please try again later."
+    
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "success": False,
+            "error": {
+                "code": 500,
+                "message": message,
+                "type": "internal_error"
+            }
+        }
+    )
 
 
 # ===========================================

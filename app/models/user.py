@@ -159,6 +159,12 @@ class User(BaseModel):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    must_reset_password: Mapped[bool] = mapped_column(
+        Boolean, 
+        default=False, 
+        nullable=False,
+        comment="Force password reset on next login (for newly onboarded staff)"
+    )
     
     # Impersonation (for CSR access with user permission)
     # NDPA Compliance: Time-limited tokens (24 hours max)

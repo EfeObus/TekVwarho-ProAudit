@@ -48,21 +48,20 @@ class EmailService:
     """Service for sending transactional emails."""
     
     def __init__(self):
-        self.from_email = getattr(settings, 'email_from', 'noreply@tekvwarho.com')
-        self.from_name = getattr(settings, 'email_from_name', 'TekVwarho ProAudit')
-        self.provider = getattr(settings, 'email_provider', EmailProvider.MOCK)
+        # SMTP settings from config (Outlook/Office365)
+        self.smtp_host = settings.mail_server
+        self.smtp_port = settings.mail_port
+        self.smtp_username = settings.mail_username
+        self.smtp_password = settings.mail_password
+        self.smtp_use_tls = settings.mail_use_tls
         
-        # SMTP settings
-        self.smtp_host = getattr(settings, 'smtp_host', None)
-        self.smtp_port = getattr(settings, 'smtp_port', 587)
-        self.smtp_username = getattr(settings, 'smtp_username', None)
-        self.smtp_password = getattr(settings, 'smtp_password', None)
-        self.smtp_use_tls = getattr(settings, 'smtp_use_tls', True)
+        # From email - use username if mail_from not set
+        self.from_email = settings.mail_from or settings.mail_username
+        self.from_name = settings.mail_from_name or 'TekVwarho ProAudit'
         
-        # SendGrid settings
+        # Provider settings
+        self.provider = getattr(settings, 'email_provider', None)
         self.sendgrid_api_key = getattr(settings, 'sendgrid_api_key', None)
-        
-        # Mailgun settings
         self.mailgun_api_key = getattr(settings, 'mailgun_api_key', None)
         self.mailgun_domain = getattr(settings, 'mailgun_domain', None)
     
@@ -576,6 +575,60 @@ class EmailService:
         This link will expire in 1 hour.
         
         If you didn't request this, you can safely ignore this email.
+        """
+        
+        return await self.send_email(EmailMessage(
+            to=[to_email],
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+        ))
+
+    async def send_verification_email(
+        self,
+        to_email: str,
+        user_name: str,
+        verification_url: str,
+    ) -> bool:
+        """Send email verification link to new users."""
+        subject = "Verify Your Email - TekVwarho ProAudit"
+        
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h1 style="color: #16a34a;">Verify Your Email Address</h1>
+                <p>Hi {user_name},</p>
+                <p>Thank you for registering with TekVwarho ProAudit! Please verify your email address by clicking the button below:</p>
+                <p>
+                    <a href="{verification_url}" 
+                       style="display: inline-block; background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
+                        Verify Email Address
+                    </a>
+                </p>
+                <p>This link will expire in 24 hours.</p>
+                <p>If you didn't create an account with TekVwarho ProAudit, you can safely ignore this email.</p>
+                <p>Best regards,<br>The TekVwarho Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        body_text = f"""
+        Verify Your Email Address
+        
+        Hi {user_name},
+        
+        Thank you for registering with TekVwarho ProAudit! Please verify your email address by visiting the link below:
+        
+        {verification_url}
+        
+        This link will expire in 24 hours.
+        
+        If you didn't create an account with TekVwarho ProAudit, you can safely ignore this email.
+        
+        Best regards,
+        The TekVwarho Team
         """
         
         return await self.send_email(EmailMessage(

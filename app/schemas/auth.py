@@ -67,6 +67,16 @@ class PasswordChangeRequest(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=100)
 
 
+class EmailVerificationRequest(BaseModel):
+    """Schema for email verification request."""
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    """Schema for resending verification email."""
+    email: EmailStr
+
+
 # ===========================================
 # RESPONSE SCHEMAS
 # ===========================================
@@ -89,6 +99,7 @@ class UserResponse(BaseModel):
     role: Optional[str] = None  # Organization role (null for platform staff)
     is_active: bool
     is_verified: bool
+    must_reset_password: bool = False  # Force password reset on first login
     organization_id: Optional[UUID] = None  # Null for platform staff
     # RBAC fields
     is_platform_staff: bool = False

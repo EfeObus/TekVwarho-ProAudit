@@ -24,7 +24,10 @@ from app.schemas.auth import (
     OrganizationResponse,
     EntityAccessResponse,
     MessageResponse,
+    EmailVerificationRequest,
+    ResendVerificationRequest,
 )
+from app.config import settings
 from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
 from app.utils.security import verify_refresh_token
@@ -38,7 +41,7 @@ router = APIRouter()
     response_model=UserWithTokenResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user",
-    description="Register a new user with organization. Creates user, organization, and default business entity.",
+    description="Register a new user with organization. Creates user, organization, and default business entity. Sends verification email.",
 )
 async def register(
     request: UserRegisterRequest,
@@ -46,6 +49,7 @@ async def register(
 ):
     """Register a new user with organization."""
     auth_service = AuthService(db)
+    email_service = EmailService()
     
     try:
         user, organization, entity = await auth_service.register_user(
@@ -62,6 +66,19 @@ async def register(
             detail=str(e),
         )
     
+    # Send verification email
+    try:
+        verification_token = auth_service.create_email_verification_token(user)
+        verification_url = f"{settings.base_url}/verify-email?token={verification_token}"
+        await email_service.send_verification_email(
+            to_email=user.email,
+            user_name=user.first_name,
+            verification_url=verification_url,
+        )
+    except Exception:
+        # Log the error but don't fail registration
+        pass
+    
     # Create tokens
     tokens = auth_service.create_tokens(user)
     
@@ -75,6 +92,7 @@ async def register(
             role=user.role.value if user.role else None,
             is_active=user.is_active,
             is_verified=user.is_verified,
+            must_reset_password=getattr(user, 'must_reset_password', False),
             organization_id=user.organization_id,
             is_platform_staff=user.is_platform_staff,
             platform_role=user.platform_role.value if user.platform_role else None,
@@ -127,6 +145,7 @@ async def login(
             role=user.role.value if user.role else None,
             is_active=user.is_active,
             is_verified=user.is_verified,
+            must_reset_password=getattr(user, 'must_reset_password', False),
             organization_id=user.organization_id,
             is_platform_staff=user.is_platform_staff,
             platform_role=user.platform_role.value if user.platform_role else None,
@@ -238,6 +257,7 @@ async def get_me(
             role=current_user.role.value if current_user.role else None,
             is_active=current_user.is_active,
             is_verified=current_user.is_verified,
+            must_reset_password=getattr(current_user, 'must_reset_password', False),
             organization_id=current_user.organization_id,
             is_platform_staff=current_user.is_platform_staff,
             platform_role=current_user.platform_role.value if current_user.platform_role else None,
@@ -322,7 +342,7 @@ async def forgot_password(
     # Always return success to prevent email enumeration attacks
     if user:
         reset_token = auth_service.create_password_reset_token(user)
-        reset_url = f"/reset-password?token={reset_token}"
+        reset_url = f"{settings.base_url}/reset-password?token={reset_token}"
         
         try:
             await email_service.send_password_reset(
@@ -366,6 +386,70 @@ async def reset_password(
     
     return MessageResponse(
         message="Password reset successfully",
+        success=True,
+    )
+
+
+@router.post(
+    "/verify-email",
+    response_model=MessageResponse,
+    summary="Verify email address",
+    description="Verify user's email address using the verification token sent to their email.",
+)
+async def verify_email(
+    request: EmailVerificationRequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Verify email address using verification token."""
+    auth_service = AuthService(db)
+    
+    try:
+        await auth_service.verify_email_with_token(token=request.token)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    
+    return MessageResponse(
+        message="Email verified successfully. You can now access all features.",
+        success=True,
+    )
+
+
+@router.post(
+    "/resend-verification",
+    response_model=MessageResponse,
+    summary="Resend verification email",
+    description="Resend the email verification link to the user's email address.",
+)
+async def resend_verification(
+    request: ResendVerificationRequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Resend verification email."""
+    auth_service = AuthService(db)
+    email_service = EmailService()
+    
+    user = await auth_service.resend_verification_email(request.email)
+    
+    # Always return success to prevent email enumeration attacks
+    if user:
+        verification_token = auth_service.create_email_verification_token(user)
+        verification_url = f"{settings.base_url}/verify-email?token={verification_token}"
+        
+        try:
+            await email_service.send_verification_email(
+                to_email=user.email,
+                user_name=user.first_name,
+                verification_url=verification_url,
+            )
+        except Exception:
+            # Log the error but don't expose to user
+            pass
+    
+    return MessageResponse(
+        message="If an unverified account with that email exists, a verification link has been sent.",
         success=True,
     )
 

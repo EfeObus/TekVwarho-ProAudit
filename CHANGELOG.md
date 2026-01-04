@@ -7,9 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-01-04
+
+### Security & Authentication Enhancements
+
+This release adds comprehensive authentication improvements, email verification, and staff onboarding security features.
+
+### Added
+
+#### Email Verification for Registration
+- **New Endpoint**: `POST /api/v1/auth/verify-email` - Verify email with token
+- **New Endpoint**: `POST /api/v1/auth/resend-verification` - Resend verification email
+- **New Template**: `verify_email.html` - Email verification page
+- **New Functions**: `create_email_verification_token()`, `verify_email_verification_token()` in security utils
+- **New Method**: `send_verification_email()` in EmailService
+- Verification emails sent automatically on registration
+
+#### Staff Onboarding Security
+- **New Field**: `must_reset_password` in User model
+- Forces newly onboarded staff to reset password on first login
+- Automatic redirect to settings page with password reset prompt
+- `must_reset_password` flag cleared after successful password change
+
+#### Password Visibility Toggle
+- Added eye icon toggle to show/hide password on all auth forms
+- Implemented in: login, register, reset_password, forgot_password
+
+#### Global Error Handling
+- Added comprehensive exception handlers in main.py
+- Handlers for: HTTPException, RequestValidationError, ValidationError, ValueError, PermissionError
+- Consistent JSON error responses with proper status codes
+- Structured logging for all errors
+
+### Changed
+
+#### Email Service Configuration
+- Email service now properly reads from environment variables via settings
+- Uses `settings.mail_server`, `settings.mail_port`, `settings.mail_username`, `settings.mail_password`
+- Added `base_url` configuration for email links
+
+#### Password Reset Flow
+- Password reset emails now use full URLs with base_url
+- Verification emails use full URLs with base_url
+- URLs default to `http://localhost:5120` for development
+
+### Fixed
+
+- Removed unnecessary emojis from templates (base, sales, tax_2026, dashboard)
+- Replaced print statements with proper logging in main.py
+- Fixed email service to use correct settings attributes
+
+### Database Migration
+
+- **New Migration**: `20260104_0930_add_must_reset_password.py`
+  - Adds `must_reset_password` boolean column to users table
+
+---
+
 ## [1.5.0] - 2026-01-04
 
-### 🔔 Notification System & Background Tasks
+### Notification System & Background Tasks
 
 This release adds a complete notification system, Celery background tasks, and improved email services.
 

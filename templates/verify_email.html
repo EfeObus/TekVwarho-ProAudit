@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Email - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8" x-data="verifyEmailForm()">
+        <div>
+            <div class="flex justify-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Email Verification
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600" x-show="!success && !error && token">
+                Click the button below to verify your email address.
+            </p>
+            <p class="mt-2 text-center text-sm text-gray-600" x-show="!token && !success">
+                No verification token found. Please check your email for the verification link.
+            </p>
+        </div>
+
+        <!-- Error Message -->
+        <div x-show="error" x-cloak 
+             class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+                <span x-text="error"></span>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div x-show="success" x-cloak 
+             class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                <span x-text="success"></span>
+            </div>
+        </div>
+
+        <!-- Verify Button -->
+        <div x-show="token && !success">
+            <button @click="verifyEmail()"
+                    :disabled="loading"
+                    class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!loading">Verify My Email</span>
+                <span x-show="loading" class="flex items-center">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Verifying...
+                </span>
+            </button>
+        </div>
+
+        <!-- Login Link (shown after success) -->
+        <div x-show="success" class="text-center">
+            <a href="/login" 
+               class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                Continue to Login
+            </a>
+        </div>
+
+        <!-- Resend Verification Link -->
+        <div x-show="!success" class="text-center">
+            <p class="text-sm text-gray-600">
+                Didn't receive the email? 
+                <a href="#" @click.prevent="showResendForm = true" x-show="!showResendForm" class="font-medium text-green-600 hover:text-green-500">
+                    Resend verification email
+                </a>
+            </p>
+            
+            <!-- Resend Form -->
+            <div x-show="showResendForm" class="mt-4">
+                <form @submit.prevent="resendVerification()" class="space-y-4">
+                    <div>
+                        <label for="resend-email" class="sr-only">Email address</label>
+                        <input type="email" 
+                               id="resend-email"
+                               x-model="resendEmail"
+                               required
+                               class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
+                               placeholder="Enter your email address">
+                    </div>
+                    <button type="submit"
+                            :disabled="resendLoading"
+                            class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50">
+                        <span x-show="!resendLoading">Resend Email</span>
+                        <span x-show="resendLoading">Sending...</span>
+                    </button>
+                </form>
+                <p x-show="resendSuccess" class="mt-2 text-sm text-green-600" x-text="resendSuccess"></p>
+            </div>
+        </div>
+
+        <!-- Back to Login -->
+        <div class="text-center">
+            <a href="/login" class="text-sm font-medium text-gray-600 hover:text-gray-500">
+                Back to Login
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function verifyEmailForm() {
+    return {
+        token: '{{ token or "" }}',
+        loading: false,
+        error: null,
+        success: null,
+        showResendForm: false,
+        resendEmail: '',
+        resendLoading: false,
+        resendSuccess: null,
+        
+        async verifyEmail() {
+            if (!this.token) {
+                this.error = 'No verification token provided.';
+                return;
+            }
+            
+            this.loading = true;
+            this.error = null;
+            
+            try {
+                const response = await fetch('/api/v1/auth/verify-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        token: this.token
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Verification failed');
+                }
+                
+                this.success = data.message || 'Email verified successfully!';
+            } catch (err) {
+                this.error = err.message || 'An error occurred during verification.';
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async resendVerification() {
+            if (!this.resendEmail) {
+                return;
+            }
+            
+            this.resendLoading = true;
+            this.resendSuccess = null;
+            
+            try {
+                const response = await fetch('/api/v1/auth/resend-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: this.resendEmail
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to resend verification email');
+                }
+                
+                this.resendSuccess = data.message || 'Verification email sent!';
+                this.showResendForm = false;
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.resendLoading = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     debug: bool = True
     secret_key: str  # Required - must be set in .env
     api_version: str = "v1"
+    base_url: str = "http://localhost:5120"  # Base URL for email links
     
     # ===========================================
     # DATABASE CONFIGURATION
@@ -91,11 +92,48 @@ class Settings(BaseSettings):
     # ===========================================
     # EMAIL CONFIGURATION
     # ===========================================
-    mail_server: str = "smtp.gmail.com"
+    mail_server: str = "smtp.office365.com"
     mail_port: int = 587
     mail_use_tls: bool = True
     mail_username: str = ""
     mail_password: str = ""
+    mail_from: str = ""
+    mail_from_name: str = "TekVwarho ProAudit"
+    
+    @property
+    def smtp_host(self) -> str:
+        """SMTP host server."""
+        return self.mail_server
+    
+    @property
+    def smtp_port(self) -> int:
+        """SMTP port."""
+        return self.mail_port
+    
+    @property
+    def smtp_username(self) -> str:
+        """SMTP username."""
+        return self.mail_username
+    
+    @property
+    def smtp_password(self) -> str:
+        """SMTP password."""
+        return self.mail_password
+    
+    @property
+    def smtp_use_tls(self) -> bool:
+        """Whether to use TLS for SMTP."""
+        return self.mail_use_tls
+    
+    @property
+    def email_from(self) -> str:
+        """Email from address."""
+        return self.mail_from or self.mail_username
+    
+    @property
+    def email_from_name(self) -> str:
+        """Email from display name."""
+        return self.mail_from_name
     
     # ===========================================
     # SUPER ADMIN CONFIGURATION (Hardcoded Credentials)

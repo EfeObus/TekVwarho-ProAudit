@@ -516,3 +516,13 @@ async def forgot_password_page(request: Request):
 async def reset_password_page(request: Request, token: str = None):
     """Reset password page."""
     return templates.TemplateResponse("reset_password.html", {"request": request, "token": token})
+
+
+# ===========================================
+# EMAIL VERIFICATION
+# ===========================================
+
+@router.get("/verify-email", response_class=HTMLResponse)
+async def verify_email_page(request: Request, token: str = None):
+    """Email verification page."""
+    return templates.TemplateResponse("verify_email.html", {"request": request, "token": token})

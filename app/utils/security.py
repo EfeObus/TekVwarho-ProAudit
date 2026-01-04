@@ -227,3 +227,51 @@ def verify_password_reset_token(token: str) -> Optional[dict]:
     if payload and payload.get("type") == "password_reset":
         return payload
     return None
+
+
+def create_email_verification_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """
+    Create a JWT email verification token.
+    
+    Args:
+        data: Dictionary containing token payload (should have user_id and email)
+        expires_delta: Optional custom expiration time (default: 24 hours)
+    
+    Returns:
+        Encoded JWT token string
+    """
+    to_encode = data.copy()
+    
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(hours=24)  # 24 hour expiry
+    
+    to_encode.update({"exp": expire, "type": "email_verification"})
+    
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm
+    )
+    
+    return encoded_jwt
+
+
+def verify_email_verification_token(token: str) -> Optional[dict]:
+    """
+    Verify an email verification token and return payload.
+    
+    Args:
+        token: JWT email verification token string
+    
+    Returns:
+        Token payload dict or None if invalid
+    """
+    payload = decode_token(token)
+    if payload and payload.get("type") == "email_verification":
+        return payload
+    return None

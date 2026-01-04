@@ -155,6 +155,7 @@ class StaffManagementService:
             organization_id=None,
             is_active=True,
             is_verified=True,  # Staff are pre-verified
+            must_reset_password=True,  # Force password reset on first login
             onboarded_by_id=onboarding_user.id,
             staff_notes=staff_notes,
         )

@@ -24,6 +24,8 @@ from app.utils.security import (
     create_password_reset_token,
     verify_password_reset_token,
     verify_access_token,
+    create_email_verification_token,
+    verify_email_verification_token,
 )
 from app.config import settings
 
@@ -191,6 +193,7 @@ class AuthService:
             raise ValueError("Current password is incorrect")
         
         user.hashed_password = get_password_hash(new_password)
+        user.must_reset_password = False  # Clear the flag after password change
         await self.db.commit()
         
         return True
@@ -246,6 +249,7 @@ class AuthService:
             raise ValueError("User not found")
         
         user.hashed_password = get_password_hash(new_password)
+        user.must_reset_password = False  # Clear the flag after password reset
         await self.db.commit()
         
         return True
@@ -274,3 +278,62 @@ class AuthService:
             return user
         except (ValueError, TypeError):
             return None
+
+    def create_email_verification_token(self, user: User) -> str:
+        """
+        Create an email verification token for user.
+        
+        Returns:
+            Email verification token string
+        """
+        token_data = {
+            "sub": str(user.id),
+            "email": user.email,
+        }
+        return create_email_verification_token(token_data)
+    
+    async def verify_email_with_token(self, token: str) -> bool:
+        """
+        Verify user email using verification token.
+        
+        Returns:
+            True if email verified successfully
+        """
+        payload = verify_email_verification_token(token)
+        
+        if not payload:
+            raise ValueError("Invalid or expired verification token")
+        
+        user_id = payload.get("sub")
+        if not user_id:
+            raise ValueError("Invalid token payload")
+        
+        user = await self.get_user_by_id(uuid.UUID(user_id))
+        
+        if not user:
+            raise ValueError("User not found")
+        
+        if user.is_verified:
+            raise ValueError("Email is already verified")
+        
+        user.is_verified = True
+        await self.db.commit()
+        
+        return True
+    
+    async def resend_verification_email(self, email: str) -> Optional[User]:
+        """
+        Get user by email for resending verification email.
+        
+        Returns:
+            User if found and not verified, None otherwise
+        """
+        user = await self.get_user_by_email(email)
+        
+        if not user:
+            return None
+        
+        if user.is_verified:
+            return None  # Already verified
+        
+        return user
