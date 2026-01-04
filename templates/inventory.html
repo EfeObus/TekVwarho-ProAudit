@@ -116,7 +116,7 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="item.sku || '-'"></td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="text-sm font-medium text-gray-900" x-text="item.quantity_on_hand"></span>
-                                <span class="text-sm text-gray-500" x-text="' ' + (item.unit || 'units')"></span>
+                                <span class="text-sm text-gray-500" x-text="' ' + (item.unit_of_measure || 'pcs')"></span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 ₦<span x-text="formatCurrency(item.unit_cost || 0)"></span>
@@ -166,18 +166,20 @@
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">SKU</label>
-                                <input type="text" x-model="form.sku" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">SKU *</label>
+                                <input type="text" x-model="form.sku" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                                <select x-model="form.unit" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                                    <option value="units">Units</option>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Unit of Measure</label>
+                                <select x-model="form.unit_of_measure" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                                     <option value="pcs">Pieces</option>
+                                    <option value="units">Units</option>
                                     <option value="kg">Kilograms</option>
                                     <option value="liters">Liters</option>
                                     <option value="boxes">Boxes</option>
                                     <option value="packs">Packs</option>
+                                    <option value="cartons">Cartons</option>
+                                    <option value="meters">Meters</option>
                                 </select>
                             </div>
                         </div>
@@ -188,21 +190,25 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unit Cost (₦)</label>
-                                <input type="number" step="0.01" x-model="form.unit_cost" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <input type="number" step="0.01" min="0" x-model="form.unit_cost" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Selling Price (₦)</label>
-                                <input type="number" step="0.01" x-model="form.selling_price" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <input type="number" step="0.01" min="0" x-model="form.unit_price" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
-                                <input type="number" x-model="form.quantity_on_hand" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <input type="number" min="0" x-model="form.quantity_on_hand" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
-                                <input type="number" x-model="form.reorder_level" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <input type="number" min="0" x-model="form.reorder_level" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Reorder Qty</label>
+                                <input type="number" min="0" x-model="form.reorder_quantity" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                             </div>
                         </div>
                     </div>
@@ -227,14 +233,22 @@
                 
                 <div class="mb-4 p-3 bg-gray-50 rounded-lg">
                     <p class="text-sm text-gray-600">Item: <span class="font-medium text-gray-900" x-text="selectedItem?.name"></span></p>
-                    <p class="text-sm text-gray-600">Current Quantity: <span class="font-medium text-gray-900" x-text="selectedItem?.quantity_on_hand"></span></p>
+                    <p class="text-sm text-gray-600">Current Quantity: <span class="font-medium text-gray-900" x-text="selectedItem?.quantity_on_hand + ' ' + (selectedItem?.unit_of_measure || 'pcs')"></span></p>
                 </div>
                 
                 <form @submit.prevent="submitAdjustment()">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
                             <input type="number" x-model="adjustForm.quantity" required min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div x-show="adjustType === 'receive'">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Unit Cost (₦) *</label>
+                            <input type="number" step="0.01" min="0" x-model="adjustForm.unit_cost" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div x-show="adjustType === 'receive'">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reference (PO Number)</label>
+                            <input type="text" x-model="adjustForm.reference" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="e.g., PO-2026-001">
                         </div>
                         <div x-show="adjustType === 'adjust'">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Adjustment Type</label>
@@ -244,8 +258,8 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Reason/Notes</label>
-                            <textarea x-model="adjustForm.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" x-text="adjustType === 'receive' ? 'Notes' : 'Reason *'"></label>
+                            <textarea x-model="adjustForm.notes" rows="2" :required="adjustType === 'adjust'" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" :placeholder="adjustType === 'receive' ? 'Optional notes' : 'Reason for adjustment'"></textarea>
                         </div>
                     </div>
                     
@@ -275,15 +289,18 @@ function inventoryPage() {
         form: {
             name: '',
             sku: '',
-            unit: 'units',
+            unit_of_measure: 'pcs',
             description: '',
-            unit_cost: '',
-            selling_price: '',
+            unit_cost: 0,
+            unit_price: 0,
             quantity_on_hand: 0,
-            reorder_level: 10,
+            reorder_level: 0,
+            reorder_quantity: 0,
         },
         adjustForm: {
             quantity: 1,
+            unit_cost: 0,
+            reference: '',
             adjustment_type: 'add',
             notes: '',
         },
@@ -302,7 +319,9 @@ function inventoryPage() {
                 });
                 
                 if (response.ok) {
-                    this.items = await response.json();
+                    const data = await response.json();
+                    // API returns { items: [], total: int, low_stock_count: int }
+                    this.items = data.items || [];
                     this.filteredItems = this.items;
                     this.calculateStats();
                 }
@@ -351,14 +370,26 @@ function inventoryPage() {
         receiveStock(item) {
             this.selectedItem = item;
             this.adjustType = 'receive';
-            this.adjustForm = { quantity: 1, adjustment_type: 'add', notes: '' };
+            this.adjustForm = { 
+                quantity: 1, 
+                unit_cost: item.unit_cost || 0,
+                reference: '',
+                adjustment_type: 'add', 
+                notes: '' 
+            };
             this.showAdjustModal = true;
         },
         
         adjustStock(item) {
             this.selectedItem = item;
             this.adjustType = 'adjust';
-            this.adjustForm = { quantity: 1, adjustment_type: 'add', notes: '' };
+            this.adjustForm = { 
+                quantity: 1, 
+                unit_cost: 0,
+                reference: '',
+                adjustment_type: 'add', 
+                notes: '' 
+            };
             this.showAdjustModal = true;
         },
         
@@ -384,9 +415,13 @@ function inventoryPage() {
                     this.showModal = false;
                     this.resetForm();
                     await this.loadItems();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to save item');
                 }
             } catch (error) {
                 console.error('Failed to save item:', error);
+                alert('An error occurred while saving the item');
             }
         },
         
@@ -395,19 +430,43 @@ function inventoryPage() {
                 const entityId = localStorage.getItem('currentEntityId');
                 const token = localStorage.getItem('token');
                 
-                const endpoint = this.adjustType === 'receive' ? 'receive' : 'adjust';
+                let endpoint, body;
+                
+                if (this.adjustType === 'receive') {
+                    // StockReceiveRequest: quantity, unit_cost, reference, notes, receive_date
+                    endpoint = 'receive';
+                    body = {
+                        quantity: parseInt(this.adjustForm.quantity),
+                        unit_cost: parseFloat(this.adjustForm.unit_cost) || 0,
+                        reference: this.adjustForm.reference || null,
+                        notes: this.adjustForm.notes || null,
+                    };
+                } else {
+                    // StockAdjustmentRequest: quantity_change, reason, reference, adjustment_date
+                    endpoint = 'adjust';
+                    const multiplier = this.adjustForm.adjustment_type === 'add' ? 1 : -1;
+                    body = {
+                        quantity_change: parseInt(this.adjustForm.quantity) * multiplier,
+                        reason: this.adjustForm.notes || 'Manual adjustment',
+                        reference: this.adjustForm.reference || null,
+                    };
+                }
+                
                 const response = await fetch(`/api/v1/entities/${entityId}/inventory/${this.selectedItem.id}/${endpoint}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(this.adjustForm),
+                    body: JSON.stringify(body),
                 });
                 
                 if (response.ok) {
                     this.showAdjustModal = false;
                     await this.loadItems();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to update stock');
                 }
             } catch (error) {
                 console.error('Failed to adjust stock:', error);
@@ -419,12 +478,13 @@ function inventoryPage() {
             this.form = {
                 name: '',
                 sku: '',
-                unit: 'units',
+                unit_of_measure: 'pcs',
                 description: '',
-                unit_cost: '',
-                selling_price: '',
+                unit_cost: 0,
+                unit_price: 0,
                 quantity_on_hand: 0,
-                reorder_level: 10,
+                reorder_level: 0,
+                reorder_quantity: 0,
             };
         },
         
