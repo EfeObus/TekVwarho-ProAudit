@@ -28,7 +28,32 @@ from app.services.invoice_service import InvoiceService
 from app.services.notification_service import NotificationService
 from app.services.email_service import EmailService
 from app.services.dashboard_service import DashboardService
-from app.services.tax_calculator import VAT2026Calculator, DevelopmentLevyCalculator
+from app.services.tax_calculators import VATCalculator, NIGERIA_VAT_RATE
+from app.services.development_levy_service import DevelopmentLevyService
+
+
+# Backward compatibility aliases for tests
+class VAT2026Calculator:
+    """Wrapper for VATCalculator with 2026 compliance."""
+    @staticmethod
+    def calculate_vat(amount):
+        _, vat, total = VATCalculator.calculate_vat(amount)
+        return vat, total
+
+
+class DevelopmentLevyCalculator:
+    """Wrapper for Development Levy calculations."""
+    def __init__(self):
+        self.levy_rate = 0.04  # 4%
+        
+    def calculate(self, assessable_profit, is_exempt=False):
+        if is_exempt:
+            return 0
+        return float(assessable_profit) * self.levy_rate
+    
+    def is_exempt(self, annual_turnover, fixed_assets_value):
+        # Exempt if turnover <= ₦100M AND assets <= ₦250M
+        return annual_turnover <= 100_000_000 and fixed_assets_value <= 250_000_000
 
 
 # ===========================================

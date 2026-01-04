@@ -68,23 +68,26 @@
                             <span class="px-2 py-1 text-xs font-medium rounded-full"
                                   :class="{
                                       'bg-gray-100 text-gray-800': inv.status === 'draft',
-                                      'bg-amber-100 text-amber-800': inv.status === 'finalized',
-                                      'bg-green-100 text-green-800': inv.status === 'paid',
-                                      'bg-red-100 text-red-800': inv.status === 'cancelled' || inv.status === 'overdue',
+                                      'bg-amber-100 text-amber-800': inv.status === 'pending',
+                                      'bg-purple-100 text-purple-800': inv.status === 'submitted',
+                                      'bg-blue-100 text-blue-800': inv.status === 'accepted',
+                                      'bg-green-100 text-green-800': inv.status === 'paid' || inv.status === 'partially_paid',
+                                      'bg-red-100 text-red-800': inv.status === 'cancelled' || inv.status === 'rejected' || inv.is_overdue,
+                                      'bg-orange-100 text-orange-800': inv.status === 'disputed',
                                   }"
-                                  x-text="inv.status.charAt(0).toUpperCase() + inv.status.slice(1)">
+                                  x-text="getStatusLabel(inv)">
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            <span x-show="inv.irn" class="text-green-600" title="NRS Submitted">✓</span>
-                            <span x-show="!inv.irn && inv.status === 'finalized'" class="text-amber-600" title="Pending NRS">⏳</span>
-                            <span x-show="!inv.irn && inv.status === 'draft'" class="text-gray-400">-</span>
+                            <span x-show="inv.nrs_irn" class="text-green-600 cursor-pointer" :title="'IRN: ' + inv.nrs_irn" @click="showNRSDetails(inv)">✓</span>
+                            <span x-show="!inv.nrs_irn && inv.status === 'pending'" class="text-amber-600" title="Ready for NRS Submission">⏳</span>
+                            <span x-show="!inv.nrs_irn && inv.status === 'draft'" class="text-gray-400" title="Finalize first">-</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm space-x-2">
                             <button @click="viewInvoice(inv)" class="text-blue-600 hover:text-blue-800">View</button>
                             <button x-show="inv.status === 'draft'" @click="finalizeInvoice(inv.id)" class="text-green-600 hover:text-green-800">Finalize</button>
-                            <button x-show="inv.status === 'finalized' && !inv.irn" @click="submitToNRS(inv.id)" class="text-purple-600 hover:text-purple-800">NRS</button>
-                            <button x-show="inv.status === 'finalized'" @click="recordPayment(inv)" class="text-amber-600 hover:text-amber-800">Pay</button>
+                            <button x-show="inv.status === 'pending' && !inv.nrs_irn" @click="submitToNRS(inv.id)" class="text-purple-600 hover:text-purple-800">NRS</button>
+                            <button x-show="['pending', 'submitted', 'accepted'].includes(inv.status)" @click="recordPayment(inv)" class="text-amber-600 hover:text-amber-800">Pay</button>
                         </td>
                     </tr>
                 </template>
@@ -243,12 +246,39 @@ function invoicesPage() {
             
             this.invoices.forEach(inv => {
                 if (inv.status === 'draft') this.stats.draft++;
-                else if (inv.status === 'paid') this.stats.paid++;
-                else if (inv.status === 'finalized') {
-                    if (inv.due_date < today) this.stats.overdue++;
+                else if (inv.status === 'paid' || inv.status === 'partially_paid') this.stats.paid++;
+                else if (['pending', 'submitted', 'accepted'].includes(inv.status)) {
+                    if (inv.is_overdue) this.stats.overdue++;
                     else this.stats.pending++;
                 }
             });
+        },
+        
+        getStatusLabel(inv) {
+            const statusLabels = {
+                'draft': 'Draft',
+                'pending': 'Pending',
+                'submitted': 'NRS Submitted',
+                'accepted': 'Accepted',
+                'rejected': 'Rejected',
+                'disputed': 'Disputed',
+                'cancelled': 'Cancelled',
+                'paid': 'Paid',
+                'partially_paid': 'Partial',
+            };
+            if (inv.is_overdue && !['paid', 'cancelled'].includes(inv.status)) {
+                return 'Overdue';
+            }
+            return statusLabels[inv.status] || inv.status;
+        },
+        
+        showNRSDetails(inv) {
+            const details = [
+                `IRN: ${inv.nrs_irn || 'N/A'}`,
+                `Submitted: ${inv.nrs_submitted_at ? this.formatDate(inv.nrs_submitted_at) : 'N/A'}`,
+                `Dispute Deadline: ${inv.dispute_deadline ? this.formatDate(inv.dispute_deadline) : 'N/A'}`,
+            ];
+            alert('NRS E-Invoice Details\n\n' + details.join('\n'));
         },
         
         resetForm() {
@@ -309,7 +339,7 @@ function invoicesPage() {
         },
         
         async submitToNRS(id) {
-            if (!confirm('Submit this invoice to Nigeria Revenue Service (NRS)?')) return;
+            if (!confirm('Submit this invoice to Nigeria Revenue Service (NRS) for IRN generation?')) return;
             
             try {
                 const response = await fetch(`/api/v1/entities/${this.entityId}/invoices/${id}/submit-nrs`, {
@@ -317,24 +347,78 @@ function invoicesPage() {
                     headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
                 });
                 
-                if (response.ok) {
-                    alert('Invoice submitted to NRS successfully!');
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    const details = [
+                        'Invoice submitted to NRS successfully!',
+                        '',
+                        `IRN: ${result.nrs_irn || 'Processing...'}`,
+                        `Submitted: ${result.submitted_at ? new Date(result.submitted_at).toLocaleString() : 'Now'}`,
+                        result.dispute_deadline ? `Dispute Deadline: ${new Date(result.dispute_deadline).toLocaleString()}` : '',
+                    ].filter(Boolean).join('\n');
+                    alert(details);
                     this.loadInvoices();
+                } else {
+                    alert(`NRS Submission Failed: ${result.message || result.detail || 'Unknown error'}`);
                 }
             } catch (error) {
                 console.error('Failed to submit to NRS:', error);
+                alert('Failed to submit to NRS. Please try again.');
             }
         },
         
         viewInvoice(inv) {
-            window.location.href = `/invoices/${inv.id}`;
+            // Show invoice details modal with NRS info
+            const details = [
+                `Invoice: ${inv.invoice_number}`,
+                `Customer: ${inv.customer_name || 'N/A'}`,
+                `Amount: ${this.formatCurrency(inv.total_amount)}`,
+                `Status: ${this.getStatusLabel(inv)}`,
+                '',
+                'NRS E-Invoicing:',
+                `  IRN: ${inv.nrs_irn || 'Not submitted'}`,
+                `  Submitted: ${inv.nrs_submitted_at ? this.formatDate(inv.nrs_submitted_at) : 'N/A'}`,
+                `  Dispute Deadline: ${inv.dispute_deadline ? this.formatDate(inv.dispute_deadline) : 'N/A'}`,
+            ];
+            alert(details.join('\n'));
         },
         
-        recordPayment(inv) {
-            const amount = prompt(`Enter payment amount (Outstanding: ${this.formatCurrency(inv.total_amount - inv.amount_paid)}):`);
-            if (amount) {
-                // TODO: Implement payment recording
-                console.log('Record payment:', amount);
+        async recordPayment(inv) {
+            const outstanding = inv.total_amount - inv.amount_paid;
+            const amount = prompt(`Enter payment amount (Outstanding: ${this.formatCurrency(outstanding)}):`);
+            if (!amount) return;
+            
+            const paymentAmount = parseFloat(amount);
+            if (isNaN(paymentAmount) || paymentAmount <= 0) {
+                alert('Please enter a valid payment amount.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/invoices/${inv.id}/payments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                    },
+                    body: JSON.stringify({
+                        amount: paymentAmount,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_method: 'bank_transfer',
+                    }),
+                });
+                
+                if (response.ok) {
+                    alert('Payment recorded successfully!');
+                    this.loadInvoices();
+                } else {
+                    const error = await response.json();
+                    alert(`Failed to record payment: ${error.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Failed to record payment:', error);
+                alert('Failed to record payment. Please try again.');
             }
         },
         

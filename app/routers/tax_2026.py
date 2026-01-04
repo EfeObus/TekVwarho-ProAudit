@@ -29,6 +29,12 @@ from app.services.vat_recovery_service import VATRecoveryService
 from app.services.development_levy_service import DevelopmentLevyService
 from app.services.pit_relief_service import PITReliefService
 from app.services.entity_service import EntityService
+from app.services.tin_validation_service import (
+    TINValidationService,
+    TINEntityType,
+    TINValidationStatus,
+    TINValidationResult,
+)
 from app.schemas.auth import MessageResponse
 
 
@@ -1025,4 +1031,214 @@ async def compare_business_types():
             "suitable_for": "Growing businesses, those seeking investment, contractors",
         },
         "2026_reform_note": "The 2026 reforms introduced clearer distinctions and simplified compliance for both structures.",
+    }
+
+
+# ===========================================
+# TIN VALIDATION ENDPOINTS (NRS TaxID Portal)
+# ===========================================
+
+class TINValidationRequest(BaseModel):
+    """Request to validate a TIN."""
+    tin: str = Field(..., min_length=10, max_length=18, description="Tax Identification Number to validate")
+    entity_type: Optional[str] = Field(
+        None, 
+        description="Type of entity: individual, business_name, company, incorporated_trustee, limited_partnership, llp"
+    )
+    search_term: Optional[str] = Field(
+        None,
+        description="NIN for individuals, or business name for corporate entities"
+    )
+
+
+class TINValidationResponse(BaseModel):
+    """Response from TIN validation."""
+    is_valid: bool
+    tin: str
+    status: str
+    entity_type: Optional[str] = None
+    registered_name: Optional[str] = None
+    rc_number: Optional[str] = None
+    registration_date: Optional[str] = None
+    address: Optional[str] = None
+    tax_office: Optional[str] = None
+    vat_registered: Optional[bool] = None
+    message: str
+    validated_at: Optional[str] = None
+
+
+class BulkTINValidationRequest(BaseModel):
+    """Request to validate multiple TINs."""
+    tins: List[str] = Field(..., min_length=1, max_length=50, description="List of TINs to validate")
+
+
+class BulkTINValidationResponse(BaseModel):
+    """Response from bulk TIN validation."""
+    total: int
+    valid_count: int
+    invalid_count: int
+    results: List[TINValidationResponse]
+
+
+@router.post(
+    "/tin/validate",
+    response_model=TINValidationResponse,
+    summary="Validate a TIN",
+    tags=["2026 Reform - TIN Validation"],
+)
+async def validate_tin(
+    request: TINValidationRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Validate a Tax Identification Number (TIN) via NRS TaxID Portal.
+    
+    2026 Compliance Requirement:
+    - Mandatory TIN validation for all individuals and businesses
+    - All vendors/suppliers must have valid TINs before contracts
+    - Failure to validate can result in ₦5,000,000 penalty
+    
+    Portal: https://taxid.nrs.gov.ng/
+    """
+    service = TINValidationService(db)
+    
+    # Convert entity_type string to enum if provided
+    entity_type = None
+    if request.entity_type:
+        try:
+            entity_type = TINEntityType(request.entity_type)
+        except ValueError:
+            pass  # Invalid entity type, proceed without it
+    
+    result = await service.validate_tin(
+        tin=request.tin,
+        entity_type=entity_type,
+        search_term=request.search_term,
+    )
+    
+    return TINValidationResponse(
+        is_valid=result.is_valid,
+        tin=result.tin,
+        status=result.status.value,
+        entity_type=result.entity_type.value if result.entity_type else None,
+        registered_name=result.registered_name,
+        rc_number=result.rc_number,
+        registration_date=result.registration_date,
+        address=result.address,
+        tax_office=result.tax_office,
+        vat_registered=result.vat_registered,
+        message=result.message,
+        validated_at=result.validated_at.isoformat() if result.validated_at else None,
+    )
+
+
+@router.post(
+    "/tin/validate-bulk",
+    response_model=BulkTINValidationResponse,
+    summary="Bulk validate TINs",
+    tags=["2026 Reform - TIN Validation"],
+)
+async def validate_tins_bulk(
+    request: BulkTINValidationRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Validate multiple TINs in a single request.
+    
+    Useful for bulk vendor/customer onboarding.
+    Maximum 50 TINs per request.
+    """
+    service = TINValidationService(db)
+    
+    results = []
+    valid_count = 0
+    invalid_count = 0
+    
+    for tin in request.tins:
+        result = await service.validate_tin(tin=tin)
+        
+        if result.is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
+        
+        results.append(TINValidationResponse(
+            is_valid=result.is_valid,
+            tin=result.tin,
+            status=result.status.value,
+            entity_type=result.entity_type.value if result.entity_type else None,
+            registered_name=result.registered_name,
+            rc_number=result.rc_number,
+            registration_date=result.registration_date,
+            address=result.address,
+            tax_office=result.tax_office,
+            vat_registered=result.vat_registered,
+            message=result.message,
+            validated_at=result.validated_at.isoformat() if result.validated_at else None,
+        ))
+    
+    return BulkTINValidationResponse(
+        total=len(request.tins),
+        valid_count=valid_count,
+        invalid_count=invalid_count,
+        results=results,
+    )
+
+
+@router.get(
+    "/tin/entity-types",
+    summary="Get TIN entity types",
+    tags=["2026 Reform - TIN Validation"],
+)
+async def get_tin_entity_types():
+    """
+    Get list of entity types supported for TIN validation.
+    
+    Each entity type has different validation requirements:
+    - Individual: Requires NIN (National Identification Number)
+    - Corporate: Requires CAC registration details
+    """
+    return {
+        "entity_types": [
+            {
+                "value": "individual",
+                "label": "Individual",
+                "description": "Individual taxpayer with NIN",
+                "requires": "NIN (National Identification Number)",
+            },
+            {
+                "value": "business_name",
+                "label": "Business Name",
+                "description": "Sole Proprietorship registered with CAC",
+                "requires": "Business Name registration number",
+            },
+            {
+                "value": "company",
+                "label": "Limited Liability Company",
+                "description": "Company registered with CAC",
+                "requires": "RC Number",
+            },
+            {
+                "value": "incorporated_trustee",
+                "label": "Incorporated Trustee",
+                "description": "NGOs, Churches, Associations",
+                "requires": "IT Number",
+            },
+            {
+                "value": "limited_partnership",
+                "label": "Limited Partnership",
+                "description": "Partnership with limited liability partners",
+                "requires": "LP Number",
+            },
+            {
+                "value": "llp",
+                "label": "Limited Liability Partnership",
+                "description": "Professional partnership with LLP registration",
+                "requires": "LLP Number",
+            },
+        ],
+        "portal_url": "https://taxid.nrs.gov.ng/",
+        "compliance_note": "2026 NTAA requires TIN validation for all business transactions above ₦100,000",
     }
