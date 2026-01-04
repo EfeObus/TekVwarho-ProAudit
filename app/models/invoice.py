@@ -224,6 +224,29 @@ class Invoice(BaseModel, AuditMixin):
         comment="Reference to original invoice if this is a credit note",
     )
     
+    # B2C Real-time Reporting (24-hour NRS mandate for transactions > ₦50,000)
+    is_b2c_reportable: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="True if B2C transaction > ₦50,000 threshold",
+    )
+    b2c_reported_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When transaction was reported to NRS",
+    )
+    b2c_report_reference: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="NRS B2C report reference number",
+    )
+    b2c_report_deadline: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="24-hour deadline for B2C reporting",
+    )
+    
     # Notes
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     terms: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

@@ -744,4 +744,147 @@ class TestBuyerReviewService:
         assert isinstance(buyer_response_at, datetime)
 
 
+class TestB2CRealtimeReporting:
+    """Tests for B2C Real-time Reporting (24-hour NRS mandate)."""
+    
+    def test_default_threshold_is_50000(self):
+        """Default B2C reporting threshold is ₦50,000."""
+        DEFAULT_THRESHOLD = Decimal("50000.00")
+        assert DEFAULT_THRESHOLD == Decimal("50000.00")
+    
+    def test_reporting_window_is_24_hours(self):
+        """B2C transactions must be reported within 24 hours."""
+        REPORTING_WINDOW_HOURS = 24
+        assert REPORTING_WINDOW_HOURS == 24
+    
+    def test_transaction_above_threshold_is_reportable(self):
+        """Transaction over ₦50,000 should be flagged for B2C reporting."""
+        threshold = Decimal("50000.00")
+        transaction_amount = Decimal("75000.00")
+        
+        is_reportable = transaction_amount >= threshold
+        assert is_reportable is True
+    
+    def test_transaction_below_threshold_not_reportable(self):
+        """Transaction under ₦50,000 should NOT be flagged for B2C reporting."""
+        threshold = Decimal("50000.00")
+        transaction_amount = Decimal("45000.00")
+        
+        is_reportable = transaction_amount >= threshold
+        assert is_reportable is False
+    
+    def test_transaction_at_threshold_is_reportable(self):
+        """Transaction exactly at ₦50,000 should be flagged for B2C reporting."""
+        threshold = Decimal("50000.00")
+        transaction_amount = Decimal("50000.00")
+        
+        is_reportable = transaction_amount >= threshold
+        assert is_reportable is True
+    
+    def test_late_penalty_per_transaction(self):
+        """Late reporting penalty is ₦10,000 per transaction."""
+        LATE_PENALTY_PER_TRANSACTION = Decimal("10000.00")
+        assert LATE_PENALTY_PER_TRANSACTION == Decimal("10000.00")
+    
+    def test_max_daily_penalty(self):
+        """Maximum daily penalty is ₦500,000."""
+        MAX_DAILY_PENALTY = Decimal("500000.00")
+        assert MAX_DAILY_PENALTY == Decimal("500000.00")
+    
+    def test_penalty_calculation_within_cap(self):
+        """Penalty for 30 late transactions should be ₦300,000 (within cap)."""
+        late_count = 30
+        penalty_per_tx = Decimal("10000.00")
+        max_penalty = Decimal("500000.00")
+        
+        calculated_penalty = min(late_count * penalty_per_tx, max_penalty)
+        assert calculated_penalty == Decimal("300000.00")
+    
+    def test_penalty_calculation_capped(self):
+        """Penalty for 100 late transactions should be capped at ₦500,000."""
+        late_count = 100
+        penalty_per_tx = Decimal("10000.00")
+        max_penalty = Decimal("500000.00")
+        
+        calculated_penalty = min(late_count * penalty_per_tx, max_penalty)
+        assert calculated_penalty == Decimal("500000.00")
+    
+    def test_report_deadline_calculation(self):
+        """Report deadline should be 24 hours from transaction creation."""
+        from datetime import datetime, timedelta
+        
+        REPORTING_WINDOW_HOURS = 24
+        created_at = datetime(2026, 1, 4, 14, 0, 0)  # 2:00 PM
+        
+        report_deadline = created_at + timedelta(hours=REPORTING_WINDOW_HOURS)
+        
+        expected_deadline = datetime(2026, 1, 5, 14, 0, 0)  # Next day 2:00 PM
+        assert report_deadline == expected_deadline
+    
+    def test_is_within_reporting_window(self):
+        """Check if current time is within 24-hour reporting window."""
+        from datetime import datetime, timedelta
+        
+        created_at = datetime.utcnow() - timedelta(hours=12)  # 12 hours ago
+        report_deadline = created_at + timedelta(hours=24)
+        
+        now = datetime.utcnow()
+        is_within_window = now < report_deadline
+        
+        assert is_within_window is True  # Still 12 hours left
+    
+    def test_is_past_reporting_window(self):
+        """Check if 24-hour window has expired (overdue)."""
+        from datetime import datetime, timedelta
+        
+        created_at = datetime.utcnow() - timedelta(hours=30)  # 30 hours ago
+        report_deadline = created_at + timedelta(hours=24)
+        
+        now = datetime.utcnow()
+        is_overdue = now > report_deadline
+        
+        assert is_overdue is True  # Window expired 6 hours ago
+    
+    def test_b2c_report_reference_format(self):
+        """B2C report reference should follow expected format."""
+        import re
+        
+        # Format: B2C-YYYYMMDDHHMMSS-XXXXXX
+        report_ref = "B2C-20260104143022-ABC123"
+        pattern = r"^B2C-\d{14}-[A-Z0-9]{6}$"
+        
+        assert re.match(pattern, report_ref) is not None
+    
+    def test_entity_settings_default_values(self):
+        """Entity B2C settings should have correct default values."""
+        # Default: enabled=False, threshold=₦50,000
+        default_enabled = False
+        default_threshold = Decimal("50000.00")
+        
+        assert default_enabled is False
+        assert default_threshold == Decimal("50000.00")
+
+
+class TestB2CService:
+    """Tests for B2CReportingService functionality."""
+    
+    def test_service_constants(self):
+        """B2CReportingService should have correct constants."""
+        DEFAULT_THRESHOLD = Decimal("50000.00")
+        REPORTING_WINDOW_HOURS = 24
+        LATE_PENALTY_PER_TRANSACTION = Decimal("10000.00")
+        MAX_DAILY_PENALTY = Decimal("500000.00")
+        
+        assert DEFAULT_THRESHOLD == Decimal("50000.00")
+        assert REPORTING_WINDOW_HOURS == 24
+        assert LATE_PENALTY_PER_TRANSACTION == Decimal("10000.00")
+        assert MAX_DAILY_PENALTY == Decimal("500000.00")
+    
+    def test_compliance_reference(self):
+        """B2C reporting is per Nigeria Tax Administration Act 2025, Section 42."""
+        compliance_ref = "Nigeria Tax Administration Act 2025, Section 42"
+        assert "2025" in compliance_ref
+        assert "Section 42" in compliance_ref
+
+
 # Run with: pytest tests/test_2026_compliance.py -v

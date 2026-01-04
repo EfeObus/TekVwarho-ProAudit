@@ -35,6 +35,7 @@ from app.services.tin_validation_service import (
     TINValidationStatus,
     TINValidationResult,
 )
+from app.services.b2c_reporting_service import B2CReportingService
 from app.schemas.auth import MessageResponse
 
 
@@ -175,6 +176,51 @@ class BusinessTypeResponse(BaseModel):
     fixed_assets_value: Optional[float]
     is_development_levy_exempt: bool
     tax_implications: dict
+
+
+# B2C Reporting Schemas
+class B2CSettingsRequest(BaseModel):
+    """Request to update B2C reporting settings."""
+    enabled: bool
+    threshold: Optional[Decimal] = Field(None, ge=0)
+
+
+class B2CSettingsResponse(BaseModel):
+    """B2C reporting settings response."""
+    entity_id: str
+    b2c_realtime_reporting_enabled: bool
+    b2c_reporting_threshold: float
+    entity_name: str
+    tin: Optional[str]
+
+
+class B2CTransactionResponse(BaseModel):
+    """B2C transaction response."""
+    invoice_id: str
+    invoice_number: str
+    customer_name: Optional[str]
+    total_amount: float
+    vat_amount: float
+    created_at: str
+    report_deadline: Optional[str]
+    reported_at: Optional[str]
+    report_reference: Optional[str]
+    is_overdue: bool
+
+
+class B2CSummaryResponse(BaseModel):
+    """B2C reporting summary response."""
+    period: dict
+    total_reportable: int
+    reported_on_time: int
+    pending: int
+    overdue: int
+    total_amount_reported: float
+    total_amount_pending: float
+    total_amount_overdue: float
+    potential_penalty: float
+    penalty_per_transaction: float
+    max_daily_penalty: float
 
 
 # ===========================================
@@ -1828,3 +1874,244 @@ async def get_tin_entity_types():
         "portal_url": "https://taxid.nrs.gov.ng/",
         "compliance_note": "2026 NTAA requires TIN validation for all business transactions above ₦100,000",
     }
+
+
+# ===========================================
+# B2C REAL-TIME REPORTING ENDPOINTS
+# ===========================================
+
+@router.get(
+    "/b2c/thresholds",
+    summary="Get B2C reporting thresholds",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def get_b2c_thresholds():
+    """
+    Get B2C reporting compliance thresholds.
+    
+    2026 Compliance:
+    - B2C transactions > ₦50,000 must be reported within 24 hours
+    - Penalty: ₦10,000 per late transaction (max ₦500,000/day)
+    """
+    return {
+        "default_threshold": 50000.00,
+        "reporting_window_hours": 24,
+        "late_penalty_per_transaction": 10000.00,
+        "max_daily_penalty": 500000.00,
+        "description": "B2C transactions over ₦50,000 must be reported to NRS within 24 hours",
+        "compliance_reference": "Nigeria Tax Administration Act 2025, Section 42",
+    }
+
+
+@router.get(
+    "/{entity_id}/b2c/settings",
+    response_model=B2CSettingsResponse,
+    summary="Get B2C reporting settings",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def get_b2c_settings(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get B2C real-time reporting settings for an entity."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = B2CReportingService(db)
+    settings = await service.get_entity_settings(entity_id)
+    
+    return B2CSettingsResponse(**settings)
+
+
+@router.put(
+    "/{entity_id}/b2c/settings",
+    response_model=B2CSettingsResponse,
+    summary="Update B2C reporting settings",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def update_b2c_settings(
+    entity_id: UUID,
+    request: B2CSettingsRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Update B2C real-time reporting settings for an entity."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = B2CReportingService(db)
+    settings = await service.update_entity_settings(
+        entity_id=entity_id,
+        enabled=request.enabled,
+        threshold=request.threshold,
+    )
+    
+    return B2CSettingsResponse(**settings)
+
+
+@router.get(
+    "/{entity_id}/b2c/pending",
+    response_model=List[B2CTransactionResponse],
+    summary="Get pending B2C reports",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def get_pending_b2c_reports(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get B2C transactions pending reporting to NRS."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from datetime import datetime
+    
+    service = B2CReportingService(db)
+    invoices = await service.get_pending_b2c_reports(entity_id)
+    now = datetime.utcnow()
+    
+    return [
+        B2CTransactionResponse(
+            invoice_id=str(inv.id),
+            invoice_number=inv.invoice_number,
+            customer_name=inv.customer.name if inv.customer else "Walk-in Customer",
+            total_amount=float(inv.total_amount),
+            vat_amount=float(inv.vat_amount),
+            created_at=inv.created_at.isoformat(),
+            report_deadline=inv.b2c_report_deadline.isoformat() if inv.b2c_report_deadline else None,
+            reported_at=None,
+            report_reference=None,
+            is_overdue=inv.b2c_report_deadline < now if inv.b2c_report_deadline else False,
+        )
+        for inv in invoices
+    ]
+
+
+@router.get(
+    "/{entity_id}/b2c/overdue",
+    response_model=List[B2CTransactionResponse],
+    summary="Get overdue B2C reports",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def get_overdue_b2c_reports(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get B2C transactions past 24-hour reporting deadline."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = B2CReportingService(db)
+    invoices = await service.get_overdue_b2c_reports(entity_id)
+    
+    return [
+        B2CTransactionResponse(
+            invoice_id=str(inv.id),
+            invoice_number=inv.invoice_number,
+            customer_name=inv.customer.name if inv.customer else "Walk-in Customer",
+            total_amount=float(inv.total_amount),
+            vat_amount=float(inv.vat_amount),
+            created_at=inv.created_at.isoformat(),
+            report_deadline=inv.b2c_report_deadline.isoformat() if inv.b2c_report_deadline else None,
+            reported_at=None,
+            report_reference=None,
+            is_overdue=True,
+        )
+        for inv in invoices
+    ]
+
+
+@router.get(
+    "/{entity_id}/b2c/reported",
+    response_model=List[B2CTransactionResponse],
+    summary="Get reported B2C transactions",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def get_reported_b2c_transactions(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get successfully reported B2C transactions."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = B2CReportingService(db)
+    invoices = await service.get_reported_b2c_transactions(entity_id)
+    
+    return [
+        B2CTransactionResponse(
+            invoice_id=str(inv.id),
+            invoice_number=inv.invoice_number,
+            customer_name=inv.customer.name if inv.customer else "Walk-in Customer",
+            total_amount=float(inv.total_amount),
+            vat_amount=float(inv.vat_amount),
+            created_at=inv.created_at.isoformat(),
+            report_deadline=inv.b2c_report_deadline.isoformat() if inv.b2c_report_deadline else None,
+            reported_at=inv.b2c_reported_at.isoformat() if inv.b2c_reported_at else None,
+            report_reference=inv.b2c_report_reference,
+            is_overdue=False,
+        )
+        for inv in invoices
+    ]
+
+
+@router.post(
+    "/{entity_id}/b2c/{invoice_id}/report",
+    summary="Submit B2C transaction to NRS",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def submit_b2c_report(
+    entity_id: UUID,
+    invoice_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Submit a single B2C transaction to NRS for real-time reporting."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = B2CReportingService(db)
+    
+    try:
+        result = await service.submit_b2c_report(invoice_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(
+    "/{entity_id}/b2c/submit-all",
+    summary="Submit all pending B2C reports",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def submit_all_b2c_reports(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Submit all pending B2C transactions to NRS."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = B2CReportingService(db)
+    result = await service.submit_all_pending_reports(entity_id)
+    
+    return result
+
+
+@router.get(
+    "/{entity_id}/b2c/summary/{year}/{month}",
+    response_model=B2CSummaryResponse,
+    summary="Get B2C reporting summary",
+    tags=["2026 Reform - B2C Reporting"],
+)
+async def get_b2c_summary(
+    entity_id: UUID,
+    year: int = Path(..., ge=2020, le=2100),
+    month: int = Path(..., ge=1, le=12),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get B2C reporting summary for a month."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = B2CReportingService(db)
+    summary = await service.get_b2c_summary(entity_id, year, month)
+    
+    return B2CSummaryResponse(**summary)

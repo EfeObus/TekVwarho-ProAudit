@@ -120,6 +120,13 @@
                     <span>💼</span>
                     <span>Progressive PAYE</span>
                 </button>
+                <button @click="activeTab = 'b2c-reporting'" 
+                        :class="activeTab === 'b2c-reporting' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>📡</span>
+                    <span>B2C Reporting</span>
+                    <span x-show="b2cPending.length > 0" class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800" x-text="b2cPending.length"></span>
+                </button>
             </nav>
         </div>
     </div>
@@ -1440,6 +1447,191 @@
                 </template>
             </div>
         </div>
+
+        <!-- B2C Real-time Reporting Tab -->
+        <div x-show="activeTab === 'b2c-reporting'" x-transition>
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Pending</h3>
+                        <span class="p-2 bg-yellow-100 rounded-lg">⏳</span>
+                    </div>
+                    <p class="text-3xl font-bold text-yellow-600" x-text="b2cPending.length">0</p>
+                    <p class="text-sm text-gray-500 mt-1">Awaiting NRS submission</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Overdue</h3>
+                        <span class="p-2 bg-red-100 rounded-lg">⚠️</span>
+                    </div>
+                    <p class="text-3xl font-bold text-red-600" x-text="b2cOverdue.length">0</p>
+                    <p class="text-sm text-gray-500 mt-1">Past 24-hour deadline</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Reported</h3>
+                        <span class="p-2 bg-green-100 rounded-lg">✅</span>
+                    </div>
+                    <p class="text-3xl font-bold text-green-600" x-text="b2cReported.length">0</p>
+                    <p class="text-sm text-gray-500 mt-1">Successfully reported</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Penalty Risk</h3>
+                        <span class="p-2 bg-orange-100 rounded-lg">💰</span>
+                    </div>
+                    <p class="text-3xl font-bold text-orange-600" x-text="formatCurrency(b2cSummary.potential_penalty || 0)">₦0</p>
+                    <p class="text-sm text-gray-500 mt-1">₦10,000 per late transaction</p>
+                </div>
+            </div>
+
+            <!-- Info Banner -->
+            <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-orange-800">2026 Tax Reform: B2C Real-time Reporting</h3>
+                        <div class="mt-2 text-sm text-orange-700">
+                            <p>Under the 2026 Tax Administration Act, B2C transactions over <strong>₦50,000</strong> must be reported to NRS within <strong>24 hours</strong>. Late reporting incurs a penalty of <strong>₦10,000 per transaction</strong> (max ₦500,000/day).</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Card -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">B2C Reporting Settings</h3>
+                        <p class="text-sm text-gray-500">Configure real-time reporting for your entity</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-right">
+                            <p class="text-sm text-gray-500">Threshold</p>
+                            <p class="font-semibold text-gray-900">₦<span x-text="(b2cSettings.b2c_reporting_threshold || 50000).toLocaleString()">50,000</span></p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" x-model="b2cSettings.b2c_realtime_reporting_enabled" @change="updateB2CSettings()" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                            <span class="ms-3 text-sm font-medium text-gray-700" x-text="b2cSettings.b2c_realtime_reporting_enabled ? 'Enabled' : 'Disabled'">Disabled</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit All Button -->
+            <div class="flex justify-end mb-4" x-show="b2cPending.length > 0">
+                <button @click="submitAllB2CReports()" 
+                        :disabled="b2cSubmitting"
+                        class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2">
+                    <span x-show="!b2cSubmitting">📡 Submit All to NRS (<span x-text="b2cPending.length"></span> pending)</span>
+                    <span x-show="b2cSubmitting" class="flex items-center">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Submitting...
+                    </span>
+                </button>
+            </div>
+
+            <!-- Pending Transactions Table -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6" x-show="b2cPending.length > 0 || b2cOverdue.length > 0">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Transactions Pending Submission</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="tx in [...b2cOverdue, ...b2cPending]" :key="tx.invoice_id">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-gray-900" x-text="tx.invoice_number"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-gray-500" x-text="tx.customer_name"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <span class="text-sm font-medium text-gray-900" x-text="formatCurrency(tx.total_amount)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDateTime(tx.report_deadline)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                              :class="tx.is_overdue ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'"
+                                              x-text="tx.is_overdue ? 'OVERDUE' : 'Pending'"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button @click="submitSingleB2CReport(tx.invoice_id)" class="text-green-600 hover:text-green-900">Submit</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Reported Transactions -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden" x-show="b2cReported.length > 0">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Successfully Reported Transactions</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reported At</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="tx in b2cReported" :key="tx.invoice_id">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-gray-900" x-text="tx.invoice_number"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-gray-500" x-text="tx.customer_name"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <span class="text-sm font-medium text-gray-900" x-text="formatCurrency(tx.total_amount)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDateTime(tx.reported_at)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-mono text-green-600" x-text="tx.report_reference"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="b2cPending.length === 0 && b2cOverdue.length === 0 && b2cReported.length === 0" 
+                 class="bg-white rounded-xl shadow-sm p-8 text-center">
+                <div class="text-4xl mb-4">📡</div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">No B2C Transactions to Report</h3>
+                <p class="text-gray-500">B2C transactions over ₦50,000 will appear here for real-time NRS reporting.</p>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->
@@ -1473,6 +1665,14 @@ function tax2026Dashboard() {
         creditNotes: [],
         levyResult: null,
         creditNoteFilter: '',
+        
+        // B2C Reporting Data
+        b2cPending: [],
+        b2cOverdue: [],
+        b2cReported: [],
+        b2cSettings: { b2c_realtime_reporting_enabled: false, b2c_reporting_threshold: 50000 },
+        b2cSummary: { potential_penalty: 0 },
+        b2cSubmitting: false,
         
         // Forms
         vatForm: {
@@ -1542,6 +1742,7 @@ function tax2026Dashboard() {
             await this.loadVATSummary();
             await this.loadPITReliefs();
             await this.loadCreditNotes();
+            await this.loadB2CData();
         },
         
         async refreshAll() {
@@ -1610,6 +1811,84 @@ function tax2026Dashboard() {
             } catch (e) {
                 console.error('Failed to load credit notes:', e);
             }
+        },
+        
+        // B2C Reporting Methods
+        async loadB2CData() {
+            try {
+                const now = new Date();
+                const [settingsRes, pendingRes, overdueRes, reportedRes, summaryRes] = await Promise.all([
+                    fetch(`/api/v1/tax-2026/${this.entityId}/b2c/settings`, { headers: this.getAuthHeaders() }),
+                    fetch(`/api/v1/tax-2026/${this.entityId}/b2c/pending`, { headers: this.getAuthHeaders() }),
+                    fetch(`/api/v1/tax-2026/${this.entityId}/b2c/overdue`, { headers: this.getAuthHeaders() }),
+                    fetch(`/api/v1/tax-2026/${this.entityId}/b2c/reported`, { headers: this.getAuthHeaders() }),
+                    fetch(`/api/v1/tax-2026/${this.entityId}/b2c/summary/${now.getFullYear()}/${now.getMonth() + 1}`, { headers: this.getAuthHeaders() })
+                ]);
+                if (settingsRes.ok) this.b2cSettings = await settingsRes.json();
+                if (pendingRes.ok) this.b2cPending = await pendingRes.json();
+                if (overdueRes.ok) this.b2cOverdue = await overdueRes.json();
+                if (reportedRes.ok) this.b2cReported = await reportedRes.json();
+                if (summaryRes.ok) this.b2cSummary = await summaryRes.json();
+            } catch (e) {
+                console.error('Failed to load B2C data:', e);
+            }
+        },
+        
+        async updateB2CSettings() {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/b2c/settings`, {
+                    method: 'PUT',
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify({
+                        enabled: this.b2cSettings.b2c_realtime_reporting_enabled,
+                        threshold: this.b2cSettings.b2c_reporting_threshold
+                    })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.b2cSettings = data;
+                    this.showToast('B2C settings updated', 'success');
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to update settings', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to update B2C settings', 'error');
+            }
+        },
+        
+        async submitSingleB2CReport(invoiceId) {
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/b2c/${invoiceId}/report`, {
+                    method: 'POST',
+                    headers: this.getAuthHeaders()
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast('Transaction reported to NRS', 'success');
+                    await this.loadB2CData();
+                } else {
+                    this.showToast(data.error || 'Failed to submit report', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to submit B2C report', 'error');
+            }
+        },
+        
+        async submitAllB2CReports() {
+            this.b2cSubmitting = true;
+            try {
+                const res = await fetch(`/api/v1/tax-2026/${this.entityId}/b2c/submit-all`, {
+                    method: 'POST',
+                    headers: this.getAuthHeaders()
+                });
+                const data = await res.json();
+                this.showToast(`Submitted ${data.success_count} of ${data.total_processed} transactions`, 'success');
+                await this.loadB2CData();
+            } catch (e) {
+                this.showToast('Failed to submit B2C reports', 'error');
+            }
+            this.b2cSubmitting = false;
         },
         
         async pollNRS() {
