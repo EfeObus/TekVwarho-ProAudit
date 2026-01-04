@@ -525,6 +525,151 @@ async def get_vendors_without_irn(
 
 
 # ===========================================
+# ZERO-RATED VAT ENDPOINTS (2026 Reform)
+# ===========================================
+
+class ZeroRatedVATSaleRequest(BaseModel):
+    """Request to record zero-rated sale."""
+    sale_amount: float = Field(..., gt=0, description="Sale amount")
+    category: str = Field(..., description="Zero-rated category")
+    transaction_date: date
+    description: Optional[str] = None
+
+
+class ZeroRatedVATInputRequest(BaseModel):
+    """Request to record input VAT for refund."""
+    purchase_amount: float = Field(..., gt=0)
+    vat_amount: float = Field(..., gt=0)
+    transaction_date: date
+    vendor_tin: str
+    vendor_irn: Optional[str] = None
+    description: Optional[str] = None
+
+
+@router.get(
+    "/zero-rated/categories",
+    summary="Get zero-rated VAT categories",
+    tags=["2026 Reform - Zero-Rated VAT"],
+)
+async def get_zero_rated_categories(
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get list of zero-rated VAT categories.
+    
+    Zero-rated supplies have 0% VAT but allow input VAT refund claims.
+    """
+    from app.services.tax_calculators.minimum_etr_cgt_service import ZeroRatedVATTracker
+    
+    return {
+        "categories": ZeroRatedVATTracker.ZERO_RATED_CATEGORIES,
+        "note": "Zero-rated supplies allow sellers to claim input VAT refunds",
+    }
+
+
+@router.post(
+    "/{entity_id}/zero-rated/record-sale",
+    summary="Record zero-rated sale",
+    tags=["2026 Reform - Zero-Rated VAT"],
+)
+async def record_zero_rated_sale(
+    entity_id: UUID,
+    request: ZeroRatedVATSaleRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Record a zero-rated sale for VAT refund tracking.
+    
+    Zero-rated supplies (basic food, education, healthcare, exports)
+    have 0% VAT but allow input VAT refund claims.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.tax_calculators.minimum_etr_cgt_service import ZeroRatedVATTracker
+    
+    tracker = ZeroRatedVATTracker()
+    
+    record = tracker.record_zero_rated_sale(
+        sale_amount=Decimal(str(request.sale_amount)),
+        category=request.category,
+        date=request.transaction_date,
+        description=request.description or "",
+    )
+    
+    return {
+        "entity_id": str(entity_id),
+        **{k: float(v) if isinstance(v, Decimal) else v for k, v in record.items()},
+    }
+
+
+@router.post(
+    "/{entity_id}/zero-rated/record-input",
+    summary="Record input VAT for refund",
+    tags=["2026 Reform - Zero-Rated VAT"],
+)
+async def record_zero_rated_input(
+    entity_id: UUID,
+    request: ZeroRatedVATInputRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Record input VAT paid for potential refund.
+    
+    Only purchases with valid vendor IRN qualify for refund.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.tax_calculators.minimum_etr_cgt_service import ZeroRatedVATTracker
+    
+    tracker = ZeroRatedVATTracker()
+    
+    record = tracker.record_input_vat(
+        purchase_amount=Decimal(str(request.purchase_amount)),
+        vat_amount=Decimal(str(request.vat_amount)),
+        date=request.transaction_date,
+        vendor_tin=request.vendor_tin,
+        vendor_irn=request.vendor_irn,
+        description=request.description or "",
+    )
+    
+    return {
+        "entity_id": str(entity_id),
+        **{k: float(v) if isinstance(v, Decimal) else v for k, v in record.items()},
+    }
+
+
+@router.get(
+    "/{entity_id}/zero-rated/refund-claim",
+    summary="Calculate VAT refund claim",
+    tags=["2026 Reform - Zero-Rated VAT"],
+)
+async def calculate_refund_claim(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Calculate VAT refund claim for zero-rated supplier.
+    
+    Zero-rated suppliers can claim back input VAT paid on purchases.
+    Only purchases with valid NRS IRN are eligible for refund.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.tax_calculators.minimum_etr_cgt_service import ZeroRatedVATTracker
+    
+    tracker = ZeroRatedVATTracker()
+    claim = tracker.calculate_refund_claim()
+    
+    return {
+        "entity_id": str(entity_id),
+        **claim,
+    }
+
+
+# ===========================================
 # DEVELOPMENT LEVY ENDPOINTS (4% Consolidated)
 # ===========================================
 

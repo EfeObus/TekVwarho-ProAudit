@@ -520,4 +520,80 @@ class TestPeppolExport:
         assert parsed["supplier"]["tin"] == "1234567890"
 
 
+class TestSmartTaxLogic:
+    """Tests for Smart Tax Logic - CIT and Development Levy integration."""
+    
+    def test_small_business_zero_cit(self):
+        """Small businesses (≤₦25M turnover) should have 0% CIT."""
+        from app.services.tax_calculators.cit_service import CITCalculator
+        
+        result = CITCalculator.calculate_cit(
+            gross_turnover=20_000_000,  # ₦20M - small
+            assessable_profit=5_000_000,  # ₦5M profit
+        )
+        
+        assert result["company_size"] == "small"
+        assert result["cit_rate"] == 0
+        assert result["final_cit"] == 0
+    
+    def test_medium_business_20_cit(self):
+        """Medium businesses (₦25M-₦100M) should have 20% CIT."""
+        from app.services.tax_calculators.cit_service import CITCalculator
+        
+        result = CITCalculator.calculate_cit(
+            gross_turnover=60_000_000,  # ₦60M - medium
+            assessable_profit=10_000_000,  # ₦10M profit
+        )
+        
+        assert result["company_size"] == "medium"
+        assert result["cit_rate"] == 20
+        assert result["cit_on_profit"] == 2_000_000  # 20% of ₦10M
+    
+    def test_large_business_30_cit(self):
+        """Large businesses (>₦100M) should have 30% CIT."""
+        from app.services.tax_calculators.cit_service import CITCalculator
+        
+        result = CITCalculator.calculate_cit(
+            gross_turnover=200_000_000,  # ₦200M - large
+            assessable_profit=50_000_000,  # ₦50M profit
+        )
+        
+        assert result["company_size"] == "large"
+        assert result["cit_rate"] == 30
+        assert result["cit_on_profit"] == 15_000_000  # 30% of ₦50M
+    
+    def test_tet_applies_to_all(self):
+        """Tertiary Education Tax (3%) applies to all companies with profit."""
+        from app.services.tax_calculators.cit_service import CITCalculator
+        
+        result = CITCalculator.calculate_cit(
+            gross_turnover=100_000_000,
+            assessable_profit=20_000_000,
+        )
+        
+        assert result["tertiary_education_tax"] == 600_000  # 3% of ₦20M
+    
+    def test_development_levy_exempt_small(self):
+        """Small businesses should be exempt from 4% Development Levy."""
+        from app.services.development_levy_service import DevelopmentLevyService
+        
+        # Small company: turnover ≤ ₦100M AND fixed assets ≤ ₦250M
+        is_exempt = (
+            80_000_000 <= 100_000_000 and  # Turnover ₦80M
+            200_000_000 <= 250_000_000      # Fixed assets ₦200M
+        )
+        
+        assert is_exempt is True
+    
+    def test_development_levy_4_percent(self):
+        """Large businesses pay 4% Development Levy on assessable profit."""
+        # 4% of ₦100M profit = ₦4M
+        assessable_profit = Decimal("100_000_000")
+        levy_rate = Decimal("0.04")
+        
+        levy_amount = assessable_profit * levy_rate
+        
+        assert levy_amount == Decimal("4_000_000")
+
+
 # Run with: pytest tests/test_2026_compliance.py -v

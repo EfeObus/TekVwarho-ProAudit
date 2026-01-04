@@ -96,6 +96,12 @@
                     <span>🔍</span>
                     <span>TIN Validation</span>
                 </button>
+                <button @click="activeTab = 'zero-rated'" 
+                        :class="activeTab === 'zero-rated' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
+                    <span>🧾</span>
+                    <span>Zero-Rated VAT</span>
+                </button>
             </nav>
         </div>
     </div>
@@ -759,6 +765,186 @@
                 </div>
             </div>
         </div>
+
+        <!-- Zero-Rated VAT Tab -->
+        <div x-show="activeTab === 'zero-rated'" x-transition>
+            <!-- Info Banner -->
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-emerald-800">2026 Reform: Zero-Rated VAT Input Credit</h3>
+                        <div class="mt-2 text-sm text-emerald-700">
+                            <p>Suppliers of <strong>zero-rated goods</strong> (basic food, education materials, healthcare, exports) can claim <strong>input VAT refunds</strong>. Unlike exempt supplies, zero-rated allows recovery of VAT paid on purchases. Only purchases with valid NRS IRN qualify for refund.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Zero-Rated Categories -->
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Zero-Rated Categories</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                            <span class="text-sm font-medium text-emerald-700">🍞 Basic Food</span>
+                            <span class="text-xs text-emerald-600">0% VAT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                            <span class="text-sm font-medium text-emerald-700">📚 Educational Materials</span>
+                            <span class="text-xs text-emerald-600">0% VAT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                            <span class="text-sm font-medium text-emerald-700">💊 Medical Supplies</span>
+                            <span class="text-xs text-emerald-600">0% VAT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                            <span class="text-sm font-medium text-emerald-700">🚢 Exported Goods</span>
+                            <span class="text-xs text-emerald-600">0% VAT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                            <span class="text-sm font-medium text-emerald-700">🌾 Agricultural Inputs</span>
+                            <span class="text-xs text-emerald-600">0% VAT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                            <span class="text-sm font-medium text-emerald-700">👶 Baby Products</span>
+                            <span class="text-xs text-emerald-600">0% VAT</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4">Zero-rated ≠ Exempt. Zero-rated suppliers can claim input VAT refunds.</p>
+                </div>
+
+                <!-- Record Zero-Rated Sale -->
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Record Zero-Rated Sale</h3>
+                    <form @submit.prevent="recordZeroRatedSale()">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                                <select x-model="zeroRatedForm.category" required class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                                    <option value="">Select category</option>
+                                    <option value="basic_food">Basic Food</option>
+                                    <option value="educational_materials">Educational Materials</option>
+                                    <option value="medical_supplies">Medical Supplies</option>
+                                    <option value="exported_goods">Exported Goods</option>
+                                    <option value="agricultural_inputs">Agricultural Inputs</option>
+                                    <option value="baby_products">Baby Products</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Sale Amount (₦) *</label>
+                                <input type="number" step="0.01" x-model="zeroRatedForm.sale_amount" required
+                                       placeholder="0.00"
+                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Date *</label>
+                                <input type="date" x-model="zeroRatedForm.transaction_date" required
+                                       class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <textarea x-model="zeroRatedForm.description" rows="2"
+                                          placeholder="Description of the sale"
+                                          class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"></textarea>
+                            </div>
+                            <button type="submit" 
+                                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                                Record Zero-Rated Sale
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Input VAT for Refund -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Record Input VAT for Refund Claim</h3>
+                <p class="text-sm text-gray-500 mb-4">Record input VAT paid on purchases. Only purchases with valid vendor IRN qualify for refund.</p>
+                <form @submit.prevent="recordInputVATForRefund()" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Purchase Amount (₦) *</label>
+                        <input type="number" step="0.01" x-model="inputVATForm.purchase_amount" required
+                               placeholder="0.00"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">VAT Amount (₦) *</label>
+                        <input type="number" step="0.01" x-model="inputVATForm.vat_amount" required
+                               placeholder="0.00"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Date *</label>
+                        <input type="date" x-model="inputVATForm.transaction_date" required
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Vendor TIN *</label>
+                        <input type="text" x-model="inputVATForm.vendor_tin" required
+                               placeholder="Vendor Tax ID"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Vendor IRN <span class="text-emerald-600">(Required for refund)</span></label>
+                        <input type="text" x-model="inputVATForm.vendor_irn"
+                               placeholder="NRS Invoice Reference"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input type="text" x-model="inputVATForm.description"
+                               placeholder="Purchase description"
+                               class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                    </div>
+                    <div class="md:col-span-2 lg:col-span-3 flex justify-end">
+                        <button type="submit" 
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                            Record Input VAT
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Refund Claim Summary -->
+            <div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Refund Claim Summary</h3>
+                    <button @click="loadRefundClaim()" class="text-emerald-600 hover:text-emerald-700 text-sm font-medium">
+                        Refresh
+                    </button>
+                </div>
+                <template x-if="refundClaim">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(refundClaim.total_zero_rated_sales)">₦0</p>
+                            <p class="text-xs text-gray-500">Zero-Rated Sales</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(refundClaim.total_input_vat_paid)">₦0</p>
+                            <p class="text-xs text-gray-500">Total Input VAT</p>
+                        </div>
+                        <div class="bg-emerald-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-emerald-600" x-text="formatCurrency(refundClaim.refundable_input_vat)">₦0</p>
+                            <p class="text-xs text-emerald-700">Refundable (with IRN)</p>
+                        </div>
+                        <div class="bg-red-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-red-600" x-text="formatCurrency(refundClaim.non_refundable_vat)">₦0</p>
+                            <p class="text-xs text-red-700">Non-Refundable (no IRN)</p>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="!refundClaim">
+                    <div class="text-center py-8 text-gray-500">
+                        <p>No refund claim data. Record zero-rated sales and input VAT to calculate.</p>
+                    </div>
+                </template>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->
@@ -822,6 +1008,11 @@ function tax2026Dashboard() {
         bulkTins: '',
         bulkValidating: false,
         bulkResults: null,
+        
+        // Zero-Rated VAT
+        zeroRatedForm: { category: '', sale_amount: '', transaction_date: today, description: '' },
+        inputVATForm: { purchase_amount: '', vat_amount: '', transaction_date: today, vendor_tin: '', vendor_irn: '', description: '' },
+        refundClaim: null,
         
         // Toast
         toast: { show: false, message: '', type: 'success' },
@@ -1136,6 +1327,87 @@ function tax2026Dashboard() {
                 this.showToast('Failed to validate TINs', 'error');
             } finally {
                 this.bulkValidating = false;
+            }
+        },
+        
+        // Zero-Rated VAT Methods
+        async recordZeroRatedSale() {
+            if (!this.zeroRatedForm.category || !this.zeroRatedForm.sale_amount) {
+                this.showToast('Please fill required fields', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/v1/tax-2026/${this.entityId}/zero-rated/record-sale`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.zeroRatedForm),
+                });
+                
+                if (response.ok) {
+                    this.showToast('Zero-rated sale recorded!', 'success');
+                    this.zeroRatedForm = { category: '', sale_amount: '', transaction_date: new Date().toISOString().split('T')[0], description: '' };
+                    await this.loadRefundClaim();
+                } else {
+                    const data = await response.json();
+                    this.showToast(data.detail || 'Failed to record sale', 'error');
+                }
+            } catch (error) {
+                console.error('Record zero-rated sale error:', error);
+                this.showToast('Failed to record sale', 'error');
+            }
+        },
+        
+        async recordInputVATForRefund() {
+            if (!this.inputVATForm.purchase_amount || !this.inputVATForm.vat_amount || !this.inputVATForm.vendor_tin) {
+                this.showToast('Please fill required fields', 'error');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/v1/tax-2026/${this.entityId}/zero-rated/record-input`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.inputVATForm),
+                });
+                
+                if (response.ok) {
+                    const hasIRN = !!this.inputVATForm.vendor_irn;
+                    this.showToast(hasIRN ? 'Input VAT recorded (refund eligible!)' : 'Input VAT recorded (no IRN - not refundable)', hasIRN ? 'success' : 'info');
+                    this.inputVATForm = { purchase_amount: '', vat_amount: '', transaction_date: new Date().toISOString().split('T')[0], vendor_tin: '', vendor_irn: '', description: '' };
+                    await this.loadRefundClaim();
+                } else {
+                    const data = await response.json();
+                    this.showToast(data.detail || 'Failed to record input VAT', 'error');
+                }
+            } catch (error) {
+                console.error('Record input VAT error:', error);
+                this.showToast('Failed to record input VAT', 'error');
+            }
+        },
+        
+        async loadRefundClaim() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/v1/tax-2026/${this.entityId}/zero-rated/refund-claim`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+                
+                if (response.ok) {
+                    this.refundClaim = await response.json();
+                }
+            } catch (error) {
+                console.error('Load refund claim error:', error);
             }
         }
     }
