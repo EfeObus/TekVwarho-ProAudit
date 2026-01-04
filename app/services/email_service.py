@@ -6,14 +6,29 @@ Supports SendGrid, Mailgun, or SMTP.
 """
 
 import logging
+import smtplib
+import ssl
 from typing import Any, Dict, List, Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from dataclasses import dataclass
+
+import httpx
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class EmailProvider:
+    """Email provider types."""
+    SMTP = "smtp"
+    SENDGRID = "sendgrid"
+    MAILGUN = "mailgun"
+    AWS_SES = "aws_ses"
+    MOCK = "mock"
 
 
 @dataclass
@@ -35,28 +50,227 @@ class EmailService:
     def __init__(self):
         self.from_email = getattr(settings, 'email_from', 'noreply@tekvwarho.com')
         self.from_name = getattr(settings, 'email_from_name', 'TekVwarho ProAudit')
+        self.provider = getattr(settings, 'email_provider', EmailProvider.MOCK)
+        
+        # SMTP settings
+        self.smtp_host = getattr(settings, 'smtp_host', None)
+        self.smtp_port = getattr(settings, 'smtp_port', 587)
+        self.smtp_username = getattr(settings, 'smtp_username', None)
+        self.smtp_password = getattr(settings, 'smtp_password', None)
+        self.smtp_use_tls = getattr(settings, 'smtp_use_tls', True)
+        
+        # SendGrid settings
+        self.sendgrid_api_key = getattr(settings, 'sendgrid_api_key', None)
+        
+        # Mailgun settings
+        self.mailgun_api_key = getattr(settings, 'mailgun_api_key', None)
+        self.mailgun_domain = getattr(settings, 'mailgun_domain', None)
+    
+    def _determine_provider(self) -> str:
+        """Determine which email provider to use based on configuration."""
+        if self.sendgrid_api_key:
+            return EmailProvider.SENDGRID
+        elif self.mailgun_api_key and self.mailgun_domain:
+            return EmailProvider.MAILGUN
+        elif self.smtp_host:
+            return EmailProvider.SMTP
+        else:
+            return EmailProvider.MOCK
     
     async def send_email(self, message: EmailMessage) -> bool:
         """
-        Send an email.
-        
-        In production, integrate with SendGrid, Mailgun, or AWS SES.
+        Send an email using the configured provider.
         """
+        provider = self._determine_provider()
+        
         try:
-            # For development, just log the email
-            logger.info(f"Email to {message.to}: {message.subject}")
-            
-            # TODO: Implement actual email sending
-            # Options:
-            # 1. SendGrid
-            # 2. Mailgun
-            # 3. AWS SES
-            # 4. SMTP
-            
-            return True
+            if provider == EmailProvider.SENDGRID:
+                return await self._send_via_sendgrid(message)
+            elif provider == EmailProvider.MAILGUN:
+                return await self._send_via_mailgun(message)
+            elif provider == EmailProvider.SMTP:
+                return await self._send_via_smtp(message)
+            else:
+                return await self._send_mock(message)
         except Exception as e:
-            logger.error(f"Failed to send email: {e}")
+            logger.error(f"Failed to send email via {provider}: {e}")
             return False
+    
+    async def _send_via_sendgrid(self, message: EmailMessage) -> bool:
+        """Send email via SendGrid API."""
+        try:
+            url = "https://api.sendgrid.com/v3/mail/send"
+            
+            payload = {
+                "personalizations": [
+                    {
+                        "to": [{"email": email} for email in message.to],
+                    }
+                ],
+                "from": {
+                    "email": self.from_email,
+                    "name": self.from_name,
+                },
+                "subject": message.subject,
+                "content": [
+                    {"type": "text/plain", "value": message.body_text},
+                ],
+            }
+            
+            # Add HTML content if provided
+            if message.body_html:
+                payload["content"].append({
+                    "type": "text/html",
+                    "value": message.body_html,
+                })
+            
+            # Add CC recipients
+            if message.cc:
+                payload["personalizations"][0]["cc"] = [
+                    {"email": email} for email in message.cc
+                ]
+            
+            # Add BCC recipients
+            if message.bcc:
+                payload["personalizations"][0]["bcc"] = [
+                    {"email": email} for email in message.bcc
+                ]
+            
+            # Add reply-to
+            if message.reply_to:
+                payload["reply_to"] = {"email": message.reply_to}
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {self.sendgrid_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                
+                if response.status_code in [200, 202]:
+                    logger.info(f"Email sent via SendGrid to {message.to}")
+                    return True
+                else:
+                    logger.error(f"SendGrid API error: {response.status_code} - {response.text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"SendGrid send failed: {e}")
+            return False
+    
+    async def _send_via_mailgun(self, message: EmailMessage) -> bool:
+        """Send email via Mailgun API."""
+        try:
+            url = f"https://api.mailgun.net/v3/{self.mailgun_domain}/messages"
+            
+            data = {
+                "from": f"{self.from_name} <{self.from_email}>",
+                "to": message.to,
+                "subject": message.subject,
+                "text": message.body_text,
+            }
+            
+            if message.body_html:
+                data["html"] = message.body_html
+            
+            if message.cc:
+                data["cc"] = message.cc
+            
+            if message.bcc:
+                data["bcc"] = message.bcc
+            
+            if message.reply_to:
+                data["h:Reply-To"] = message.reply_to
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    data=data,
+                    auth=("api", self.mailgun_api_key),
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"Email sent via Mailgun to {message.to}")
+                    return True
+                else:
+                    logger.error(f"Mailgun API error: {response.status_code} - {response.text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Mailgun send failed: {e}")
+            return False
+    
+    async def _send_via_smtp(self, message: EmailMessage) -> bool:
+        """Send email via SMTP."""
+        try:
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = message.subject
+            msg['From'] = f"{self.from_name} <{self.from_email}>"
+            msg['To'] = ', '.join(message.to)
+            
+            if message.cc:
+                msg['Cc'] = ', '.join(message.cc)
+            
+            if message.reply_to:
+                msg['Reply-To'] = message.reply_to
+            
+            # Attach text and HTML parts
+            part1 = MIMEText(message.body_text, 'plain')
+            msg.attach(part1)
+            
+            if message.body_html:
+                part2 = MIMEText(message.body_html, 'html')
+                msg.attach(part2)
+            
+            # Handle attachments
+            if message.attachments:
+                for attachment in message.attachments:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(attachment['content'])
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename="{attachment["filename"]}"'
+                    )
+                    msg.attach(part)
+            
+            # Get all recipients
+            all_recipients = message.to.copy()
+            if message.cc:
+                all_recipients.extend(message.cc)
+            if message.bcc:
+                all_recipients.extend(message.bcc)
+            
+            # Send via SMTP
+            if self.smtp_use_tls:
+                context = ssl.create_default_context()
+                with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                    server.starttls(context=context)
+                    if self.smtp_username and self.smtp_password:
+                        server.login(self.smtp_username, self.smtp_password)
+                    server.sendmail(self.from_email, all_recipients, msg.as_string())
+            else:
+                with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                    if self.smtp_username and self.smtp_password:
+                        server.login(self.smtp_username, self.smtp_password)
+                    server.sendmail(self.from_email, all_recipients, msg.as_string())
+            
+            logger.info(f"Email sent via SMTP to {message.to}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"SMTP send failed: {e}")
+            return False
+    
+    async def _send_mock(self, message: EmailMessage) -> bool:
+        """Mock email sending for development."""
+        logger.info(f"[MOCK EMAIL] To: {message.to} | Subject: {message.subject}")
+        logger.debug(f"[MOCK EMAIL] Body: {message.body_text[:200]}...")
+        return True
     
     # ===========================================
     # TRANSACTIONAL EMAIL TEMPLATES

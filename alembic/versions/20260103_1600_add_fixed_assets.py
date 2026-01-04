@@ -1,7 +1,7 @@
 """Add fixed assets tables for 2026 compliance
 
 Revision ID: 20260103_1600_add_fixed_assets
-Revises: 20260103_1430_2026_tax_reform_updates
+Revises: 20260103_1530_rbac_implementation
 Create Date: 2026-01-03 16:00:00.000000
 
 This migration adds tables for Fixed Asset Register tracking:
@@ -20,7 +20,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = '20260103_1600_add_fixed_assets'
-down_revision = '20260103_1430_2026_tax_reform_updates'
+down_revision = '20260103_1530_rbac_implementation'
 branch_labels = None
 depends_on = None
 

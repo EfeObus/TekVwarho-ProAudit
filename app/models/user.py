@@ -41,6 +41,7 @@ from app.models.base import BaseModel
 if TYPE_CHECKING:
     from app.models.organization import Organization
     from app.models.entity import BusinessEntity
+    from app.models.notification import Notification
 
 
 # ===========================================
@@ -193,6 +194,11 @@ class User(BaseModel):
         "User",
         remote_side="User.id",
         foreign_keys=[onboarded_by_id],
+    )
+    notifications: Mapped[List["Notification"]] = relationship(
+        "Notification",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
     
     @property

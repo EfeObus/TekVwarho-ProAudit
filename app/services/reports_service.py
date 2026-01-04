@@ -223,7 +223,7 @@ class ReportsService:
             .where(Invoice.entity_id == entity_id)
             .where(Invoice.invoice_date >= start_date)
             .where(Invoice.invoice_date <= end_date)
-            .where(Invoice.status.in_([InvoiceStatus.FINALIZED, InvoiceStatus.PAID]))
+            .where(Invoice.status.in_([InvoiceStatus.ACCEPTED, InvoiceStatus.PAID]))
         ) or 0
         
         collected_total = await self.db.scalar(
@@ -335,7 +335,7 @@ class ReportsService:
             .where(Invoice.entity_id == entity_id)
             .where(Invoice.invoice_date >= start_date)
             .where(Invoice.invoice_date <= end_date)
-            .where(Invoice.status.in_([InvoiceStatus.FINALIZED, InvoiceStatus.PAID]))
+            .where(Invoice.status.in_([InvoiceStatus.ACCEPTED, InvoiceStatus.PAID]))
         ) or 0
         
         # Input VAT (from expenses)
@@ -523,7 +523,7 @@ class ReportsService:
                 func.sum(Invoice.total_amount - Invoice.amount_paid), 0
             ))
             .where(Invoice.entity_id == entity_id)
-            .where(Invoice.status == InvoiceStatus.FINALIZED)
+            .where(Invoice.status == InvoiceStatus.ACCEPTED)
         ) or 0
         
         # Overdue invoices
@@ -532,7 +532,7 @@ class ReportsService:
                 func.sum(Invoice.total_amount - Invoice.amount_paid), 0
             ))
             .where(Invoice.entity_id == entity_id)
-            .where(Invoice.status == InvoiceStatus.FINALIZED)
+            .where(Invoice.status == InvoiceStatus.ACCEPTED)
             .where(Invoice.due_date < today)
         ) or 0
         

@@ -30,6 +30,22 @@ async def seed_super_admin():
             print(f"⚠️ Warning: Could not seed Super Admin: {e}")
 
 
+async def seed_platform_test_entity():
+    """
+    Seed the platform test organization and entity on startup.
+    This provides a demo business for platform staff to use when testing features.
+    """
+    from app.services.staff_management_service import StaffManagementService
+    
+    async with async_session_factory() as session:
+        service = StaffManagementService(session)
+        try:
+            demo_entity = await service.get_or_create_platform_test_entity()
+            print(f"✅ Platform Test Entity ready: {demo_entity.name}")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not seed Test Entity: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -51,6 +67,12 @@ async def lifespan(app: FastAPI):
         await seed_super_admin()
     except Exception as e:
         print(f"⚠️ Warning: Super Admin seeding skipped: {e}")
+    
+    # Seed Platform Test Entity for staff testing
+    try:
+        await seed_platform_test_entity()
+    except Exception as e:
+        print(f"⚠️ Warning: Test Entity seeding skipped: {e}")
     
     yield
     
@@ -136,7 +158,7 @@ from app.routers import (
     auth, entities, categories, vendors, customers, 
     transactions, invoices, tax, inventory, receipts,
     reports, audit, views, tax_2026, staff, organization_users,
-    fixed_assets,
+    fixed_assets, sales,
 )
 
 # View Routes (HTML pages)
@@ -164,6 +186,7 @@ app.include_router(inventory.router, prefix="/api/v1/entities", tags=["Inventory
 app.include_router(receipts.router, prefix="/api/v1/entities", tags=["Receipts & Files"])
 app.include_router(reports.router, prefix="/api/v1/entities", tags=["Reports & Dashboard"])
 app.include_router(audit.router, prefix="/api/v1/entities", tags=["Audit Trail"])
+app.include_router(sales.router, prefix="/api/v1/entities", tags=["Sales Recording"])
 
 # Tax Management
 app.include_router(tax.router, prefix="/api/v1/tax", tags=["Tax Management"])

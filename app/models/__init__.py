@@ -40,6 +40,12 @@ from app.models.fixed_asset import (
     DepreciationMethod,
     DisposalType,
 )
+from app.models.notification import (
+    Notification,
+    NotificationType,
+    NotificationPriority,
+    NotificationChannel,
+)
 
 __all__ = [
     # Base
@@ -97,6 +103,11 @@ __all__ = [
     "AssetStatus",
     "DepreciationMethod",
     "DisposalType",
+    # Notifications
+    "Notification",
+    "NotificationType",
+    "NotificationPriority",
+    "NotificationChannel",
     # Audit
     "AuditLog",
 ]

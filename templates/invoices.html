@@ -197,7 +197,7 @@ function invoicesPage() {
     return {
         invoices: [],
         customers: [],
-        entityId: '{{ entity_id }}',
+        entityId: {{ entity_id|tojson if entity_id else 'null' }},
         showModal: false,
         saving: false,
         stats: { draft: 0, pending: 0, paid: 0, overdue: 0 },
@@ -211,6 +211,10 @@ function invoicesPage() {
         },
         
         async loadInvoices() {
+            if (!this.entityId) {
+                console.warn('No entity selected');
+                return;
+            }
             try {
                 const response = await fetch(`/api/v1/entities/${this.entityId}/invoices`, {
                     headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }

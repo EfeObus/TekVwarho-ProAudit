@@ -291,7 +291,7 @@ function reportsPage() {
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     
     return {
-        entityId: '{{ entity_id }}',
+        entityId: {{ entity_id|tojson if entity_id else 'null' }},
         activeTab: 'financial',
         startDate: firstOfMonth.toISOString().split('T')[0],
         endDate: today.toISOString().split('T')[0],
@@ -301,6 +301,10 @@ function reportsPage() {
         reports: {},
         
         init() {
+            if (!this.entityId) {
+                console.warn('No entity selected');
+                return;
+            }
             // Auto-load P&L on init
         },
         

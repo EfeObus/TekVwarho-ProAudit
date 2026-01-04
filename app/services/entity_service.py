@@ -56,6 +56,14 @@ class EntityService:
         Returns:
             BusinessEntity if found and user has access, None otherwise
         """
+        # Platform staff can access any entity
+        if user.is_platform_staff:
+            result = await self.db.execute(
+                select(BusinessEntity)
+                .where(BusinessEntity.id == entity_id)
+            )
+            return result.scalar_one_or_none()
+        
         result = await self.db.execute(
             select(BusinessEntity)
             .where(BusinessEntity.id == entity_id)

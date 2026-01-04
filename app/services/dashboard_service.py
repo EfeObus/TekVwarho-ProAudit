@@ -19,7 +19,8 @@ from app.models.organization import Organization, VerificationStatus, Organizati
 from app.models.entity import BusinessEntity
 from app.models.transaction import Transaction, TransactionType
 from app.models.invoice import Invoice, InvoiceStatus
-from app.models.audit import AuditLog
+from app.models.audit import AuditLog, AuditAction
+from app.models.inventory import InventoryItem
 from app.utils.permissions import (
     PlatformPermission,
     OrganizationPermission,
@@ -459,12 +460,60 @@ class DashboardService:
         ]
     
     async def _get_recent_errors(self, limit: int = 10) -> List[Dict]:
-        # Placeholder - would integrate with error tracking system
-        return []
+        """
+        Get recent errors from audit logs.
+        
+        Tracks failed login attempts and other error events.
+        """
+        result = await self.db.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.action.in_([
+                    AuditAction.LOGIN_FAILED,
+                ])
+            )
+            .order_by(AuditLog.created_at.desc())
+            .limit(limit)
+        )
+        errors = result.scalars().all()
+        return [
+            {
+                "id": str(error.id),
+                "action": error.action.value,
+                "entity_type": error.target_entity_type,
+                "user_id": str(error.user_id) if error.user_id else None,
+                "ip_address": str(error.ip_address) if error.ip_address else None,
+                "timestamp": error.created_at.isoformat() if error.created_at else None,
+            }
+            for error in errors
+        ]
     
     async def _get_recent_nrs_submissions(self, limit: int = 10) -> List[Dict]:
-        # Placeholder - would get from NRS submission logs
-        return []
+        """
+        Get recent NRS e-invoice submissions from audit logs.
+        
+        NRS submissions are logged with action NRS_SUBMIT.
+        """
+        result = await self.db.execute(
+            select(AuditLog)
+            .where(AuditLog.action == AuditAction.NRS_SUBMIT)
+            .order_by(AuditLog.created_at.desc())
+            .limit(limit)
+        )
+        submissions = result.scalars().all()
+        return [
+            {
+                "id": str(sub.id),
+                "invoice_id": sub.target_entity_id,
+                "entity_id": str(sub.entity_id) if sub.entity_id else None,
+                "user_id": str(sub.user_id) if sub.user_id else None,
+                "irn": sub.new_values.get("irn") if sub.new_values else None,
+                "success": sub.new_values.get("success", False) if sub.new_values else False,
+                "error": sub.new_values.get("error") if sub.new_values else None,
+                "timestamp": sub.created_at.isoformat() if sub.created_at else None,
+            }
+            for sub in submissions
+        ]
     
     async def _get_user_growth_stats(self) -> Dict[str, Any]:
         # Get users created in last 30 days
@@ -688,22 +737,144 @@ class DashboardService:
         self, 
         entity_id: Optional[uuid.UUID]
     ) -> Dict[str, Any]:
-        # Placeholder - would calculate actual tax obligations
+        """
+        Calculate tax obligations summary for the entity.
+        
+        Calculates VAT collected (from sales) and VAT paid (from expenses)
+        to determine net VAT payable/recoverable.
+        """
+        if not entity_id:
+            return {
+                "vat_collected": 0,
+                "vat_paid": 0,
+                "net_vat_payable": 0,
+                "next_filing_date": None,
+            }
+        
+        # Get current month for VAT calculations
+        today = date.today()
+        month_start = date(today.year, today.month, 1)
+        
+        # VAT collected from sales (INCOME transactions)
+        result = await self.db.execute(
+            select(func.coalesce(func.sum(Transaction.vat_amount), 0))
+            .where(
+                and_(
+                    Transaction.entity_id == entity_id,
+                    Transaction.transaction_type == TransactionType.INCOME,
+                    Transaction.transaction_date >= month_start,
+                )
+            )
+        )
+        vat_collected = result.scalar() or Decimal("0.00")
+        
+        # VAT paid on expenses (EXPENSE transactions)
+        result = await self.db.execute(
+            select(func.coalesce(func.sum(Transaction.vat_amount), 0))
+            .where(
+                and_(
+                    Transaction.entity_id == entity_id,
+                    Transaction.transaction_type == TransactionType.EXPENSE,
+                    Transaction.transaction_date >= month_start,
+                )
+            )
+        )
+        vat_paid = result.scalar() or Decimal("0.00")
+        
+        # Calculate next filing date (21st of following month)
+        if today.month == 12:
+            next_filing = date(today.year + 1, 1, 21)
+        else:
+            next_filing = date(today.year, today.month + 1, 21)
+        
         return {
-            "vat_collected": 0,
-            "vat_paid": 0,
-            "next_filing_date": None,
+            "vat_collected": float(vat_collected),
+            "vat_paid": float(vat_paid),
+            "net_vat_payable": float(vat_collected - vat_paid),
+            "next_filing_date": next_filing.isoformat(),
         }
     
     async def _get_inventory_summary(
         self, 
         entity_id: Optional[uuid.UUID]
     ) -> Dict[str, Any]:
-        # Placeholder - would get actual inventory stats
+        """
+        Get inventory statistics for the entity.
+        
+        Calculates total items, low stock items, and total inventory value.
+        """
+        if not entity_id:
+            return {
+                "total_items": 0,
+                "low_stock_items": 0,
+                "total_value": 0,
+                "out_of_stock": 0,
+            }
+        
+        # Total active inventory items
+        result = await self.db.execute(
+            select(func.count(InventoryItem.id))
+            .where(
+                and_(
+                    InventoryItem.entity_id == entity_id,
+                    InventoryItem.is_active == True,
+                    InventoryItem.is_tracked == True,
+                )
+            )
+        )
+        total_items = result.scalar() or 0
+        
+        # Low stock items (quantity <= reorder_level but > 0)
+        result = await self.db.execute(
+            select(func.count(InventoryItem.id))
+            .where(
+                and_(
+                    InventoryItem.entity_id == entity_id,
+                    InventoryItem.is_active == True,
+                    InventoryItem.is_tracked == True,
+                    InventoryItem.quantity_on_hand <= InventoryItem.reorder_level,
+                    InventoryItem.quantity_on_hand > 0,
+                )
+            )
+        )
+        low_stock_items = result.scalar() or 0
+        
+        # Out of stock items
+        result = await self.db.execute(
+            select(func.count(InventoryItem.id))
+            .where(
+                and_(
+                    InventoryItem.entity_id == entity_id,
+                    InventoryItem.is_active == True,
+                    InventoryItem.is_tracked == True,
+                    InventoryItem.quantity_on_hand == 0,
+                )
+            )
+        )
+        out_of_stock = result.scalar() or 0
+        
+        # Total inventory value (quantity * unit_cost)
+        result = await self.db.execute(
+            select(
+                func.coalesce(
+                    func.sum(InventoryItem.quantity_on_hand * InventoryItem.unit_cost),
+                    0
+                )
+            )
+            .where(
+                and_(
+                    InventoryItem.entity_id == entity_id,
+                    InventoryItem.is_active == True,
+                )
+            )
+        )
+        total_value = result.scalar() or Decimal("0.00")
+        
         return {
-            "total_items": 0,
-            "low_stock_items": 0,
-            "total_value": 0,
+            "total_items": total_items,
+            "low_stock_items": low_stock_items,
+            "out_of_stock": out_of_stock,
+            "total_value": float(total_value),
         }
     
     async def _get_tin_cac_vault(

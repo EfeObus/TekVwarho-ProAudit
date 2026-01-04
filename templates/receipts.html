@@ -183,7 +183,7 @@
 <script>
 function receiptScanner() {
     return {
-        entityId: '{{ entity_id }}',
+        entityId: {{ entity_id|tojson if entity_id else 'null' }},
         dragOver: false,
         file: null,
         previewUrl: null,
@@ -195,6 +195,10 @@ function receiptScanner() {
         recentReceipts: [],
         
         async init() {
+            if (!this.entityId) {
+                console.warn('No entity selected');
+                return;
+            }
             // Load categories
             try {
                 const res = await fetch(`/api/v1/entities/${this.entityId}/categories`, {

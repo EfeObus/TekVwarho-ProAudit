@@ -35,6 +35,28 @@ def get_entity_id_from_session(request: Request) -> Optional[uuid.UUID]:
     return None
 
 
+def set_entity_cookie_if_needed(
+    response, 
+    request: Request, 
+    entity_id: Optional[uuid.UUID]
+) -> None:
+    """
+    Set the entity_id cookie if needed (e.g., for platform staff auto-assignment).
+    
+    This is called after require_auth to persist the auto-assigned entity.
+    """
+    if entity_id:
+        current_cookie = request.cookies.get("entity_id")
+        if current_cookie != str(entity_id):
+            response.set_cookie(
+                key="entity_id",
+                value=str(entity_id),
+                httponly=True,
+                max_age=60 * 60 * 24 * 30,  # 30 days
+                samesite="lax"
+            )
+
+
 async def get_user_from_token(request: Request, db: AsyncSession) -> Optional[User]:
     """Get the authenticated user from the access token cookie."""
     token = request.cookies.get("access_token")
@@ -61,10 +83,16 @@ async def require_auth(
     """
     Check authentication for protected pages.
     
+    For platform staff:
+    - They don't need to manually select an entity
+    - If they access entity-requiring pages, they get the test entity automatically
+    
     Returns:
         Tuple of (user, entity_id, redirect_response)
         If redirect_response is not None, the caller should return it.
     """
+    from app.services.staff_management_service import StaffManagementService
+    
     user = await get_user_from_token(request, db)
     
     if not user:
@@ -72,9 +100,20 @@ async def require_auth(
     
     entity_id = get_entity_id_from_session(request)
     
-    # Platform staff don't need entity
+    # Platform staff handling
     if user.is_platform_staff:
-        return user, None, None
+        if require_entity and not entity_id:
+            # Auto-assign the test entity for platform staff
+            try:
+                service = StaffManagementService(db)
+                demo_entity = await service.ensure_staff_has_test_entity_access(user)
+                # Return the demo entity ID - caller should set cookie
+                return user, demo_entity.id, None
+            except Exception as e:
+                # If test entity creation fails, continue without entity
+                print(f"⚠️ Could not assign test entity to staff: {e}")
+                return user, None, None
+        return user, entity_id, None
     
     # Organization users need entity (unless require_entity is False)
     if require_entity and not entity_id:
@@ -196,14 +235,16 @@ async def transactions_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Transactions list page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("transactions.html", {
+    response = templates.TemplateResponse("transactions.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 @router.get("/transactions/new", response_class=HTMLResponse)
@@ -221,14 +262,16 @@ async def invoices_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Invoices list page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("invoices.html", {
+    response = templates.TemplateResponse("invoices.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 @router.get("/invoices/new", response_class=HTMLResponse)
@@ -240,20 +283,40 @@ async def new_invoice_page(
     return RedirectResponse(url="/invoices#new", status_code=status.HTTP_302_FOUND)
 
 
+@router.get("/sales", response_class=HTMLResponse)
+async def sales_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Sales recording page - POS-style sales management."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("sales.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
 @router.get("/receipts/upload", response_class=HTMLResponse)
 async def receipt_upload_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Receipt upload/scan page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("receipts.html", {
+    response = templates.TemplateResponse("receipts.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 @router.get("/reports", response_class=HTMLResponse)
@@ -262,14 +325,16 @@ async def reports_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Reports page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("reports.html", {
+    response = templates.TemplateResponse("reports.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 @router.get("/vendors", response_class=HTMLResponse)
@@ -278,14 +343,16 @@ async def vendors_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Vendors list page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("vendors.html", {
+    response = templates.TemplateResponse("vendors.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 @router.get("/customers", response_class=HTMLResponse)
@@ -294,14 +361,16 @@ async def customers_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Customers list page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("customers.html", {
+    response = templates.TemplateResponse("customers.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 @router.get("/inventory", response_class=HTMLResponse)
@@ -310,14 +379,16 @@ async def inventory_page(
     db: AsyncSession = Depends(get_db),
 ):
     """Inventory management page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("inventory.html", {
+    response = templates.TemplateResponse("inventory.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 @router.get("/settings", response_class=HTMLResponse)
@@ -418,14 +489,17 @@ async def tax_2026_page(
     db: AsyncSession = Depends(get_db),
 ):
     """2026 Tax Reform compliance page."""
-    user, entity_id, redirect = await require_auth(request, db)
+    # Require entity selection - redirect to select-entity if not selected
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("tax_2026.html", {
+    response = templates.TemplateResponse("tax_2026.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
 
 
 # ===========================================

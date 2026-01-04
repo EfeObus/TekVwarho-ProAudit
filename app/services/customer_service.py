@@ -69,9 +69,7 @@ class CustomerService:
         address: Optional[str] = None,
         city: Optional[str] = None,
         state: Optional[str] = None,
-        is_vat_registered: bool = False,
-        credit_limit: Optional[float] = None,
-        payment_terms_days: int = 30,
+        is_business: bool = False,
         notes: Optional[str] = None,
     ) -> Customer:
         """Create a new customer."""
@@ -85,10 +83,7 @@ class CustomerService:
             address=address,
             city=city,
             state=state,
-            country="Nigeria",
-            is_vat_registered=is_vat_registered,
-            credit_limit=credit_limit,
-            payment_terms_days=payment_terms_days,
+            is_business=is_business,
             notes=notes,
             is_active=True,
         )

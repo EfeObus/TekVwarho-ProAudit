@@ -96,7 +96,7 @@ services:
       target: production
     container_name: tekvwarho-celery-worker
     restart: unless-stopped
-    command: celery -A app.tasks worker --loglevel=info
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
     environment:
       - DATABASE_URL=postgresql+asyncpg://tekvwarho:tekvwarho_secret@db:5432/tekvwarho_proaudit
       - REDIS_URL=redis://redis:6379/0
@@ -118,7 +118,7 @@ services:
       target: production
     container_name: tekvwarho-celery-beat
     restart: unless-stopped
-    command: celery -A app.tasks beat --loglevel=info
+    command: celery -A app.celery_app beat --loglevel=info --scheduler=celery.beat:PersistentScheduler
     environment:
       - DATABASE_URL=postgresql+asyncpg://tekvwarho:tekvwarho_secret@db:5432/tekvwarho_proaudit
       - REDIS_URL=redis://redis:6379/0

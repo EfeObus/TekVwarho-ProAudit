@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from app.models.vendor import Vendor
     from app.models.customer import Customer
     from app.models.inventory import InventoryItem
+    from app.models.notification import Notification
 
 
 class BusinessType(str, Enum):
@@ -170,6 +171,11 @@ class BusinessEntity(BaseModel):
     )
     inventory_items: Mapped[List["InventoryItem"]] = relationship(
         "InventoryItem",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+    )
+    notifications: Mapped[List["Notification"]] = relationship(
+        "Notification",
         back_populates="entity",
         cascade="all, delete-orphan",
     )

@@ -229,24 +229,12 @@ async def verify_entity_access(
 ) -> None:
     """Verify user has access to the entity."""
     entity_service = EntityService(db)
-    entity = await entity_service.get_entity_by_id(entity_id)
+    entity = await entity_service.get_entity_by_id(entity_id, user)
     
     if not entity:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Business entity not found",
-        )
-    
-    # Check user has access
-    has_access = any(
-        access.entity_id == entity_id 
-        for access in user.entity_access
-    )
-    
-    if not has_access and entity.organization_id != user.organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this business entity",
+            detail="Business entity not found or access denied",
         )
 
 

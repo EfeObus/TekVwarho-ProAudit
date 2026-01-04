@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-01-04
+
+### 🔔 Notification System & Background Tasks
+
+This release adds a complete notification system, Celery background tasks, and improved email services.
+
+### Added
+
+#### Notification Model & Service
+- **New Model**: `Notification` with 17 notification types
+  - Types: Invoice Overdue, Payment Received, Low Stock Alert, VAT/PAYE Deadlines, NRS Success/Failed, Compliance Warning, System Alerts, and more
+  - Priority levels: LOW, MEDIUM, HIGH, URGENT
+  - Channels: IN_APP, EMAIL, BOTH
+  - Relationships to User and BusinessEntity
+- **New Service**: `NotificationService` with full CRUD operations
+  - `create_notification()` - Create new notifications
+  - `get_user_notifications()` - Get with filtering and pagination
+  - `get_unread_count()` - Count unread notifications
+  - `mark_as_read()` / `mark_all_as_read()` - Mark notifications read
+  - Convenience methods: `notify_invoice_overdue()`, `notify_low_stock()`, `notify_vat_reminder()`, etc.
+
+#### Email Service (Multi-Provider)
+- **Providers**: SendGrid, Mailgun, SMTP, Mock (for development)
+- Auto-selection based on environment configuration
+- Error handling with logging
+- Template-ready body support
+
+#### Celery Background Tasks
+- **New File**: `app/celery_app.py` - Celery configuration
+- **New File**: `app/tasks/celery_tasks.py` - Background task implementations
+- Redis as message broker and result backend
+- Task routing for email, NRS, and default queues
+- Beat scheduler with 9 scheduled tasks:
+  - `check_overdue_invoices_task` - Daily at 6 AM
+  - `check_low_stock_task` - Daily at 7 AM
+  - `check_vat_deadlines_task` - Daily at 8 AM
+  - `check_paye_deadlines_task` - Daily at 8:30 AM
+  - `retry_failed_nrs_submissions_task` - Every 15 minutes
+  - `cleanup_old_notifications_task` - Weekly on Sunday
+  - `archive_old_audit_logs_task` - Monthly on 1st
+  - `generate_monthly_tax_summary_task` - Monthly on 2nd
+  - `send_email_task` - Async email sending
+
+#### Dashboard Service Improvements
+- `_get_tax_summary()` - Real VAT calculations from transactions
+- `_get_inventory_summary()` - Actual inventory statistics with low stock counts
+- `_get_recent_errors()` - Error tracking from audit logs
+- `_get_recent_nrs_submissions()` - NRS submission history
+
+#### Integration Tests
+- **New File**: `tests/test_integration.py`
+- Invoice workflow tests
+- Notification system tests
+- Email service mock tests
+- Tax calculator tests (VAT 2026, Development Levy)
+- Dashboard service tests
+- Celery task tests (mocked)
+- Audit logging tests
+
+### Changed
+- Updated `docker-compose.yml` with Celery worker and beat commands
+- Updated `.env.example` with email provider and Celery configuration
+- Updated `app/services/__init__.py` with 45 exports
+- Updated `app/schemas/__init__.py` with comprehensive exports
+- Updated `app/models/__init__.py` with Notification exports
+
+---
+
 ## [1.4.0] - 2026-01-03
 
 ### 🇳🇬 2026 Nigeria Tax Reform - Complete Compliance Implementation

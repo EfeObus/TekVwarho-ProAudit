@@ -443,3 +443,126 @@ class StaffManagementService:
             "verified_organizations": verified_orgs,
             "pending_organizations": total_orgs - verified_orgs,
         }
+
+    # ===========================================
+    # PLATFORM TEST ENTITY FOR STAFF
+    # ===========================================
+    
+    PLATFORM_ORG_SLUG = "tekvwarho-demo"
+    PLATFORM_ENTITY_NAME = "TekVwarho Demo Business"
+    
+    async def get_or_create_platform_test_entity(self) -> "BusinessEntity":
+        """
+        Get or create the platform test organization and entity for staff testing.
+        
+        This creates a verified "TekVwarho Demo" organization with a test business
+        entity that platform staff can use to test all app features without needing
+        to create their own business.
+        
+        Returns:
+            BusinessEntity: The test entity for platform staff
+        """
+        from app.models.entity import BusinessEntity, BusinessType
+        from app.models.organization import OrganizationType, SubscriptionTier
+        
+        # Check if demo org exists
+        result = await self.db.execute(
+            select(Organization).where(Organization.slug == self.PLATFORM_ORG_SLUG)
+        )
+        demo_org = result.scalar_one_or_none()
+        
+        if not demo_org:
+            # Create demo organization
+            demo_org = Organization(
+                name="TekVwarho Demo",
+                slug=self.PLATFORM_ORG_SLUG,
+                organization_type=OrganizationType.SME,
+                email="demo@tekvwarho.com",
+                phone="+234-800-DEMO",
+                subscription_tier=SubscriptionTier.ENTERPRISE,
+                verification_status=VerificationStatus.VERIFIED,
+            )
+            self.db.add(demo_org)
+            await self.db.flush()  # Get the ID
+        
+        # Check if demo entity exists
+        entity_result = await self.db.execute(
+            select(BusinessEntity).where(
+                and_(
+                    BusinessEntity.organization_id == demo_org.id,
+                    BusinessEntity.name == self.PLATFORM_ENTITY_NAME
+                )
+            )
+        )
+        demo_entity = entity_result.scalar_one_or_none()
+        
+        if not demo_entity:
+            # Create demo entity
+            demo_entity = BusinessEntity(
+                organization_id=demo_org.id,
+                name=self.PLATFORM_ENTITY_NAME,
+                legal_name="TekVwarho LTD Demo Business",
+                tin="1234567890",  # Demo TIN
+                rc_number="RC-DEMO-001",
+                address_line1="123 Demo Street",
+                city="Lagos",
+                state="Lagos",
+                country="Nigeria",
+                email="demo@tekvwarho.com",
+                phone="+234-800-DEMO",
+                fiscal_year_start_month=1,
+                currency="NGN",
+                is_vat_registered=True,
+                business_type=BusinessType.LIMITED_COMPANY,
+                annual_turnover=50_000_000,  # ₦50M for testing
+                fixed_assets_value=100_000_000,  # ₦100M for testing
+                b2c_realtime_reporting_enabled=True,
+            )
+            self.db.add(demo_entity)
+        
+        await self.db.commit()
+        await self.db.refresh(demo_entity)
+        
+        return demo_entity
+    
+    async def ensure_staff_has_test_entity_access(self, staff_user: User) -> "BusinessEntity":
+        """
+        Ensure a platform staff member has access to the test entity.
+        
+        This grants the staff user access to the demo entity if they don't already have it.
+        
+        Args:
+            staff_user: The platform staff member
+            
+        Returns:
+            BusinessEntity: The test entity
+        """
+        from app.models.entity import BusinessEntity
+        from app.models.user import UserEntityAccess
+        
+        # Get or create the test entity
+        demo_entity = await self.get_or_create_platform_test_entity()
+        
+        # Check if staff already has access
+        access_result = await self.db.execute(
+            select(UserEntityAccess).where(
+                and_(
+                    UserEntityAccess.user_id == staff_user.id,
+                    UserEntityAccess.entity_id == demo_entity.id
+                )
+            )
+        )
+        existing_access = access_result.scalar_one_or_none()
+        
+        if not existing_access:
+            # Grant access
+            access = UserEntityAccess(
+                user_id=staff_user.id,
+                entity_id=demo_entity.id,
+                can_write=True,
+                can_delete=True,
+            )
+            self.db.add(access)
+            await self.db.commit()
+        
+        return demo_entity

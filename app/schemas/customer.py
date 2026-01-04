@@ -30,10 +30,8 @@ class CustomerCreateRequest(BaseModel):
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)
     
-    # Settings
-    is_vat_registered: bool = False
-    credit_limit: Optional[float] = Field(None, ge=0)
-    payment_terms_days: int = Field(30, ge=0)
+    # Business info
+    is_business: bool = False
     
     notes: Optional[str] = None
 
@@ -53,10 +51,8 @@ class CustomerUpdateRequest(BaseModel):
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)
     
-    # Settings
-    is_vat_registered: Optional[bool] = None
-    credit_limit: Optional[float] = Field(None, ge=0)
-    payment_terms_days: Optional[int] = Field(None, ge=0)
+    # Business info
+    is_business: Optional[bool] = None
     
     notes: Optional[str] = None
 
@@ -81,12 +77,9 @@ class CustomerResponse(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
-    country: str
     
-    # Settings
-    is_vat_registered: bool
-    credit_limit: Optional[float] = None
-    payment_terms_days: int
+    # Business info
+    is_business: bool = False
     
     # Stats
     total_invoiced: float
@@ -114,7 +107,7 @@ class CustomerSummaryResponse(BaseModel):
     id: UUID
     name: str
     tin: Optional[str] = None
-    is_vat_registered: bool
+    is_business: bool = False
     outstanding_balance: float
     
     class Config:

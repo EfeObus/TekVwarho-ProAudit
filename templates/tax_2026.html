@@ -579,9 +579,10 @@ function tax2026Dashboard() {
     const today = new Date().toISOString().split('T')[0];
     
     return {
-        entityId: '{{ entity_id }}',
+        entityId: {{ entity_id|tojson if entity_id else 'null' }},
         activeTab: 'buyer-review',
         polling: false,
+        noEntitySelected: false,
         
         // Data
         businessType: {},
@@ -620,6 +621,13 @@ function tax2026Dashboard() {
         toast: { show: false, message: '', type: 'success' },
         
         async init() {
+            // Check if entity is selected before making API calls
+            if (!this.entityId) {
+                this.noEntitySelected = true;
+                console.warn('No entity selected. Redirecting to entity selection.');
+                window.location.href = '/select-entity';
+                return;
+            }
             await this.loadBusinessType();
             await this.loadBuyerReviews();
             await this.loadVATSummary();

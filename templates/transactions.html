@@ -200,7 +200,7 @@ function transactionsPage() {
     return {
         transactions: [],
         categories: [],
-        entityId: '{{ entity_id }}',
+        entityId: {{ entity_id|tojson if entity_id else 'null' }},
         showModal: false,
         editingId: null,
         saving: false,
@@ -225,6 +225,10 @@ function transactionsPage() {
         },
         
         async loadTransactions() {
+            if (!this.entityId) {
+                console.warn('No entity selected');
+                return;
+            }
             const params = new URLSearchParams({
                 skip: (this.page - 1) * this.pageSize,
                 limit: this.pageSize,

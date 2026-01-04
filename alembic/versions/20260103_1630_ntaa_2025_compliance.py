@@ -8,7 +8,7 @@ Add fields for:
 - Time-limited CSR impersonation (24hr tokens)
 
 Revision ID: ntaa_2025_compliance
-Revises: 20260103_1530_rbac_implementation
+Revises: 20260103_1600_add_fixed_assets
 Create Date: 2026-01-03 16:30:00.000000
 
 """
@@ -19,7 +19,7 @@ from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = '20260103_1630_ntaa_2025_compliance'
-down_revision = '20260103_1530_rbac_implementation'
+down_revision = '20260103_1600_add_fixed_assets'
 branch_labels = None
 depends_on = None
 
