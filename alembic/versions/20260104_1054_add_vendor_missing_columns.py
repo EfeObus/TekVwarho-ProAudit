@@ -1,7 +1,7 @@
 """Add missing vendor columns (contact_person, country, default_wht_rate)
 
 Revision ID: 20260104_1054
-Revises: 20260103_1700
+Revises: 20260104_0930
 Create Date: 2026-01-04 10:54:00
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "20260104_1054"
-down_revision: Union[str, None] = "20260103_1700"
+down_revision: Union[str, None] = "20260104_0930"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
