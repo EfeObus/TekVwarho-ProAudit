@@ -158,9 +158,8 @@ async def test_category(db_session: AsyncSession, test_entity: BusinessEntity) -
     category = Category(
         id=uuid4(),
         name="Office Supplies",
-        category_type=CategoryType.expense,
+        category_type=CategoryType.EXPENSE,
         description="Office supplies and stationery",
-        entity_id=test_entity.id,
     )
     db_session.add(category)
     await db_session.commit()
@@ -215,7 +214,7 @@ async def test_transaction(
     transaction = Transaction(
         id=uuid4(),
         entity_id=test_entity.id,
-        transaction_type=TransactionType.expense,
+        transaction_type=TransactionType.EXPENSE,
         category_id=test_category.id,
         vendor_id=test_vendor.id,
         description="Office supplies purchase",

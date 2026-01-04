@@ -23,13 +23,15 @@ class TestTransactionService:
         test_entity, 
         test_category,
         test_vendor,
+        test_user,
     ):
         """Test transaction creation."""
         service = TransactionService(db_session)
         
         transaction = await service.create_transaction(
             entity_id=test_entity.id,
-            transaction_type=TransactionType.expense,
+            user_id=test_user.id,
+            transaction_type=TransactionType.EXPENSE,
             category_id=test_category.id,
             vendor_id=test_vendor.id,
             description="Test purchase",
@@ -81,7 +83,7 @@ class TestTransactionService:
         """Test getting all transactions for an entity."""
         service = TransactionService(db_session)
         
-        transactions = await service.get_entity_transactions(
+        transactions, total = await service.get_transactions_for_entity(
             entity_id=test_entity.id,
         )
         
@@ -98,13 +100,13 @@ class TestTransactionService:
         """Test filtering transactions by type."""
         service = TransactionService(db_session)
         
-        transactions = await service.get_entity_transactions(
+        transactions, total = await service.get_transactions_for_entity(
             entity_id=test_entity.id,
-            transaction_type=TransactionType.expense,
+            transaction_type="expense",
         )
         
         assert len(transactions) >= 1
-        assert all(t.transaction_type == TransactionType.expense for t in transactions)
+        assert all(t.transaction_type == TransactionType.EXPENSE for t in transactions)
     
     @pytest.mark.asyncio
     async def test_get_transactions_by_date_range(
@@ -116,7 +118,7 @@ class TestTransactionService:
         """Test filtering transactions by date range."""
         service = TransactionService(db_session)
         
-        transactions = await service.get_entity_transactions(
+        transactions, total = await service.get_transactions_for_entity(
             entity_id=test_entity.id,
             start_date=date.today(),
             end_date=date.today(),
@@ -134,8 +136,7 @@ class TestTransactionService:
         service = TransactionService(db_session)
         
         updated = await service.update_transaction(
-            transaction_id=test_transaction.id,
-            entity_id=test_transaction.entity_id,
+            transaction=test_transaction,
             description="Updated description",
             amount=Decimal("75000.00"),
         )
@@ -154,8 +155,7 @@ class TestTransactionService:
         service = TransactionService(db_session)
         
         result = await service.delete_transaction(
-            transaction_id=test_transaction.id,
-            entity_id=test_transaction.entity_id,
+            transaction=test_transaction,
         )
         
         assert result is True

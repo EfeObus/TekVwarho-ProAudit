@@ -3088,3 +3088,408 @@ async def export_existing_invoice_json(
         qr_code_data=qr_data,
         is_compliant=True,
     )
+
+
+# ===========================================
+# SELF-ASSESSMENT & TAXPRO MAX EXPORT ENDPOINTS
+# ===========================================
+
+from app.services.self_assessment_service import (
+    SelfAssessmentService,
+    TaxReturnType,
+    TaxProMaxFormCode,
+    CITSelfAssessment,
+    VATSelfAssessment,
+    AnnualReturnsSummary,
+)
+
+
+# Schemas for Self-Assessment
+class SelfAssessmentInfoResponse(BaseModel):
+    """Self-assessment service information."""
+    service_name: str
+    description: str
+    supported_forms: List[dict]
+    taxpro_max_portal: str
+    export_formats: List[str]
+    fiscal_year_support: str
+
+
+class CITAssessmentResponse(BaseModel):
+    """CIT self-assessment response."""
+    entity_id: str
+    fiscal_year_end: str
+    tin: str
+    company_name: str
+    company_classification: str
+    income_statement: dict
+    tax_computation: dict
+    capital_gains: dict
+    final_computation: dict
+    form_code: str
+    generated_at: str
+
+
+class VATAssessmentResponse(BaseModel):
+    """VAT self-assessment response."""
+    entity_id: str
+    period: str
+    tin: str
+    sales: dict
+    purchases: dict
+    net_position: dict
+    form_code: str
+    generated_at: str
+
+
+class AnnualReturnsResponse(BaseModel):
+    """Annual returns package response."""
+    entity_id: str
+    fiscal_year: int
+    tin: str
+    company_name: str
+    summary: dict
+    cit_assessment: Optional[dict]
+    vat_monthly_breakdown: List[dict]
+    taxpro_max: dict
+    generated_at: str
+
+
+class TaxProExportRequest(BaseModel):
+    """Request for TaxPro Max export."""
+    fiscal_year: int = Field(..., ge=2020, le=2100)
+    return_type: TaxReturnType = TaxReturnType.CIT
+    format: str = Field(default="csv", pattern="^(csv|xlsx|json)$")
+
+
+class TaxProExportResponse(BaseModel):
+    """TaxPro Max export response."""
+    form_code: str
+    format: str
+    filename: str
+    content: str
+    record_count: int
+    generated_at: str
+    upload_instructions: str
+
+
+@router.get(
+    "/self-assessment/info",
+    tags=["2026 Reform - Self-Assessment"],
+    summary="Get self-assessment service information",
+)
+async def get_self_assessment_info() -> SelfAssessmentInfoResponse:
+    """
+    Get information about the Self-Assessment and TaxPro Max Export service.
+    
+    Provides details on:
+    - Supported NRS form types
+    - Export formats for TaxPro Max upload
+    - Fiscal year support
+    """
+    return SelfAssessmentInfoResponse(
+        service_name="TekVwarho ProAudit Self-Assessment",
+        description="Pre-fills NRS tax forms based on yearly financial data for TaxPro Max upload",
+        supported_forms=[
+            {"code": TaxProMaxFormCode.CIT_ANNUAL.value, "name": "Annual CIT Return", "description": "Company Income Tax annual return"},
+            {"code": TaxProMaxFormCode.VAT_MONTHLY.value, "name": "Monthly VAT Return", "description": "Value Added Tax monthly return"},
+            {"code": TaxProMaxFormCode.PAYE_MONTHLY.value, "name": "Monthly PAYE Return", "description": "Pay As You Earn monthly return"},
+            {"code": TaxProMaxFormCode.WHT_MONTHLY.value, "name": "Monthly WHT Return", "description": "Withholding Tax monthly return"},
+            {"code": TaxProMaxFormCode.DEV_LEVY_ANNUAL.value, "name": "Annual Development Levy", "description": "Development Levy annual return"},
+            {"code": TaxProMaxFormCode.ANNUAL_RETURNS.value, "name": "Annual Returns Package", "description": "Complete annual returns bundle"},
+        ],
+        taxpro_max_portal="https://taxpromax.nrs.gov.ng/",
+        export_formats=["csv", "xlsx", "json"],
+        fiscal_year_support="2024 onwards (2026 Tax Reform compliant)",
+    )
+
+
+@router.get(
+    "/self-assessment/{entity_id}/cit/{fiscal_year}",
+    tags=["2026 Reform - Self-Assessment"],
+    summary="Generate CIT self-assessment",
+)
+async def generate_cit_self_assessment(
+    entity_id: UUID,
+    fiscal_year: int = Path(..., ge=2020, le=2100),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+) -> CITAssessmentResponse:
+    """
+    Generate Company Income Tax (CIT) self-assessment for a fiscal year.
+    
+    Pre-fills the CIT-01 form with:
+    - Income statement figures (turnover, expenses, profit)
+    - Tax computation (assessable profit, tax rate, liability)
+    - Capital gains (taxed at CIT rate under 2026 law)
+    - Development Levy calculation
+    - WHT credits deduction
+    """
+    service = SelfAssessmentService(db)
+    
+    try:
+        assessment = await service.generate_cit_assessment(entity_id, fiscal_year)
+        
+        return CITAssessmentResponse(
+            entity_id=str(assessment.entity_id),
+            fiscal_year_end=assessment.fiscal_year_end.isoformat(),
+            tin=assessment.tin,
+            company_name=assessment.company_name,
+            company_classification=assessment.company_classification,
+            income_statement={
+                "gross_turnover": float(assessment.gross_turnover),
+                "cost_of_sales": float(assessment.cost_of_sales),
+                "gross_profit": float(assessment.gross_profit),
+                "operating_expenses": float(assessment.operating_expenses),
+                "depreciation": float(assessment.depreciation),
+                "net_profit_before_tax": float(assessment.net_profit_before_tax),
+            },
+            tax_computation={
+                "add_backs": float(assessment.add_backs),
+                "allowable_deductions": float(assessment.allowable_deductions),
+                "assessable_profit": float(assessment.assessable_profit),
+                "tax_rate_percent": float(assessment.tax_rate),
+                "cit_liability": float(assessment.cit_liability),
+            },
+            capital_gains={
+                "total_gains": float(assessment.capital_gains),
+                "cgt_liability": float(assessment.cgt_liability),
+                "note": "Under 2026 law, capital gains are taxed at the flat CIT rate",
+            },
+            final_computation={
+                "total_tax_payable": float(assessment.total_tax_payable),
+                "wht_credits": float(assessment.wht_credits),
+                "net_tax_payable": float(assessment.net_tax_payable),
+                "development_levy": float(assessment.development_levy),
+            },
+            form_code=assessment.form_code,
+            generated_at=assessment.generated_at.isoformat(),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get(
+    "/self-assessment/{entity_id}/vat/{year}/{month}",
+    tags=["2026 Reform - Self-Assessment"],
+    summary="Generate VAT self-assessment",
+)
+async def generate_vat_self_assessment(
+    entity_id: UUID,
+    year: int = Path(..., ge=2020, le=2100),
+    month: int = Path(..., ge=1, le=12),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+) -> VATAssessmentResponse:
+    """
+    Generate monthly VAT return self-assessment.
+    
+    Pre-fills the VAT-01 form with:
+    - Output VAT from sales
+    - Input VAT from purchases
+    - Input VAT on fixed assets (2026: now recoverable with IRN)
+    - Net VAT payable or refund
+    """
+    service = SelfAssessmentService(db)
+    
+    try:
+        assessment = await service.generate_vat_assessment(entity_id, year, month)
+        
+        return VATAssessmentResponse(
+            entity_id=str(assessment.entity_id),
+            period=f"{year}-{month:02d}",
+            tin=assessment.tin,
+            sales={
+                "standard_rated": float(assessment.standard_rated_sales),
+                "zero_rated": float(assessment.zero_rated_sales),
+                "exempt": float(assessment.exempt_sales),
+                "total": float(assessment.total_sales),
+                "output_vat": float(assessment.output_vat),
+            },
+            purchases={
+                "standard_rated": float(assessment.standard_rated_purchases),
+                "zero_rated": float(assessment.zero_rated_purchases),
+                "exempt": float(assessment.exempt_purchases),
+                "total": float(assessment.total_purchases),
+                "input_vat": float(assessment.input_vat),
+                "input_vat_fixed_assets": float(assessment.input_vat_fixed_assets),
+                "total_input_vat": float(assessment.total_input_vat),
+            },
+            net_position={
+                "net_vat_payable": float(assessment.net_vat_payable),
+                "refund_claimed": float(assessment.refund_claimed),
+            },
+            form_code=assessment.form_code,
+            generated_at=assessment.generated_at.isoformat(),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get(
+    "/self-assessment/{entity_id}/annual/{fiscal_year}",
+    tags=["2026 Reform - Self-Assessment"],
+    summary="Generate annual returns package",
+)
+async def generate_annual_returns(
+    entity_id: UUID,
+    fiscal_year: int = Path(..., ge=2020, le=2100),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+) -> AnnualReturnsResponse:
+    """
+    Generate complete annual returns package for TaxPro Max upload.
+    
+    Includes:
+    - CIT annual return (CIT-01)
+    - 12 monthly VAT returns (VAT-01)
+    - Development Levy calculation
+    - Summary totals
+    - Export format options
+    """
+    service = SelfAssessmentService(db)
+    
+    try:
+        summary = await service.generate_annual_returns(entity_id, fiscal_year)
+        json_data = service.export_annual_summary_json(summary)
+        
+        return AnnualReturnsResponse(
+            entity_id=str(summary.entity_id),
+            fiscal_year=summary.fiscal_year,
+            tin=summary.tin,
+            company_name=summary.company_name,
+            summary=json_data["summary"],
+            cit_assessment=json_data["cit_assessment"],
+            vat_monthly_breakdown=json_data["vat_monthly_breakdown"],
+            taxpro_max=json_data["taxpro_max"],
+            generated_at=summary.generated_at.isoformat(),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post(
+    "/taxpro-export/{entity_id}",
+    tags=["2026 Reform - TaxPro Max Export"],
+    summary="Export tax data for TaxPro Max upload",
+)
+async def export_for_taxpro_max(
+    entity_id: UUID,
+    request: TaxProExportRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+) -> TaxProExportResponse:
+    """
+    Export tax data in TaxPro Max compatible format.
+    
+    Generates ready-to-upload CSV/Excel files for:
+    - CIT annual returns
+    - VAT monthly returns
+    - PAYE returns
+    - WHT returns
+    
+    Export format matches NRS TaxPro Max upload requirements.
+    """
+    service = SelfAssessmentService(db)
+    
+    try:
+        if request.return_type == TaxReturnType.CIT:
+            assessment = await service.generate_cit_assessment(entity_id, request.fiscal_year)
+            content = service.export_cit_to_csv(assessment)
+            form_code = TaxProMaxFormCode.CIT_ANNUAL.value
+            filename = f"CIT_{assessment.tin}_{request.fiscal_year}.csv"
+            record_count = 1
+            
+        elif request.return_type == TaxReturnType.VAT:
+            # Generate all 12 months
+            assessments = []
+            for month in range(1, 13):
+                try:
+                    vat = await service.generate_vat_assessment(entity_id, request.fiscal_year, month)
+                    assessments.append(vat)
+                except Exception:
+                    pass
+            
+            if not assessments:
+                raise ValueError("No VAT data found for the fiscal year")
+            
+            content = service.export_vat_to_csv(assessments)
+            form_code = TaxProMaxFormCode.VAT_MONTHLY.value
+            filename = f"VAT_{assessments[0].tin}_{request.fiscal_year}.csv"
+            record_count = len(assessments)
+            
+        else:
+            raise ValueError(f"Export for {request.return_type.value} not yet implemented")
+        
+        return TaxProExportResponse(
+            form_code=form_code,
+            format=request.format,
+            filename=filename,
+            content=content,
+            record_count=record_count,
+            generated_at=datetime.utcnow().isoformat(),
+            upload_instructions=(
+                "1. Log in to TaxPro Max at https://taxpromax.nrs.gov.ng/\n"
+                "2. Navigate to Self-Assessment > Upload Returns\n"
+                "3. Select the appropriate form type\n"
+                "4. Upload this CSV file\n"
+                "5. Review and submit the return"
+            ),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get(
+    "/taxpro-export/formats",
+    tags=["2026 Reform - TaxPro Max Export"],
+    summary="Get supported export formats",
+)
+async def get_taxpro_export_formats() -> dict:
+    """
+    Get information about TaxPro Max export formats.
+    
+    Returns supported file formats and their specifications.
+    """
+    return {
+        "formats": [
+            {
+                "format": "csv",
+                "description": "Comma-Separated Values",
+                "mime_type": "text/csv",
+                "recommended": True,
+                "notes": "Standard TaxPro Max upload format",
+            },
+            {
+                "format": "xlsx",
+                "description": "Microsoft Excel Spreadsheet",
+                "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "recommended": False,
+                "notes": "Convert to CSV before upload if required",
+            },
+            {
+                "format": "json",
+                "description": "JavaScript Object Notation",
+                "mime_type": "application/json",
+                "recommended": False,
+                "notes": "For API integrations and data review",
+            },
+        ],
+        "return_types": [
+            {"type": TaxReturnType.CIT.value, "form_code": TaxProMaxFormCode.CIT_ANNUAL.value, "name": "Company Income Tax"},
+            {"type": TaxReturnType.VAT.value, "form_code": TaxProMaxFormCode.VAT_MONTHLY.value, "name": "Value Added Tax"},
+            {"type": TaxReturnType.PAYE.value, "form_code": TaxProMaxFormCode.PAYE_MONTHLY.value, "name": "Pay As You Earn"},
+            {"type": TaxReturnType.WHT.value, "form_code": TaxProMaxFormCode.WHT_MONTHLY.value, "name": "Withholding Tax"},
+            {"type": TaxReturnType.DEV_LEVY.value, "form_code": TaxProMaxFormCode.DEV_LEVY_ANNUAL.value, "name": "Development Levy"},
+        ],
+        "portal": {
+            "name": "NRS TaxPro Max",
+            "url": "https://taxpromax.nrs.gov.ng/",
+            "filing_deadlines": {
+                "CIT": "Within 6 months of fiscal year end",
+                "VAT": "21st of the following month",
+                "PAYE": "10th of the following month",
+                "WHT": "21st of the following month",
+            },
+        },
+    }

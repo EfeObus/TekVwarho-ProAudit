@@ -81,7 +81,7 @@ class ReportsService:
         expense_result = await self.db.execute(
             select(
                 Category.name.label("category"),
-                Category.wren_status.label("wren_status"),
+                Category.wren_default.label("wren_status"),
                 func.sum(Transaction.amount).label("total"),
             )
             .join(Category, Transaction.category_id == Category.id, isouter=True)
@@ -89,7 +89,7 @@ class ReportsService:
             .where(Transaction.transaction_type == TransactionType.EXPENSE)
             .where(Transaction.transaction_date >= start_date)
             .where(Transaction.transaction_date <= end_date)
-            .group_by(Category.name, Category.wren_status)
+            .group_by(Category.name, Category.wren_default)
         )
         expense_categories = {}
         for row in expense_result:
