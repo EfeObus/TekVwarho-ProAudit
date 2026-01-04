@@ -73,12 +73,20 @@
                                 </template>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                ₦<span x-text="formatCurrency(vendor.total_spend || 0)"></span>
+                                ₦<span x-text="formatCurrency(vendor.total_paid || 0)"></span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span :class="vendor.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'" class="px-2 py-1 text-xs font-medium rounded-full" x-text="vendor.is_active ? 'Active' : 'Inactive'"></span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <template x-if="vendor.tin && !vendor.tin_verified">
+                                    <button @click="verifyTIN(vendor)" class="text-blue-600 hover:text-blue-900 mr-3" title="Verify TIN">
+                                        <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        Verify
+                                    </button>
+                                </template>
                                 <button @click="editVendor(vendor)" class="text-green-600 hover:text-green-900 mr-3">Edit</button>
                                 <button @click="deleteVendor(vendor.id)" class="text-red-600 hover:text-red-900">Delete</button>
                             </td>
@@ -103,36 +111,136 @@
     <div x-show="showModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="fixed inset-0 bg-black opacity-50" @click="showModal = false"></div>
-            <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4" x-text="editingVendor ? 'Edit Vendor' : 'Add Vendor'"></h3>
                 
                 <form @submit.prevent="saveVendor()">
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Vendor Name *</label>
-                            <input type="text" x-model="form.name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" x-model="form.email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <!-- Basic Information -->
+                        <div class="border-b border-gray-200 pb-4">
+                            <h4 class="text-sm font-medium text-gray-900 mb-3">Basic Information</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Vendor Name *</label>
+                                    <input type="text" x-model="form.name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+                                    <input type="text" x-model="form.contact_person" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                                <input type="tel" x-model="form.phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                    <input type="email" x-model="form.email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                                    <input type="tel" x-model="form.phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                            <textarea x-model="form.address" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                        
+                        <!-- Address Information -->
+                        <div class="border-b border-gray-200 pb-4">
+                            <h4 class="text-sm font-medium text-gray-900 mb-3">Address</h4>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                                <textarea x-model="form.address" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">City</label>
+                                    <input type="text" x-model="form.city" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">State</label>
+                                    <select x-model="form.state" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                        <option value="">Select State</option>
+                                        <option value="Abia">Abia</option>
+                                        <option value="Adamawa">Adamawa</option>
+                                        <option value="Akwa Ibom">Akwa Ibom</option>
+                                        <option value="Anambra">Anambra</option>
+                                        <option value="Bauchi">Bauchi</option>
+                                        <option value="Bayelsa">Bayelsa</option>
+                                        <option value="Benue">Benue</option>
+                                        <option value="Borno">Borno</option>
+                                        <option value="Cross River">Cross River</option>
+                                        <option value="Delta">Delta</option>
+                                        <option value="Ebonyi">Ebonyi</option>
+                                        <option value="Edo">Edo</option>
+                                        <option value="Ekiti">Ekiti</option>
+                                        <option value="Enugu">Enugu</option>
+                                        <option value="FCT">FCT</option>
+                                        <option value="Gombe">Gombe</option>
+                                        <option value="Imo">Imo</option>
+                                        <option value="Jigawa">Jigawa</option>
+                                        <option value="Kaduna">Kaduna</option>
+                                        <option value="Kano">Kano</option>
+                                        <option value="Katsina">Katsina</option>
+                                        <option value="Kebbi">Kebbi</option>
+                                        <option value="Kogi">Kogi</option>
+                                        <option value="Kwara">Kwara</option>
+                                        <option value="Lagos">Lagos</option>
+                                        <option value="Nasarawa">Nasarawa</option>
+                                        <option value="Niger">Niger</option>
+                                        <option value="Ogun">Ogun</option>
+                                        <option value="Ondo">Ondo</option>
+                                        <option value="Osun">Osun</option>
+                                        <option value="Oyo">Oyo</option>
+                                        <option value="Plateau">Plateau</option>
+                                        <option value="Rivers">Rivers</option>
+                                        <option value="Sokoto">Sokoto</option>
+                                        <option value="Taraba">Taraba</option>
+                                        <option value="Yobe">Yobe</option>
+                                        <option value="Zamfara">Zamfara</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">TIN (Tax Identification Number)</label>
-                            <input type="text" x-model="form.tin" placeholder="12345678-0001" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        
+                        <!-- Tax Information -->
+                        <div class="border-b border-gray-200 pb-4">
+                            <h4 class="text-sm font-medium text-gray-900 mb-3">Tax Information</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">TIN (Tax Identification Number)</label>
+                                    <input type="text" x-model="form.tin" placeholder="12345678-0001" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Default WHT Rate (%)</label>
+                                    <input type="number" x-model="form.default_wht_rate" min="0" max="100" step="0.1" placeholder="5" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                            </div>
+                            <div class="flex items-center mt-3">
+                                <input type="checkbox" x-model="form.is_vat_registered" id="is_vat_registered" class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded">
+                                <label for="is_vat_registered" class="ml-2 block text-sm text-gray-700">Vendor is VAT Registered</label>
+                            </div>
                         </div>
+                        
+                        <!-- Bank Details -->
+                        <div class="border-b border-gray-200 pb-4">
+                            <h4 class="text-sm font-medium text-gray-900 mb-3">Bank Details</h4>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                                    <input type="text" x-model="form.bank_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                                    <input type="text" x-model="form.bank_account_number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+                                    <input type="text" x-model="form.bank_account_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notes -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account Number</label>
-                            <input type="text" x-model="form.bank_account_number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                            <textarea x-model="form.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Additional notes about this vendor..."></textarea>
                         </div>
                     </div>
                     
@@ -158,11 +266,19 @@ function vendorsPage() {
         statusFilter: '',
         form: {
             name: '',
+            contact_person: '',
             email: '',
             phone: '',
             address: '',
+            city: '',
+            state: '',
             tin: '',
+            is_vat_registered: false,
+            default_wht_rate: null,
+            bank_name: '',
             bank_account_number: '',
+            bank_account_name: '',
+            notes: '',
         },
         
         async init() {
@@ -174,20 +290,37 @@ function vendorsPage() {
                 const entityId = localStorage.getItem('currentEntityId');
                 const token = localStorage.getItem('token');
                 
-                const response = await fetch(`/api/v1/entities/${entityId}/vendors`, {
+                let url = `/api/v1/entities/${entityId}/vendors`;
+                if (this.searchQuery) {
+                    url += `?search=${encodeURIComponent(this.searchQuery)}`;
+                }
+                
+                const response = await fetch(url, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 if (response.ok) {
-                    this.vendors = await response.json();
+                    const data = await response.json();
+                    this.vendors = data.vendors || [];
+                    
+                    // Apply status filter client-side
+                    if (this.statusFilter === 'active') {
+                        this.vendors = this.vendors.filter(v => v.is_active);
+                    } else if (this.statusFilter === 'inactive') {
+                        this.vendors = this.vendors.filter(v => !v.is_active);
+                    }
+                } else {
+                    console.error('Failed to load vendors:', response.status);
+                    alert('Failed to load vendors');
                 }
             } catch (error) {
                 console.error('Failed to load vendors:', error);
+                alert('Failed to load vendors: ' + error.message);
             }
         },
         
         searchVendors() {
-            // Filter vendors client-side for simple search
+            this.loadVendors();
         },
         
         editVendor(vendor) {
@@ -218,9 +351,13 @@ function vendorsPage() {
                     this.showModal = false;
                     this.resetForm();
                     await this.loadVendors();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to save vendor');
                 }
             } catch (error) {
                 console.error('Failed to save vendor:', error);
+                alert('Failed to save vendor: ' + error.message);
             }
         },
         
@@ -238,9 +375,42 @@ function vendorsPage() {
                 
                 if (response.ok) {
                     await this.loadVendors();
+                } else {
+                    alert('Failed to delete vendor');
                 }
             } catch (error) {
                 console.error('Failed to delete vendor:', error);
+                alert('Failed to delete vendor: ' + error.message);
+            }
+        },
+        
+        async verifyTIN(vendor) {
+            if (!confirm(`Verify TIN ${vendor.tin} for ${vendor.name}?`)) return;
+            
+            try {
+                const entityId = localStorage.getItem('currentEntityId');
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch(`/api/v1/entities/${entityId}/vendors/${vendor.id}/verify-tin`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.verified) {
+                        alert(`✅ TIN Verified: ${data.verification_message}`);
+                    } else {
+                        alert(`❌ Verification Failed: ${data.verification_message}`);
+                    }
+                    await this.loadVendors();
+                } else {
+                    alert(data.detail || 'Failed to verify TIN');
+                }
+            } catch (error) {
+                console.error('Failed to verify TIN:', error);
+                alert('Failed to verify TIN: ' + error.message);
             }
         },
         
@@ -248,11 +418,19 @@ function vendorsPage() {
             this.editingVendor = null;
             this.form = {
                 name: '',
+                contact_person: '',
                 email: '',
                 phone: '',
                 address: '',
+                city: '',
+                state: '',
                 tin: '',
+                is_vat_registered: false,
+                default_wht_rate: null,
+                bank_name: '',
                 bank_account_number: '',
+                bank_account_name: '',
+                notes: '',
             };
         },
         

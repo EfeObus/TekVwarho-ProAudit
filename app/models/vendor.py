@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -71,7 +71,14 @@ class Vendor(BaseModel):
         comment="True if vendor is VAT registered",
     )
     
+    # Withholding Tax Settings
+    default_wht_rate: Mapped[Optional[float]] = mapped_column(
+        nullable=True,
+        comment="Default withholding tax rate for this vendor (0-100)",
+    )
+    
     # Contact
+    contact_person: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     
@@ -79,6 +86,7 @@ class Vendor(BaseModel):
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     state: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    country: Mapped[str] = mapped_column(String(100), default="Nigeria", nullable=False)
     
     # Bank Details
     bank_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
