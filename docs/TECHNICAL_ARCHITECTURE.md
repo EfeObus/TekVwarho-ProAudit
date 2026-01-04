@@ -581,6 +581,31 @@ GET    /api/v1/entities/{entityId}/banking/reconciliation
 - **CSRF:** SameSite cookies, token validation
 - **Audit Logging:** All financial operations logged
 
+### 8.5 Email Verification
+
+New organization users must verify their email before accessing full features:
+- Verification token generated on registration (24-hour expiry)
+- Token sent via transactional email (Outlook SMTP/SendGrid/Mailgun)
+- Verification endpoint: `POST /api/v1/auth/verify-email`
+- Resend endpoint: `POST /api/v1/auth/resend-verification`
+
+### 8.6 Staff Onboarding Security
+
+Platform staff onboarded by Super Admin/Admin must reset password on first login:
+- `must_reset_password` flag set during onboarding
+- Automatic redirect to Settings page with security banner
+- Password change clears the flag and grants full access
+- Ensures onboarding passwords are never used beyond initial login
+
+### 8.7 Global Error Handling
+
+Consistent error responses across all API endpoints:
+- HTTP Exceptions: Standard status codes with JSON body
+- Validation Errors: Detailed field-level error information
+- Business Logic Errors: 400 Bad Request with clear message
+- Permission Errors: 403 Forbidden
+- Unhandled Errors: 500 with sanitized message (detailed in dev mode)
+
 ---
 
 ## 9. Integration Architecture

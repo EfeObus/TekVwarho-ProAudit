@@ -260,6 +260,20 @@ Other roles
 
 ## 7. Security Features
 
+### Staff First Login Password Reset
+
+When platform staff are onboarded by Super Admin or Admin:
+- The `must_reset_password` flag is set to `True`
+- On first login, staff are automatically redirected to the Settings page
+- A security banner prompts them to change their password
+- Staff cannot access other features until password is changed
+- After successful password change, `must_reset_password` is cleared
+
+This ensures that:
+1. Temporary onboarding passwords are never used beyond first login
+2. Each staff member sets their own secure password
+3. Onboarding admins never know the final password
+
 ### CSR Impersonation
 
 - Users can grant/revoke impersonation permission
@@ -267,12 +281,20 @@ Other roles
 - Platform staff cannot be impersonated
 - All impersonation actions are logged in audit trail
 
+### Email Verification
+
+- New organization users must verify their email before full access
+- Verification tokens expire after 24 hours
+- Users can request new verification emails via `/api/v1/auth/resend-verification`
+- Platform staff are pre-verified during onboarding
+
 ### Rate Limiting (Recommended)
 
 Consider adding rate limiting for:
 - Login attempts
 - Staff onboarding
 - User invitations
+- Password reset requests
 
 ---
 

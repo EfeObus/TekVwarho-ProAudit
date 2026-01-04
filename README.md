@@ -30,6 +30,36 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 ---
 
+## 🆕 Version 1.6.0 - Security & Authentication Enhancements
+
+### Email Verification System
+- **Registration Verification**: New users receive verification email with secure token
+- **Resend Verification**: Users can request new verification emails
+- **Full URL Links**: Email links include complete URLs for better deliverability
+
+### Staff Onboarding Security
+- **Forced Password Reset**: Newly onboarded staff/admins must change password on first login
+- **Security Banner**: Clear notification prompting password change
+- **Automatic Redirect**: Staff redirected to settings page until password is changed
+
+### Password Security Features
+- **Password Visibility Toggle**: Eye icon to show/hide passwords on all auth forms
+- **Password Reset Flow**: Complete forgot password → email → reset password workflow
+
+### Global Error Handling
+- **Consistent Error Responses**: All errors return standardized JSON format
+- **Exception Types Handled**:
+  - HTTP Exceptions (4xx/5xx)
+  - Request Validation Errors (422)
+  - Pydantic Validation Errors
+  - Business Logic Errors (ValueError)
+  - Permission Errors (403)
+  - Unhandled Exceptions (500)
+- **Development Mode**: Detailed error messages for debugging
+- **Production Mode**: Sanitized error messages for security
+
+---
+
 ## 🆕 Version 1.4.0 - Complete 2026 Compliance
 
 ### TIN Validation (NRS Portal Integration)
