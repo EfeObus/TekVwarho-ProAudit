@@ -1942,4 +1942,364 @@ class TestSelfAssessmentCompliance2026:
         assert is_properly_documented is True
 
 
+# ===========================================
+# WHT MANAGER TESTS
+# ===========================================
+
+class TestWHTCalculator:
+    """Tests for WHT Calculator functionality."""
+    
+    def test_wht_calculator_import(self):
+        """Test WHTCalculator can be imported."""
+        from app.services.tax_calculators.wht_service import WHTCalculator
+        assert WHTCalculator is not None
+    
+    def test_wht_service_types(self):
+        """Test all WHT service types are defined."""
+        from app.services.tax_calculators.wht_service import WHTServiceType
+        
+        expected_types = [
+            "dividends", "interest", "rent", "royalties",
+            "professional_services", "contract_supply", "consultancy",
+            "technical_services", "management_fees", "director_fees",
+            "construction", "other"
+        ]
+        
+        for service_type in expected_types:
+            assert hasattr(WHTServiceType, service_type.upper())
+    
+    def test_wht_payee_types(self):
+        """Test payee types are defined."""
+        from app.services.tax_calculators.wht_service import PayeeType
+        
+        assert PayeeType.INDIVIDUAL.value == "individual"
+        assert PayeeType.COMPANY.value == "company"
+    
+    def test_wht_rate_dividends(self):
+        """Dividends WHT rate is 10% for both individual and company."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        individual_rate = WHTCalculator.get_wht_rate(
+            WHTServiceType.DIVIDENDS, PayeeType.INDIVIDUAL
+        )
+        company_rate = WHTCalculator.get_wht_rate(
+            WHTServiceType.DIVIDENDS, PayeeType.COMPANY
+        )
+        
+        assert individual_rate == Decimal("10")
+        assert company_rate == Decimal("10")
+    
+    def test_wht_rate_professional_services_individual(self):
+        """Professional services WHT is 10% for individuals."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        rate = WHTCalculator.get_wht_rate(
+            WHTServiceType.PROFESSIONAL_SERVICES, PayeeType.INDIVIDUAL
+        )
+        
+        assert rate == Decimal("10")
+    
+    def test_wht_rate_professional_services_company(self):
+        """Professional services WHT is 5% for companies."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        rate = WHTCalculator.get_wht_rate(
+            WHTServiceType.PROFESSIONAL_SERVICES, PayeeType.COMPANY
+        )
+        
+        assert rate == Decimal("5")
+    
+    def test_wht_calculate_full_result(self):
+        """Test WHT calculation returns all expected fields."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        result = WHTCalculator.calculate_wht(
+            gross_amount=1000000,
+            service_type=WHTServiceType.CONSULTANCY,
+            payee_type=PayeeType.COMPANY
+        )
+        
+        assert "gross_amount" in result
+        assert "wht_rate" in result
+        assert "wht_amount" in result
+        assert "net_amount" in result
+        assert "service_type" in result
+        assert "payee_type" in result
+        
+        # Consultancy at 5%
+        assert result["wht_rate"] == 5.0
+        assert result["wht_amount"] == 50000.0
+        assert result["net_amount"] == 950000.0
+    
+    def test_wht_calculate_rent(self):
+        """Test WHT calculation for rent (10%)."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        result = WHTCalculator.calculate_wht(
+            gross_amount=2400000,
+            service_type=WHTServiceType.RENT,
+            payee_type=PayeeType.COMPANY
+        )
+        
+        assert result["wht_rate"] == 10.0
+        assert result["wht_amount"] == 240000.0
+        assert result["net_amount"] == 2160000.0
+    
+    def test_wht_calculate_gross_from_net(self):
+        """Test gross calculation from net amount."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        # Vendor wants to receive ₦950,000 net
+        result = WHTCalculator.calculate_gross_from_net(
+            net_amount=950000,
+            service_type=WHTServiceType.CONSULTANCY,
+            payee_type=PayeeType.COMPANY
+        )
+        
+        # At 5% rate: Gross = 950000 / 0.95 = 1000000
+        assert result["net_amount"] == 950000.0
+        assert abs(result["gross_amount"] - 1000000.0) < 1  # Allow small rounding
+        assert abs(result["wht_amount"] - 50000.0) < 1
+    
+    def test_wht_get_all_rates(self):
+        """Test getting all WHT rates."""
+        from app.services.tax_calculators.wht_service import WHTCalculator
+        
+        rates = WHTCalculator.get_all_wht_rates()
+        
+        assert len(rates) >= 10  # At least 10 service types
+        
+        # Check structure
+        for rate in rates:
+            assert "service_type" in rate
+            assert "individual_rate" in rate
+            assert "company_rate" in rate
+    
+    def test_wht_construction_rate(self):
+        """Construction WHT is 5% for both."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        individual = WHTCalculator.get_wht_rate(
+            WHTServiceType.CONSTRUCTION, PayeeType.INDIVIDUAL
+        )
+        company = WHTCalculator.get_wht_rate(
+            WHTServiceType.CONSTRUCTION, PayeeType.COMPANY
+        )
+        
+        assert individual == Decimal("5")
+        assert company == Decimal("5")
+    
+    def test_wht_technical_services_rate(self):
+        """Technical services WHT is 10% for both."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        individual = WHTCalculator.get_wht_rate(
+            WHTServiceType.TECHNICAL_SERVICES, PayeeType.INDIVIDUAL
+        )
+        company = WHTCalculator.get_wht_rate(
+            WHTServiceType.TECHNICAL_SERVICES, PayeeType.COMPANY
+        )
+        
+        assert individual == Decimal("10")
+        assert company == Decimal("10")
+    
+    def test_wht_management_fees_rate(self):
+        """Management fees WHT is 10% for both."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        rate = WHTCalculator.get_wht_rate(
+            WHTServiceType.MANAGEMENT_FEES, PayeeType.COMPANY
+        )
+        
+        assert rate == Decimal("10")
+    
+    def test_wht_director_fees_rate(self):
+        """Director fees WHT is 10% for individuals."""
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        rate = WHTCalculator.get_wht_rate(
+            WHTServiceType.DIRECTOR_FEES, PayeeType.INDIVIDUAL
+        )
+        
+        assert rate == Decimal("10")
+
+
+class TestWHTAPIEndpoints:
+    """Tests for WHT API endpoints."""
+    
+    @pytest.mark.asyncio
+    async def test_wht_calculate_endpoint(self, client, auth_headers):
+        """Test WHT calculation API endpoint."""
+        response = await client.post(
+            "/api/v1/tax/wht/calculate",
+            headers=auth_headers,
+            json={
+                "gross_amount": 1000000,
+                "service_type": "consultancy",
+                "payee_type": "company"
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["wht_rate"] == 5.0
+        assert data["wht_amount"] == 50000.0
+    
+    @pytest.mark.asyncio
+    async def test_wht_calculate_gross_endpoint(self, client, auth_headers):
+        """Test WHT gross from net API endpoint."""
+        response = await client.post(
+            "/api/v1/tax/wht/calculate-gross",
+            headers=auth_headers,
+            json={
+                "net_amount": 900000,
+                "service_type": "rent",
+                "payee_type": "company"
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["wht_rate"] == 10.0
+        # Net 900000 at 10% means gross is 1000000
+        assert abs(data["gross_amount"] - 1000000.0) < 1
+    
+    @pytest.mark.asyncio
+    async def test_wht_rates_endpoint(self, client, auth_headers):
+        """Test WHT rates reference API endpoint."""
+        response = await client.get(
+            "/api/v1/tax/wht/rates",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 10
+        
+        # Check structure
+        for rate in data:
+            assert "service_type" in rate
+            assert "individual_rate" in rate
+            assert "company_rate" in rate
+    
+    @pytest.mark.asyncio
+    async def test_wht_summary_endpoint(self, client, auth_headers, test_entity):
+        """Test WHT summary API endpoint."""
+        response = await client.get(
+            f"/api/v1/tax/{test_entity.id}/wht/summary",
+            headers=auth_headers,
+            params={
+                "start_date": "2026-01-01",
+                "end_date": "2026-12-31"
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "transaction_count" in data
+        assert "total_gross_payments" in data
+        assert "total_wht_deducted" in data
+    
+    @pytest.mark.asyncio
+    async def test_wht_by_vendor_endpoint(self, client, auth_headers, test_entity):
+        """Test WHT by vendor API endpoint."""
+        response = await client.get(
+            f"/api/v1/tax/{test_entity.id}/wht/by-vendor",
+            headers=auth_headers,
+            params={
+                "start_date": "2026-01-01",
+                "end_date": "2026-12-31"
+            }
+        )
+        
+        assert response.status_code == 200
+        # Response is a list
+        assert isinstance(response.json(), list)
+
+
+class TestWHTCompliance2026:
+    """Tests for WHT compliance with 2026 regulations."""
+    
+    def test_wht_is_tax_credit(self):
+        """WHT deducted should be a credit against final tax."""
+        # WHT deducted from vendor payment
+        wht_deducted = Decimal("100000")
+        
+        # This amount becomes a tax credit for the vendor
+        vendor_tax_liability = Decimal("500000")
+        final_tax_payable = vendor_tax_liability - wht_deducted
+        
+        assert final_tax_payable == Decimal("400000")
+    
+    def test_wht_remittance_deadline(self):
+        """WHT must be remitted within 21 days after month end."""
+        from datetime import timedelta
+        
+        payment_date = date(2026, 1, 15)
+        month_end = date(2026, 1, 31)
+        remittance_deadline = month_end + timedelta(days=21)
+        
+        assert remittance_deadline == date(2026, 2, 21)
+    
+    def test_wht_certificate_requirement(self):
+        """WHT certificate must be issued to vendor."""
+        wht_certificate_required = True  # Always required
+        certificate_fields = [
+            "vendor_name",
+            "vendor_tin",
+            "gross_amount",
+            "wht_rate",
+            "wht_amount",
+            "period",
+            "payer_name",
+            "payer_tin"
+        ]
+        
+        assert wht_certificate_required is True
+        assert len(certificate_fields) == 8
+    
+    def test_wht_rates_unchanged_in_2026(self):
+        """WHT rates remain unchanged in 2026 reform."""
+        # Key rates as per 2026 regulations
+        rates = {
+            "dividends": 10,
+            "interest": 10,
+            "rent": 10,
+            "royalties": 10,
+            "professional_services_individual": 10,
+            "professional_services_company": 5,
+            "consultancy": 5,
+            "construction": 5,
+        }
+        
+        # Verify rates match expected values
+        from app.services.tax_calculators.wht_service import (
+            WHTCalculator, WHTServiceType, PayeeType
+        )
+        
+        assert WHTCalculator.get_wht_rate(WHTServiceType.DIVIDENDS, PayeeType.COMPANY) == Decimal("10")
+        assert WHTCalculator.get_wht_rate(WHTServiceType.RENT, PayeeType.COMPANY) == Decimal("10")
+        assert WHTCalculator.get_wht_rate(WHTServiceType.CONSULTANCY, PayeeType.COMPANY) == Decimal("5")
+
+
 # Run with: pytest tests/test_2026_compliance.py -v

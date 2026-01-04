@@ -80,6 +80,12 @@ class Transaction(BaseModel, AuditMixin):
         nullable=False,
         comment="VAT amount in Naira",
     )
+    wht_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Withholding Tax amount in Naira",
+    )
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
@@ -160,6 +166,18 @@ class Transaction(BaseModel, AuditMixin):
         default=False,
         nullable=False,
         comment="True if Input VAT can be recovered",
+    )
+    
+    # WHT fields for tracking
+    wht_service_type: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Service type for WHT calculation (e.g., professional_services, consultancy)",
+    )
+    wht_payee_type: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Payee type: individual or company",
     )
     
     # Attachments

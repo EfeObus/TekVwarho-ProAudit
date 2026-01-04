@@ -480,6 +480,143 @@
                         <p class="text-xl font-bold text-purple-700" x-text="formatCurrency(reports.wht?.summary?.total_wht_deducted)">₦0</p>
                     </div>
                 </div>
+                
+                <!-- WHT By Vendor Table -->
+                <div x-show="reports.whtByVendor && reports.whtByVendor.length > 0" class="mt-6">
+                    <h4 class="font-medium text-gray-900 mb-3">WHT By Vendor (for Certificate Generation)</h4>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">TIN</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Gross Paid</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">WHT Deducted</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="vendor in reports.whtByVendor" :key="vendor.vendor_id">
+                                    <tr>
+                                        <td class="px-4 py-2 text-sm text-gray-900" x-text="vendor.vendor_name"></td>
+                                        <td class="px-4 py-2 text-sm text-gray-600" x-text="vendor.vendor_tin || 'N/A'"></td>
+                                        <td class="px-4 py-2 text-sm text-right text-gray-900" x-text="formatCurrency(vendor.total_gross_paid)"></td>
+                                        <td class="px-4 py-2 text-sm text-right font-medium text-purple-700" x-text="formatCurrency(vendor.total_wht_deducted)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- WHT Calculator Tool -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">WHT Calculator</h3>
+                <p class="text-sm text-gray-500">Calculate withholding tax before making payments</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Gross Amount (₦)</label>
+                        <input type="number" x-model="whtCalc.grossAmount" 
+                               class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                               placeholder="Enter gross amount">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
+                        <select x-model="whtCalc.serviceType" class="w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="">Select service type</option>
+                            <option value="dividends">Dividends (10%)</option>
+                            <option value="interest">Interest (10%)</option>
+                            <option value="rent">Rent (10%)</option>
+                            <option value="royalties">Royalties (10%)</option>
+                            <option value="professional_services">Professional Services (10%/5%)</option>
+                            <option value="contract_supply">Contract/Supply (5%)</option>
+                            <option value="consultancy">Consultancy (5%)</option>
+                            <option value="technical_services">Technical Services (10%)</option>
+                            <option value="management_fees">Management Fees (10%)</option>
+                            <option value="director_fees">Director Fees (10%)</option>
+                            <option value="construction">Construction (5%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Payee Type</label>
+                        <select x-model="whtCalc.payeeType" class="w-full border-gray-300 rounded-md shadow-sm">
+                            <option value="company">Company</option>
+                            <option value="individual">Individual</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="calculateWHT()" :disabled="!whtCalc.grossAmount || !whtCalc.serviceType"
+                            class="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700 disabled:opacity-50">
+                        Calculate WHT
+                    </button>
+                    <button @click="calculateGrossFromNet()" :disabled="!whtCalc.grossAmount || !whtCalc.serviceType"
+                            class="bg-blue-600 text-white px-4 py-2 text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
+                        Calculate Gross from Net
+                    </button>
+                </div>
+                
+                <!-- WHT Calculation Result -->
+                <div x-show="whtCalc.result" class="mt-4 p-4 bg-purple-50 rounded-lg">
+                    <h4 class="font-medium text-purple-900 mb-3">WHT Calculation Result</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                            <p class="text-gray-600">Gross Amount</p>
+                            <p class="font-semibold text-gray-900" x-text="formatCurrency(whtCalc.result?.gross_amount)"></p>
+                        </div>
+                        <div>
+                            <p class="text-gray-600">WHT Rate</p>
+                            <p class="font-semibold text-gray-900" x-text="whtCalc.result?.wht_rate + '%'"></p>
+                        </div>
+                        <div>
+                            <p class="text-purple-600">WHT Amount</p>
+                            <p class="font-bold text-purple-700" x-text="formatCurrency(whtCalc.result?.wht_amount)"></p>
+                        </div>
+                        <div>
+                            <p class="text-green-600">Net Payable</p>
+                            <p class="font-bold text-green-700" x-text="formatCurrency(whtCalc.result?.net_amount)"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- WHT Rates Reference -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Nigerian WHT Rates (2026)</h3>
+                    <p class="text-sm text-gray-500">Reference rates by service type and payee</p>
+                </div>
+                <button @click="loadWHTRates()" :disabled="loading.whtRates" class="bg-gray-600 text-white px-4 py-2 text-sm rounded-md hover:bg-gray-700 disabled:opacity-50">
+                    Load Rates
+                </button>
+            </div>
+            <div x-show="whtRates && whtRates.length > 0" class="p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Service Type</th>
+                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Individual Rate</th>
+                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Company Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="rate in whtRates" :key="rate.service_type">
+                                <tr>
+                                    <td class="px-4 py-2 text-sm text-gray-900 capitalize" x-text="rate.service_type.replace(/_/g, ' ')"></td>
+                                    <td class="px-4 py-2 text-sm text-center font-medium text-gray-700" x-text="rate.individual_rate + '%'"></td>
+                                    <td class="px-4 py-2 text-sm text-center font-medium text-gray-700" x-text="rate.company_rate + '%'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -1095,10 +1232,20 @@ function reportsPage() {
             fixedAssets: false,
             vat: false,
             wht: false,
+            whtRates: false,
             cit: false,
             selfAssessment: false,
             taxProExport: false,
         },
+        
+        // WHT Calculator Data
+        whtCalc: {
+            grossAmount: null,
+            serviceType: '',
+            payeeType: 'company',
+            result: null,
+        },
+        whtRates: [],
         
         // Self-Assessment Data
         selfAssessment: {
@@ -1268,6 +1415,7 @@ function reportsPage() {
         async generateWHT() {
             this.loading.wht = true;
             try {
+                // Get WHT summary
                 const response = await fetch(
                     `/api/v1/entities/${this.entityId}/reports/tax/wht-summary?start_date=${this.startDate}&end_date=${this.endDate}`,
                     { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
@@ -1275,10 +1423,89 @@ function reportsPage() {
                 if (response.ok) {
                     this.reports.wht = await response.json();
                 }
+                
+                // Also get WHT by vendor
+                const vendorResponse = await fetch(
+                    `/api/v1/tax/${this.entityId}/wht/by-vendor?start_date=${this.startDate}&end_date=${this.endDate}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                );
+                if (vendorResponse.ok) {
+                    this.reports.whtByVendor = await vendorResponse.json();
+                }
             } catch (error) {
                 console.error('Failed to generate WHT summary:', error);
             } finally {
                 this.loading.wht = false;
+            }
+        },
+        
+        async calculateWHT() {
+            if (!this.whtCalc.grossAmount || !this.whtCalc.serviceType) return;
+            
+            try {
+                const response = await fetch('/api/v1/tax/wht/calculate', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        gross_amount: parseFloat(this.whtCalc.grossAmount),
+                        service_type: this.whtCalc.serviceType,
+                        payee_type: this.whtCalc.payeeType
+                    })
+                });
+                if (response.ok) {
+                    this.whtCalc.result = await response.json();
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.detail || 'Failed to calculate WHT'));
+                }
+            } catch (error) {
+                console.error('Failed to calculate WHT:', error);
+            }
+        },
+        
+        async calculateGrossFromNet() {
+            if (!this.whtCalc.grossAmount || !this.whtCalc.serviceType) return;
+            
+            try {
+                const response = await fetch('/api/v1/tax/wht/calculate-gross', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        net_amount: parseFloat(this.whtCalc.grossAmount),
+                        service_type: this.whtCalc.serviceType,
+                        payee_type: this.whtCalc.payeeType
+                    })
+                });
+                if (response.ok) {
+                    this.whtCalc.result = await response.json();
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.detail || 'Failed to calculate gross'));
+                }
+            } catch (error) {
+                console.error('Failed to calculate gross from net:', error);
+            }
+        },
+        
+        async loadWHTRates() {
+            this.loading.whtRates = true;
+            try {
+                const response = await fetch('/api/v1/tax/wht/rates', {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (response.ok) {
+                    this.whtRates = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load WHT rates:', error);
+            } finally {
+                this.loading.whtRates = false;
             }
         },
         
