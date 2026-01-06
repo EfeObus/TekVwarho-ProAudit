@@ -184,6 +184,20 @@ The **External Accountant** role is designed for outsourced accounting firms (si
 
 ## 4. API Endpoints
 
+### Authentication & Registration (`/api/v1/auth`)
+
+| Endpoint | Method | Description | Required Permission |
+|----------|--------|-------------|---------------------|
+| `/auth/register` | POST | Register new organization | Public |
+| `/auth/login` | POST | User login | Public |
+| `/auth/logout` | POST | User logout | Any authenticated user |
+| `/auth/verify-email` | POST | Verify email with token | Public |
+| `/auth/resend-verification` | POST | Resend verification email | Public |
+| `/auth/forgot-password` | POST | Request password reset | Public |
+| `/auth/reset-password` | POST | Reset password with token | Public |
+| `/auth/nigeria/states` | GET | Get all Nigerian states (37) | Public |
+| `/auth/nigeria/states/{state}/lgas` | GET | Get LGAs for a state | Public |
+
 ### Staff Management (`/api/v1/staff`)
 
 | Endpoint | Method | Description | Required Permission |

@@ -30,6 +30,49 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 ---
 
+## 🆕 Version 1.8.0 - Nigeria Address Fields & Registration Improvements
+
+### Nigeria States & LGAs API
+- **Complete Nigeria Data**: All 37 states and 774 Local Government Areas
+- **REST API Endpoints**: `/api/v1/auth/nigeria/states` and `/api/v1/auth/nigeria/states/{state}/lgas`
+- **Authoritative Data Source**: Accurate and comprehensive Nigeria geographic data
+- **State Validation**: State and LGA validation for business entity addresses
+
+### Registration Flow Improvements
+- **Dynamic LGA Dropdown**: LGA field auto-populates based on selected state
+- **State-Dependent Selection**: JavaScript-powered cascading dropdowns
+- **Address Field Enhancement**: Both business entities and user profiles support LGA
+- **Improved UX**: Clean, intuitive registration form with Nigerian address support
+
+### Email Verification Enhancements
+- **Verification Tracking**: New database fields track verification status
+- **`email_verification_token`**: Secure token storage in database
+- **`email_verification_sent_at`**: Timestamp for token expiry validation
+- **`email_verified_at`**: Record of successful verification time
+- **`is_invited_user`**: Distinguishes invited users from self-registered users
+
+### Database Migration
+- **New LGA Column**: Added `lga` column to `business_entities` table
+- **User Verification Fields**: Added 4 new columns to `users` table
+- **Alembic Migration**: `20260106_1400_add_lga_email_verification.py`
+
+---
+
+## 🆕 Version 1.7.0 - Bulk Operations & Export Improvements
+
+### Bulk Operations
+- **Bulk Import**: CSV/Excel import for customers, vendors, inventory, and transactions
+- **Bulk Delete**: Delete multiple records at once with confirmation
+- **Background Processing**: Large imports handled via Celery workers
+- **Progress Tracking**: Real-time progress indicators for bulk operations
+
+### Export Enhancements  
+- **Multi-Format Export**: PDF, Excel, CSV export for all data types
+- **Custom Date Ranges**: Filter exports by date range
+- **Template Support**: Downloadable CSV templates for bulk imports
+
+---
+
 ## 🆕 Version 1.6.0 - Security & Authentication Enhancements
 
 ### Email Verification System

@@ -223,6 +223,7 @@ tekvwarho_proaudit/
 │   │
 │   └── utils/              # Utility functions
 │       ├── __init__.py
+│       ├── nigeria_data.py      # Nigeria states & LGAs (37 states, 774 LGAs)
 │       ├── security.py
 │       └── validators.py
 │
@@ -446,6 +447,14 @@ POST   /api/v1/auth/login
 POST   /api/v1/auth/register
 POST   /api/v1/auth/refresh
 POST   /api/v1/auth/logout
+POST   /api/v1/auth/verify-email
+POST   /api/v1/auth/resend-verification
+POST   /api/v1/auth/forgot-password
+POST   /api/v1/auth/reset-password
+
+# Nigeria Address Data (Public)
+GET    /api/v1/auth/nigeria/states                  # Returns all 37 Nigerian states
+GET    /api/v1/auth/nigeria/states/{state}/lgas     # Returns LGAs for a specific state
 
 # Organizations & Entities
 GET    /api/v1/organizations/me
