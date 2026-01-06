@@ -459,7 +459,7 @@ class TestCeleryTasks:
             subtotal=Decimal("50000.00"),
             vat_amount=Decimal("3750.00"),
             total_amount=Decimal("53750.00"),
-            status=InvoiceStatus.SENT,
+            status=InvoiceStatus.SUBMITTED,
         )
         db_session.add(overdue_invoice)
         await db_session.commit()
@@ -467,7 +467,7 @@ class TestCeleryTasks:
         # The task should identify this invoice as overdue
         # In actual testing, we'd mock the Celery task and verify behavior
         assert overdue_invoice.due_date < date.today()
-        assert overdue_invoice.status == InvoiceStatus.SENT
+        assert overdue_invoice.status == InvoiceStatus.SUBMITTED
     
     @pytest.mark.asyncio
     async def test_low_stock_check_task(self, db_session: AsyncSession, test_entity: BusinessEntity):

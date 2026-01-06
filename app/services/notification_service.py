@@ -170,8 +170,8 @@ class NotificationService:
             select(func.count(NotificationModel.id))
             .where(NotificationModel.user_id == user_id)
         )
-        if unread_only:
-            count_query = count_query.where(NotificationModel.is_read == False)
+        if is_read is not None:
+            count_query = count_query.where(NotificationModel.is_read == is_read)
         
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0

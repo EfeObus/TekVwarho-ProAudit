@@ -36,22 +36,6 @@ TEST_DATABASE_URL = settings.database_url_async.replace(
     f"{settings.postgres_db}_test"
 )
 
-# Create test engine
-test_engine = create_async_engine(
-    TEST_DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True,
-)
-
-# Create test session factory
-TestSessionLocal = async_sessionmaker(
-    test_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
-
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
@@ -64,6 +48,22 @@ def event_loop() -> Generator:
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create a fresh database session for each test."""
+    # Create engine within the async context to avoid event loop mismatch
+    test_engine = create_async_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+    )
+    
+    # Create session factory
+    TestSessionLocal = async_sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+    
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
@@ -73,6 +73,9 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    
+    # Dispose the engine to clean up connections
+    await test_engine.dispose()
 
 
 @pytest_asyncio.fixture(scope="function")
