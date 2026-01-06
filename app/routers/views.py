@@ -210,9 +210,11 @@ async def dashboard(
             
             dashboard_data = await dashboard_service.get_dashboard(user, entity_id)
             
-            return templates.TemplateResponse("dashboard.html", {
+            # Use enhanced dashboard template
+            return templates.TemplateResponse("dashboard_v2.html", {
                 "request": request,
                 "dashboard": dashboard_data,
+                "entity_id": str(entity_id) if entity_id else None,
                 **get_auth_context(user, entity_id),
             })
     except PermissionError as e:
@@ -222,9 +224,10 @@ async def dashboard(
         if not entity_id and not user.is_platform_staff:
             return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
-        return templates.TemplateResponse("dashboard.html", {
+        return templates.TemplateResponse("dashboard_v2.html", {
             "request": request,
             "error": str(e),
+            "entity_id": str(entity_id) if entity_id else None,
             **get_auth_context(user, entity_id),
         })
 

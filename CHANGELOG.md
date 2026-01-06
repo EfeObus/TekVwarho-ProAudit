@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-01-06
+
+### Nigeria Address Fields & Email Verification
+
+This release adds comprehensive Nigerian state/LGA address selection and enhanced email verification for user registration.
+
+### Added
+
+#### Nigeria States & LGAs API
+- **New API**: `GET /api/v1/auth/nigeria/states` - Returns all 37 Nigerian states (36 states + FCT)
+- **New API**: `GET /api/v1/auth/nigeria/states/{state}/lgas` - Returns LGAs for a specific state
+- **New Module**: `app/utils/nigeria_data.py` - Complete authoritative data for all 774 Nigerian LGAs
+- Helper functions: `get_all_states()`, `get_lgas_by_state()`, `validate_state_lga()`, `get_state_count()`, `get_total_lga_count()`
+
+#### Registration Flow Improvements
+- **LGA Dropdown**: Dynamic LGA selection based on chosen state in registration form
+- **State Validation**: All 37 Nigerian states available in dropdown
+- **UI Enhancement**: LGA dropdown loads automatically when state is selected
+- **Form Validation**: LGA is now required for registration
+
+#### Email Verification Enhancements
+- **New Field**: `email_verification_token` - Stored in database for verification tracking
+- **New Field**: `email_verification_sent_at` - Timestamp when verification email was sent
+- **New Field**: `email_verified_at` - Timestamp when email was verified
+- **New Field**: `is_invited_user` - Boolean to distinguish invited users from self-registered
+- Invited users are pre-verified (admin vouches for them)
+- Self-registered users must verify email
+
+#### Database Migration
+- **Migration**: `20260106_1400_add_lga_email_verification.py`
+- Added `lga` column to `business_entities` table
+- Added email verification fields to `users` table
+- Created index on `email_verification_token` for efficient lookups
+
+### Fixed
+
+- **Fixed**: Missing `Path` import in `self_assessment.py` - Changed `Query` to `Path` for path parameter validation
+- **Fixed**: Missing `verify_entity_access` function - Added to `app/dependencies.py` as shared function
+- **Fixed**: Missing `BaseModel` and `Query` imports in `auth.py`
+- **Centralized**: `verify_entity_access` function now shared from dependencies module
+
+---
+
 ## [1.7.1] - 2026-01-04
 
 ### Comprehensive Routes & Database Audit

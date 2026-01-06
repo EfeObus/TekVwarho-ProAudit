@@ -87,17 +87,63 @@ class AuthService:
         last_name: str,
         organization_name: str,
         phone_number: Optional[str] = None,
+        # New comprehensive registration fields
+        account_type: str = "individual",
+        street_address: Optional[str] = None,
+        city: Optional[str] = None,
+        state: Optional[str] = None,
+        lga: Optional[str] = None,
+        postal_code: Optional[str] = None,
+        country: str = "Nigeria",
+        tin: Optional[str] = None,
+        cac_registration_number: Optional[str] = None,
+        cac_registration_type: Optional[str] = None,
+        date_of_incorporation: Optional[str] = None,
+        nin: Optional[str] = None,
+        industry: Optional[str] = None,
+        employee_count: Optional[str] = None,
+        annual_revenue_range: Optional[str] = None,
+        school_type: Optional[str] = None,
+        moe_registration_number: Optional[str] = None,
+        scuml_registration: Optional[str] = None,
+        mission_statement: Optional[str] = None,
+        referral_code: Optional[str] = None,
     ) -> Tuple[User, Organization, BusinessEntity]:
         """
         Register a new user with organization and default entity.
         
+        Supports comprehensive registration for different account types:
+        - Individual: Personal accounts with minimal requirements
+        - Small Business: Micro businesses with BN registration
+        - SME: Small & Medium Enterprises with RC registration
+        - School: Educational institutions
+        - Non-Profit: NGOs with IT registration
+        - Corporation: Large companies
+        
         Returns:
             Tuple of (User, Organization, BusinessEntity)
         """
+        from app.models.organization import OrganizationType
+        
         # Check if email already exists
         existing_user = await self.get_user_by_email(email)
         if existing_user:
             raise ValueError("Email already registered")
+        
+        # Map account type string to enum
+        account_type_map = {
+            "individual": OrganizationType.INDIVIDUAL,
+            "small_business": OrganizationType.SMALL_BUSINESS,
+            "sme": OrganizationType.SME,
+            "school": OrganizationType.SCHOOL,
+            "non_profit": OrganizationType.NON_PROFIT,
+            "corporation": OrganizationType.CORPORATION,
+        }
+        org_type = account_type_map.get(account_type, OrganizationType.INDIVIDUAL)
+        
+        # Build full address string
+        address_parts = [p for p in [street_address, lga, city, state, postal_code, country] if p]
+        full_address = ", ".join(address_parts) if address_parts else None
         
         # Create organization
         org_slug = self._generate_slug(organization_name)
@@ -105,24 +151,37 @@ class AuthService:
             name=organization_name,
             slug=org_slug,
             email=email.lower(),
+            phone=phone_number,
             subscription_tier=SubscriptionTier.FREE,
+            organization_type=org_type,
+            referred_by_code=referral_code,
         )
         self.db.add(organization)
         await self.db.flush()  # Get organization ID
         
-        # Create default business entity
+        # Create default business entity with comprehensive info
+        # Note: Additional details (industry, employee count, etc.) stored in organization metadata
         entity = BusinessEntity(
             organization_id=organization.id,
             name=organization_name,
             legal_name=organization_name,
-            country="Nigeria",
+            country=country,
             currency="NGN",
             fiscal_year_start_month=1,
+            # Address fields
+            address_line1=street_address,
+            city=city,
+            state=state,
+            lga=lga,  # Store LGA in dedicated column
+            # Nigerian compliance fields
+            tin=tin,
+            rc_number=cac_registration_number,  # CAC RC/BN/IT number
         )
         self.db.add(entity)
         await self.db.flush()  # Get entity ID
         
         # Create user
+        # Self-registered users require email verification
         user = User(
             email=email.lower(),
             hashed_password=get_password_hash(password),
@@ -133,6 +192,7 @@ class AuthService:
             role=UserRole.OWNER,
             is_active=True,
             is_verified=False,  # Will be verified via email
+            is_invited_user=False,  # Self-registered users must verify email
         )
         self.db.add(user)
         await self.db.flush()  # Get user ID
@@ -152,6 +212,48 @@ class AuthService:
         await self.db.refresh(entity)
         
         return user, organization, entity
+    
+    def _build_entity_notes(
+        self,
+        account_type: str,
+        industry: Optional[str] = None,
+        employee_count: Optional[str] = None,
+        annual_revenue_range: Optional[str] = None,
+        school_type: Optional[str] = None,
+        scuml_registration: Optional[str] = None,
+        mission_statement: Optional[str] = None,
+        date_of_incorporation: Optional[str] = None,
+        cac_registration_type: Optional[str] = None,
+        nin: Optional[str] = None,
+    ) -> Optional[str]:
+        """Build structured notes with additional registration info."""
+        import json
+        
+        data = {
+            "account_type": account_type,
+            "registration_date": datetime.utcnow().isoformat(),
+        }
+        
+        if industry:
+            data["industry"] = industry
+        if employee_count:
+            data["employee_count"] = employee_count
+        if annual_revenue_range:
+            data["annual_revenue_range"] = annual_revenue_range
+        if school_type:
+            data["school_type"] = school_type
+        if scuml_registration:
+            data["scuml_registration"] = scuml_registration
+        if mission_statement:
+            data["mission_statement"] = mission_statement
+        if date_of_incorporation:
+            data["date_of_incorporation"] = date_of_incorporation
+        if cac_registration_type:
+            data["cac_registration_type"] = cac_registration_type
+        if nin:
+            data["nin"] = nin  # Stored securely for Individual accounts
+        
+        return json.dumps(data) if len(data) > 2 else None
     
     def create_tokens(self, user: User) -> dict:
         """
@@ -282,15 +384,24 @@ class AuthService:
     def create_email_verification_token(self, user: User) -> str:
         """
         Create an email verification token for user.
+        Stores the token in the user record for later verification.
         
         Returns:
             Email verification token string
         """
+        from datetime import datetime
+        
         token_data = {
             "sub": str(user.id),
             "email": user.email,
         }
-        return create_email_verification_token(token_data)
+        token = create_email_verification_token(token_data)
+        
+        # Store token in user record for tracking
+        user.email_verification_token = token
+        user.email_verification_sent_at = datetime.utcnow()
+        
+        return token
     
     async def verify_email_with_token(self, token: str) -> bool:
         """
@@ -299,6 +410,8 @@ class AuthService:
         Returns:
             True if email verified successfully
         """
+        from datetime import datetime
+        
         payload = verify_email_verification_token(token)
         
         if not payload:
@@ -316,7 +429,11 @@ class AuthService:
         if user.is_verified:
             raise ValueError("Email is already verified")
         
+        # Mark email as verified
         user.is_verified = True
+        user.email_verified_at = datetime.utcnow()
+        user.email_verification_token = None  # Clear the token
+        
         await self.db.commit()
         
         return True

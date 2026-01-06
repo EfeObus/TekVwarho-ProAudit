@@ -10,15 +10,35 @@
             <h1 class="text-2xl font-bold text-gray-900">Transactions</h1>
             <p class="text-gray-600">Manage your income and expenses</p>
         </div>
-        <button 
-            @click="showModal = true; resetForm()"
-            class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition flex items-center"
-        >
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-            </svg>
-            New Transaction
-        </button>
+        <div class="flex items-center space-x-3">
+            <button 
+                @click="showImportModal = true"
+                class="border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 transition flex items-center"
+            >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                </svg>
+                Import
+            </button>
+            <button 
+                @click="showRecurringModal = true"
+                class="border border-green-600 text-green-600 px-4 py-2 rounded-md hover:bg-green-50 transition flex items-center"
+            >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Recurring
+            </button>
+            <button 
+                @click="showModal = true; resetForm()"
+                class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition flex items-center"
+            >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                New Transaction
+            </button>
+        </div>
     </div>
 
     <!-- Filters -->
@@ -222,6 +242,190 @@
             </form>
         </div>
     </div>
+    
+    <!-- Recurring Transactions Modal -->
+    <div x-show="showRecurringModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Recurring Transactions</h3>
+                <button @click="showRecurringModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <!-- Tabs -->
+                <div class="flex space-x-4 mb-6 border-b border-gray-200">
+                    <button @click="recurringTab = 'list'" :class="recurringTab === 'list' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500'" class="pb-3 px-1 border-b-2 font-medium text-sm">
+                        Active Recurring
+                    </button>
+                    <button @click="recurringTab = 'create'" :class="recurringTab === 'create' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500'" class="pb-3 px-1 border-b-2 font-medium text-sm">
+                        Create New
+                    </button>
+                </div>
+                
+                <!-- List Tab -->
+                <div x-show="recurringTab === 'list'">
+                    <div x-show="recurringLoading" class="text-center py-8 text-gray-500">Loading...</div>
+                    <div x-show="!recurringLoading && recurringTransactions.length === 0" class="text-center py-8 text-gray-500">
+                        No recurring transactions set up yet.
+                    </div>
+                    <div class="space-y-3">
+                        <template x-for="rec in recurringTransactions" :key="rec.id">
+                            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div class="flex items-center space-x-4">
+                                    <div :class="rec.transaction_type === 'income' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'" class="p-2 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-900" x-text="rec.description"></p>
+                                        <p class="text-sm text-gray-500">
+                                            <span x-text="formatCurrency(rec.amount)"></span> • 
+                                            <span x-text="rec.frequency"></span>
+                                        </p>
+                                        <p class="text-xs text-gray-400">
+                                            Next: <span x-text="formatDate(rec.next_run_date)"></span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button @click="toggleRecurring(rec)" :class="rec.is_active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'" class="px-3 py-1 text-xs font-medium rounded-full">
+                                        <span x-text="rec.is_active ? 'Active' : 'Paused'"></span>
+                                    </button>
+                                    <button @click="deleteRecurring(rec.id)" class="text-red-600 hover:text-red-800 p-1">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Create Tab -->
+                <div x-show="recurringTab === 'create'">
+                    <form @submit.prevent="createRecurring()" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                                <select x-model="recurringForm.transaction_type" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                    <option value="expense">Expense</option>
+                                    <option value="income">Income</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                                <select x-model="recurringForm.frequency" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="biweekly">Bi-Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="quarterly">Quarterly</option>
+                                    <option value="yearly">Yearly</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <input type="text" x-model="recurringForm.description" required placeholder="e.g., Monthly rent, Salary" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Amount (₦)</label>
+                                <input type="number" x-model="recurringForm.amount" step="0.01" min="0" required class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                                <input type="date" x-model="recurringForm.start_date" required class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                <select x-model="recurringForm.category_id" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                    <option value="">Select Category</option>
+                                    <template x-for="cat in categories" :key="cat.id">
+                                        <option :value="cat.id" x-text="cat.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">End Date (Optional)</label>
+                                <input type="date" x-model="recurringForm.end_date" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center">
+                            <input type="checkbox" x-model="recurringForm.include_vat" id="recurring_vat" class="text-green-600 focus:ring-green-500 rounded">
+                            <label for="recurring_vat" class="ml-2 text-sm text-gray-700">Include VAT (7.5%)</label>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3 pt-4">
+                            <button type="button" @click="recurringTab = 'list'" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                Create Recurring
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Import Transactions Modal -->
+    <div x-show="showImportModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Import Transactions</h3>
+                <button @click="showImportModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-600">Drop your CSV file here, or</p>
+                    <input type="file" accept=".csv,.xlsx" @change="handleImportFile" class="hidden" x-ref="importFileInput">
+                    <button type="button" @click="$refs.importFileInput.click()" class="mt-2 text-green-600 hover:text-green-700 font-medium">
+                        Browse files
+                    </button>
+                    <p class="mt-1 text-xs text-gray-500">Supports CSV and Excel files</p>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="text-sm font-medium text-gray-900 mb-2">Expected Format</h4>
+                    <p class="text-xs text-gray-600 mb-2">Your file should have the following columns:</p>
+                    <code class="text-xs bg-gray-100 px-2 py-1 rounded">date, description, amount, type (income/expense), category</code>
+                    <a href="/api/v1/bulk-operations/templates/transactions" class="block mt-2 text-xs text-green-600 hover:text-green-700">
+                        Download sample template →
+                    </a>
+                </div>
+                
+                <div x-show="importProgress.show" class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span x-text="importProgress.status"></span>
+                        <span x-text="importProgress.percent + '%'"></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-green-600 h-2 rounded-full transition-all" :style="'width: ' + importProgress.percent + '%'"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -232,6 +436,8 @@ function transactionsPage() {
         vendors: [],
         entityId: {{ entity_id|tojson if entity_id else 'null' }},
         showModal: false,
+        showRecurringModal: false,
+        showImportModal: false,
         editingId: null,
         saving: false,
         page: 1,
@@ -254,6 +460,26 @@ function transactionsPage() {
             reference: '',
             include_vat: true,
             notes: '',
+        },
+        // Recurring transactions
+        recurringTab: 'list',
+        recurringLoading: false,
+        recurringTransactions: [],
+        recurringForm: {
+            transaction_type: 'expense',
+            frequency: 'monthly',
+            description: '',
+            amount: '',
+            start_date: new Date().toISOString().split('T')[0],
+            end_date: '',
+            category_id: '',
+            include_vat: true,
+        },
+        // Import
+        importProgress: {
+            show: false,
+            status: '',
+            percent: 0,
         },
         
         get filteredCategories() {
@@ -438,6 +664,136 @@ function transactionsPage() {
                 month: 'short',
                 day: 'numeric'
             });
+        },
+        
+        // Recurring Transaction Methods
+        async loadRecurringTransactions() {
+            this.recurringLoading = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/transactions/recurring`, {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.recurringTransactions = data.recurring_transactions || data || [];
+                }
+            } catch (error) {
+                console.error('Failed to load recurring transactions:', error);
+            } finally {
+                this.recurringLoading = false;
+            }
+        },
+        
+        async createRecurring() {
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/transactions/recurring`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                    },
+                    body: JSON.stringify({
+                        ...this.recurringForm,
+                        amount: parseFloat(this.recurringForm.amount),
+                        vat_amount: this.recurringForm.include_vat ? parseFloat(this.recurringForm.amount) * 0.075 : 0,
+                    }),
+                });
+                
+                if (response.ok) {
+                    alert('Recurring transaction created successfully!');
+                    this.recurringTab = 'list';
+                    this.loadRecurringTransactions();
+                    this.recurringForm = {
+                        transaction_type: 'expense',
+                        frequency: 'monthly',
+                        description: '',
+                        amount: '',
+                        start_date: new Date().toISOString().split('T')[0],
+                        end_date: '',
+                        category_id: '',
+                        include_vat: true,
+                    };
+                } else {
+                    const error = await response.json();
+                    alert(`Failed to create recurring transaction: ${error.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Failed to create recurring transaction:', error);
+                alert('Failed to create recurring transaction.');
+            }
+        },
+        
+        async toggleRecurring(rec) {
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/transactions/recurring/${rec.id}/toggle`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                });
+                if (response.ok) {
+                    rec.is_active = !rec.is_active;
+                }
+            } catch (error) {
+                console.error('Failed to toggle recurring transaction:', error);
+            }
+        },
+        
+        async deleteRecurring(id) {
+            if (!confirm('Delete this recurring transaction?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/transactions/recurring/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                });
+                if (response.ok) {
+                    this.recurringTransactions = this.recurringTransactions.filter(r => r.id !== id);
+                }
+            } catch (error) {
+                console.error('Failed to delete recurring transaction:', error);
+            }
+        },
+        
+        // Import Methods
+        async handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            this.importProgress.show = true;
+            this.importProgress.status = 'Uploading...';
+            this.importProgress.percent = 10;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/transactions/import`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                    body: formData,
+                });
+                
+                this.importProgress.percent = 50;
+                this.importProgress.status = 'Processing...';
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    this.importProgress.percent = 100;
+                    this.importProgress.status = 'Complete!';
+                    
+                    setTimeout(() => {
+                        this.showImportModal = false;
+                        this.importProgress.show = false;
+                        alert(`Successfully imported ${result.imported_count || result.count || 0} transactions!`);
+                        this.loadTransactions();
+                    }, 500);
+                } else {
+                    const error = await response.json();
+                    this.importProgress.status = 'Failed: ' + (error.detail || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('Failed to import transactions:', error);
+                this.importProgress.status = 'Error: ' + error.message;
+            }
         }
     }
 }

@@ -20,6 +20,13 @@ Routers:
 - tax: Tax management
 - tax_2026: 2026 Tax Reform APIs
 - fixed_assets: Fixed Asset Register (2026)
+- dashboard: Organization dashboards API (NTAA 2025)
+- notifications: In-app notifications
+- self_assessment: Tax self-assessment and returns
+- organization_settings: Organization settings, subscriptions, API keys
+- bulk_operations: Bulk import/export operations
+- exports: Report and data exports
+- search_analytics: Global search and analytics
 - views: HTML page views
 """
 
@@ -40,7 +47,15 @@ from app.routers import (
     tax,
     tax_2026,
     fixed_assets,
+    dashboard,
+    notifications,
+    self_assessment,
+    organization_settings,
+    bulk_operations,
+    exports,
+    search_analytics,
     views,
+    sales,
 )
 
 __all__ = [
@@ -60,5 +75,13 @@ __all__ = [
     "tax",
     "tax_2026",
     "fixed_assets",
+    "dashboard",
+    "notifications",
+    "self_assessment",
+    "organization_settings",
+    "bulk_operations",
+    "exports",
+    "search_analytics",
     "views",
+    "sales",
 ]

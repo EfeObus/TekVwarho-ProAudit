@@ -1034,3 +1034,428 @@ async def calculate_cit_with_adjustments(
     )
     
     return CITEntityCalculationResponse(**result)
+
+
+# ===========================================
+# ADDITIONAL PAYE ENDPOINTS
+# ===========================================
+
+class PAYERecordUpdateRequest(BaseModel):
+    """Schema for updating a PAYE record."""
+    employee_name: Optional[str] = None
+    employee_tin: Optional[str] = None
+    gross_salary: Optional[float] = Field(None, gt=0)
+    pension_contribution: Optional[float] = Field(None, ge=0)
+    nhf_contribution: Optional[float] = Field(None, ge=0)
+    other_reliefs: Optional[float] = Field(None, ge=0)
+
+
+class PAYEBatchCreateRequest(BaseModel):
+    """Schema for batch creating PAYE records."""
+    period_year: int = Field(...)
+    period_month: int = Field(..., ge=1, le=12)
+    records: List[dict] = Field(..., description="List of employee PAYE data")
+
+
+class PAYEAnnualSummaryResponse(BaseModel):
+    """Schema for annual PAYE summary."""
+    entity_id: UUID
+    year: int
+    total_employees: int
+    total_gross_salary: float
+    total_paye_tax: float
+    total_pension: float
+    total_nhf: float
+    monthly_breakdown: List[dict]
+
+
+class TaxFilingCalendarResponse(BaseModel):
+    """Schema for tax filing calendar."""
+    upcoming_deadlines: List[dict]
+    overdue: List[dict]
+
+
+@router.patch(
+    "/{entity_id}/paye/{paye_id}",
+    response_model=PAYERecordResponse,
+    summary="Update PAYE record",
+    tags=["Tax - PAYE"],
+)
+async def update_paye_record(
+    entity_id: UUID,
+    paye_id: UUID,
+    request: PAYERecordUpdateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Update a PAYE record."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from sqlalchemy import select
+    from app.models.tax import PAYERecord
+    
+    result = await db.execute(
+        select(PAYERecord).where(
+            PAYERecord.id == paye_id,
+            PAYERecord.entity_id == entity_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PAYE record not found",
+        )
+    
+    # Update fields
+    if request.employee_name is not None:
+        record.employee_name = request.employee_name
+    if request.employee_tin is not None:
+        record.employee_tin = request.employee_tin
+    if request.gross_salary is not None:
+        record.gross_salary = request.gross_salary
+    if request.pension_contribution is not None:
+        record.pension_contribution = request.pension_contribution
+    if request.nhf_contribution is not None:
+        record.nhf_contribution = request.nhf_contribution
+    if request.other_reliefs is not None:
+        record.other_reliefs = request.other_reliefs
+    
+    # Recalculate tax
+    from app.services.tax_calculators.paye_service import PAYECalculator
+    calculator = PAYECalculator()
+    
+    # Calculate consolidated relief (20% of gross + 200,000)
+    annual_gross = float(record.gross_salary) * 12
+    cra = (0.2 * annual_gross) + 200000
+    record.consolidated_relief = cra / 12
+    
+    # Calculate taxable income
+    total_reliefs = (
+        float(record.consolidated_relief) +
+        float(record.pension_contribution) +
+        float(record.nhf_contribution) +
+        float(record.other_reliefs)
+    )
+    record.taxable_income = max(0, float(record.gross_salary) - total_reliefs)
+    
+    # Calculate tax
+    calc_result = calculator.calculate(float(record.taxable_income) * 12)
+    record.tax_amount = calc_result["tax"] / 12
+    
+    await db.commit()
+    await db.refresh(record)
+    
+    return PAYERecordResponse(
+        id=record.id,
+        entity_id=record.entity_id,
+        employee_name=record.employee_name,
+        employee_tin=record.employee_tin,
+        period_year=record.period_year,
+        period_month=record.period_month,
+        gross_salary=float(record.gross_salary),
+        consolidated_relief=float(record.consolidated_relief),
+        pension_contribution=float(record.pension_contribution),
+        nhf_contribution=float(record.nhf_contribution),
+        other_reliefs=float(record.other_reliefs),
+        taxable_income=float(record.taxable_income),
+        tax_amount=float(record.tax_amount),
+    )
+
+
+@router.delete(
+    "/{entity_id}/paye/{paye_id}",
+    response_model=MessageResponse,
+    summary="Delete PAYE record",
+    tags=["Tax - PAYE"],
+)
+async def delete_paye_record(
+    entity_id: UUID,
+    paye_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Delete a PAYE record."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from sqlalchemy import select, delete
+    from app.models.tax import PAYERecord
+    
+    result = await db.execute(
+        select(PAYERecord).where(
+            PAYERecord.id == paye_id,
+            PAYERecord.entity_id == entity_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PAYE record not found",
+        )
+    
+    await db.execute(
+        delete(PAYERecord).where(PAYERecord.id == paye_id)
+    )
+    await db.commit()
+    
+    return MessageResponse(message="PAYE record deleted successfully")
+
+
+@router.post(
+    "/{entity_id}/paye/batch",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Batch create PAYE records",
+    tags=["Tax - PAYE"],
+    description="Create multiple PAYE records for a monthly payroll run.",
+)
+async def batch_create_paye_records(
+    entity_id: UUID,
+    request: PAYEBatchCreateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Batch create PAYE records for monthly payroll."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.tax_calculators.paye_service import PAYEService
+    
+    paye_service = PAYEService(db)
+    
+    created_count = 0
+    errors = []
+    
+    for emp_data in request.records:
+        try:
+            await paye_service.create_paye_record(
+                entity_id=entity_id,
+                employee_name=emp_data.get("employee_name", "Unknown"),
+                employee_tin=emp_data.get("employee_tin"),
+                period_year=request.period_year,
+                period_month=request.period_month,
+                gross_salary=emp_data.get("gross_salary", 0),
+                pension_contribution=emp_data.get("pension_contribution", 0),
+                nhf_contribution=emp_data.get("nhf_contribution", 0),
+                other_reliefs=emp_data.get("other_reliefs", 0),
+            )
+            created_count += 1
+        except Exception as e:
+            errors.append(f"{emp_data.get('employee_name', 'Unknown')}: {str(e)}")
+    
+    message = f"Created {created_count} PAYE records for {request.period_year}-{request.period_month:02d}"
+    if errors:
+        message += f". Errors: {len(errors)}"
+    
+    return MessageResponse(message=message)
+
+
+@router.get(
+    "/{entity_id}/paye/{year}/annual-summary",
+    response_model=PAYEAnnualSummaryResponse,
+    summary="Get annual PAYE summary",
+    tags=["Tax - PAYE"],
+    description="Get annual PAYE summary for filing.",
+)
+async def get_annual_paye_summary(
+    entity_id: UUID,
+    year: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get annual PAYE summary."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from sqlalchemy import select, func
+    from app.models.tax import PAYERecord
+    
+    # Get all records for the year
+    query = select(PAYERecord).where(
+        PAYERecord.entity_id == entity_id,
+        PAYERecord.period_year == year,
+    )
+    result = await db.execute(query)
+    records = result.scalars().all()
+    
+    # Calculate totals
+    total_gross = sum(float(r.gross_salary) for r in records)
+    total_tax = sum(float(r.tax_amount) for r in records)
+    total_pension = sum(float(r.pension_contribution) for r in records)
+    total_nhf = sum(float(r.nhf_contribution) for r in records)
+    
+    # Get unique employee count
+    unique_employees = len(set(r.employee_tin or r.employee_name for r in records))
+    
+    # Monthly breakdown
+    monthly_data = {}
+    for r in records:
+        month = r.period_month
+        if month not in monthly_data:
+            monthly_data[month] = {
+                "month": month,
+                "employee_count": 0,
+                "total_gross": 0,
+                "total_tax": 0,
+            }
+        monthly_data[month]["employee_count"] += 1
+        monthly_data[month]["total_gross"] += float(r.gross_salary)
+        monthly_data[month]["total_tax"] += float(r.tax_amount)
+    
+    monthly_breakdown = [monthly_data[m] for m in sorted(monthly_data.keys())]
+    
+    return PAYEAnnualSummaryResponse(
+        entity_id=entity_id,
+        year=year,
+        total_employees=unique_employees,
+        total_gross_salary=total_gross,
+        total_paye_tax=total_tax,
+        total_pension=total_pension,
+        total_nhf=total_nhf,
+        monthly_breakdown=monthly_breakdown,
+    )
+
+
+@router.get(
+    "/{entity_id}/tax/filing-calendar",
+    response_model=TaxFilingCalendarResponse,
+    summary="Get tax filing calendar",
+    tags=["Tax Management"],
+    description="Get upcoming and overdue tax filing deadlines.",
+)
+async def get_tax_filing_calendar(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get tax filing calendar with deadlines."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from datetime import datetime
+    today = date.today()
+    
+    # Generate filing deadlines
+    upcoming = []
+    overdue = []
+    
+    # VAT (21st of each month for previous month)
+    current_month = today.month
+    current_year = today.year
+    
+    # VAT for previous month
+    vat_deadline = date(current_year, current_month, 21)
+    if today <= vat_deadline:
+        upcoming.append({
+            "type": "VAT",
+            "description": f"VAT Return for {(current_month - 1) if current_month > 1 else 12}/{current_year if current_month > 1 else current_year - 1}",
+            "deadline": vat_deadline.isoformat(),
+            "days_remaining": (vat_deadline - today).days,
+        })
+    else:
+        overdue.append({
+            "type": "VAT",
+            "description": f"VAT Return for {(current_month - 1) if current_month > 1 else 12}/{current_year if current_month > 1 else current_year - 1}",
+            "deadline": vat_deadline.isoformat(),
+            "days_overdue": (today - vat_deadline).days,
+        })
+    
+    # PAYE (10th of each month for previous month)
+    paye_deadline = date(current_year, current_month, 10)
+    if today <= paye_deadline:
+        upcoming.append({
+            "type": "PAYE",
+            "description": f"PAYE Remittance for {(current_month - 1) if current_month > 1 else 12}/{current_year if current_month > 1 else current_year - 1}",
+            "deadline": paye_deadline.isoformat(),
+            "days_remaining": (paye_deadline - today).days,
+        })
+    
+    # WHT (21st of each month)
+    wht_deadline = date(current_year, current_month, 21)
+    if today <= wht_deadline:
+        upcoming.append({
+            "type": "WHT",
+            "description": f"WHT Remittance for {(current_month - 1) if current_month > 1 else 12}/{current_year if current_month > 1 else current_year - 1}",
+            "deadline": wht_deadline.isoformat(),
+            "days_remaining": (wht_deadline - today).days,
+        })
+    
+    # CIT (6 months after fiscal year end - assuming Dec year end)
+    cit_deadline = date(current_year, 6, 30)
+    if current_month <= 6 and today <= cit_deadline:
+        upcoming.append({
+            "type": "CIT",
+            "description": f"CIT Return for {current_year - 1}",
+            "deadline": cit_deadline.isoformat(),
+            "days_remaining": (cit_deadline - today).days,
+        })
+    
+    # Sort by deadline
+    upcoming.sort(key=lambda x: x["deadline"])
+    overdue.sort(key=lambda x: x["deadline"], reverse=True)
+    
+    return TaxFilingCalendarResponse(
+        upcoming_deadlines=upcoming,
+        overdue=overdue,
+    )
+
+
+@router.get(
+    "/{entity_id}/wht/{year}/annual-report",
+    summary="Get annual WHT report",
+    tags=["Tax - WHT"],
+    description="Get annual WHT summary report.",
+)
+async def get_annual_wht_report(
+    entity_id: UUID,
+    year: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get annual WHT report."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from sqlalchemy import select, func
+    from app.models.transaction import Transaction, TransactionType
+    from app.models.vendor import Vendor
+    
+    # Get all expense transactions for the year with WHT
+    query = select(Transaction).where(
+        Transaction.entity_id == entity_id,
+        Transaction.transaction_type == TransactionType.EXPENSE,
+        Transaction.is_deleted == False,
+    ).where(
+        func.extract('year', Transaction.transaction_date) == year
+    )
+    
+    result = await db.execute(query)
+    transactions = result.scalars().all()
+    
+    # Group by vendor
+    vendor_wht = {}
+    for txn in transactions:
+        if txn.vendor_id:
+            vendor_id = str(txn.vendor_id)
+            if vendor_id not in vendor_wht:
+                vendor_wht[vendor_id] = {
+                    "vendor_id": vendor_id,
+                    "vendor_name": txn.vendor.name if txn.vendor else "Unknown",
+                    "vendor_tin": txn.vendor.tin if txn.vendor else None,
+                    "total_payments": 0,
+                    "total_wht": 0,
+                    "wht_rate": float(txn.vendor.default_wht_rate or 0) if txn.vendor else 0,
+                }
+            vendor_wht[vendor_id]["total_payments"] += float(txn.amount)
+            vendor_wht[vendor_id]["total_wht"] += float(txn.amount) * (vendor_wht[vendor_id]["wht_rate"] / 100)
+    
+    total_payments = sum(v["total_payments"] for v in vendor_wht.values())
+    total_wht = sum(v["total_wht"] for v in vendor_wht.values())
+    
+    return {
+        "entity_id": str(entity_id),
+        "year": year,
+        "total_payments": total_payments,
+        "total_wht_deducted": total_wht,
+        "vendor_count": len(vendor_wht),
+        "vendors": list(vendor_wht.values()),
+    }

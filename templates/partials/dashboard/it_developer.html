@@ -1,0 +1,416 @@
+<!-- IT/Developer Dashboard Partial -->
+<!-- Level 3 - Infrastructure: Technical "War Room" for FastAPI/PostgreSQL and NRS Integrations -->
+
+<!-- Section 1: System Status Overview -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 rounded-3 p-3
+                        {% if dashboard.platform_health and dashboard.platform_health.status == 'healthy' %}bg-success bg-opacity-10{% else %}bg-danger bg-opacity-10{% endif %}">
+                        <i class="fas fa-server fa-2x
+                            {% if dashboard.platform_health and dashboard.platform_health.status == 'healthy' %}text-success{% else %}text-danger{% endif %}"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Platform Status</h6>
+                        <h4 class="mb-0 text-capitalize
+                            {% if dashboard.platform_health and dashboard.platform_health.status == 'healthy' %}text-success{% else %}text-danger{% endif %}">
+                            {{ dashboard.platform_health.status if dashboard.platform_health else 'Unknown' }}
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 rounded-3 p-3
+                        {% if dashboard.database_health and dashboard.database_health.status == 'healthy' %}bg-success bg-opacity-10{% else %}bg-danger bg-opacity-10{% endif %}">
+                        <i class="fas fa-database fa-2x
+                            {% if dashboard.database_health and dashboard.database_health.status == 'healthy' %}text-success{% else %}text-danger{% endif %}"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Database</h6>
+                        <h4 class="mb-0 text-capitalize
+                            {% if dashboard.database_health and dashboard.database_health.status == 'healthy' %}text-success{% else %}text-danger{% endif %}">
+                            {{ dashboard.database_health.status if dashboard.database_health else 'Unknown' }}
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 rounded-3 p-3
+                        {% if dashboard.nrs_webhook and dashboard.nrs_webhook.status == 'connected' %}bg-success bg-opacity-10{% else %}bg-danger bg-opacity-10{% endif %}">
+                        <i class="fas fa-plug fa-2x
+                            {% if dashboard.nrs_webhook and dashboard.nrs_webhook.status == 'connected' %}text-success{% else %}text-danger{% endif %}"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">NRS Webhook</h6>
+                        <h4 class="mb-0 text-capitalize
+                            {% if dashboard.nrs_webhook and dashboard.nrs_webhook.status == 'connected' %}text-success{% else %}text-danger{% endif %}">
+                            {{ dashboard.nrs_webhook.status if dashboard.nrs_webhook else 'Unknown' }}
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-warning bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-bug text-warning fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Errors (24h)</h6>
+                        <h4 class="mb-0">{{ dashboard.error_stats.total_24h if dashboard.error_stats else 0 }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 2: Quick Actions -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for action in dashboard.quick_actions %}
+                    <div class="col-md-4 col-lg-2">
+                        <a href="{{ action.url }}" class="card h-100 border text-decoration-none hover-shadow">
+                            <div class="card-body text-center py-3">
+                                <i class="fas fa-{{ action.icon }} fa-lg text-primary mb-2"></i>
+                                <h6 class="mb-0 small">{{ action.label }}</h6>
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 3: NRS Webhook Monitor -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-satellite-dish me-2 text-info"></i>NRS Webhook Monitor</h5>
+                <span class="badge bg-{% if dashboard.nrs_webhook and dashboard.nrs_webhook.status == 'connected' %}success{% else %}danger{% endif %}">
+                    {{ dashboard.nrs_webhook.status | upper if dashboard.nrs_webhook else 'UNKNOWN' }}
+                </span>
+            </div>
+            <div class="card-body">
+                {% if dashboard.nrs_webhook %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Endpoint</span>
+                        <code>{{ dashboard.nrs_webhook.endpoint }}</code>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Latency</span>
+                        <span class="badge bg-{% if dashboard.nrs_webhook.latency_ms < 200 %}success{% elif dashboard.nrs_webhook.latency_ms < 500 %}warning{% else %}danger{% endif %}">
+                            {{ dashboard.nrs_webhook.latency_ms }}ms
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Uptime (24h)</span>
+                        <strong>{{ dashboard.nrs_webhook.uptime_24h }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Last Ping</span>
+                        <small>{{ dashboard.nrs_webhook.last_ping }}</small>
+                    </div>
+                </div>
+                {% if dashboard.nrs_webhook.alerts and dashboard.nrs_webhook.alerts | length > 0 %}
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {{ dashboard.nrs_webhook.alerts | length }} active alert(s)
+                </div>
+                {% else %}
+                <div class="alert alert-success mb-0">
+                    <i class="fas fa-check-circle me-2"></i>
+                    NRS connection healthy - no alerts
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-database me-2 text-primary"></i>Database Health</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.database_health %}
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">{{ dashboard.database_health.type }}</h4>
+                            <small class="text-muted">Database Type</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">{{ dashboard.database_health.size_mb }} MB</h4>
+                            <small class="text-muted">Database Size</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="text-muted small">Connections</label>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar bg-success" 
+                             style="width: {{ (dashboard.database_health.connections.active / dashboard.database_health.connections.max * 100) | int }}%">
+                            Active: {{ dashboard.database_health.connections.active }}
+                        </div>
+                        <div class="progress-bar bg-info" 
+                             style="width: {{ (dashboard.database_health.connections.idle / dashboard.database_health.connections.max * 100) | int }}%">
+                            Idle: {{ dashboard.database_health.connections.idle }}
+                        </div>
+                    </div>
+                    <small class="text-muted">Max: {{ dashboard.database_health.connections.max }}</small>
+                </div>
+                <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                    <span>
+                        <i class="fas fa-{% if dashboard.database_health.backup_status == 'success' %}check-circle text-success{% else %}times-circle text-danger{% endif %} me-2"></i>
+                        Last Backup
+                    </span>
+                    <small>{{ dashboard.database_health.last_backup }}</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 4: API Metrics & Deployment Status -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-tachometer-alt me-2 text-success"></i>API Performance</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.api_metrics %}
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="p-3 border rounded text-center">
+                            <h3 class="mb-0 text-success">{{ dashboard.api_metrics.uptime }}</h3>
+                            <small class="text-muted">Uptime</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 border rounded text-center">
+                            <h3 class="mb-0 text-primary">{{ dashboard.api_metrics.avg_response_time_ms }}ms</h3>
+                            <small class="text-muted">Avg Response</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 border rounded text-center">
+                            <h3 class="mb-0">{{ dashboard.api_metrics.requests_per_minute }}</h3>
+                            <small class="text-muted">Requests/min</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 border rounded text-center">
+                            <h3 class="mb-0 text-{% if dashboard.api_metrics.error_rate == '0%' or dashboard.api_metrics.error_rate == '0.1%' %}success{% else %}warning{% endif %}">
+                                {{ dashboard.api_metrics.error_rate }}
+                            </h3>
+                            <small class="text-muted">Error Rate</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-cloud-upload-alt me-2 text-info"></i>Deployment Status</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.deployment_status %}
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong><i class="fas fa-globe me-2"></i>Web Application</strong>
+                            <br><small class="text-muted">v{{ dashboard.deployment_status.web.version }}</small>
+                        </div>
+                        <span class="badge bg-success">{{ dashboard.deployment_status.web.status }}</span>
+                    </div>
+                    <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong><i class="fas fa-code me-2"></i>API Server</strong>
+                            <br><small class="text-muted">v{{ dashboard.deployment_status.api.version }}</small>
+                        </div>
+                        <span class="badge bg-success">{{ dashboard.deployment_status.api.status }}</span>
+                    </div>
+                    <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong><i class="fas fa-cog me-2"></i>Environment</strong>
+                        </div>
+                        <span class="badge bg-primary text-capitalize">{{ dashboard.deployment_status.environment }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 5: Error Tracking -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2 text-warning"></i>Error Stats (24h)</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.error_stats %}
+                <div class="text-center mb-3">
+                    <h1 class="display-4 mb-0 text-{% if dashboard.error_stats.total_24h == 0 %}success{% elif dashboard.error_stats.total_24h < 10 %}warning{% else %}danger{% endif %}">
+                        {{ dashboard.error_stats.total_24h }}
+                    </h1>
+                    <small class="text-muted">Total Errors</small>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for type, count in dashboard.error_stats.by_type.items() %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-capitalize">{{ type }}</span>
+                        <span class="badge bg-secondary">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div class="mt-3 text-center">
+                    <span class="badge bg-{% if dashboard.error_stats.trend == 'stable' %}success{% else %}warning{% endif %}">
+                        <i class="fas fa-{% if dashboard.error_stats.trend == 'stable' %}check{% else %}arrow-up{% endif %} me-1"></i>
+                        {{ dashboard.error_stats.trend }}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2 text-danger"></i>Recent Errors</h5>
+                <a href="/admin/errors" class="btn btn-sm btn-outline-danger">View All</a>
+            </div>
+            <div class="card-body">
+                {% if dashboard.recent_errors and dashboard.recent_errors | length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Type</th>
+                                <th>Details</th>
+                                <th>IP</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for error in dashboard.recent_errors %}
+                            <tr>
+                                <td><span class="badge bg-danger">{{ error.action }}</span></td>
+                                <td><small>{{ error.entity_type or 'N/A' }}</small></td>
+                                <td><code class="small">{{ error.ip_address or 'N/A' }}</code></td>
+                                <td><small class="text-muted">{{ error.timestamp }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                    <p class="text-muted mb-0">No recent errors - system running smoothly</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 6: NRS Submissions Log -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-file-invoice me-2 text-info"></i>Recent NRS E-Invoice Submissions</h5>
+                <a href="/admin/nrs-logs" class="btn btn-sm btn-outline-info">View All</a>
+            </div>
+            <div class="card-body">
+                {% if dashboard.recent_nrs_submissions and dashboard.recent_nrs_submissions | length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice ID</th>
+                                <th>IRN</th>
+                                <th>Status</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sub in dashboard.recent_nrs_submissions %}
+                            <tr>
+                                <td><code>{{ sub.invoice_id or 'N/A' }}</code></td>
+                                <td>{{ sub.irn or 'Pending' }}</td>
+                                <td>
+                                    <span class="badge bg-{% if sub.success %}success{% else %}danger{% endif %}">
+                                        {% if sub.success %}Success{% else %}Failed{% endif %}
+                                    </span>
+                                    {% if sub.error %}
+                                    <br><small class="text-danger">{{ sub.error }}</small>
+                                    {% endif %}
+                                </td>
+                                <td><small class="text-muted">{{ sub.timestamp }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">No recent NRS submissions</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: Permissions -->
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-key me-2 text-secondary"></i>Your Permissions (IT/Developer)</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for permission in dashboard.permissions %}
+                    <span class="badge bg-info">{{ permission }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -116,6 +116,8 @@ class OrganizationUserService:
         temp_password = generate_random_password()
         
         # Create user
+        # IMPORTANT: Invited users MUST reset password on first login
+        # Invited users skip email verification (admin vouches for them)
         new_user = User(
             email=email.lower(),
             hashed_password=get_password_hash(temp_password),
@@ -126,7 +128,9 @@ class OrganizationUserService:
             role=role,
             is_platform_staff=False,
             is_active=True,
-            is_verified=False,  # Needs to verify email
+            is_verified=True,  # Invited users are pre-verified (admin vouches for them)
+            is_invited_user=True,  # Mark as invited (skip email verification)
+            must_reset_password=True,  # Force password change on first login (RBAC requirement)
         )
         
         self.db.add(new_user)

@@ -128,6 +128,47 @@ async def get_current_verified_user(
     return current_user
 
 
+async def verify_entity_access(
+    entity_id: uuid.UUID,
+    user: User,
+    db: AsyncSession,
+) -> None:
+    """
+    Verify user has access to the specified business entity.
+    
+    Args:
+        entity_id: UUID of the business entity
+        user: Current authenticated user
+        db: Database session
+        
+    Raises:
+        HTTPException: 404 if entity not found, 403 if access denied
+    """
+    from app.models.entity import BusinessEntity
+    
+    result = await db.execute(
+        select(BusinessEntity).where(BusinessEntity.id == entity_id)
+    )
+    entity = result.scalar_one_or_none()
+    
+    if not entity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Business entity not found",
+        )
+    
+    has_access = any(
+        access.entity_id == entity_id 
+        for access in user.entity_access
+    )
+    
+    if not has_access and entity.organization_id != user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this business entity",
+        )
+
+
 def require_role(allowed_roles: list[UserRole]):
     """
     Dependency factory for organization role-based access control.

@@ -43,12 +43,22 @@ class StaffManagementService:
         
         Returns:
             User: The super admin user
+            
+        Raises:
+            ValueError: If super admin credentials are not configured in environment
         """
-        # Get super admin credentials from config
-        super_admin_email = getattr(settings, 'super_admin_email', 'superadmin@tekvwarho.com')
-        super_admin_password = getattr(settings, 'super_admin_password', 'SuperAdmin@123!')
-        super_admin_first_name = getattr(settings, 'super_admin_first_name', 'Super')
-        super_admin_last_name = getattr(settings, 'super_admin_last_name', 'Admin')
+        # Get super admin credentials from config (MUST be set via environment)
+        super_admin_email = getattr(settings, 'super_admin_email', '')
+        super_admin_password = getattr(settings, 'super_admin_password', '')
+        super_admin_first_name = getattr(settings, 'super_admin_first_name', '')
+        super_admin_last_name = getattr(settings, 'super_admin_last_name', '')
+        
+        # Validate that credentials are configured
+        if not super_admin_email or not super_admin_password:
+            raise ValueError(
+                "Super Admin credentials not configured. "
+                "Please set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD in your .env file."
+            )
         
         # Check if super admin exists
         result = await self.db.execute(

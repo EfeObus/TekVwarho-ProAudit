@@ -1,0 +1,123 @@
+<!-- Inventory Manager Dashboard Partial - Inventory Access -->
+<div class="bg-gradient-to-r from-cyan-50 to-teal-50 border border-cyan-200 rounded-lg p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center">
+            <div class="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center mr-4">
+                <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-gray-900">Inventory Manager Dashboard</h2>
+                <p class="text-sm text-gray-600">Full inventory control with vendor management access</p>
+            </div>
+        </div>
+        <span class="bg-cyan-100 text-cyan-800 text-xs px-3 py-1 rounded-full font-medium">Level 3 Access</span>
+    </div>
+    
+    <!-- Inventory Manager Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <a href="/inventory" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-cyan-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Inventory</span>
+        </a>
+        <a href="/inventory/new" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Add Item</span>
+        </a>
+        <a href="/vendors" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Vendors</span>
+        </a>
+        <a href="/inventory/stock-take" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Stock Take</span>
+        </a>
+    </div>
+</div>
+
+<!-- Inventory Manager: Stock Overview -->
+<div class="bg-white rounded-lg shadow p-6 mb-6 border-l-4 border-cyan-500">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Stock Overview</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center p-4 bg-cyan-50 rounded-lg">
+            <p class="text-2xl font-bold text-cyan-600" x-data x-text="$store.inventory?.total_items || '—'"></p>
+            <p class="text-xs text-gray-500">Total Items</p>
+        </div>
+        <div class="text-center p-4 bg-yellow-50 rounded-lg">
+            <p class="text-2xl font-bold text-yellow-600" x-data x-text="$store.inventory?.low_stock || '—'"></p>
+            <p class="text-xs text-gray-500">Low Stock</p>
+        </div>
+        <div class="text-center p-4 bg-red-50 rounded-lg">
+            <p class="text-2xl font-bold text-red-600" x-data x-text="$store.inventory?.out_of_stock || '—'"></p>
+            <p class="text-xs text-gray-500">Out of Stock</p>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-lg">
+            <p class="text-2xl font-bold text-green-600" x-data x-text="$store.inventory?.total_value ? '₦' + $store.inventory.total_value.toLocaleString() : '—'"></p>
+            <p class="text-xs text-gray-500">Total Value</p>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Manager: Low Stock Alerts -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
+        <a href="/inventory?filter=low_stock" class="text-sm text-cyan-600 hover:text-cyan-800">View All →</a>
+    </div>
+    <div class="space-y-3" x-data="{ lowStockItems: [] }">
+        <template x-for="item in lowStockItems.slice(0, 5)" :key="item.id">
+            <div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div>
+                    <p class="font-medium text-gray-900" x-text="item.name"></p>
+                    <p class="text-xs text-gray-500" x-text="'SKU: ' + item.sku"></p>
+                </div>
+                <div class="text-right">
+                    <p class="font-semibold text-yellow-600" x-text="item.quantity + ' left'"></p>
+                    <p class="text-xs text-gray-500" x-text="'Min: ' + item.min_quantity"></p>
+                </div>
+            </div>
+        </template>
+        <div x-show="lowStockItems.length === 0" class="text-center py-4 text-gray-500">
+            <p>No low stock alerts at this time.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Manager: Vendor Management -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Supplier Management</h3>
+        <a href="/vendors/new" class="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition text-sm">
+            Add Vendor
+        </a>
+    </div>
+    <p class="text-sm text-gray-600">Manage your inventory suppliers. You can add, edit, and track vendor relationships.</p>
+</div>
+
+<!-- Inventory Manager: Access Restrictions Notice -->
+<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+    <div class="flex items-start">
+        <svg class="w-5 h-5 text-gray-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+        </svg>
+        <div>
+            <h4 class="text-sm font-medium text-gray-800">Access Scope</h4>
+            <ul class="text-sm text-gray-600 mt-2 space-y-1">
+                <li>• Full inventory management access</li>
+                <li>• Vendor management for suppliers</li>
+                <li>• <span class="text-red-600">No financial dashboard access</span></li>
+                <li>• <span class="text-red-600">No payroll access</span></li>
+                <li>• <span class="text-red-600">No transaction access</span></li>
+            </ul>
+        </div>
+    </div>
+</div>

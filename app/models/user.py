@@ -166,6 +166,29 @@ class User(BaseModel):
         comment="Force password reset on next login (for newly onboarded staff)"
     )
     
+    # Email Verification
+    email_verification_token: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Token for email verification"
+    )
+    email_verification_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When verification email was last sent"
+    )
+    email_verified_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When email was verified"
+    )
+    is_invited_user: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="True if user was invited (skip email verification)"
+    )
+    
     # Impersonation (for CSR access with user permission)
     # NDPA Compliance: Time-limited tokens (24 hours max)
     can_be_impersonated: Mapped[bool] = mapped_column(

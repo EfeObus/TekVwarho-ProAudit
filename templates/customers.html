@@ -87,9 +87,27 @@
                             </svg>
                         </button>
                         <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                            <button @click="editCustomer(customer); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">Edit</button>
-                            <button @click="viewInvoices(customer.id); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">View Invoices</button>
-                            <button @click="deleteCustomer(customer.id); open = false" class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100">Delete</button>
+                            <button @click="editCustomer(customer); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                Edit
+                            </button>
+                            <button @click="viewStatement(customer); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                View Statement
+                            </button>
+                            <button @click="viewInvoices(customer.id); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                View Invoices
+                            </button>
+                            <button @click="verifyTIN(customer); open = false" class="w-full px-4 py-2 text-left text-sm text-blue-700 hover:bg-blue-50 flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Verify TIN
+                            </button>
+                            <hr class="my-1">
+                            <button @click="deleteCustomer(customer.id); open = false" class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                Delete
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -292,6 +310,92 @@ function customersPage() {
         
         viewInvoices(customerId) {
             window.location.href = `/invoices?customer_id=${customerId}`;
+        },
+        
+        async viewStatement(customer) {
+            try {
+                const entityId = localStorage.getItem('currentEntityId');
+                const token = localStorage.getItem('token');
+                
+                // First, try to download as PDF
+                const response = await fetch(`/api/v1/entities/${entityId}/customers/${customer.id}/statement?format=pdf`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `statement-${customer.name.replace(/\s+/g, '-')}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } else {
+                    // Fallback: Get JSON statement and show in alert
+                    const jsonResponse = await fetch(`/api/v1/entities/${entityId}/customers/${customer.id}/statement`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (jsonResponse.ok) {
+                        const statement = await jsonResponse.json();
+                        const lines = [
+                            `CUSTOMER STATEMENT`,
+                            `=`.repeat(40),
+                            ``,
+                            `Customer: ${customer.name}`,
+                            `Period: ${statement.period_start || 'All time'} to ${statement.period_end || 'Present'}`,
+                            ``,
+                            `Opening Balance: ₦${this.formatCurrency(statement.opening_balance || 0)}`,
+                            `Total Invoiced: ₦${this.formatCurrency(statement.total_invoiced || 0)}`,
+                            `Total Payments: ₦${this.formatCurrency(statement.total_payments || 0)}`,
+                            ``,
+                            `-`.repeat(40),
+                            `Closing Balance: ₦${this.formatCurrency(statement.closing_balance || statement.outstanding_amount || 0)}`,
+                        ];
+                        alert(lines.join('\n'));
+                    } else {
+                        alert('Failed to generate statement. Please try again.');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to generate statement:', error);
+                alert('Failed to generate statement.');
+            }
+        },
+        
+        async verifyTIN(customer) {
+            if (!customer.tin) {
+                alert('This customer does not have a TIN on file. Please add one first.');
+                return;
+            }
+            
+            try {
+                const entityId = localStorage.getItem('currentEntityId');
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch(`/api/v1/entities/${entityId}/customers/${customer.id}/verify-tin`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    if (result.is_valid || result.verified) {
+                        alert(`✓ TIN Verified!\n\nTIN: ${customer.tin}\nRegistered Name: ${result.registered_name || customer.name}\nStatus: Valid`);
+                    } else {
+                        alert(`✗ TIN Verification Failed\n\nTIN: ${customer.tin}\nReason: ${result.message || 'TIN not found in FIRS database'}`);
+                    }
+                } else {
+                    const error = await response.json();
+                    alert(`TIN verification failed: ${error.detail || 'Service unavailable'}`);
+                }
+            } catch (error) {
+                console.error('Failed to verify TIN:', error);
+                alert('Failed to verify TIN. Service may be unavailable.');
+            }
         },
         
         resetForm() {

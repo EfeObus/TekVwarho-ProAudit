@@ -1,0 +1,76 @@
+<!-- Accountant Dashboard Partial - Financial Access -->
+<div class="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center">
+            <div class="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mr-4">
+                <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-gray-900">Accountant Dashboard</h2>
+                <p class="text-sm text-gray-600">Financial management with Maker role for WREN verification</p>
+            </div>
+        </div>
+        <span class="bg-indigo-100 text-indigo-800 text-xs px-3 py-1 rounded-full font-medium">Level 5 Access</span>
+    </div>
+    
+    <!-- Accountant Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <a href="/transactions/new" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">New Transaction</span>
+        </a>
+        <a href="/invoices/new" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">New Invoice</span>
+        </a>
+        <a href="/receipts/upload" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Scan Receipt</span>
+        </a>
+        <a href="/tax-2026" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Tax Center</span>
+        </a>
+    </div>
+</div>
+
+<!-- Accountant: WREN Maker Role Notice -->
+<div class="bg-white rounded-lg shadow p-6 mb-6 border-l-4 border-indigo-500">
+    <div class="flex items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">WREN Categorization (Maker)</h3>
+        <span class="ml-3 bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">SoD Enforced</span>
+    </div>
+    <p class="text-sm text-gray-600 mb-4">As an Accountant, you create and categorize transactions (Maker role). You <strong>cannot</strong> verify transactions you created - another user with VERIFY_WREN permission must approve them.</p>
+    <div class="flex space-x-4">
+        <a href="/transactions?wren_pending=true" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
+            Pending Categorization
+        </a>
+        <a href="/transactions?wren_by_me=true" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+            My Submissions
+        </a>
+    </div>
+</div>
+
+<!-- Accountant: Payroll View Notice -->
+<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+    <div class="flex items-start">
+        <svg class="w-5 h-5 text-yellow-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <div>
+            <h4 class="text-sm font-medium text-yellow-800">Payroll Access: Totals Only</h4>
+            <p class="text-sm text-yellow-700 mt-1">You can view payroll totals for reporting but not individual salary slips (NDPA 2026 privacy compliance).</p>
+        </div>
+    </div>
+</div>

@@ -39,19 +39,19 @@
 
     <!-- Dashboard Content -->
     <div x-show="!loading">
+        <!-- Role-specific Dashboard Partials -->
         {% if dashboard.dashboard_type == 'super_admin' %}
-            {% include 'partials/dashboard/super_admin.html' ignore missing %}
+            {% include 'partials/dashboard/super_admin.html' %}
         {% elif dashboard.dashboard_type == 'admin' %}
-            {% include 'partials/dashboard/admin.html' ignore missing %}
+            {% include 'partials/dashboard/admin.html' %}
         {% elif dashboard.dashboard_type == 'it_developer' %}
-            {% include 'partials/dashboard/it_developer.html' ignore missing %}
+            {% include 'partials/dashboard/it_developer.html' %}
         {% elif dashboard.dashboard_type == 'customer_service' %}
-            {% include 'partials/dashboard/customer_service.html' ignore missing %}
+            {% include 'partials/dashboard/customer_service.html' %}
         {% elif dashboard.dashboard_type == 'marketing' %}
-            {% include 'partials/dashboard/marketing.html' ignore missing %}
-        {% endif %}
-
-        <!-- Fallback if partial not found - inline dashboard -->
+            {% include 'partials/dashboard/marketing.html' %}
+        {% else %}
+        <!-- Fallback for unknown dashboard types -->
         <!-- Overview Cards -->
         <div class="row g-4 mb-4">
             {% if dashboard.overview %}
@@ -402,6 +402,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 

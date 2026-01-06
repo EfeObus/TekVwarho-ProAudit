@@ -70,6 +70,11 @@ class BusinessEntity(BaseModel):
     address_line2: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     state: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    lga: Mapped[Optional[str]] = mapped_column(
+        String(100), 
+        nullable=True, 
+        comment="Local Government Area"
+    )
     country: Mapped[str] = mapped_column(String(100), default="Nigeria", nullable=False)
     
     # Contact

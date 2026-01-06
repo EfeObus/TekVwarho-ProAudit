@@ -1581,7 +1581,9 @@ function reportsPage() {
         
         async loadSelfAssessmentInfo() {
             try {
-                const response = await fetch('/api/v1/2026/self-assessment/info');
+                const response = await fetch('/api/v1/self-assessment/info', {
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                });
                 if (response.ok) {
                     this.selfAssessment.info = await response.json();
                 }
@@ -1596,7 +1598,8 @@ function reportsPage() {
             
             try {
                 const response = await fetch(
-                    `/api/v1/2026/self-assessment/${this.entityId}/annual/${this.selfAssessment.fiscalYear}`
+                    `/api/v1/self-assessment/${this.entityId}/annual-returns/${this.selfAssessment.fiscalYear}`,
+                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
                 );
                 
                 if (response.ok) {
@@ -1618,9 +1621,12 @@ function reportsPage() {
             this.loading.taxProExport = true;
             
             try {
-                const response = await fetch(`/api/v1/2026/taxpro-export/${this.entityId}`, {
+                const response = await fetch(`/api/v1/self-assessment/${this.entityId}/taxpro-export`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    },
                     body: JSON.stringify({
                         fiscal_year: parseInt(this.selfAssessment.fiscalYear),
                         return_type: returnType,
@@ -1680,7 +1686,7 @@ function reportsPage() {
         
         async loadVaultStats() {
             try {
-                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/statistics`, {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/statistics`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (res.ok) {
@@ -1707,7 +1713,7 @@ function reportsPage() {
                 if (this.vaultFilter.document_type) params.append('document_type', this.vaultFilter.document_type);
                 if (this.vaultFilter.retention_status) params.append('retention_status', this.vaultFilter.retention_status);
                 
-                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/records?${params}`, {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/records?${params}`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (res.ok) {
@@ -1722,7 +1728,7 @@ function reportsPage() {
         
         async loadRetentionTimeline() {
             try {
-                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/retention-timeline`, {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/retention-timeline`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (res.ok) {
@@ -1736,7 +1742,7 @@ function reportsPage() {
         
         async viewRecordDetail(recordId) {
             try {
-                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/records/${recordId}`, {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/records/${recordId}`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (res.ok) {
@@ -1750,7 +1756,7 @@ function reportsPage() {
         
         async verifyRecord(recordId) {
             try {
-                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/verify/${recordId}`, {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/verify/${recordId}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
@@ -1768,7 +1774,7 @@ function reportsPage() {
         async verifyFiscalYear() {
             this.verifying = true;
             try {
-                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/verify-year/${this.verifyYear}`, {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/verify-year/${this.verifyYear}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
@@ -1787,7 +1793,7 @@ function reportsPage() {
                 const params = new URLSearchParams({
                     include_full_data: this.exportFullData,
                 });
-                const res = await fetch(`/api/v1/audit/${this.entityId}/vault/export/${this.exportYear}?${params}`, {
+                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/export/${this.exportYear}?${params}`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (res.ok) {

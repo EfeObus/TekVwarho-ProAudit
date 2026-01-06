@@ -109,6 +109,84 @@ class AssetDisposalRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class AssetRevaluationRequest(BaseModel):
+    """Schema for revaluing an asset."""
+    revaluation_date: date
+    new_value: Decimal = Field(..., gt=0, description="New fair market value")
+    reason: str = Field(..., min_length=1, max_length=500, description="Reason for revaluation")
+    valuer_name: Optional[str] = Field(None, description="Name of valuer/appraiser")
+    valuer_reference: Optional[str] = Field(None, description="Valuation report reference")
+    adjust_depreciation: bool = Field(default=True, description="Adjust future depreciation based on new value")
+
+
+class AssetRevaluationResponse(BaseModel):
+    """Response schema for asset revaluation."""
+    asset_id: UUID
+    asset_name: str
+    previous_book_value: Decimal
+    new_book_value: Decimal
+    revaluation_surplus_deficit: Decimal
+    revaluation_date: date
+    reason: str
+    valuer_name: Optional[str]
+    message: str
+
+    class Config:
+        json_encoders = {Decimal: str}
+
+
+class AssetTransferRequest(BaseModel):
+    """Schema for transferring an asset."""
+    transfer_date: date
+    to_entity_id: Optional[UUID] = Field(None, description="Transfer to different entity")
+    new_location: Optional[str] = Field(None, description="New physical location")
+    reason: str = Field(..., min_length=1, max_length=500, description="Reason for transfer")
+    notes: Optional[str] = None
+
+
+class AssetTransferResponse(BaseModel):
+    """Response schema for asset transfer."""
+    asset_id: UUID
+    asset_name: str
+    transfer_date: date
+    from_entity_id: UUID
+    to_entity_id: UUID
+    from_location: Optional[str]
+    to_location: Optional[str]
+    reason: str
+    message: str
+
+
+class DepreciationEntryResponse(BaseModel):
+    """Response schema for depreciation history entry."""
+    id: UUID
+    period_start: date
+    period_end: date
+    depreciation_amount: Decimal
+    opening_nbv: Decimal
+    closing_nbv: Decimal
+    method: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
+        json_encoders = {Decimal: str}
+
+
+class DepreciationHistoryResponse(BaseModel):
+    """Response schema for full depreciation history."""
+    asset_id: UUID
+    asset_name: str
+    acquisition_cost: Decimal
+    accumulated_depreciation: Decimal
+    current_nbv: Decimal
+    entries: List[DepreciationEntryResponse]
+    total_entries: int
+
+    class Config:
+        json_encoders = {Decimal: str}
+
+
 class DepreciationRunRequest(BaseModel):
     """Schema for running depreciation."""
     entity_id: UUID
@@ -470,6 +548,289 @@ async def get_capital_gains_report(
     )
     
     return report
+
+
+# ===========================================
+# ASSET MANAGEMENT ENDPOINTS
+# ===========================================
+
+@router.delete(
+    "/{asset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete/archive a fixed asset",
+)
+async def delete_fixed_asset(
+    asset_id: UUID,
+    permanent: bool = Query(False, description="Permanently delete instead of archive"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_organization_permission([OrganizationPermission.CREATE_TRANSACTIONS])
+    ),
+):
+    """
+    Delete or archive a fixed asset.
+    
+    By default, assets are soft-deleted (archived) to maintain audit trail.
+    Permanent deletion requires elevated permissions and should be used cautiously.
+    
+    Note: Disposed assets cannot be deleted - they must remain for tax records.
+    """
+    service = FixedAssetService(db)
+    
+    asset = await service.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    if asset.status == AssetStatus.DISPOSED:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete disposed assets - required for tax records"
+        )
+    
+    try:
+        if permanent:
+            # Check for admin role for permanent deletion
+            if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Permanent deletion requires admin privileges"
+                )
+            await service.permanent_delete_asset(asset_id)
+        else:
+            await service.archive_asset(asset_id, archived_by_id=current_user.id)
+        
+        return None
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(
+    "/{asset_id}/revalue",
+    response_model=AssetRevaluationResponse,
+    summary="Revalue a fixed asset",
+)
+async def revalue_asset(
+    asset_id: UUID,
+    revaluation: AssetRevaluationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_organization_permission([OrganizationPermission.CREATE_TRANSACTIONS])
+    ),
+):
+    """
+    Revalue a fixed asset to fair market value.
+    
+    2026 Compliance:
+    - Revaluation surplus goes to revaluation reserve (equity)
+    - Revaluation deficit reduces reserve, then goes to P&L
+    - Must maintain revaluation history for audit
+    - Affects future depreciation if adjust_depreciation is True
+    """
+    service = FixedAssetService(db)
+    
+    asset = await service.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    if asset.status == AssetStatus.DISPOSED:
+        raise HTTPException(status_code=400, detail="Cannot revalue disposed asset")
+    
+    if asset.status == AssetStatus.ARCHIVED:
+        raise HTTPException(status_code=400, detail="Cannot revalue archived asset")
+    
+    previous_nbv = asset.net_book_value
+    
+    try:
+        updated_asset = await service.revalue_asset(
+            asset_id=asset_id,
+            new_value=revaluation.new_value,
+            revaluation_date=revaluation.revaluation_date,
+            reason=revaluation.reason,
+            valuer_name=revaluation.valuer_name,
+            valuer_reference=revaluation.valuer_reference,
+            adjust_depreciation=revaluation.adjust_depreciation,
+            revalued_by_id=current_user.id,
+        )
+        
+        surplus_deficit = revaluation.new_value - previous_nbv
+        
+        return AssetRevaluationResponse(
+            asset_id=updated_asset.id,
+            asset_name=updated_asset.name,
+            previous_book_value=previous_nbv,
+            new_book_value=updated_asset.net_book_value,
+            revaluation_surplus_deficit=surplus_deficit,
+            revaluation_date=revaluation.revaluation_date,
+            reason=revaluation.reason,
+            valuer_name=revaluation.valuer_name,
+            message=f"Asset revalued successfully. {'Surplus' if surplus_deficit >= 0 else 'Deficit'} of {abs(surplus_deficit)} recorded.",
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(
+    "/{asset_id}/transfer",
+    response_model=AssetTransferResponse,
+    summary="Transfer a fixed asset",
+)
+async def transfer_asset(
+    asset_id: UUID,
+    transfer: AssetTransferRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_organization_permission([OrganizationPermission.CREATE_TRANSACTIONS])
+    ),
+):
+    """
+    Transfer a fixed asset to a different entity or location.
+    
+    Supports:
+    - Inter-entity transfers (within the same organization)
+    - Location changes (physical relocation)
+    - Combined entity and location transfers
+    
+    Note: At least one of to_entity_id or new_location must be provided.
+    """
+    service = FixedAssetService(db)
+    
+    asset = await service.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    if asset.status == AssetStatus.DISPOSED:
+        raise HTTPException(status_code=400, detail="Cannot transfer disposed asset")
+    
+    if not transfer.to_entity_id and not transfer.new_location:
+        raise HTTPException(
+            status_code=400, 
+            detail="Must provide either to_entity_id or new_location for transfer"
+        )
+    
+    from_entity_id = asset.entity_id
+    from_location = asset.location
+    to_entity_id = transfer.to_entity_id or from_entity_id
+    to_location = transfer.new_location or from_location
+    
+    try:
+        updated_asset = await service.transfer_asset(
+            asset_id=asset_id,
+            to_entity_id=to_entity_id,
+            new_location=to_location,
+            transfer_date=transfer.transfer_date,
+            reason=transfer.reason,
+            notes=transfer.notes,
+            transferred_by_id=current_user.id,
+        )
+        
+        return AssetTransferResponse(
+            asset_id=updated_asset.id,
+            asset_name=updated_asset.name,
+            transfer_date=transfer.transfer_date,
+            from_entity_id=from_entity_id,
+            to_entity_id=to_entity_id,
+            from_location=from_location,
+            to_location=to_location,
+            reason=transfer.reason,
+            message="Asset transferred successfully",
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get(
+    "/{asset_id}/depreciation-history",
+    response_model=DepreciationHistoryResponse,
+    summary="Get depreciation history for an asset",
+)
+async def get_asset_depreciation_history(
+    asset_id: UUID,
+    limit: int = Query(100, ge=1, le=500, description="Maximum entries to return"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get the complete depreciation history for a specific asset.
+    
+    Returns chronological list of depreciation entries showing:
+    - Period start/end dates
+    - Depreciation amount for each period
+    - Opening and closing net book values
+    - Depreciation method used
+    """
+    service = FixedAssetService(db)
+    
+    asset = await service.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    entries = await service.get_depreciation_history(asset_id, limit=limit)
+    
+    return DepreciationHistoryResponse(
+        asset_id=asset.id,
+        asset_name=asset.name,
+        acquisition_cost=asset.acquisition_cost,
+        accumulated_depreciation=asset.accumulated_depreciation,
+        current_nbv=asset.net_book_value,
+        entries=[
+            DepreciationEntryResponse(
+                id=entry.id,
+                period_start=entry.period_start,
+                period_end=entry.period_end,
+                depreciation_amount=entry.depreciation_amount,
+                opening_nbv=entry.opening_nbv,
+                closing_nbv=entry.closing_nbv,
+                method=entry.method,
+                created_at=entry.created_at.isoformat() if entry.created_at else "",
+            )
+            for entry in entries
+        ],
+        total_entries=len(entries),
+    )
+
+
+@router.post(
+    "/{asset_id}/restore",
+    response_model=FixedAssetResponse,
+    summary="Restore an archived asset",
+)
+async def restore_archived_asset(
+    asset_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_organization_permission([OrganizationPermission.CREATE_TRANSACTIONS])
+    ),
+):
+    """
+    Restore a previously archived (soft-deleted) fixed asset.
+    
+    Returns the asset to ACTIVE status, making it available for
+    depreciation and other operations.
+    """
+    service = FixedAssetService(db)
+    
+    asset = await service.get_asset_by_id(asset_id, include_archived=True)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    if asset.status != AssetStatus.ARCHIVED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Asset is not archived. Current status: {asset.status.value}"
+        )
+    
+    try:
+        restored_asset = await service.restore_asset(
+            asset_id=asset_id,
+            restored_by_id=current_user.id,
+        )
+        return _asset_to_response(restored_asset)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ===========================================

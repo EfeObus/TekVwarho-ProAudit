@@ -19,11 +19,17 @@
             <button @click="activeTab = 'tax'" :class="activeTab === 'tax' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
                 Tax Settings
             </button>
+            <button @click="activeTab = 'security'" :class="activeTab === 'security' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Security
+            </button>
             <button @click="activeTab = 'integrations'" :class="activeTab === 'integrations' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
                 Integrations
             </button>
             <button @click="activeTab = 'account'" :class="activeTab === 'account' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
                 Account
+            </button>
+            <button @click="activeTab = 'notifications'" :class="activeTab === 'notifications' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Notifications
             </button>
         </nav>
     </div>
@@ -179,6 +185,252 @@
         </div>
     </div>
     
+    <!-- Security Tab (2FA & Sessions) -->
+    <div x-show="activeTab === 'security'" class="space-y-6">
+        <!-- Two-Factor Authentication -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Two-Factor Authentication</h2>
+                    <p class="text-sm text-gray-500 mt-1">Add an extra layer of security to your account</p>
+                </div>
+                <span :class="twoFactor.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'" 
+                      class="px-3 py-1 text-sm font-medium rounded-full" 
+                      x-text="twoFactor.enabled ? 'Enabled' : 'Disabled'"></span>
+            </div>
+            
+            <!-- 2FA Not Enabled -->
+            <div x-show="!twoFactor.enabled && !twoFactor.setupMode">
+                <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+                    <div class="flex items-start">
+                        <svg class="h-5 w-5 text-yellow-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-800">
+                                Two-factor authentication is not enabled. We strongly recommend enabling 2FA to protect your financial data.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <button @click="setup2FA()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    Enable Two-Factor Authentication
+                </button>
+            </div>
+            
+            <!-- 2FA Setup Mode -->
+            <div x-show="twoFactor.setupMode && !twoFactor.enabled" class="space-y-6">
+                <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 class="font-medium text-blue-900 mb-2">Step 1: Scan QR Code</h3>
+                    <p class="text-sm text-blue-700 mb-4">
+                        Use an authenticator app like Google Authenticator, Authy, or Microsoft Authenticator to scan this QR code.
+                    </p>
+                    <div class="flex items-start gap-6">
+                        <div class="bg-white p-4 rounded-lg shadow-inner">
+                            <img :src="twoFactor.qrCode" alt="2FA QR Code" class="w-48 h-48" x-show="twoFactor.qrCode">
+                            <div x-show="!twoFactor.qrCode" class="w-48 h-48 flex items-center justify-center text-gray-400">
+                                Loading QR code...
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-700 mb-2">Can't scan? Enter this code manually:</p>
+                            <code class="block bg-white px-3 py-2 rounded font-mono text-sm text-gray-800" x-text="twoFactor.secret"></code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h3 class="font-medium text-gray-900 mb-2">Step 2: Enter Verification Code</h3>
+                    <p class="text-sm text-gray-600 mb-4">
+                        Enter the 6-digit code from your authenticator app to verify setup.
+                    </p>
+                    <div class="flex items-center gap-4">
+                        <input type="text" x-model="twoFactor.verificationCode" maxlength="6" placeholder="000000" 
+                               class="w-32 px-4 py-2 text-center text-2xl font-mono tracking-widest border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <button @click="verify2FA()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            Verify & Enable
+                        </button>
+                        <button @click="cancel2FASetup()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 2FA Enabled -->
+            <div x-show="twoFactor.enabled && !twoFactor.showBackupCodes" class="space-y-4">
+                <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex items-center">
+                        <svg class="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <p class="text-sm text-green-800">
+                            Two-factor authentication is enabled. Your account is more secure.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <button @click="viewBackupCodes()" class="px-4 py-2 text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors">
+                        View Backup Codes
+                    </button>
+                    <button @click="disable2FA()" class="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                        Disable 2FA
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Backup Codes View -->
+            <div x-show="twoFactor.showBackupCodes" class="space-y-4">
+                <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h3 class="font-medium text-yellow-800 mb-2">Backup Codes</h3>
+                    <p class="text-sm text-yellow-700 mb-4">
+                        Store these codes safely. You can use each code once if you lose access to your authenticator app.
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+                        <template x-for="code in twoFactor.backupCodes" :key="code">
+                            <code class="block bg-white px-3 py-2 rounded text-center font-mono text-sm text-gray-800" x-text="code"></code>
+                        </template>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button @click="downloadBackupCodes()" class="px-4 py-2 text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors">
+                            Download Codes
+                        </button>
+                        <button @click="regenerateBackupCodes()" class="px-4 py-2 text-yellow-600 border border-yellow-600 rounded-lg hover:bg-yellow-50 transition-colors">
+                            Regenerate Codes
+                        </button>
+                        <button @click="twoFactor.showBackupCodes = false" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Active Sessions -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Active Sessions</h2>
+                    <p class="text-sm text-gray-500 mt-1">Manage your active login sessions</p>
+                </div>
+                <button @click="loadSessions()" class="text-sm text-green-600 hover:text-green-700">
+                    Refresh
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <template x-if="sessions.loading">
+                    <div class="text-center py-8 text-gray-500">
+                        Loading sessions...
+                    </div>
+                </template>
+                
+                <template x-for="session in sessions.list" :key="session.id">
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border" :class="session.is_current ? 'border-green-300' : 'border-gray-200'">
+                        <div class="flex items-center space-x-4">
+                            <div :class="session.is_current ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-600'" class="p-2 rounded-lg">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x-show="session.device_type === 'desktop'" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x-show="session.device_type === 'mobile'" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x-show="!session.device_type || session.device_type === 'unknown'" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-gray-900" x-text="session.browser || 'Unknown Browser'"></span>
+                                    <span x-show="session.is_current" class="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">Current</span>
+                                </div>
+                                <p class="text-sm text-gray-500">
+                                    <span x-text="session.ip_address || 'Unknown IP'"></span> • 
+                                    <span x-text="session.location || 'Unknown Location'"></span>
+                                </p>
+                                <p class="text-xs text-gray-400" x-text="'Last active: ' + formatSessionTime(session.last_active)"></p>
+                            </div>
+                        </div>
+                        <button x-show="!session.is_current" @click="revokeSession(session.id)" 
+                                class="px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
+                            Revoke
+                        </button>
+                    </div>
+                </template>
+                
+                <template x-if="sessions.list.length === 0 && !sessions.loading">
+                    <div class="text-center py-8 text-gray-500">
+                        No active sessions found.
+                    </div>
+                </template>
+            </div>
+            
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <button @click="revokeAllOtherSessions()" 
+                        class="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                    Sign Out All Other Sessions
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Notifications Tab -->
+    <div x-show="activeTab === 'notifications'" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-6">Notification Preferences</h2>
+        
+        <div class="space-y-6">
+            <div class="border-b border-gray-200 pb-6">
+                <h3 class="font-medium text-gray-900 mb-4">Email Notifications</h3>
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">Tax Deadline Reminders</span>
+                            <p class="text-xs text-gray-500">Get notified before tax filing deadlines</p>
+                        </div>
+                        <input type="checkbox" x-model="notificationPrefs.email_tax_deadlines" class="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    </label>
+                    <label class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">Invoice Updates</span>
+                            <p class="text-xs text-gray-500">When invoices are paid or overdue</p>
+                        </div>
+                        <input type="checkbox" x-model="notificationPrefs.email_invoice_updates" class="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    </label>
+                    <label class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">Compliance Alerts</span>
+                            <p class="text-xs text-gray-500">Important regulatory changes and alerts</p>
+                        </div>
+                        <input type="checkbox" x-model="notificationPrefs.email_compliance" class="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    </label>
+                </div>
+            </div>
+            
+            <div class="pb-6">
+                <h3 class="font-medium text-gray-900 mb-4">In-App Notifications</h3>
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">All Notifications</span>
+                            <p class="text-xs text-gray-500">Show all system notifications</p>
+                        </div>
+                        <input type="checkbox" x-model="notificationPrefs.in_app_enabled" class="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    </label>
+                    <label class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">Sound Alerts</span>
+                            <p class="text-xs text-gray-500">Play sound for new notifications</p>
+                        </div>
+                        <input type="checkbox" x-model="notificationPrefs.sound_enabled" class="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                    </label>
+                </div>
+            </div>
+            
+            <div class="flex justify-end">
+                <button @click="saveNotificationPrefs()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    Save Preferences
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Integrations Tab -->
     <div x-show="activeTab === 'integrations'" class="space-y-6">
         <!-- NRS Integration -->
@@ -340,15 +592,46 @@ function settingsPage() {
         integrations: {},
         profile: {},
         passwordForm: { current_password: '', new_password: '', confirm_password: '' },
+        twoFactor: {
+            enabled: false,
+            setupMode: false,
+            qrCode: '',
+            secret: '',
+            verificationCode: '',
+            showBackupCodes: false,
+            backupCodes: []
+        },
+        sessions: {
+            loading: false,
+            list: []
+        },
+        notificationPrefs: {
+            email_tax_deadlines: true,
+            email_invoice_updates: true,
+            email_compliance: true,
+            in_app_enabled: true,
+            sound_enabled: false
+        },
         
         async init() {
-            // Check if redirected for password reset
+            // Check URL params for tab navigation
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('must_reset') === 'true' || urlParams.get('tab') === 'security') {
+            const hash = window.location.hash.replace('#', '');
+            
+            if (urlParams.get('must_reset') === 'true') {
                 this.activeTab = 'account';
-                this.mustResetPassword = urlParams.get('must_reset') === 'true';
+                this.mustResetPassword = true;
+            } else if (hash === 'notifications') {
+                this.activeTab = 'notifications';
+            } else if (hash === 'security' || urlParams.get('tab') === 'security') {
+                this.activeTab = 'security';
             }
+            
             await this.loadSettings();
+            await this.check2FAStatus();
+            if (this.activeTab === 'security') {
+                await this.loadSessions();
+            }
         },
         
         async loadSettings() {
@@ -378,6 +661,17 @@ function settingsPage() {
                     }
                 } catch (e) {}
             }
+            
+            // Load notification preferences
+            try {
+                const response = await fetch('/api/v1/notifications/preferences/current', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const prefs = await response.json();
+                    this.notificationPrefs = { ...this.notificationPrefs, ...prefs };
+                }
+            } catch (e) {}
         },
         
         async saveBusinessSettings() {
@@ -461,6 +755,274 @@ function settingsPage() {
                 }
             } catch (error) {
                 console.error('Failed to change password:', error);
+            }
+        },
+        
+        // 2FA Methods
+        async check2FAStatus() {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/v1/auth/2fa/status', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.twoFactor.enabled = data.enabled || data.is_enabled || false;
+                }
+            } catch (e) {
+                console.error('Failed to check 2FA status:', e);
+            }
+        },
+        
+        async setup2FA() {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/v1/auth/2fa/setup', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.twoFactor.qrCode = data.qr_code || data.qr_code_url;
+                    this.twoFactor.secret = data.secret;
+                    this.twoFactor.setupMode = true;
+                } else {
+                    alert('Failed to initiate 2FA setup. Please try again.');
+                }
+            } catch (e) {
+                console.error('Failed to setup 2FA:', e);
+                alert('Failed to initiate 2FA setup.');
+            }
+        },
+        
+        async verify2FA() {
+            if (!this.twoFactor.verificationCode || this.twoFactor.verificationCode.length !== 6) {
+                alert('Please enter a valid 6-digit code.');
+                return;
+            }
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/v1/auth/2fa/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ code: this.twoFactor.verificationCode })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.twoFactor.enabled = true;
+                    this.twoFactor.setupMode = false;
+                    this.twoFactor.backupCodes = data.backup_codes || [];
+                    if (this.twoFactor.backupCodes.length > 0) {
+                        this.twoFactor.showBackupCodes = true;
+                    }
+                    alert('Two-factor authentication enabled successfully!');
+                } else {
+                    alert('Invalid verification code. Please try again.');
+                }
+            } catch (e) {
+                console.error('Failed to verify 2FA:', e);
+                alert('Verification failed. Please try again.');
+            }
+        },
+        
+        cancel2FASetup() {
+            this.twoFactor.setupMode = false;
+            this.twoFactor.qrCode = '';
+            this.twoFactor.secret = '';
+            this.twoFactor.verificationCode = '';
+        },
+        
+        async disable2FA() {
+            if (!confirm('Are you sure you want to disable two-factor authentication? This will make your account less secure.')) {
+                return;
+            }
+            
+            const password = prompt('Enter your password:');
+            if (!password) return;
+            
+            const code = prompt('Enter your current 2FA code:');
+            if (!code) return;
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/v1/auth/2fa/disable', {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password, code })
+                });
+                if (response.ok) {
+                    this.twoFactor.enabled = false;
+                    this.twoFactor.backupCodes = [];
+                    alert('Two-factor authentication has been disabled.');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to disable 2FA.');
+                }
+            } catch (e) {
+                console.error('Failed to disable 2FA:', e);
+            }
+        },
+        
+        async viewBackupCodes() {
+            const password = prompt('Enter your password to view backup codes:');
+            if (!password) return;
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`/api/v1/auth/2fa/backup-codes?password=${encodeURIComponent(password)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.twoFactor.backupCodes = data.codes || data.backup_codes || [];
+                    this.twoFactor.showBackupCodes = true;
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to fetch backup codes.');
+                }
+            } catch (e) {
+                console.error('Failed to fetch backup codes:', e);
+            }
+        },
+        
+        async regenerateBackupCodes() {
+            if (!confirm('This will invalidate all existing backup codes. Continue?')) {
+                return;
+            }
+            
+            const password = prompt('Enter your password to regenerate backup codes:');
+            if (!password) return;
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`/api/v1/auth/2fa/regenerate-backup-codes?password=${encodeURIComponent(password)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.twoFactor.backupCodes = data.codes || data.backup_codes || [];
+                    this.twoFactor.showBackupCodes = true;
+                    alert('Backup codes regenerated successfully.');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to regenerate backup codes.');
+                }
+            } catch (e) {
+                console.error('Failed to regenerate backup codes:', e);
+            }
+        },
+        
+        downloadBackupCodes() {
+            const content = 'TekVwarho ProAudit - 2FA Backup Codes\n' +
+                          '=====================================\n\n' +
+                          'Keep these codes safe. Each code can only be used once.\n\n' +
+                          this.twoFactor.backupCodes.join('\n');
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'tekvwarho-backup-codes.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        
+        // Session Management
+        async loadSessions() {
+            this.sessions.loading = true;
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/v1/auth/sessions', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.sessions.list = data.sessions || data || [];
+                }
+            } catch (e) {
+                console.error('Failed to load sessions:', e);
+            } finally {
+                this.sessions.loading = false;
+            }
+        },
+        
+        formatSessionTime(dateStr) {
+            if (!dateStr) return 'Unknown';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+            
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+            return date.toLocaleDateString();
+        },
+        
+        async revokeSession(sessionId) {
+            if (!confirm('Are you sure you want to end this session?')) {
+                return;
+            }
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`/api/v1/auth/sessions/${sessionId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    this.sessions.list = this.sessions.list.filter(s => s.id !== sessionId);
+                    alert('Session revoked successfully.');
+                }
+            } catch (e) {
+                console.error('Failed to revoke session:', e);
+            }
+        },
+        
+        async revokeAllOtherSessions() {
+            if (!confirm('This will sign out all other devices. Continue?')) {
+                return;
+            }
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/v1/auth/sessions/revoke-all', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    this.sessions.list = this.sessions.list.filter(s => s.is_current);
+                    alert('All other sessions have been revoked.');
+                }
+            } catch (e) {
+                console.error('Failed to revoke sessions:', e);
+            }
+        },
+        
+        // Notification Preferences
+        async saveNotificationPrefs() {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('/api/v1/notifications/preferences', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(this.notificationPrefs)
+                });
+                if (response.ok) {
+                    alert('Notification preferences saved!');
+                }
+            } catch (e) {
+                console.error('Failed to save notification preferences:', e);
             }
         },
         

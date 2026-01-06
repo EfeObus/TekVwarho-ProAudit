@@ -136,14 +136,14 @@ class Settings(BaseSettings):
         return self.mail_from_name
     
     # ===========================================
-    # SUPER ADMIN CONFIGURATION (Hardcoded Credentials)
-    # These are the default credentials for the Super Admin account.
-    # In production, override these via environment variables!
+    # SUPER ADMIN CONFIGURATION
+    # These MUST be set via environment variables - no defaults provided for security!
+    # The application will fail to start if these are not configured.
     # ===========================================
-    super_admin_email: str = "superadmin@tekvwarho.com"
-    super_admin_password: str = "SuperAdmin@TekVwarho2026!"
-    super_admin_first_name: str = "Super"
-    super_admin_last_name: str = "Admin"
+    super_admin_email: str = ""
+    super_admin_password: str = ""
+    super_admin_first_name: str = ""
+    super_admin_last_name: str = ""
     
     # ===========================================
     # CORS SETTINGS

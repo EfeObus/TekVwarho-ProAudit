@@ -305,7 +305,10 @@ from app.routers import (
     auth, entities, categories, vendors, customers, 
     transactions, invoices, tax, inventory, receipts,
     reports, audit, views, tax_2026, staff, organization_users,
-    fixed_assets, sales,
+    fixed_assets, sales, dashboard,
+    # New routers added
+    notifications, self_assessment, organization_settings,
+    bulk_operations, exports, search_analytics,
 )
 
 # View Routes (HTML pages)
@@ -343,6 +346,27 @@ app.include_router(tax_2026.router, prefix="/api/v1/tax-2026", tags=["2026 Tax R
 
 # Fixed Asset Register (2026)
 app.include_router(fixed_assets.router, tags=["Fixed Assets"])
+
+# World-Class Dashboards (NTAA 2025)
+app.include_router(dashboard.router, tags=["Dashboard"])
+
+# Notifications
+app.include_router(notifications.router, tags=["Notifications"])
+
+# Self-Assessment & Tax Returns
+app.include_router(self_assessment.router, tags=["Self-Assessment"])
+
+# Organization Settings
+app.include_router(organization_settings.router, tags=["Organization Settings"])
+
+# Bulk Operations (Import/Export)
+app.include_router(bulk_operations.router, tags=["Bulk Operations"])
+
+# Export & Download
+app.include_router(exports.router, tags=["Export & Download"])
+
+# Search & Analytics
+app.include_router(search_analytics.router, tags=["Search & Analytics"])
 
 
 if __name__ == "__main__":

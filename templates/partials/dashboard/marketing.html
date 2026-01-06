@@ -1,0 +1,383 @@
+<!-- Marketing Dashboard Partial -->
+<!-- Level 2 - Growth: Acquisition and Engagement -->
+
+<!-- Section 1: Growth Overview -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm bg-gradient-success text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-users fa-2x opacity-75"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="mb-1 opacity-75">Total Users</h6>
+                        <h2 class="mb-0">{{ dashboard.growth_stats.total_users if dashboard.growth_stats else 0 }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-primary bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-user-plus text-primary fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">New Users (30d)</h6>
+                        <h2 class="mb-0">{{ dashboard.growth_stats.new_users_30d if dashboard.growth_stats else 0 }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-success bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-chart-line text-success fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Growth Rate</h6>
+                        <h2 class="mb-0">{{ dashboard.growth_stats.growth_rate if dashboard.growth_stats else '0%' }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-info bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-share-alt text-info fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Referrals</h6>
+                        <h2 class="mb-0">{{ dashboard.referral_stats.total_referrals if dashboard.referral_stats else 0 }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 2: Quick Actions -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for action in dashboard.quick_actions %}
+                    <div class="col-md-4 col-lg-2">
+                        <a href="{{ action.url }}" class="card h-100 border text-decoration-none hover-shadow">
+                            <div class="card-body text-center py-3">
+                                <i class="fas fa-{{ action.icon }} fa-lg text-primary mb-2"></i>
+                                <h6 class="mb-0 small">{{ action.label }}</h6>
+                                {% if action.description %}
+                                <small class="text-muted d-block mt-1">{{ action.description }}</small>
+                                {% endif %}
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 3: Conversion Funnel -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-funnel-dollar me-2 text-primary"></i>Conversion Funnel</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.conversion_funnel and dashboard.conversion_funnel.stages %}
+                <div class="row g-2">
+                    {% for stage in dashboard.conversion_funnel.stages %}
+                    <div class="col">
+                        <div class="text-center p-3 rounded 
+                            {% if loop.index == 1 %}bg-primary bg-opacity-10
+                            {% elif loop.index == dashboard.conversion_funnel.stages | length %}bg-success bg-opacity-10
+                            {% else %}bg-light{% endif %}">
+                            <h4 class="mb-1">{{ stage.count }}</h4>
+                            <small class="text-muted d-block">{{ stage.name }}</small>
+                            <span class="badge bg-secondary mt-1">{{ stage.rate }}</span>
+                        </div>
+                        {% if not loop.last %}
+                        <div class="text-center py-2">
+                            <i class="fas fa-arrow-down text-muted"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">Funnel data not available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-share-alt me-2 text-info"></i>Referral Engine</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.referral_stats %}
+                <div class="text-center mb-3">
+                    <h1 class="display-4 mb-0 text-primary">{{ dashboard.referral_stats.total_referrals }}</h1>
+                    <small class="text-muted">Total Referrals</small>
+                </div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>Successful Conversions</span>
+                        <span class="badge bg-success">{{ dashboard.referral_stats.successful_conversions }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>Pending Rewards</span>
+                        <span class="badge bg-warning">{{ dashboard.referral_stats.pending_rewards }}</span>
+                    </li>
+                </ul>
+                <div class="d-grid mt-3">
+                    <a href="/admin/referrals" class="btn btn-outline-info">
+                        <i class="fas fa-chart-bar me-2"></i>View Details
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 4: Campaign Manager & Upcoming Deadlines -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-bullhorn me-2 text-warning"></i>Campaign Manager</h5>
+                <a href="/admin/campaigns/new" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i>New Campaign
+                </a>
+            </div>
+            <div class="card-body">
+                {% if dashboard.campaign_metrics %}
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h3 class="mb-0">{{ dashboard.campaign_metrics.active_campaigns }}</h3>
+                            <small class="text-muted">Active Campaigns</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h3 class="mb-0">{{ dashboard.campaign_metrics.emails_sent_this_month }}</h3>
+                            <small class="text-muted">Emails Sent</small>
+                        </div>
+                    </div>
+                </div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>Email Open Rate</span>
+                        <strong>{{ dashboard.campaign_metrics.email_open_rate }}</strong>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>Click-through Rate</span>
+                        <strong>{{ dashboard.campaign_metrics.click_through_rate }}</strong>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>Push Notifications</span>
+                        <span class="badge bg-info">{{ dashboard.campaign_metrics.push_notifications_sent }}</span>
+                    </li>
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-calendar-alt me-2 text-danger"></i>Upcoming Tax Deadlines</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>Campaign Opportunity:</strong> Send deadline reminders to increase engagement
+                </div>
+                {% if dashboard.upcoming_deadlines and dashboard.upcoming_deadlines | length > 0 %}
+                <div class="list-group list-group-flush">
+                    {% for deadline in dashboard.upcoming_deadlines %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ deadline.name }}</strong>
+                                <br><small class="text-muted">{{ deadline.date }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-{% if deadline.urgency == 'high' %}danger{% elif deadline.urgency == 'medium' %}warning{% else %}success{% endif %}">
+                                    {{ deadline.days_remaining }} days
+                                </span>
+                                <br>
+                                <a href="/admin/deadline-campaigns?deadline={{ deadline.name }}" class="btn btn-sm btn-outline-primary mt-1">
+                                    <i class="fas fa-bullhorn"></i> Campaign
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">No upcoming deadlines</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 5: Organizations by Type & User Segments -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2 text-primary"></i>Organizations by Type</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.organizations_by_type %}
+                <div class="row g-2">
+                    {% for type, count in dashboard.organizations_by_type.items() %}
+                    <div class="col-6">
+                        <div class="p-3 border rounded">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-capitalize">{{ type.replace('_', ' ') }}</span>
+                                <strong class="text-primary">{{ count }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-filter me-2 text-info"></i>User Segments</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.user_segments %}
+                <h6 class="text-muted mb-2">By Activity Level</h6>
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="text-center p-2 bg-success bg-opacity-10 rounded">
+                            <strong class="text-success">{{ dashboard.user_segments.by_activity.highly_active }}</strong>
+                            <br><small class="text-muted">Highly Active</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-2 bg-warning bg-opacity-10 rounded">
+                            <strong class="text-warning">{{ dashboard.user_segments.by_activity.moderately_active }}</strong>
+                            <br><small class="text-muted">Moderate</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-2 bg-secondary bg-opacity-10 rounded">
+                            <strong class="text-secondary">{{ dashboard.user_segments.by_activity.inactive }}</strong>
+                            <br><small class="text-muted">Inactive</small>
+                        </div>
+                    </div>
+                </div>
+                <h6 class="text-muted mb-2">By Subscription</h6>
+                <div class="row g-2">
+                    <div class="col-4">
+                        <div class="text-center p-2 border rounded">
+                            <strong>{{ dashboard.user_segments.by_subscription.free }}</strong>
+                            <br><small class="text-muted">Free</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-2 border rounded">
+                            <strong>{{ dashboard.user_segments.by_subscription.pro }}</strong>
+                            <br><small class="text-muted">Pro</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-2 border rounded">
+                            <strong>{{ dashboard.user_segments.by_subscription.enterprise }}</strong>
+                            <br><small class="text-muted">Enterprise</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-grid mt-3">
+                    <a href="/admin/segments" class="btn btn-outline-info">
+                        <i class="fas fa-cog me-2"></i>Manage Segments
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 6: Growth Stats Chart Placeholder -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-area me-2 text-success"></i>User Growth Trends</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="text-center p-4 bg-light rounded">
+                            <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                            <h2 class="mb-0">{{ dashboard.growth_stats.total_users if dashboard.growth_stats else 0 }}</h2>
+                            <p class="text-muted mb-0">Total Registered Users</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center p-4 bg-light rounded">
+                            <i class="fas fa-user-plus fa-3x text-success mb-3"></i>
+                            <h2 class="mb-0">{{ dashboard.growth_stats.new_users_30d if dashboard.growth_stats else 0 }}</h2>
+                            <p class="text-muted mb-0">New Users (Last 30 Days)</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center p-4 bg-light rounded">
+                            <i class="fas fa-arrow-up fa-3x text-info mb-3"></i>
+                            <h2 class="mb-0">{{ dashboard.growth_stats.growth_rate if dashboard.growth_stats else '0%' }}</h2>
+                            <p class="text-muted mb-0">Growth Rate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: Permissions -->
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-key me-2 text-secondary"></i>Your Permissions (Marketing)</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for permission in dashboard.permissions %}
+                    <span class="badge bg-info">{{ permission }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

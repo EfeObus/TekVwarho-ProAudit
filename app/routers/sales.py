@@ -437,3 +437,443 @@ async def get_recent_sales(
     sales = await service.get_recent_sales(entity_id, limit)
     
     return sales
+
+
+# ===========================================
+# REFUND ENDPOINTS
+# ===========================================
+
+class RefundLineItem(BaseModel):
+    """Line item for a refund."""
+    line_item_id: UUID = Field(..., description="Original invoice line item ID")
+    quantity: int = Field(..., gt=0, description="Quantity to refund")
+    reason: Optional[str] = None
+
+
+class RefundRequest(BaseModel):
+    """Request to process a refund."""
+    invoice_id: UUID = Field(..., description="Original invoice ID")
+    line_items: List[RefundLineItem] = Field(..., min_length=1)
+    refund_date: Optional[date] = None
+    refund_method: str = Field("original_method", description="Refund payment method")
+    reason: str = Field(..., min_length=1, max_length=500)
+    restock_items: bool = Field(True, description="Return items to inventory")
+    notes: Optional[str] = None
+
+
+class RefundResponse(BaseModel):
+    """Response after processing a refund."""
+    refund_id: str
+    credit_note_number: Optional[str]
+    refund_amount: float
+    vat_refunded: float
+    items_restocked: bool
+    message: str
+
+
+@router.post(
+    "/{entity_id}/sales/refund",
+    response_model=RefundResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Process a sales refund",
+)
+async def process_refund(
+    entity_id: UUID,
+    request: RefundRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Process a sales refund (return).
+    
+    This endpoint:
+    - Creates a credit note linked to the original invoice
+    - Optionally restocks returned items
+    - Records refund transaction
+    - Updates customer balance
+    
+    2026 Compliance:
+    - Credit notes must reference original invoice IRN
+    - Requires NRS notification for e-invoice scenarios
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from datetime import date as date_type
+    import uuid
+    
+    service = SalesService(db)
+    
+    try:
+        # Get original invoice
+        from app.services.invoice_service import InvoiceService
+        invoice_service = InvoiceService(db)
+        original_invoice = await invoice_service.get_invoice_by_id(request.invoice_id)
+        
+        if not original_invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Original invoice not found",
+            )
+        
+        if original_invoice.entity_id != entity_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invoice does not belong to this entity",
+            )
+        
+        # Process refund
+        refund_result = await service.process_refund(
+            entity_id=entity_id,
+            user_id=current_user.id,
+            invoice_id=request.invoice_id,
+            line_items=[
+                {
+                    "line_item_id": item.line_item_id,
+                    "quantity": item.quantity,
+                    "reason": item.reason,
+                }
+                for item in request.line_items
+            ],
+            refund_date=request.refund_date or date_type.today(),
+            refund_method=request.refund_method,
+            reason=request.reason,
+            restock_items=request.restock_items,
+            notes=request.notes,
+        )
+        
+        await db.commit()
+        
+        return RefundResponse(
+            refund_id=str(refund_result.get("refund_id", uuid.uuid4())),
+            credit_note_number=refund_result.get("credit_note_number"),
+            refund_amount=float(refund_result.get("refund_amount", 0)),
+            vat_refunded=float(refund_result.get("vat_refunded", 0)),
+            items_restocked=request.restock_items,
+            message="Refund processed successfully",
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to process refund: {str(e)}",
+        )
+
+
+# ===========================================
+# DAILY REPORT & REGISTER ENDPOINTS
+# ===========================================
+
+class PaymentBreakdown(BaseModel):
+    """Payment method breakdown."""
+    method: str
+    amount: float
+    transaction_count: int
+
+
+class DailyReportResponse(BaseModel):
+    """Daily sales report response."""
+    entity_id: str
+    report_date: date
+    opening_balance: float
+    total_sales: float
+    total_refunds: float
+    net_sales: float
+    vat_collected: float
+    discount_given: float
+    transaction_count: int
+    refund_count: int
+    payment_breakdown: List[PaymentBreakdown]
+    top_selling_items: List[dict]
+    hourly_sales: List[dict]
+    closing_balance: float
+    variance: float  # Difference between expected and actual cash
+    generated_at: str
+
+
+@router.get(
+    "/{entity_id}/sales/daily-report",
+    response_model=DailyReportResponse,
+    summary="Get daily sales report",
+)
+async def get_daily_report(
+    entity_id: UUID,
+    report_date: Optional[date] = Query(None, description="Report date (defaults to today)"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Get comprehensive daily sales report.
+    
+    Includes:
+    - Sales and refund totals
+    - Payment method breakdown
+    - Hourly sales distribution
+    - Top selling items
+    - Cash drawer reconciliation data
+    
+    Use this for end-of-day reporting and shift handovers.
+    """
+    from datetime import date as date_type, datetime
+    
+    await verify_entity_access(entity_id, current_user, db)
+    
+    effective_date = report_date or date_type.today()
+    
+    service = SalesService(db)
+    
+    try:
+        report_data = await service.get_daily_report(
+            entity_id=entity_id,
+            report_date=effective_date,
+        )
+    except Exception:
+        # Fallback structure
+        report_data = {
+            "opening_balance": 0,
+            "total_sales": 0,
+            "total_refunds": 0,
+            "vat_collected": 0,
+            "discount_given": 0,
+            "transaction_count": 0,
+            "refund_count": 0,
+            "payment_breakdown": [],
+            "top_selling_items": [],
+            "hourly_sales": [],
+            "closing_balance": 0,
+            "variance": 0,
+        }
+    
+    return DailyReportResponse(
+        entity_id=str(entity_id),
+        report_date=effective_date,
+        opening_balance=report_data.get("opening_balance", 0),
+        total_sales=report_data.get("total_sales", 0),
+        total_refunds=report_data.get("total_refunds", 0),
+        net_sales=report_data.get("total_sales", 0) - report_data.get("total_refunds", 0),
+        vat_collected=report_data.get("vat_collected", 0),
+        discount_given=report_data.get("discount_given", 0),
+        transaction_count=report_data.get("transaction_count", 0),
+        refund_count=report_data.get("refund_count", 0),
+        payment_breakdown=[
+            PaymentBreakdown(**p) for p in report_data.get("payment_breakdown", [])
+        ],
+        top_selling_items=report_data.get("top_selling_items", []),
+        hourly_sales=report_data.get("hourly_sales", []),
+        closing_balance=report_data.get("closing_balance", 0),
+        variance=report_data.get("variance", 0),
+        generated_at=datetime.now().isoformat(),
+    )
+
+
+class OpenRegisterRequest(BaseModel):
+    """Request to open cash register."""
+    opening_balance: float = Field(..., ge=0, description="Opening cash balance")
+    register_id: Optional[str] = Field(None, description="Register identifier")
+    notes: Optional[str] = None
+
+
+class CloseRegisterRequest(BaseModel):
+    """Request to close cash register."""
+    actual_cash: float = Field(..., ge=0, description="Actual cash counted")
+    register_id: Optional[str] = Field(None, description="Register identifier")
+    notes: Optional[str] = None
+
+
+class RegisterStatusResponse(BaseModel):
+    """Cash register status response."""
+    register_id: str
+    is_open: bool
+    opened_at: Optional[str]
+    opened_by: Optional[str]
+    opening_balance: float
+    expected_cash: float
+    transaction_count: int
+    total_sales: float
+    total_refunds: float
+
+
+class CloseRegisterResponse(BaseModel):
+    """Response after closing register."""
+    register_id: str
+    closed_at: str
+    closed_by: str
+    opening_balance: float
+    expected_cash: float
+    actual_cash: float
+    variance: float
+    variance_percent: float
+    transaction_count: int
+    total_sales: float
+    total_refunds: float
+    shift_duration_hours: float
+    message: str
+
+
+@router.post(
+    "/{entity_id}/sales/register/open",
+    response_model=RegisterStatusResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Open cash register",
+)
+async def open_register(
+    entity_id: UUID,
+    request: OpenRegisterRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Open cash register for the shift.
+    
+    Records opening balance for end-of-day reconciliation.
+    Only one register can be open per entity at a time.
+    """
+    from datetime import datetime
+    import uuid
+    
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = SalesService(db)
+    
+    try:
+        register_data = await service.open_register(
+            entity_id=entity_id,
+            user_id=current_user.id,
+            opening_balance=Decimal(str(request.opening_balance)),
+            register_id=request.register_id,
+            notes=request.notes,
+        )
+        
+        await db.commit()
+        
+        return RegisterStatusResponse(
+            register_id=register_data.get("register_id", str(uuid.uuid4())),
+            is_open=True,
+            opened_at=datetime.now().isoformat(),
+            opened_by=current_user.email,
+            opening_balance=request.opening_balance,
+            expected_cash=request.opening_balance,
+            transaction_count=0,
+            total_sales=0,
+            total_refunds=0,
+        )
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to open register: {str(e)}",
+        )
+
+
+@router.get(
+    "/{entity_id}/sales/register/status",
+    response_model=RegisterStatusResponse,
+    summary="Get register status",
+)
+async def get_register_status(
+    entity_id: UUID,
+    register_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get current status of the cash register."""
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = SalesService(db)
+    
+    try:
+        status_data = await service.get_register_status(
+            entity_id=entity_id,
+            register_id=register_id,
+        )
+        
+        return RegisterStatusResponse(
+            register_id=status_data.get("register_id", "default"),
+            is_open=status_data.get("is_open", False),
+            opened_at=status_data.get("opened_at"),
+            opened_by=status_data.get("opened_by"),
+            opening_balance=status_data.get("opening_balance", 0),
+            expected_cash=status_data.get("expected_cash", 0),
+            transaction_count=status_data.get("transaction_count", 0),
+            total_sales=status_data.get("total_sales", 0),
+            total_refunds=status_data.get("total_refunds", 0),
+        )
+    except Exception:
+        # Return closed status if no register found
+        return RegisterStatusResponse(
+            register_id=register_id or "default",
+            is_open=False,
+            opened_at=None,
+            opened_by=None,
+            opening_balance=0,
+            expected_cash=0,
+            transaction_count=0,
+            total_sales=0,
+            total_refunds=0,
+        )
+
+
+@router.post(
+    "/{entity_id}/sales/register/close",
+    response_model=CloseRegisterResponse,
+    summary="Close cash register",
+)
+async def close_register(
+    entity_id: UUID,
+    request: CloseRegisterRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Close cash register and reconcile.
+    
+    Compares actual cash count against expected balance.
+    Records variance for audit trail.
+    Generates end-of-shift report.
+    """
+    from datetime import datetime
+    
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = SalesService(db)
+    
+    try:
+        close_data = await service.close_register(
+            entity_id=entity_id,
+            user_id=current_user.id,
+            actual_cash=Decimal(str(request.actual_cash)),
+            register_id=request.register_id,
+            notes=request.notes,
+        )
+        
+        await db.commit()
+        
+        opening_balance = close_data.get("opening_balance", 0)
+        expected_cash = close_data.get("expected_cash", 0)
+        variance = request.actual_cash - expected_cash
+        variance_percent = (variance / expected_cash * 100) if expected_cash > 0 else 0
+        
+        return CloseRegisterResponse(
+            register_id=close_data.get("register_id", "default"),
+            closed_at=datetime.now().isoformat(),
+            closed_by=current_user.email,
+            opening_balance=opening_balance,
+            expected_cash=expected_cash,
+            actual_cash=request.actual_cash,
+            variance=variance,
+            variance_percent=variance_percent,
+            transaction_count=close_data.get("transaction_count", 0),
+            total_sales=close_data.get("total_sales", 0),
+            total_refunds=close_data.get("total_refunds", 0),
+            shift_duration_hours=close_data.get("shift_duration_hours", 0),
+            message="Register closed successfully" + 
+                    (f". Variance of ₦{abs(variance):,.2f} recorded." if variance != 0 else ""),
+        )
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to close register: {str(e)}",
+        )

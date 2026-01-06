@@ -292,27 +292,29 @@ ORGANIZATION_ROLE_PERMISSIONS: dict[UserRole, Set[OrganizationPermission]] = {
         OrganizationPermission.VIEW_VENDORS,
     },
     # NTAA 2025: External Accountant (like QuickBooks "Invite Accountant")
-    # Can file tax returns and view reports but NO payroll/inventory/fund movement
+    # Can file tax returns and view reports but NO payroll/inventory editing/fund movement
     UserRole.EXTERNAL_ACCOUNTANT: {
         OrganizationPermission.VIEW_ALL_TRANSACTIONS,
         OrganizationPermission.VERIFY_WREN,  # Can verify WREN (cannot verify own)
         OrganizationPermission.VIEW_INVOICES,
         OrganizationPermission.MANAGE_TAX_FILINGS,  # File returns for client
         OrganizationPermission.VIEW_TAX_FILINGS,
+        OrganizationPermission.VIEW_PAYROLL,  # Per RBAC matrix
+        OrganizationPermission.VIEW_INVENTORY,  # Per RBAC matrix
         OrganizationPermission.VIEW_REPORTS,
         OrganizationPermission.EXPORT_DATA,
         OrganizationPermission.VIEW_CUSTOMERS,
         OrganizationPermission.VIEW_VENDORS,
-        # NO payroll, NO inventory, NO invoice editing, NO fund movement
+        # NO payroll management, NO inventory management, NO invoice editing, NO fund movement
     },
     UserRole.AUDITOR: {
         OrganizationPermission.VIEW_ALL_TRANSACTIONS,
         OrganizationPermission.VIEW_INVOICES,
         OrganizationPermission.VIEW_TAX_FILINGS,
         OrganizationPermission.VIEW_PAYROLL,
-        OrganizationPermission.VIEW_INVENTORY,
+        # NO VIEW_INVENTORY per RBAC matrix
         OrganizationPermission.VIEW_REPORTS,
-        OrganizationPermission.EXPORT_DATA,
+        # NO EXPORT_DATA per RBAC matrix
         OrganizationPermission.VIEW_CUSTOMERS,
         OrganizationPermission.VIEW_VENDORS,
         OrganizationPermission.VIEW_AUDIT_LOGS,
@@ -320,6 +322,8 @@ ORGANIZATION_ROLE_PERMISSIONS: dict[UserRole, Set[OrganizationPermission]] = {
     UserRole.PAYROLL_MANAGER: {
         OrganizationPermission.MANAGE_PAYROLL,
         OrganizationPermission.VIEW_PAYROLL,
+        OrganizationPermission.MANAGE_VENDORS,  # Per RBAC matrix
+        OrganizationPermission.VIEW_VENDORS,    # Per RBAC matrix
     },
     UserRole.INVENTORY_MANAGER: {
         OrganizationPermission.MANAGE_INVENTORY,

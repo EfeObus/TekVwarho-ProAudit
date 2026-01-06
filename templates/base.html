@@ -60,6 +60,77 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     {% if user %}
+                    <!-- Notifications Bell -->
+                    <div class="relative" x-data="notificationsDropdown()" x-init="init()">
+                        <button @click="toggle()" class="relative p-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-full">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                            </svg>
+                            <!-- Unread Badge -->
+                            <span x-show="unreadCount > 0" x-text="unreadCount > 99 ? '99+' : unreadCount" 
+                                  class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"></span>
+                        </button>
+                        
+                        <!-- Notifications Dropdown -->
+                        <div x-show="open" @click.away="open = false" x-transition
+                             class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-2 z-50 border border-gray-200 max-h-96 overflow-hidden">
+                            <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+                                <h3 class="text-sm font-semibold text-gray-900">Notifications</h3>
+                                <button @click="markAllRead()" x-show="unreadCount > 0" class="text-xs text-green-600 hover:text-green-700">
+                                    Mark all read
+                                </button>
+                            </div>
+                            
+                            <div class="overflow-y-auto max-h-72">
+                                <template x-if="loading">
+                                    <div class="px-4 py-8 text-center text-gray-500">
+                                        <svg class="animate-spin h-6 w-6 mx-auto text-green-600" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                </template>
+                                
+                                <template x-if="!loading && notifications.length === 0">
+                                    <div class="px-4 py-8 text-center text-gray-500">
+                                        <svg class="h-12 w-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                                        </svg>
+                                        <p class="text-sm">No notifications yet</p>
+                                    </div>
+                                </template>
+                                
+                                <template x-for="notif in notifications" :key="notif.id">
+                                    <div @click="markRead(notif)" 
+                                         :class="notif.is_read ? 'bg-white' : 'bg-green-50'" 
+                                         class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
+                                        <div class="flex items-start space-x-3">
+                                            <div :class="getIconClass(notif.type)" class="flex-shrink-0 p-2 rounded-full">
+                                                <svg x-html="getIcon(notif.type)" class="h-4 w-4"></svg>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900" x-text="notif.title"></p>
+                                                <p class="text-xs text-gray-500 mt-0.5 truncate" x-text="notif.message"></p>
+                                                <p class="text-xs text-gray-400 mt-1" x-text="formatTime(notif.created_at)"></p>
+                                            </div>
+                                            <button @click.stop="deleteNotification(notif.id)" class="text-gray-400 hover:text-red-500">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            
+                            <div class="px-4 py-2 border-t border-gray-100">
+                                <a href="/settings#notifications" class="block text-center text-sm text-green-600 hover:text-green-700">
+                                    Notification Preferences
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <span class="text-sm text-gray-600">{{ user.email }}</span>
                     <a href="/logout" class="text-sm text-gray-500 hover:text-gray-700">Logout</a>
                     {% else %}
@@ -114,6 +185,146 @@
     
     <!-- Scripts -->
     <script src="/static/js/main.js"></script>
+    
+    <!-- Notifications Component -->
+    <script>
+    function notificationsDropdown() {
+        return {
+            open: false,
+            loading: false,
+            notifications: [],
+            unreadCount: 0,
+            
+            init() {
+                this.fetchNotifications();
+                // Poll for new notifications every 30 seconds
+                setInterval(() => this.fetchUnreadCount(), 30000);
+            },
+            
+            toggle() {
+                this.open = !this.open;
+                if (this.open) {
+                    this.fetchNotifications();
+                }
+            },
+            
+            async fetchNotifications() {
+                this.loading = true;
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('/api/v1/notifications?limit=20', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.notifications = data.items || data;
+                        this.unreadCount = this.notifications.filter(n => !n.is_read).length;
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch notifications:', error);
+                } finally {
+                    this.loading = false;
+                }
+            },
+            
+            async fetchUnreadCount() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('/api/v1/notifications/unread-count', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.unreadCount = data.count || 0;
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch unread count:', error);
+                }
+            },
+            
+            async markRead(notif) {
+                if (notif.is_read) return;
+                try {
+                    const token = localStorage.getItem('token');
+                    await fetch(`/api/v1/notifications/${notif.id}/read`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    notif.is_read = true;
+                    this.unreadCount = Math.max(0, this.unreadCount - 1);
+                } catch (error) {
+                    console.error('Failed to mark notification as read:', error);
+                }
+            },
+            
+            async markAllRead() {
+                try {
+                    const token = localStorage.getItem('token');
+                    await fetch('/api/v1/notifications/read-all', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    this.notifications.forEach(n => n.is_read = true);
+                    this.unreadCount = 0;
+                } catch (error) {
+                    console.error('Failed to mark all notifications as read:', error);
+                }
+            },
+            
+            async deleteNotification(id) {
+                try {
+                    const token = localStorage.getItem('token');
+                    await fetch(`/api/v1/notifications/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const notif = this.notifications.find(n => n.id === id);
+                    if (notif && !notif.is_read) {
+                        this.unreadCount = Math.max(0, this.unreadCount - 1);
+                    }
+                    this.notifications = this.notifications.filter(n => n.id !== id);
+                } catch (error) {
+                    console.error('Failed to delete notification:', error);
+                }
+            },
+            
+            formatTime(dateStr) {
+                const date = new Date(dateStr);
+                const now = new Date();
+                const diff = Math.floor((now - date) / 1000);
+                
+                if (diff < 60) return 'Just now';
+                if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+                if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+                return date.toLocaleDateString();
+            },
+            
+            getIconClass(type) {
+                const classes = {
+                    'tax_deadline': 'bg-red-100 text-red-600',
+                    'invoice': 'bg-blue-100 text-blue-600',
+                    'payment': 'bg-green-100 text-green-600',
+                    'compliance': 'bg-yellow-100 text-yellow-600',
+                    'system': 'bg-gray-100 text-gray-600'
+                };
+                return classes[type] || 'bg-gray-100 text-gray-600';
+            },
+            
+            getIcon(type) {
+                const icons = {
+                    'tax_deadline': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+                    'invoice': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
+                    'payment': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+                    'compliance': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+                    'system': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'
+                };
+                return icons[type] || icons['system'];
+            }
+        };
+    }
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>

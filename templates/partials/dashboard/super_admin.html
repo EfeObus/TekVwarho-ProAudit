@@ -1,0 +1,399 @@
+<!-- Super Admin Dashboard Partial -->
+<!-- Full platform overview with multi-tenant management, monitoring, security, and financial overview -->
+
+<!-- Section 1: Overview Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm bg-gradient-primary text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-building fa-2x opacity-75"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="mb-1 opacity-75">Organizations</h6>
+                        <h2 class="mb-0">{{ dashboard.overview.total_organizations }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-success bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-users text-success fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Total Users</h6>
+                        <h2 class="mb-0">{{ dashboard.overview.total_users }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-info bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-user-tie text-info fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Platform Staff</h6>
+                        <h2 class="mb-0">{{ dashboard.overview.total_staff }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-warning bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-clock text-warning fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Pending Verifications</h6>
+                        <h2 class="mb-0">{{ dashboard.overview.pending_verifications }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 2: Quick Actions Grid -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for action in dashboard.quick_actions %}
+                    <div class="col-md-6 col-lg-3">
+                        <a href="{{ action.url }}" class="card h-100 border text-decoration-none hover-shadow">
+                            <div class="card-body text-center py-4">
+                                <i class="fas fa-{{ action.icon }} fa-2x text-primary mb-3"></i>
+                                <h6 class="mb-1">{{ action.label }}</h6>
+                                {% if action.description %}
+                                <small class="text-muted">{{ action.description }}</small>
+                                {% endif %}
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <!-- Staff by Role -->
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-user-shield me-2 text-primary"></i>Staff by Role</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.staff_by_role %}
+                <ul class="list-group list-group-flush">
+                    {% for role, count in dashboard.staff_by_role.items() %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-capitalize">{{ role.replace('_', ' ') }}</span>
+                        <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">No staff data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 3: Platform Health & NRS Compliance -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Platform Health</h5>
+                <span class="badge bg-{{ 'success' if dashboard.platform_health.status == 'healthy' else 'danger' }}">
+                    {{ dashboard.platform_health.status | upper }}
+                </span>
+            </div>
+            <div class="card-body">
+                {% if dashboard.platform_health %}
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="text-center p-3 bg-light rounded">
+                            <i class="fas fa-database {% if dashboard.platform_health.database.status == 'healthy' %}text-success{% else %}text-danger{% endif %} fa-lg mb-2"></i>
+                            <h6 class="mb-0">Database</h6>
+                            <small class="text-muted text-capitalize">{{ dashboard.platform_health.database.status }}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center p-3 bg-light rounded">
+                            <i class="fas fa-server text-success fa-lg mb-2"></i>
+                            <h6 class="mb-0">API</h6>
+                            <small class="text-muted">{{ dashboard.platform_health.api.uptime }}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center p-3 bg-light rounded">
+                            <i class="fas fa-plug {% if dashboard.platform_health.nrs_gateway.status == 'connected' %}text-success{% else %}text-danger{% endif %} fa-lg mb-2"></i>
+                            <h6 class="mb-0">NRS Gateway</h6>
+                            <small class="text-muted text-capitalize">{{ dashboard.platform_health.nrs_gateway.status }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-file-invoice me-2 text-info"></i>NRS E-Invoicing Compliance</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.nrs_compliance %}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded">
+                            <h4 class="mb-0 text-primary">{{ dashboard.nrs_compliance.submitted_this_month }}</h4>
+                            <small class="text-muted">Submitted This Month</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded">
+                            <h4 class="mb-0 text-warning">{{ dashboard.nrs_compliance.currently_locked }}</h4>
+                            <small class="text-muted">Currently Locked (72hr)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 p-2 bg-success bg-opacity-10 rounded">
+                    <small><i class="fas fa-check-circle text-success me-1"></i> CSID Success Rate: {{ dashboard.nrs_compliance.csid_success_rate }}</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 4: Organizations & Verification -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2 text-primary"></i>Organizations by Type</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.organizations_by_type %}
+                <ul class="list-group list-group-flush">
+                    {% for type, count in dashboard.organizations_by_type.items() %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-capitalize">{{ type.replace('_', ' ') }}</span>
+                        <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-check-circle me-2 text-success"></i>Verification Status</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.verification_stats %}
+                <ul class="list-group list-group-flush">
+                    {% for status, count in dashboard.verification_stats.items() %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="text-capitalize">{{ status.replace('_', ' ') }}</span>
+                        <span class="badge 
+                            {% if status == 'verified' %}bg-success
+                            {% elif status == 'submitted' or status == 'pending' %}bg-warning
+                            {% elif status == 'rejected' %}bg-danger
+                            {% else %}bg-secondary{% endif %} 
+                            rounded-pill">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-credit-card me-2 text-info"></i>Subscription Stats</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.subscription_stats %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Paid Subscriptions</span>
+                        <strong>{{ dashboard.subscription_stats.total_paid }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Free Tier</span>
+                        <strong>{{ dashboard.subscription_stats.total_free }}</strong>
+                    </div>
+                </div>
+                {% if dashboard.subscription_stats.by_tier %}
+                <hr>
+                <ul class="list-group list-group-flush">
+                    {% for tier, count in dashboard.subscription_stats.by_tier.items() %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
+                        <span class="text-capitalize">{{ tier }}</span>
+                        <span class="badge bg-secondary rounded-pill">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 5: Security & Usage -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-shield-alt me-2 text-warning"></i>Security Alerts</h5>
+                {% if dashboard.failed_logins %}
+                <span class="badge bg-{{ 'success' if dashboard.failed_logins.trend == 'stable' else 'warning' }}">
+                    {{ dashboard.failed_logins.last_24_hours }} failed logins (24h)
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if dashboard.security_alerts and dashboard.security_alerts | length > 0 %}
+                <div class="list-group list-group-flush">
+                    {% for alert in dashboard.security_alerts[:5] %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle text-{{ alert.severity }} me-2"></i>
+                            <div>
+                                <small class="text-muted">{{ alert.timestamp }}</small>
+                                <p class="mb-0 small">{{ alert.message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle text-success fa-3x mb-2"></i>
+                    <p class="text-muted mb-0">No security alerts</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2 text-info"></i>Usage Metrics</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.usage_metrics %}
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">{{ dashboard.usage_metrics.transactions_this_month }}</h4>
+                            <small class="text-muted">Transactions (Month)</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">{{ dashboard.usage_metrics.invoices_this_month }}</h4>
+                            <small class="text-muted">Invoices (Month)</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">{{ dashboard.usage_metrics.api_calls_today }}</h4>
+                            <small class="text-muted">API Calls (Today)</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">{{ dashboard.usage_metrics.storage_used_gb }} GB</h4>
+                            <small class="text-muted">Storage Used</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 6: Recent Activity -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-history me-2 text-secondary"></i>Recent Platform Activity</h5>
+                <a href="/admin/audit-logs" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if dashboard.recent_activity and dashboard.recent_activity | length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Action</th>
+                                <th>Resource</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for activity in dashboard.recent_activity %}
+                            <tr>
+                                <td><span class="badge bg-info">{{ activity.action }}</span></td>
+                                <td>{{ activity.resource_type }}</td>
+                                <td><small class="text-muted">{{ activity.created_at }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">No recent activity</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: Permissions -->
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-key me-2 text-secondary"></i>Your Permissions (Super Admin)</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for permission in dashboard.permissions %}
+                    <span class="badge bg-success">{{ permission }}</span>
+                    {% endfor %}
+                </div>
+                <small class="text-muted mt-2 d-block">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Super Admin has full access to all platform features
+                </small>
+            </div>
+        </div>
+    </div>
+</div>

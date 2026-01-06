@@ -308,6 +308,7 @@ async def create_transaction_from_receipt(
 async def list_files(
     entity_id: UUID,
     category: Optional[str] = Query(None, description="File category filter"),
+    limit: Optional[int] = Query(None, ge=1, le=500, description="Maximum number of files to return"),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_async_session),
 ):
@@ -327,6 +328,10 @@ async def list_files(
         entity_id=entity_id,
         category=file_category,
     )
+    
+    # Apply limit if specified
+    if limit is not None:
+        files = files[:limit]
     
     return [FileInfoResponse(**f) for f in files]
 
@@ -459,4 +464,466 @@ async def upload_document(
         content_type=upload_result["content_type"],
         size=upload_result["size"],
         extracted_data=None,
+    )
+
+
+# ===========================================
+# RECEIPT LIST & SEARCH
+# ===========================================
+
+class ReceiptItemResponse(BaseModel):
+    """Receipt item in list response."""
+    id: str
+    file_id: str
+    url: str
+    filename: str
+    content_type: str
+    size: int
+    uploaded_at: str
+    uploaded_by: Optional[str]
+    linked_transaction_id: Optional[str]
+    ocr_processed: bool
+    vendor_name: Optional[str]
+    total_amount: Optional[float]
+    transaction_date: Optional[str]
+
+
+class ReceiptListResponse(BaseModel):
+    """Response for receipt list."""
+    receipts: List[ReceiptItemResponse]
+    total: int
+    page: int
+    per_page: int
+    has_unlinked: int
+
+
+@router.get(
+    "/{entity_id}/receipts",
+    response_model=ReceiptListResponse,
+    summary="List all receipts",
+)
+async def list_receipts(
+    entity_id: UUID,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    linked: Optional[bool] = Query(None, description="Filter by linked status"),
+    start_date: Optional[date] = Query(None, description="Filter by upload date from"),
+    end_date: Optional[date] = Query(None, description="Filter by upload date to"),
+    search: Optional[str] = Query(None, description="Search by vendor name or filename"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    List all receipts for the entity.
+    
+    Supports filtering by:
+    - Linked status (receipts attached to transactions)
+    - Date range
+    - Vendor name or filename search
+    
+    Use unlinked filter to find receipts that need to be matched to transactions.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    storage_service = FileStorageService()
+    
+    # Get all receipt files
+    files = await storage_service.list_files(
+        entity_id=entity_id,
+        category=FileCategory.RECEIPT,
+    )
+    
+    # Filter and transform
+    receipts = []
+    unlinked_count = 0
+    
+    for f in files:
+        # Check link status
+        is_linked = f.get("linked_transaction_id") is not None
+        if not is_linked:
+            unlinked_count += 1
+        
+        if linked is not None and is_linked != linked:
+            continue
+        
+        # Search filter
+        if search:
+            vendor_match = search.lower() in (f.get("vendor_name") or "").lower()
+            filename_match = search.lower() in (f.get("filename") or "").lower()
+            if not (vendor_match or filename_match):
+                continue
+        
+        receipts.append(ReceiptItemResponse(
+            id=f.get("file_id", ""),
+            file_id=f.get("file_id", ""),
+            url=f.get("url", ""),
+            filename=f.get("filename", ""),
+            content_type=f.get("content_type", ""),
+            size=f.get("size", 0),
+            uploaded_at=f.get("created_at", ""),
+            uploaded_by=f.get("metadata", {}).get("uploaded_by"),
+            linked_transaction_id=f.get("linked_transaction_id"),
+            ocr_processed=f.get("ocr_processed", False),
+            vendor_name=f.get("vendor_name"),
+            total_amount=f.get("total_amount"),
+            transaction_date=f.get("transaction_date"),
+        ))
+    
+    # Paginate
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated = receipts[start:end]
+    
+    return ReceiptListResponse(
+        receipts=paginated,
+        total=len(receipts),
+        page=page,
+        per_page=per_page,
+        has_unlinked=unlinked_count,
+    )
+
+
+# ===========================================
+# BATCH UPLOAD
+# ===========================================
+
+class BatchUploadItemResult(BaseModel):
+    """Result for a single item in batch upload."""
+    filename: str
+    success: bool
+    file_id: Optional[str] = None
+    url: Optional[str] = None
+    error: Optional[str] = None
+    extracted_data: Optional[dict] = None
+
+
+class BatchUploadResponse(BaseModel):
+    """Response for batch receipt upload."""
+    total_uploaded: int
+    successful: int
+    failed: int
+    results: List[BatchUploadItemResult]
+
+
+@router.post(
+    "/{entity_id}/receipts/batch-upload",
+    response_model=BatchUploadResponse,
+    summary="Batch upload receipts",
+)
+async def batch_upload_receipts(
+    entity_id: UUID,
+    files: List[UploadFile] = File(..., description="Multiple receipt files"),
+    process_ocr: bool = Query(True, description="Process all with OCR"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Upload multiple receipts in a single request.
+    
+    Supports up to 20 files per batch.
+    Each file is processed independently - failures don't affect others.
+    
+    Returns detailed results for each file including any OCR extracted data.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    max_files = 20
+    if len(files) > max_files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many files. Maximum {max_files} files per batch.",
+        )
+    
+    allowed_types = ["image/jpeg", "image/png", "image/jpg", "application/pdf"]
+    max_size = 10 * 1024 * 1024
+    
+    storage_service = FileStorageService()
+    ocr_service = OCRService()
+    
+    results = []
+    successful = 0
+    failed = 0
+    
+    for file in files:
+        try:
+            # Validate file type
+            if file.content_type not in allowed_types:
+                results.append(BatchUploadItemResult(
+                    filename=file.filename or "unknown",
+                    success=False,
+                    error=f"Unsupported file type: {file.content_type}",
+                ))
+                failed += 1
+                continue
+            
+            # Read content
+            file_content = await file.read()
+            
+            # Validate size
+            if len(file_content) > max_size:
+                results.append(BatchUploadItemResult(
+                    filename=file.filename or "unknown",
+                    success=False,
+                    error="File too large (max 10MB)",
+                ))
+                failed += 1
+                continue
+            
+            # Upload file
+            upload_result = await storage_service.upload_file(
+                entity_id=entity_id,
+                file_content=file_content,
+                filename=file.filename or "receipt",
+                content_type=file.content_type,
+                category=FileCategory.RECEIPT,
+                metadata={
+                    "uploaded_by": str(current_user.id),
+                    "original_filename": file.filename,
+                    "batch_upload": True,
+                },
+            )
+            
+            # Process OCR if enabled
+            extracted_data = None
+            if process_ocr:
+                try:
+                    receipt_data = await ocr_service.process_receipt(
+                        file_content=file_content,
+                        filename=file.filename or "receipt",
+                        content_type=file.content_type,
+                    )
+                    extracted_data = receipt_data.to_dict()
+                except Exception:
+                    pass  # OCR failure shouldn't fail upload
+            
+            results.append(BatchUploadItemResult(
+                filename=file.filename or "unknown",
+                success=True,
+                file_id=upload_result["file_id"],
+                url=upload_result["url"],
+                extracted_data=extracted_data,
+            ))
+            successful += 1
+            
+        except Exception as e:
+            results.append(BatchUploadItemResult(
+                filename=file.filename or "unknown",
+                success=False,
+                error=str(e),
+            ))
+            failed += 1
+    
+    return BatchUploadResponse(
+        total_uploaded=len(files),
+        successful=successful,
+        failed=failed,
+        results=results,
+    )
+
+
+# ===========================================
+# LINK RECEIPTS TO TRANSACTIONS
+# ===========================================
+
+class LinkReceiptRequest(BaseModel):
+    """Request to link receipt to transaction."""
+    transaction_id: UUID
+
+
+class LinkReceiptResponse(BaseModel):
+    """Response for linking receipt."""
+    receipt_id: str
+    transaction_id: str
+    message: str
+
+
+@router.post(
+    "/{entity_id}/receipts/{receipt_id}/link",
+    response_model=LinkReceiptResponse,
+    summary="Link receipt to transaction",
+)
+async def link_receipt_to_transaction(
+    entity_id: UUID,
+    receipt_id: str,
+    request: LinkReceiptRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Link a receipt to an existing transaction.
+    
+    This attaches the receipt file to the transaction for record-keeping
+    and WREN compliance verification.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.transaction_service import TransactionService
+    
+    transaction_service = TransactionService(db)
+    
+    # Get the transaction
+    transaction = await transaction_service.get_transaction_by_id(request.transaction_id)
+    
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaction not found",
+        )
+    
+    if transaction.entity_id != entity_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Transaction does not belong to this entity",
+        )
+    
+    # Verify receipt exists
+    storage_service = FileStorageService()
+    
+    try:
+        file_info = await storage_service.get_file_info(receipt_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Receipt file not found",
+        )
+    
+    # Link the receipt to the transaction
+    await transaction_service.attach_receipt(
+        transaction_id=request.transaction_id,
+        receipt_url=receipt_id,
+    )
+    
+    await db.commit()
+    
+    return LinkReceiptResponse(
+        receipt_id=receipt_id,
+        transaction_id=str(request.transaction_id),
+        message="Receipt linked to transaction successfully",
+    )
+
+
+@router.post(
+    "/{entity_id}/receipts/{receipt_id}/unlink",
+    response_model=MessageResponse,
+    summary="Unlink receipt from transaction",
+)
+async def unlink_receipt_from_transaction(
+    entity_id: UUID,
+    receipt_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Unlink a receipt from its associated transaction.
+    
+    The receipt file remains but is no longer attached to the transaction.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.transaction_service import TransactionService
+    
+    transaction_service = TransactionService(db)
+    
+    # Find transaction with this receipt
+    transaction = await transaction_service.find_by_receipt_url(receipt_id)
+    
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No transaction linked to this receipt",
+        )
+    
+    if transaction.entity_id != entity_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Transaction does not belong to this entity",
+        )
+    
+    # Remove the receipt link
+    await transaction_service.detach_receipt(transaction.id)
+    
+    await db.commit()
+    
+    return MessageResponse(
+        message="Receipt unlinked from transaction successfully",
+        success=True,
+    )
+
+
+class BulkLinkRequest(BaseModel):
+    """Request for bulk linking receipts."""
+    links: List[dict] = Field(..., description="List of {receipt_id, transaction_id} pairs")
+
+
+class BulkLinkResponse(BaseModel):
+    """Response for bulk linking."""
+    total: int
+    successful: int
+    failed: int
+    errors: List[dict]
+
+
+@router.post(
+    "/{entity_id}/receipts/bulk-link",
+    response_model=BulkLinkResponse,
+    summary="Bulk link receipts to transactions",
+)
+async def bulk_link_receipts(
+    entity_id: UUID,
+    request: BulkLinkRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Link multiple receipts to transactions in a single request.
+    
+    Useful for matching imported receipts to existing transactions.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    from app.services.transaction_service import TransactionService
+    
+    transaction_service = TransactionService(db)
+    
+    successful = 0
+    failed = 0
+    errors = []
+    
+    for link in request.links:
+        receipt_id = link.get("receipt_id")
+        transaction_id = link.get("transaction_id")
+        
+        if not receipt_id or not transaction_id:
+            errors.append({
+                "receipt_id": receipt_id,
+                "error": "Missing receipt_id or transaction_id",
+            })
+            failed += 1
+            continue
+        
+        try:
+            import uuid
+            tid = uuid.UUID(transaction_id)
+            
+            await transaction_service.attach_receipt(
+                transaction_id=tid,
+                receipt_url=receipt_id,
+            )
+            successful += 1
+            
+        except Exception as e:
+            errors.append({
+                "receipt_id": receipt_id,
+                "transaction_id": transaction_id,
+                "error": str(e),
+            })
+            failed += 1
+    
+    await db.commit()
+    
+    return BulkLinkResponse(
+        total=len(request.links),
+        successful=successful,
+        failed=failed,
+        errors=errors,
     )

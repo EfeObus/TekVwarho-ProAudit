@@ -325,12 +325,14 @@ The RBAC implementation adds:
 ## 9. Environment Variables
 
 ```env
-# Super Admin Configuration
-SUPER_ADMIN_EMAIL=superadmin@tekvwarho.com
-SUPER_ADMIN_PASSWORD=SuperAdmin@TekVwarho2026!
-SUPER_ADMIN_FIRST_NAME=Super
-SUPER_ADMIN_LAST_NAME=Admin
+# Super Admin Configuration (DO NOT commit actual values)
+SUPER_ADMIN_EMAIL=<configured-in-env>
+SUPER_ADMIN_PASSWORD=<configured-in-env>
+SUPER_ADMIN_FIRST_NAME=<configured-in-env>
+SUPER_ADMIN_LAST_NAME=<configured-in-env>
 ```
+
+> ⚠️ **Security Note:** Super Admin credentials are stored securely in `.env` (not committed to version control) and seeded to the database on first startup. Never expose actual credentials in documentation or code.
 
 ---
 
@@ -342,10 +344,12 @@ SUPER_ADMIN_LAST_NAME=Admin
 curl -X POST http://localhost:5120/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "superadmin@tekvwarho.com",
-    "password": "SuperAdmin@TekVwarho2026!"
+    "email": "$SUPER_ADMIN_EMAIL",
+    "password": "$SUPER_ADMIN_PASSWORD"
   }'
 ```
+
+> 💡 Replace `$SUPER_ADMIN_EMAIL` and `$SUPER_ADMIN_PASSWORD` with the values from your `.env` file.
 
 ### Onboard an Admin
 
@@ -354,13 +358,15 @@ curl -X POST http://localhost:5120/api/v1/staff/onboard \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <super_admin_token>" \
   -d '{
-    "email": "admin@tekvwarho.com",
-    "password": "AdminPassword@123",
+    "email": "newadmin@example.com",
+    "password": "<secure-password>",
     "first_name": "John",
     "last_name": "Admin",
     "platform_role": "admin"
   }'
 ```
+
+> 💡 Use a strong password meeting the platform's password policy. The new staff member will be required to change this password on first login.
 
 ### Check Current User Permissions
 

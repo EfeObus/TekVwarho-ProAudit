@@ -1,0 +1,810 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="dashboardApp()" x-init="init()">
+    <!-- No Entity Selected State -->
+    <div x-show="!entityId" class="text-center py-16 bg-white rounded-lg shadow">
+        <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+        </svg>
+        <h2 class="mt-4 text-xl font-semibold text-gray-900">No Business Entity Selected</h2>
+        <p class="mt-2 text-gray-600">Please select a business entity to view your dashboard.</p>
+        <a href="/select-entity" class="mt-6 inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+            </svg>
+            Select Entity
+        </a>
+    </div>
+
+    <!-- Dashboard Content (shown when entity is selected) -->
+    <div x-show="entityId">
+        <!-- Header -->
+        <div class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+                <p class="text-gray-600">
+                    <span x-text="orgTypeDisplay"></span> - 
+                    <span x-text="entityName || 'Select an entity'"></span>
+                </p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <!-- User Role Badge -->
+                <div class="flex items-center px-3 py-1 rounded-full text-sm"
+                     :class="{
+                         'bg-purple-100 text-purple-800': isRole('owner'),
+                         'bg-blue-100 text-blue-800': isRole('admin'),
+                         'bg-indigo-100 text-indigo-800': isRole('accountant'),
+                         'bg-teal-100 text-teal-800': isRole('external_accountant'),
+                         'bg-gray-100 text-gray-800': isRole('auditor'),
+                         'bg-orange-100 text-orange-800': isRole('payroll_manager'),
+                         'bg-cyan-100 text-cyan-800': isRole('inventory_manager'),
+                         'bg-slate-100 text-slate-800': isRole('viewer')
+                     }">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    <span x-text="userRole.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())"></span>
+                </div>
+                
+                <!-- NRS Status Badge -->
+                <div class="flex items-center px-3 py-1 rounded-full text-sm"
+                     :class="{
+                         'bg-green-100 text-green-800': nrsStatus.status === 'connected',
+                         'bg-red-100 text-red-800': nrsStatus.status === 'disconnected',
+                         'bg-yellow-100 text-yellow-800': nrsStatus.status === 'degraded'
+                     }">
+                    <span class="w-2 h-2 rounded-full mr-2"
+                          :class="{
+                              'bg-green-500': nrsStatus.status === 'connected',
+                              'bg-red-500': nrsStatus.status === 'disconnected',
+                              'bg-yellow-500': nrsStatus.status === 'degraded'
+                          }"></span>
+                    <span x-text="'NRS: ' + (nrsStatus.status || 'Unknown')"></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Role-Specific Welcome Message -->
+        <div x-show="isRole('viewer')" class="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <p class="text-sm text-slate-700">
+                <span class="font-medium">👁️ Viewer Access:</span> You have read-only access to invoices, inventory, reports, and customer/vendor lists.
+            </p>
+        </div>
+        <div x-show="isRole('external_accountant')" class="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-lg">
+            <p class="text-sm text-teal-700">
+                <span class="font-medium">📊 External Accountant:</span> You can file tax returns, verify WREN expenses (Checker role), and export reports. No access to payroll details or invoice editing.
+            </p>
+        </div>
+        <div x-show="isRole('auditor')" class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <p class="text-sm text-gray-700">
+                <span class="font-medium">🔍 Auditor Access:</span> You have read-only access to transactions, invoices, tax filings, and audit logs for compliance verification.
+            </p>
+        </div>
+        <div x-show="isRole('payroll_manager')" class="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <p class="text-sm text-orange-700">
+                <span class="font-medium">💰 Payroll Manager:</span> You can manage payroll and vendor records. Financial dashboards and transactions are restricted.
+            </p>
+        </div>
+        <div x-show="isRole('inventory_manager')" class="mb-6 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
+            <p class="text-sm text-cyan-700">
+                <span class="font-medium">📦 Inventory Manager:</span> You can manage inventory and vendors. Financial dashboards and payroll are restricted.
+            </p>
+        </div>
+
+    <!-- NTAA 2025 Core Widgets Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
+        <!-- Tax Health Score -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4"
+             :class="{
+                 'border-green-500': taxHealth.status === 'green',
+                 'border-yellow-500': taxHealth.status === 'amber',
+                 'border-red-500': taxHealth.status === 'red'
+             }">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-medium text-gray-600">Tax Health Score</h3>
+                <span class="text-2xl font-bold"
+                      :class="{
+                          'text-green-600': taxHealth.status === 'green',
+                          'text-yellow-600': taxHealth.status === 'amber',
+                          'text-red-600': taxHealth.status === 'red'
+                      }"
+                      x-text="taxHealth.score + '%'"></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                <div class="h-2 rounded-full transition-all duration-500"
+                     :class="{
+                         'bg-green-500': taxHealth.status === 'green',
+                         'bg-yellow-500': taxHealth.status === 'amber',
+                         'bg-red-500': taxHealth.status === 'red'
+                     }"
+                     :style="'width: ' + taxHealth.score + '%'"></div>
+            </div>
+            <p class="text-xs text-gray-500" x-text="taxHealth.summary"></p>
+            <div class="mt-2" x-show="taxHealth.issues_count > 0">
+                <span class="text-xs text-red-600" x-text="taxHealth.issues_count + ' critical issues'"></span>
+            </div>
+        </div>
+
+        <!-- Compliance Calendar -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-sm font-medium text-gray-600 mb-3">Next Deadlines</h3>
+            <div class="space-y-2">
+                <template x-for="deadline in complianceCalendar.upcoming_deadlines?.slice(0, 3)" :key="deadline.name">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm" x-text="deadline.name"></span>
+                        <span class="text-xs px-2 py-1 rounded-full"
+                              :class="{
+                                  'bg-red-100 text-red-800': deadline.urgency === 'high',
+                                  'bg-yellow-100 text-yellow-800': deadline.urgency === 'medium',
+                                  'bg-green-100 text-green-800': deadline.urgency === 'low'
+                              }"
+                              x-text="deadline.days_remaining + ' days'"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Liquidity Ratio (Hidden from Viewer, Payroll Manager, Inventory Manager) -->
+        <div class="bg-white rounded-lg shadow p-6" x-show="canView('financial_statements')">
+            <h3 class="text-sm font-medium text-gray-600 mb-3">Cash Runway</h3>
+            <div class="flex items-end space-x-2">
+                <span class="text-3xl font-bold"
+                      :class="{
+                          'text-green-600': liquidityRatio.status === 'healthy',
+                          'text-yellow-600': liquidityRatio.status === 'warning',
+                          'text-red-600': liquidityRatio.status === 'critical'
+                      }"
+                      x-text="liquidityRatio.runway_months?.toFixed(1) || '0'"></span>
+                <span class="text-gray-500 text-sm mb-1">months</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2" x-text="liquidityRatio.message"></p>
+        </div>
+        
+        <!-- Restricted Liquidity Placeholder (Shown to restricted roles) -->
+        <div class="bg-gray-100 rounded-lg shadow p-6" x-show="!canView('financial_statements')">
+            <h3 class="text-sm font-medium text-gray-400 mb-3">Cash Runway</h3>
+            <div class="flex items-center justify-center h-16">
+                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+            </div>
+            <p class="text-xs text-gray-400 text-center">Restricted Access</p>
+        </div>
+
+        <!-- Quick Stats (Financial Summary) -->
+        <div class="bg-white rounded-lg shadow p-6" x-show="canView('financial_statements')">
+            <h3 class="text-sm font-medium text-gray-600 mb-3">This Month</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs text-gray-500">Income</p>
+                    <p class="text-lg font-semibold text-green-600" x-text="formatCurrency(metrics.this_month?.income || 0)"></p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Expenses</p>
+                    <p class="text-lg font-semibold text-red-600" x-text="formatCurrency(metrics.this_month?.expense || 0)"></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Restricted Financial Placeholder -->
+        <div class="bg-gray-100 rounded-lg shadow p-6" x-show="!canView('financial_statements')">
+            <h3 class="text-sm font-medium text-gray-400 mb-3">Financial Summary</h3>
+            <div class="flex items-center justify-center h-16">
+                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+            </div>
+            <p class="text-xs text-gray-400 text-center">Restricted Access</p>
+        </div>
+    </div>
+
+    <!-- TIN/CAC Vault & Compliance Health -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- TIN/CAC Vault -->
+        <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    TIN/CAC Vault
+                </h2>
+                <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">2026 Compliance</span>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white rounded-lg p-4 border" :class="vault.tin?.status === 'verified' ? 'border-green-300' : 'border-red-300'">
+                    <p class="text-xs text-gray-500 mb-1">TIN</p>
+                    <p class="text-lg font-mono font-bold" :class="vault.tin?.status === 'verified' ? 'text-green-700' : 'text-red-600'" x-text="vault.tin?.number || 'Not Set'"></p>
+                    <div class="flex items-center mt-2">
+                        <span class="w-2 h-2 rounded-full mr-2" :class="vault.tin?.status === 'verified' ? 'bg-green-500' : 'bg-red-500'"></span>
+                        <span class="text-xs" x-text="vault.tin?.status === 'verified' ? 'Verified' : 'Missing'"></span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg p-4 border" :class="vault.cac?.status === 'verified' ? 'border-green-300' : 'border-red-300'">
+                    <p class="text-xs text-gray-500 mb-1">CAC RC/BN</p>
+                    <p class="text-lg font-mono font-bold" :class="vault.cac?.status === 'verified' ? 'text-green-700' : 'text-red-600'" x-text="vault.cac?.number || 'Not Set'"></p>
+                    <div class="flex items-center mt-2">
+                        <span class="w-2 h-2 rounded-full mr-2" :class="vault.cac?.status === 'verified' ? 'bg-green-500' : 'bg-red-500'"></span>
+                        <span class="text-xs" x-text="vault.cac?.status === 'verified' ? 'Verified' : 'Missing'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compliance Health -->
+        <div class="bg-white rounded-lg shadow p-6 border" :class="{'border-green-300': compliance.overall_status === 'excellent', 'border-yellow-300': compliance.overall_status === 'warning', 'border-red-300': compliance.overall_status === 'critical'}">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Compliance Health</h2>
+                <span class="text-2xl font-bold" x-text="compliance.score + '%'"></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                <div class="h-2.5 rounded-full transition-all" :class="{'bg-green-500': compliance.score >= 80, 'bg-yellow-500': compliance.score >= 50 && compliance.score < 80, 'bg-red-500': compliance.score < 50}" :style="'width: ' + compliance.score + '%'"></div>
+            </div>
+            <div class="space-y-2 max-h-32 overflow-y-auto">
+                <template x-for="check in compliance.checks" :key="check.name">
+                    <div class="flex items-center justify-between py-1 px-2 rounded bg-gray-50">
+                        <div class="flex items-center">
+                            <span class="w-2 h-2 rounded-full mr-2" :class="{'bg-green-500': check.status === 'pass', 'bg-yellow-500': check.status === 'warning', 'bg-red-500': check.status === 'fail'}"></span>
+                            <span class="text-sm" x-text="check.name"></span>
+                        </div>
+                        <span class="text-xs text-gray-500" x-text="check.message"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Organization-Type-Specific Dashboard -->
+    <div x-show="orgType" class="mb-8">
+        <!-- SME Dashboard -->
+        <div x-show="orgType === 'sme' || orgType === 'small_business'" class="space-y-6">
+            <h2 class="text-xl font-bold text-gray-900 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </svg>
+                SME Intelligence Center
+            </h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Threshold Monitor -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Threshold Monitor</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span>Progress to ₦50M</span>
+                                <span class="font-medium" x-text="(orgSpecific.threshold_monitor?.progress_50m_percentage || 0).toFixed(1) + '%'"></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="h-3 rounded-full transition-all bg-gradient-to-r from-green-400 to-green-600" :style="'width: ' + Math.min(orgSpecific.threshold_monitor?.progress_50m_percentage || 0, 100) + '%'"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">
+                                <span x-text="formatCurrency(orgSpecific.threshold_monitor?.remaining_to_50m || 0)"></span> remaining
+                            </p>
+                        </div>
+                        <div class="p-3 rounded-lg" :class="{'bg-green-50 border border-green-200': orgSpecific.threshold_monitor?.current_tier === 'small', 'bg-yellow-50 border border-yellow-200': orgSpecific.threshold_monitor?.current_tier === 'medium', 'bg-red-50 border border-red-200': orgSpecific.threshold_monitor?.current_tier === 'large'}">
+                            <p class="text-sm font-medium" x-text="'Current Status: ' + (orgSpecific.threshold_monitor?.current_tier || 'Unknown').toUpperCase() + ' Company'"></p>
+                            <p class="text-lg font-bold" x-text="orgSpecific.threshold_monitor?.estimated_cit_rate + '% CIT Rate'"></p>
+                        </div>
+                        <div x-show="orgSpecific.threshold_monitor?.approaching_threshold" class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="text-sm text-yellow-800 font-medium">⚠️ Approaching ₦50M threshold!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VAT Recovery Tracker -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">VAT Recovery Tracker</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">VAT Collected (Sales)</span>
+                            <span class="font-semibold text-green-600" x-text="formatCurrency(orgSpecific.vat_recovery?.vat_collected || 0)"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">VAT Paid (Purchases)</span>
+                            <span class="font-semibold text-red-600" x-text="formatCurrency(orgSpecific.vat_recovery?.vat_paid || 0)"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 bg-gray-50 rounded-lg px-3">
+                            <span class="font-medium">Net VAT</span>
+                            <span class="font-bold text-lg" :class="(orgSpecific.vat_recovery?.net_vat || 0) >= 0 ? 'text-red-600' : 'text-green-600'" x-text="formatCurrency(Math.abs(orgSpecific.vat_recovery?.net_vat || 0))"></span>
+                        </div>
+                        <div x-show="orgSpecific.vat_recovery?.is_recoverable" class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <p class="text-sm text-green-800 font-medium">✓ Input VAT Credit Available</p>
+                            <p class="text-lg font-bold text-green-700" x-text="formatCurrency(orgSpecific.vat_recovery?.recoverable_amount || 0)"></p>
+                        </div>
+                        <p class="text-xs text-gray-500">Next filing: <span x-text="orgSpecific.vat_recovery?.next_filing_due"></span></p>
+                    </div>
+                </div>
+
+                <!-- WREN Validator -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">WREN Validator</h3>
+                        <span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full" x-text="(orgSpecific.wren_validator?.pending_count || 0) + ' pending'"></span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">Expenses requiring categorization for WREN compliance</p>
+                    
+                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                        <template x-for="expense in orgSpecific.wren_validator?.pending_expenses?.slice(0, 5)" :key="expense.id">
+                            <div class="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <p class="text-sm font-medium" x-text="expense.description?.substring(0, 30) + '...'"></p>
+                                    <p class="text-xs text-gray-500" x-text="expense.date"></p>
+                                </div>
+                                <span class="font-semibold text-red-600" x-text="formatCurrency(expense.amount)"></span>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t flex justify-between text-sm">
+                        <span>Total Pending:</span>
+                        <span class="font-bold" x-text="formatCurrency(orgSpecific.wren_validator?.total_pending_amount || 0)"></span>
+                    </div>
+                    
+                    <div class="mt-4 grid grid-cols-2 gap-2" x-show="orgSpecific.wren_validator?.can_categorize || orgSpecific.wren_validator?.can_verify">
+                        <button x-show="orgSpecific.wren_validator?.can_categorize" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                            Categorize (Maker)
+                        </button>
+                        <button x-show="orgSpecific.wren_validator?.can_verify" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+                            Verify (Checker)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- School Dashboard -->
+        <div x-show="orgType === 'school'" class="space-y-6">
+            <h2 class="text-xl font-bold text-gray-900 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path>
+                </svg>
+                School Management Dashboard
+            </h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Teacher PAYE Summary -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Teacher PAYE Summary</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="p-3 bg-gray-50 rounded-lg text-center">
+                                <p class="text-2xl font-bold text-purple-600" x-text="orgSpecific.teacher_paye?.total_staff || 0"></p>
+                                <p class="text-xs text-gray-500">Total Staff</p>
+                            </div>
+                            <div class="p-3 bg-gray-50 rounded-lg text-center">
+                                <p class="text-2xl font-bold text-blue-600" x-text="orgSpecific.teacher_paye?.staff_in_tax_free_band || 0"></p>
+                                <p class="text-xs text-gray-500">In Tax-Free Band</p>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-purple-50 border border-purple-200 rounded-lg" x-show="viewRestrictions.salary_details !== 'no_access'">
+                            <p class="text-sm text-gray-600">Monthly PAYE Liability</p>
+                            <p class="text-xl font-bold text-purple-700" x-text="formatCurrency(orgSpecific.teacher_paye?.total_paye_liability || 0)"></p>
+                        </div>
+                        <p class="text-xs text-gray-500">Next PAYE Filing: <span x-text="orgSpecific.teacher_paye?.next_paye_filing"></span></p>
+                    </div>
+                </div>
+
+                <!-- Fee Collection vs VAT -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Fee Collection vs VAT</h3>
+                    <div class="space-y-4">
+                        <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <p class="text-sm text-gray-600">Tuition Fees (VAT Exempt)</p>
+                            <p class="text-xl font-bold text-green-700" x-text="formatCurrency(orgSpecific.fee_collection?.tuition_fees_collected || 0)"></p>
+                        </div>
+                        <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p class="text-sm text-gray-600">Taxable Sales (Uniforms, Books)</p>
+                            <p class="text-xl font-bold text-red-700" x-text="formatCurrency(orgSpecific.fee_collection?.taxable_sales || 0)"></p>
+                        </div>
+                        <div class="text-center p-2 bg-gray-100 rounded">
+                            <p class="text-xs text-gray-600">VAT on Taxable Sales</p>
+                            <p class="font-bold" x-text="formatCurrency(orgSpecific.fee_collection?.vat_on_taxable_sales || 0)"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WHT Vault -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Vendor WHT Vault</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Total WHT Deducted</span>
+                            <span class="font-semibold" x-text="formatCurrency(orgSpecific.wht_vault?.total_wht_deducted || 0)"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Pending Remittance</span>
+                            <span class="font-semibold text-yellow-600" x-text="formatCurrency(orgSpecific.wht_vault?.pending_remittance || 0)"></span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-center">
+                            <div class="p-2 bg-gray-50 rounded">
+                                <p class="text-xs text-gray-500">Contractors (10%)</p>
+                                <p class="font-bold" x-text="formatCurrency(orgSpecific.wht_vault?.contractors_wht || 0)"></p>
+                            </div>
+                            <div class="p-2 bg-gray-50 rounded">
+                                <p class="text-xs text-gray-500">Suppliers (5%)</p>
+                                <p class="font-bold" x-text="formatCurrency(orgSpecific.wht_vault?.suppliers_wht || 0)"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Non-Profit Dashboard -->
+        <div x-show="orgType === 'non_profit'" class="space-y-6">
+            <h2 class="text-xl font-bold text-gray-900 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                </svg>
+                Non-Profit Mission Dashboard
+            </h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Return on Mission -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Return on Mission</h3>
+                        <span class="text-3xl font-bold" :class="{'text-green-600': orgSpecific.return_on_mission?.meets_benchmark, 'text-red-600': !orgSpecific.return_on_mission?.meets_benchmark}" x-text="orgSpecific.return_on_mission?.rom_score || 'N/A'"></span>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-green-600">Program Expenses</span>
+                                <span x-text="(orgSpecific.return_on_mission?.program_percentage || 0) + '%'"></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="h-2 rounded-full bg-green-500" :style="'width: ' + (orgSpecific.return_on_mission?.program_percentage || 0) + '%'"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-600">Admin Expenses</span>
+                                <span x-text="(orgSpecific.return_on_mission?.admin_percentage || 0) + '%'"></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="h-2 rounded-full bg-gray-400" :style="'width: ' + (orgSpecific.return_on_mission?.admin_percentage || 0) + '%'"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-yellow-600">Fundraising</span>
+                                <span x-text="(orgSpecific.return_on_mission?.fundraising_percentage || 0) + '%'"></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="h-2 rounded-full bg-yellow-400" :style="'width: ' + (orgSpecific.return_on_mission?.fundraising_percentage || 0) + '%'"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">Benchmark: 75%+ on programs</p>
+                </div>
+
+                <!-- Fund Separation -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Fund Separation</h3>
+                    <div class="flex justify-center mb-4">
+                        <div class="relative w-32 h-32">
+                            <svg class="w-full h-full" viewBox="0 0 36 36">
+                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#E5E7EB" stroke-width="3"/>
+                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10B981" stroke-width="3" :stroke-dasharray="(orgSpecific.fund_separation?.restricted_percentage || 0) + ', 100'"/>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-xl font-bold" x-text="(orgSpecific.fund_separation?.restricted_percentage || 0) + '%'"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div>
+                            <p class="text-sm text-gray-500">Restricted</p>
+                            <p class="font-bold text-green-600" x-text="formatCurrency(orgSpecific.fund_separation?.restricted_funds || 0)"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Unrestricted</p>
+                            <p class="font-bold text-gray-600" x-text="formatCurrency(orgSpecific.fund_separation?.unrestricted_funds || 0)"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Donor Transparency -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Donor Transparency Portal</h3>
+                    <div class="space-y-4">
+                        <div class="p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                            <p class="text-sm text-gray-600">Total Donations YTD</p>
+                            <p class="text-xl font-bold text-pink-700" x-text="formatCurrency(orgSpecific.donor_transparency?.total_donations_ytd || 0)"></p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full" :class="orgSpecific.donor_transparency?.charity_registration_valid ? 'bg-green-500' : 'bg-red-500'"></span>
+                            <span class="text-sm">Charity Registration</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full" :class="orgSpecific.donor_transparency?.tax_exemption_certificate ? 'bg-green-500' : 'bg-red-500'"></span>
+                            <span class="text-sm">Tax Exemption Certificate</span>
+                        </div>
+                        <button x-show="orgSpecific.donor_transparency?.can_generate_report" class="w-full px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700">
+                            Generate Donor Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Individual/Freelancer Dashboard -->
+        <div x-show="orgType === 'individual'" class="space-y-6">
+            <h2 class="text-xl font-bold text-gray-900 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                </svg>
+                Freelancer Tax Dashboard
+            </h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Tax-Free Band Tracker -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Tax-Free Band Tracker</h3>
+                    <div class="space-y-4">
+                        <div class="text-center">
+                            <p class="text-4xl font-bold" :class="orgSpecific.tax_free_tracker?.is_in_tax_free_band ? 'text-green-600' : 'text-orange-600'" x-text="formatCurrency(orgSpecific.tax_free_tracker?.remaining_tax_free || 0)"></p>
+                            <p class="text-sm text-gray-500">Remaining Tax-Free Allowance</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span>Used</span>
+                                <span x-text="(orgSpecific.tax_free_tracker?.tax_free_used_percentage || 0).toFixed(1) + '%'"></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="h-3 rounded-full bg-gradient-to-r from-green-400 to-orange-500" :style="'width: ' + Math.min(orgSpecific.tax_free_tracker?.tax_free_used_percentage || 0, 100) + '%'"></div>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-orange-50 border border-orange-200 rounded-lg" x-show="!orgSpecific.tax_free_tracker?.is_in_tax_free_band">
+                            <p class="text-sm text-orange-800">⚠️ Income exceeds ₦800,000 tax-free band</p>
+                            <p class="text-xs text-gray-600">Next band: <span x-text="orgSpecific.tax_free_tracker?.next_band_rate + '% rate'"></span></p>
+                        </div>
+                        <div class="text-center pt-2 border-t">
+                            <p class="text-sm text-gray-500">Estimated Annual Tax</p>
+                            <p class="text-xl font-bold text-red-600" x-text="formatCurrency(orgSpecific.tax_free_tracker?.estimated_annual_tax || 0)"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Relief Document Vault -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Relief Document Vault</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Rent Receipts</span>
+                            <span class="font-semibold" x-text="orgSpecific.relief_vault?.rent_receipts_count || 0"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Rent Relief (20%)</span>
+                            <span class="font-semibold text-green-600" x-text="formatCurrency(orgSpecific.relief_vault?.rent_relief_amount || 0)"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">NHIA Contributions</span>
+                            <span class="font-semibold" x-text="formatCurrency(orgSpecific.relief_vault?.nhia_contributions || 0)"></span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">Pension</span>
+                            <span class="font-semibold" x-text="formatCurrency(orgSpecific.relief_vault?.pension_contributions || 0)"></span>
+                        </div>
+                        <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <p class="text-sm text-gray-600">Total Reliefs</p>
+                            <p class="text-xl font-bold text-green-700" x-text="formatCurrency(orgSpecific.relief_vault?.total_reliefs || 0)"></p>
+                        </div>
+                        <button class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+                            Upload Relief Documents
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Hustle vs Personal -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Hustle vs Personal Toggle</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div class="p-3 bg-blue-50 rounded-lg">
+                                <p class="text-2xl font-bold text-blue-600" x-text="orgSpecific.hustle_toggle?.business_transactions || 0"></p>
+                                <p class="text-xs text-gray-500">Business</p>
+                            </div>
+                            <div class="p-3 bg-gray-100 rounded-lg">
+                                <p class="text-2xl font-bold text-gray-600" x-text="orgSpecific.hustle_toggle?.personal_transactions || 0"></p>
+                                <p class="text-xs text-gray-500">Personal</p>
+                            </div>
+                            <div class="p-3 bg-yellow-50 rounded-lg">
+                                <p class="text-2xl font-bold text-yellow-600" x-text="orgSpecific.hustle_toggle?.untagged_transactions || 0"></p>
+                                <p class="text-xs text-gray-500">Untagged</p>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm text-gray-600">Deductible Business Expenses</p>
+                            <p class="text-xl font-bold text-blue-700" x-text="formatCurrency(orgSpecific.hustle_toggle?.deductible_expenses || 0)"></p>
+                        </div>
+                        <div class="p-3 bg-gray-100 rounded-lg">
+                            <p class="text-sm text-gray-600">Non-Deductible Personal</p>
+                            <p class="text-xl font-bold text-gray-700" x-text="formatCurrency(orgSpecific.hustle_toggle?.non_deductible_expenses || 0)"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Transactions & Quick Actions -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+        <!-- Recent Transactions -->
+        <div class="lg:col-span-2 bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+                <a href="/transactions" class="text-sm text-green-600 hover:text-green-700">View All →</a>
+            </div>
+            <div class="divide-y divide-gray-200">
+                <template x-for="tx in recentTransactions" :key="tx.id">
+                    <div class="px-6 py-4 flex justify-between items-center hover:bg-gray-50">
+                        <div>
+                            <p class="font-medium text-gray-900" x-text="tx.description"></p>
+                            <p class="text-sm text-gray-500" x-text="formatDate(tx.transaction_date)"></p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-semibold" :class="tx.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'" x-text="(tx.transaction_type === 'income' ? '+' : '-') + formatCurrency(tx.amount)"></p>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="recentTransactions.length === 0" class="px-6 py-8 text-center text-gray-500">
+                    No transactions yet. <a href="/transactions/new" class="text-green-600 hover:underline">Add your first transaction</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <div class="space-y-3">
+                <template x-for="action in quickActions" :key="action.url">
+                    <a :href="action.url" class="block w-full text-center bg-gray-100 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200 transition font-medium" x-text="action.label"></a>
+                </template>
+            </div>
+        </div>
+    </div>
+    </div> <!-- End Dashboard Content (shown when entity is selected) -->
+</div>
+
+<script>
+function dashboardApp() {
+    return {
+        // Core data
+        entityId: {{ entity_id|tojson if entity_id else 'null' }},
+        entityName: '',
+        orgType: '',
+        orgTypeDisplay: '',
+        
+        // User info
+        userRole: '',
+        userId: '',
+        userName: '',
+        permissions: [],
+        
+        // NTAA 2025 Core Widgets
+        taxHealth: { status: 'unknown', score: 0, checks: [], issues_count: 0, summary: 'Loading...' },
+        nrsStatus: { status: 'unknown', message: 'Loading...' },
+        complianceCalendar: { upcoming_deadlines: [] },
+        liquidityRatio: { runway_months: 0, status: 'unknown', message: 'Loading...' },
+        
+        // Compliance
+        vault: { tin: {}, cac: {} },
+        compliance: { score: 0, checks: [], overall_status: 'unknown' },
+        
+        // Financials
+        metrics: { this_month: { income: 0, expense: 0 } },
+        recentTransactions: [],
+        
+        // Organization-specific data
+        orgSpecific: {},
+        
+        // Role-based view restrictions (Maker-Checker SoD)
+        viewRestrictions: {},
+        quickActions: [],
+        
+        // Permission helper methods
+        canView(feature) {
+            return this.viewRestrictions[feature] && this.viewRestrictions[feature] !== 'no_access';
+        },
+        
+        canManage(feature) {
+            return this.viewRestrictions[feature] === 'full' || this.viewRestrictions[feature] === 'maker';
+        },
+        
+        hasPermission(permission) {
+            return this.permissions.includes(permission);
+        },
+        
+        isRole(role) {
+            return this.userRole === role;
+        },
+        
+        isAdminOrAbove() {
+            return ['owner', 'admin'].includes(this.userRole);
+        },
+        
+        isFinanceRole() {
+            return ['owner', 'admin', 'accountant', 'external_accountant'].includes(this.userRole);
+        },
+        
+        async init() {
+            if (!this.entityId) {
+                console.warn('No entity selected');
+                return;
+            }
+            await this.loadDashboard();
+        },
+        
+        async loadDashboard() {
+            try {
+                const response = await fetch(`/api/v1/dashboard?entity_id=${this.entityId}`, {
+                    headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // User info
+                    this.userRole = data.user?.role || '';
+                    this.userId = data.user?.id || '';
+                    this.userName = data.user?.name || '';
+                    this.permissions = data.permissions || [];
+                    
+                    // Organization info
+                    this.entityName = data.current_entity?.name || '';
+                    this.orgType = data.organization?.type || '';
+                    this.orgTypeDisplay = data.organization?.type_display || '';
+                    
+                    // Core widgets
+                    this.taxHealth = data.tax_health_score || this.taxHealth;
+                    this.nrsStatus = data.nrs_status || this.nrsStatus;
+                    this.complianceCalendar = data.compliance_calendar || this.complianceCalendar;
+                    this.liquidityRatio = data.liquidity_ratio || this.liquidityRatio;
+                    
+                    // Compliance
+                    this.vault = data.tin_cac_vault || this.vault;
+                    this.compliance = data.compliance_health || this.compliance;
+                    
+                    // Financials
+                    this.metrics = data.financial_metrics || this.metrics;
+                    this.recentTransactions = data.recent_transactions || [];
+                    
+                    // Organization-specific
+                    this.orgSpecific = data.org_specific || {};
+                    
+                    // Permissions
+                    this.viewRestrictions = data.view_restrictions || {};
+                    this.quickActions = data.quick_actions || [];
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+            }
+        },
+        
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount || 0);
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

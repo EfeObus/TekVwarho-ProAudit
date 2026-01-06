@@ -1,0 +1,383 @@
+<!-- Admin Dashboard Partial -->
+<!-- Level 4 - Operational Lead: Verification, Entity Health, Staff Performance, Revenue, Escalations -->
+
+<!-- Section 1: Overview Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-primary bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-building text-primary fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Organizations</h6>
+                        <h2 class="mb-0">{{ dashboard.overview.total_organizations }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-success bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-users text-success fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Total Users</h6>
+                        <h2 class="mb-0">{{ dashboard.overview.total_users }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm border-warning" style="border-width: 2px !important;">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-warning bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-clock text-warning fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Pending Verifications</h6>
+                        <h2 class="mb-0">{{ dashboard.overview.pending_verifications }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-warning bg-opacity-10 border-0">
+                <a href="/admin/verifications" class="text-warning text-decoration-none small">
+                    <i class="fas fa-arrow-right me-1"></i>Review Now
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        {% if dashboard.entity_health %}
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 bg-info bg-opacity-10 rounded-3 p-3">
+                        <i class="fas fa-heartbeat text-info fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="text-muted mb-1">Entity Health</h6>
+                        <h2 class="mb-0 text-success">{{ dashboard.entity_health.green.count }}</h2>
+                        <small class="text-muted">Compliant</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Section 2: Quick Actions & Entity Health -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for action in dashboard.quick_actions %}
+                    <div class="col-md-6">
+                        <a href="{{ action.url }}" class="card h-100 border text-decoration-none hover-shadow">
+                            <div class="card-body py-3">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-{{ action.icon }} fa-lg text-primary me-3"></i>
+                                    <div>
+                                        <h6 class="mb-0">{{ action.label }}</h6>
+                                        {% if action.description %}
+                                        <small class="text-muted">{{ action.description }}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <!-- Entity Health Overview -->
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2 text-info"></i>Entity Health Overview</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.entity_health %}
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <div class="text-center p-3 bg-success bg-opacity-10 rounded">
+                            <i class="fas fa-check-circle text-success fa-2x mb-2"></i>
+                            <h3 class="mb-0 text-success">{{ dashboard.entity_health.green.count }}</h3>
+                            <small class="text-muted">{{ dashboard.entity_health.green.label }}</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
+                            <i class="fas fa-clock text-warning fa-2x mb-2"></i>
+                            <h3 class="mb-0 text-warning">{{ dashboard.entity_health.yellow.count }}</h3>
+                            <small class="text-muted">{{ dashboard.entity_health.yellow.label }}</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-3 bg-danger bg-opacity-10 rounded">
+                            <i class="fas fa-exclamation-circle text-danger fa-2x mb-2"></i>
+                            <h3 class="mb-0 text-danger">{{ dashboard.entity_health.red.count }}</h3>
+                            <small class="text-muted">{{ dashboard.entity_health.red.label }}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress" style="height: 10px;">
+                    <div class="progress-bar bg-success" style="width: {{ dashboard.entity_health.green.percentage }}"></div>
+                    <div class="progress-bar bg-warning" style="width: {{ dashboard.entity_health.yellow.percentage }}"></div>
+                    <div class="progress-bar bg-danger" style="width: {{ dashboard.entity_health.red.percentage }}"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 3: Verification Command Center -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-tasks me-2 text-primary"></i>Verification Command Center</h5>
+                <a href="/admin/verifications" class="btn btn-sm btn-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if dashboard.pending_verification_queue and dashboard.pending_verification_queue | length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Organization</th>
+                                <th>Type</th>
+                                <th>Documents</th>
+                                <th>Waiting</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for org in dashboard.pending_verification_queue %}
+                            <tr>
+                                <td>
+                                    <strong>{{ org.name }}</strong>
+                                    <br><small class="text-muted">{{ org.email }}</small>
+                                </td>
+                                <td><span class="badge bg-secondary text-capitalize">{{ org.type.replace('_', ' ') }}</span></td>
+                                <td>
+                                    <i class="fas fa-file-alt {% if org.has_cac %}text-success{% else %}text-danger{% endif %} me-1" title="CAC"></i>
+                                    <i class="fas fa-id-card {% if org.has_tin %}text-success{% else %}text-danger{% endif %}" title="TIN"></i>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{% if org.days_waiting > 3 %}danger{% elif org.days_waiting > 1 %}warning{% else %}success{% endif %}">
+                                        {{ org.days_waiting }} days
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="/admin/organizations/{{ org.id }}" class="btn btn-sm btn-outline-primary">Review</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                    <h5>All caught up!</h5>
+                    <p class="text-muted mb-0">No pending verifications</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 4: Staff Performance & Revenue -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-users-cog me-2 text-info"></i>Staff Performance</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.staff_performance %}
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded">
+                            <h6 class="text-muted mb-2"><i class="fas fa-code me-1"></i> IT/Dev</h6>
+                            <p class="mb-1">Bugs Fixed: <strong>{{ dashboard.staff_performance.it_developer.bugs_fixed }}</strong></p>
+                            <p class="mb-0">Deployments: <strong>{{ dashboard.staff_performance.it_developer.deployments }}</strong></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded">
+                            <h6 class="text-muted mb-2"><i class="fas fa-headset me-1"></i> CSR</h6>
+                            <p class="mb-1">Resolved: <strong>{{ dashboard.staff_performance.customer_service.tickets_resolved }}</strong></p>
+                            <p class="mb-0">Avg Time: <strong>{{ dashboard.staff_performance.customer_service.avg_response_time }}</strong></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded">
+                            <h6 class="text-muted mb-2"><i class="fas fa-bullhorn me-1"></i> Marketing</h6>
+                            <p class="mb-1">Campaigns: <strong>{{ dashboard.staff_performance.marketing.campaigns_launched }}</strong></p>
+                            <p class="mb-0">Emails: <strong>{{ dashboard.staff_performance.marketing.emails_sent }}</strong></p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2 text-success"></i>Global Revenue Snapshot</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.revenue_snapshot %}
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">₦{{ "{:,.0f}".format(dashboard.revenue_snapshot.mrr) }}</h4>
+                            <small class="text-muted">Monthly Recurring Revenue</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <h4 class="mb-0">{{ dashboard.revenue_snapshot.total_subscriptions }}</h4>
+                            <small class="text-muted">Active Subscriptions</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 p-2 bg-info bg-opacity-10 rounded">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Revenue data excludes private client banking details
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 5: Organizations Needing Attention & Escalations -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Organizations Needing Attention</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.organizations_needing_attention and dashboard.organizations_needing_attention | length > 0 %}
+                <div class="list-group list-group-flush">
+                    {% for org in dashboard.organizations_needing_attention %}
+                    <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ org.name }}</strong>
+                            <br><small class="text-capitalize text-muted">{{ org.type.replace('_', ' ') }}</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-{% if org.status == 'rejected' %}danger{% else %}warning{% endif %} me-2">
+                                {{ org.status }}
+                            </span>
+                            <a href="/admin/organizations/{{ org.id }}" class="btn btn-sm btn-outline-primary">View</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">All organizations are up to date</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-fire me-2 text-danger"></i>Escalation Inbox</h5>
+                <a href="/admin/escalations" class="btn btn-sm btn-outline-danger">View All</a>
+            </div>
+            <div class="card-body">
+                {% if dashboard.escalations and dashboard.escalations | length > 0 %}
+                <div class="list-group list-group-flush">
+                    {% for esc in dashboard.escalations %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-circle text-danger me-2"></i>
+                            <div>
+                                <strong>{{ esc.title }}</strong>
+                                <br><small class="text-muted">{{ esc.created_at }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox text-muted fa-3x mb-3"></i>
+                    <p class="text-muted mb-0">No escalations - all issues resolved</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 6: Verification Stats -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2 text-primary"></i>Verification Statistics</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard.verification_stats %}
+                <div class="row g-3">
+                    {% for status, count in dashboard.verification_stats.items() %}
+                    <div class="col-md-3 col-6">
+                        <div class="text-center p-3 border rounded">
+                            <h3 class="mb-1 
+                                {% if status == 'verified' %}text-success
+                                {% elif status == 'submitted' or status == 'pending' %}text-warning
+                                {% elif status == 'rejected' %}text-danger
+                                {% else %}text-secondary{% endif %}">{{ count }}</h3>
+                            <small class="text-muted text-capitalize">{{ status.replace('_', ' ') }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: Permissions -->
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="fas fa-key me-2 text-secondary"></i>Your Permissions (Admin)</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for permission in dashboard.permissions %}
+                    <span class="badge bg-primary">{{ permission }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

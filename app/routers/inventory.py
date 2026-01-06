@@ -807,3 +807,333 @@ async def get_low_stock_alerts(
     alerts = await service.get_low_stock_alerts(entity_id)
     
     return [LowStockAlertResponse(**a) for a in alerts]
+
+
+# ===========================================
+# STOCKTAKE & VALUATION
+# ===========================================
+
+from pydantic import BaseModel, Field
+from decimal import Decimal
+
+
+class StocktakeItemEntry(BaseModel):
+    """Entry for a single item in a stocktake."""
+    item_id: UUID
+    physical_count: int = Field(..., ge=0, description="Physical count from stocktake")
+    notes: Optional[str] = None
+
+
+class StocktakeRequest(BaseModel):
+    """Request schema for recording a stocktake."""
+    stocktake_date: date
+    reference: Optional[str] = Field(None, max_length=100, description="Stocktake reference number")
+    items: List[StocktakeItemEntry] = Field(..., min_length=1)
+    notes: Optional[str] = None
+
+
+class StocktakeItemResult(BaseModel):
+    """Result for a single item after stocktake processing."""
+    item_id: UUID
+    sku: str
+    name: str
+    system_quantity: int
+    physical_count: int
+    variance: int
+    variance_value: float
+    adjustment_applied: bool
+
+
+class StocktakeResponse(BaseModel):
+    """Response schema for stocktake completion."""
+    stocktake_id: UUID
+    stocktake_date: date
+    reference: Optional[str]
+    total_items: int
+    items_with_variance: int
+    total_variance_value: float
+    results: List[StocktakeItemResult]
+    message: str
+
+
+class InventoryValuationItem(BaseModel):
+    """Valuation details for a single inventory item."""
+    item_id: UUID
+    sku: str
+    name: str
+    category: Optional[str]
+    quantity_on_hand: int
+    unit_cost: float
+    total_value: float
+    last_received_date: Optional[date]
+    last_movement_date: Optional[date]
+
+
+class InventoryValuationResponse(BaseModel):
+    """Response schema for inventory valuation report."""
+    entity_id: UUID
+    valuation_date: date
+    valuation_method: str
+    total_items: int
+    total_quantity: int
+    total_value: float
+    items_by_category: dict
+    items: List[InventoryValuationItem]
+
+
+class InventoryCategoryResponse(BaseModel):
+    """Response schema for inventory category."""
+    name: str
+    item_count: int
+    total_quantity: int
+    total_value: float
+    low_stock_count: int
+
+
+@router.post(
+    "/{entity_id}/inventory/stocktake",
+    response_model=StocktakeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record stocktake results",
+)
+async def record_stocktake(
+    entity_id: UUID,
+    request: StocktakeRequest,
+    apply_adjustments: bool = Query(True, description="Automatically apply stock adjustments"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Record physical stocktake results and optionally apply adjustments.
+    
+    This endpoint:
+    - Compares physical counts against system quantities
+    - Calculates variances and their values
+    - Optionally applies stock adjustments to reconcile differences
+    - Creates an audit trail for all adjustments
+    
+    For 2026 compliance, all stock adjustments are tracked for
+    inventory write-off and tax deduction purposes.
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = InventoryService(db)
+    
+    results = []
+    items_with_variance = 0
+    total_variance_value = 0.0
+    
+    # Generate stocktake ID
+    import uuid
+    stocktake_id = uuid.uuid4()
+    
+    for entry in request.items:
+        item = await service.get_item_by_id(entry.item_id)
+        if not item or item.entity_id != entity_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Inventory item {entry.item_id} not found",
+            )
+        
+        system_qty = item.quantity_on_hand
+        variance = entry.physical_count - system_qty
+        variance_value = float(variance * item.unit_cost)
+        
+        adjustment_applied = False
+        
+        if variance != 0:
+            items_with_variance += 1
+            total_variance_value += variance_value
+            
+            if apply_adjustments:
+                try:
+                    await service.adjust_stock(
+                        item_id=entry.item_id,
+                        quantity_change=variance,
+                        reason=f"Stocktake adjustment - Ref: {request.reference or stocktake_id}",
+                        reference=request.reference or f"STOCKTAKE-{stocktake_id}",
+                        adjustment_date=request.stocktake_date,
+                        created_by=current_user.id,
+                    )
+                    adjustment_applied = True
+                except ValueError:
+                    adjustment_applied = False
+        
+        results.append(StocktakeItemResult(
+            item_id=item.id,
+            sku=item.sku,
+            name=item.name,
+            system_quantity=system_qty,
+            physical_count=entry.physical_count,
+            variance=variance,
+            variance_value=variance_value,
+            adjustment_applied=adjustment_applied,
+        ))
+    
+    return StocktakeResponse(
+        stocktake_id=stocktake_id,
+        stocktake_date=request.stocktake_date,
+        reference=request.reference,
+        total_items=len(request.items),
+        items_with_variance=items_with_variance,
+        total_variance_value=total_variance_value,
+        results=results,
+        message=f"Stocktake recorded. {items_with_variance} items had variances." + 
+                (f" Adjustments applied." if apply_adjustments else " Review and apply adjustments manually."),
+    )
+
+
+@router.get(
+    "/{entity_id}/inventory/valuation",
+    response_model=InventoryValuationResponse,
+    summary="Get inventory valuation report",
+)
+async def get_inventory_valuation(
+    entity_id: UUID,
+    valuation_date: Optional[date] = Query(None, description="Valuation as of date (defaults to today)"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    include_zero_stock: bool = Query(False, description="Include items with zero stock"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Get comprehensive inventory valuation report.
+    
+    Returns inventory valuation using weighted average cost method,
+    which is the standard for Nigeria tax compliance.
+    
+    The report includes:
+    - Individual item valuations
+    - Category totals
+    - Overall inventory value
+    - Last movement dates for aging analysis
+    """
+    from datetime import date as date_type
+    
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = InventoryService(db)
+    
+    effective_date = valuation_date or date_type.today()
+    
+    # Get all items
+    items, total, _ = await service.get_items_for_entity(
+        entity_id=entity_id,
+        category=category,
+        is_active=True,
+        skip=0,
+        limit=10000,  # Get all for valuation
+    )
+    
+    valuation_items = []
+    items_by_category = {}
+    total_quantity = 0
+    total_value = 0.0
+    
+    for item in items:
+        if not include_zero_stock and item.quantity_on_hand <= 0:
+            continue
+        
+        item_value = float(item.quantity_on_hand * item.unit_cost)
+        total_quantity += item.quantity_on_hand
+        total_value += item_value
+        
+        # Track by category
+        cat_name = item.category or "Uncategorized"
+        if cat_name not in items_by_category:
+            items_by_category[cat_name] = {
+                "item_count": 0,
+                "quantity": 0,
+                "value": 0.0,
+            }
+        items_by_category[cat_name]["item_count"] += 1
+        items_by_category[cat_name]["quantity"] += item.quantity_on_hand
+        items_by_category[cat_name]["value"] += item_value
+        
+        valuation_items.append(InventoryValuationItem(
+            item_id=item.id,
+            sku=item.sku,
+            name=item.name,
+            category=item.category,
+            quantity_on_hand=item.quantity_on_hand,
+            unit_cost=float(item.unit_cost),
+            total_value=item_value,
+            last_received_date=None,  # Would need to query movements
+            last_movement_date=None,
+        ))
+    
+    return InventoryValuationResponse(
+        entity_id=entity_id,
+        valuation_date=effective_date,
+        valuation_method="Weighted Average Cost",
+        total_items=len(valuation_items),
+        total_quantity=total_quantity,
+        total_value=total_value,
+        items_by_category=items_by_category,
+        items=valuation_items,
+    )
+
+
+@router.get(
+    "/{entity_id}/inventory/categories",
+    response_model=List[InventoryCategoryResponse],
+    summary="List inventory categories",
+)
+async def list_inventory_categories(
+    entity_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    List all inventory categories for the entity with statistics.
+    
+    Returns:
+    - Category name
+    - Number of items in category
+    - Total quantity across all items
+    - Total value of category
+    - Count of low stock items
+    """
+    await verify_entity_access(entity_id, current_user, db)
+    
+    service = InventoryService(db)
+    
+    # Get all items
+    items, _, _ = await service.get_items_for_entity(
+        entity_id=entity_id,
+        is_active=True,
+        skip=0,
+        limit=10000,
+    )
+    
+    categories = {}
+    
+    for item in items:
+        cat_name = item.category or "Uncategorized"
+        
+        if cat_name not in categories:
+            categories[cat_name] = {
+                "name": cat_name,
+                "item_count": 0,
+                "total_quantity": 0,
+                "total_value": 0.0,
+                "low_stock_count": 0,
+            }
+        
+        categories[cat_name]["item_count"] += 1
+        categories[cat_name]["total_quantity"] += item.quantity_on_hand
+        categories[cat_name]["total_value"] += float(item.quantity_on_hand * item.unit_cost)
+        
+        if item.is_low_stock:
+            categories[cat_name]["low_stock_count"] += 1
+    
+    return [
+        InventoryCategoryResponse(
+            name=cat["name"],
+            item_count=cat["item_count"],
+            total_quantity=cat["total_quantity"],
+            total_value=cat["total_value"],
+            low_stock_count=cat["low_stock_count"],
+        )
+        for cat in sorted(categories.values(), key=lambda x: x["name"])
+    ]

@@ -1,0 +1,80 @@
+<!-- External Accountant Dashboard Partial - Tax Filing & Reports Access -->
+<div class="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center">
+            <div class="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mr-4">
+                <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-gray-900">External Accountant Dashboard</h2>
+                <p class="text-sm text-gray-600">Tax filing access with WREN Checker role (NTAA 2025)</p>
+            </div>
+        </div>
+        <span class="bg-teal-100 text-teal-800 text-xs px-3 py-1 rounded-full font-medium">Level 4 Access</span>
+    </div>
+    
+    <!-- External Accountant Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <a href="/tax-2026" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-teal-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Tax Center</span>
+        </a>
+        <a href="/reports" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Reports</span>
+        </a>
+        <a href="/transactions?wren_verify=true" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Verify WREN</span>
+        </a>
+        <a href="/reports/export" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Export Data</span>
+        </a>
+    </div>
+</div>
+
+<!-- External Accountant: WREN Checker Role -->
+<div class="bg-white rounded-lg shadow p-6 mb-6 border-l-4 border-teal-500">
+    <div class="flex items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">WREN Verification (Checker)</h3>
+        <span class="ml-3 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Final Approval</span>
+    </div>
+    <p class="text-sm text-gray-600 mb-4">As an External Accountant, you serve as the <strong>Checker</strong> in the Maker-Checker SoD workflow. You can verify WREN status for expenses created by internal staff.</p>
+    <div class="flex space-x-4">
+        <a href="/transactions?wren_verify=true" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition text-sm">
+            Verify Pending Expenses
+        </a>
+        <a href="/transactions?wren_verified=true" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+            Verified History
+        </a>
+    </div>
+</div>
+
+<!-- External Accountant: Access Restrictions Notice -->
+<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+    <div class="flex items-start">
+        <svg class="w-5 h-5 text-gray-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+        </svg>
+        <div>
+            <h4 class="text-sm font-medium text-gray-800">Access Restrictions</h4>
+            <ul class="text-sm text-gray-600 mt-2 space-y-1">
+                <li>• <strong>No invoice creation/editing</strong> - View invoices only</li>
+                <li>• <strong>No payroll access</strong> - Privacy protected</li>
+                <li>• <strong>No NRS submission</strong> - File tax returns only</li>
+                <li>• <strong>No bank balance access</strong> - No fund movement</li>
+            </ul>
+        </div>
+    </div>
+</div>

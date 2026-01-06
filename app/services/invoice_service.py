@@ -723,3 +723,68 @@ class InvoiceService:
         summary["total_vat_collected"] = float(summary["total_vat_collected"])
         
         return summary
+    
+    # ===========================================
+    # NRS CANCELLATION (NTAA 2025 - 72-Hour Lock)
+    # ===========================================
+    
+    async def cancel_nrs_submission(
+        self,
+        invoice_id: uuid.UUID,
+        entity_id: uuid.UUID,
+        user_id: uuid.UUID,
+        reason: str,
+    ) -> Invoice:
+        """
+        Cancel an NRS submission during the 72-hour window.
+        
+        NTAA 2025 Compliance:
+        - Only allowed during the 72-hour buyer review window
+        - Only Owner can cancel (permission check done at router level)
+        - After window expires, Credit Note is required
+        
+        Args:
+            invoice_id: Invoice to cancel NRS for
+            entity_id: Entity ID for authorization
+            user_id: User ID (Owner) performing cancellation
+            reason: Cancellation reason (required)
+            
+        Returns:
+            Updated invoice
+            
+        Raises:
+            ValueError: If invoice not found or not cancellable
+        """
+        invoice = await self.get_invoice_by_id(invoice_id, entity_id)
+        
+        if not invoice:
+            raise ValueError("Invoice not found")
+        
+        if not invoice.is_nrs_locked:
+            raise ValueError("Invoice has not been submitted to NRS")
+        
+        # Check 72-hour window
+        if invoice.nrs_lock_expires_at:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+            if now > invoice.nrs_lock_expires_at:
+                raise ValueError(
+                    "72-hour window has expired. A Credit Note is required to modify this invoice."
+                )
+        
+        # Cancel the NRS submission
+        invoice.is_nrs_locked = False
+        invoice.nrs_cancelled_by_id = user_id
+        invoice.nrs_cancellation_reason = reason
+        invoice.status = InvoiceStatus.DRAFT  # Return to draft for correction
+        
+        # Add cancellation note
+        cancellation_note = f"\n\nNRS Submission Cancelled: {reason}\nCancelled by user ID: {user_id}"
+        invoice.notes = f"{invoice.notes or ''}{cancellation_note}".strip()
+        
+        invoice.updated_by = user_id
+        
+        await self.db.commit()
+        await self.db.refresh(invoice)
+        
+        return invoice

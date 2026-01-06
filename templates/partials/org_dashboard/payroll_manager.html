@@ -1,0 +1,104 @@
+<!-- Payroll Manager Dashboard Partial - Payroll Access -->
+<div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center">
+            <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mr-4">
+                <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-gray-900">Payroll Manager Dashboard</h2>
+                <p class="text-sm text-gray-600">Full payroll access with vendor management capabilities</p>
+            </div>
+        </div>
+        <span class="bg-orange-100 text-orange-800 text-xs px-3 py-1 rounded-full font-medium">Level 3 Access</span>
+    </div>
+    
+    <!-- Payroll Manager Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <a href="/payroll" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-orange-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Payroll</span>
+        </a>
+        <a href="/payroll/run" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Run Payroll</span>
+        </a>
+        <a href="/vendors" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Vendors</span>
+        </a>
+        <a href="/payroll/reports" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Payroll Reports</span>
+        </a>
+    </div>
+</div>
+
+<!-- Payroll Manager: PAYE Summary -->
+<div class="bg-white rounded-lg shadow p-6 mb-6 border-l-4 border-orange-500">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">PAYE Filing Status</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center p-4 bg-orange-50 rounded-lg">
+            <p class="text-2xl font-bold text-orange-600">10th</p>
+            <p class="text-xs text-gray-500">Filing Due Date</p>
+        </div>
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <p class="text-2xl font-bold text-gray-900" x-data x-text="$store.payroll?.total_employees || '—'"></p>
+            <p class="text-xs text-gray-500">Employees</p>
+        </div>
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <p class="text-2xl font-bold text-gray-900" x-data x-text="$store.payroll?.pending_runs || '—'"></p>
+            <p class="text-xs text-gray-500">Pending Runs</p>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-lg">
+            <p class="text-2xl font-bold text-green-600" x-data x-text="$store.payroll?.filed_this_month ? '✓' : '—'"></p>
+            <p class="text-xs text-gray-500">This Month</p>
+        </div>
+    </div>
+    <div class="mt-4 pt-4 border-t">
+        <p class="text-sm text-gray-600">
+            <strong>2026 PAYE Bands:</strong> Progressive rates from 7% (₦800K-₦1.6M) to 25% (above ₦40M). First ₦800K is tax-free.
+        </p>
+    </div>
+</div>
+
+<!-- Payroll Manager: Vendor WHT Tracking -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Vendor WHT Tracking</h3>
+        <a href="/vendors?wht_pending=true" class="text-sm text-orange-600 hover:text-orange-800">View Pending →</a>
+    </div>
+    <p class="text-sm text-gray-600 mb-4">Track Withholding Tax (5-10%) on vendor payments for FIRS compliance.</p>
+    <a href="/vendors/new" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition text-sm inline-block">
+        Add Vendor
+    </a>
+</div>
+
+<!-- Payroll Manager: Access Restrictions Notice -->
+<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+    <div class="flex items-start">
+        <svg class="w-5 h-5 text-gray-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+        </svg>
+        <div>
+            <h4 class="text-sm font-medium text-gray-800">Access Scope</h4>
+            <ul class="text-sm text-gray-600 mt-2 space-y-1">
+                <li>• Full payroll management access</li>
+                <li>• Vendor management for contractor payments</li>
+                <li>• <span class="text-red-600">No financial dashboard access</span></li>
+                <li>• <span class="text-red-600">No transaction/invoice access</span></li>
+            </ul>
+        </div>
+    </div>
+</div>

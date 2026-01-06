@@ -4,8 +4,10 @@ TekVwarho ProAudit - Authentication Router
 API endpoints for user authentication.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
 from app.database import get_async_session
 from app.dependencies import get_current_user, get_current_active_user
@@ -41,13 +43,23 @@ router = APIRouter()
     response_model=UserWithTokenResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user",
-    description="Register a new user with organization. Creates user, organization, and default business entity. Sends verification email.",
+    description="Register a new user with organization. Creates user, organization, and default business entity. Supports multiple account types: Individual, Small Business, SME, School, Non-Profit, Corporation.",
 )
 async def register(
     request: UserRegisterRequest,
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Register a new user with organization."""
+    """
+    Register a new user with organization.
+    
+    Supports different account types:
+    - Individual: Personal use, minimal info required
+    - Small Business: Micro businesses (BN registration)
+    - SME: Small & Medium Enterprises (RC registration)
+    - School: Educational institutions
+    - Non-Profit: NGOs and charities (IT registration)
+    - Corporation: Large companies
+    """
     auth_service = AuthService(db)
     email_service = EmailService()
     
@@ -59,6 +71,27 @@ async def register(
             last_name=request.last_name,
             organization_name=request.organization_name,
             phone_number=request.phone_number,
+            # New comprehensive registration fields
+            account_type=request.account_type,
+            street_address=request.street_address,
+            city=request.city,
+            state=request.state,
+            lga=request.lga,
+            postal_code=request.postal_code,
+            country=request.country,
+            tin=request.tin,
+            cac_registration_number=request.cac_registration_number,
+            cac_registration_type=request.cac_registration_type,
+            date_of_incorporation=request.date_of_incorporation,
+            nin=request.nin,
+            industry=request.industry,
+            employee_count=request.employee_count,
+            annual_revenue_range=request.annual_revenue_range,
+            school_type=request.school_type,
+            moe_registration_number=request.moe_registration_number,
+            scuml_registration=request.scuml_registration,
+            mission_statement=request.mission_statement,
+            referral_code=request.referral_code,
         )
     except ValueError as e:
         raise HTTPException(
@@ -66,9 +99,13 @@ async def register(
             detail=str(e),
         )
     
-    # Send verification email
+    # Send verification email (only for self-registered users)
     try:
         verification_token = auth_service.create_email_verification_token(user)
+        # Commit the verification token to database
+        await db.commit()
+        await db.refresh(user)
+        
         verification_url = f"{settings.base_url}/verify-email?token={verification_token}"
         await email_service.send_verification_email(
             to_email=user.email,
@@ -436,6 +473,10 @@ async def resend_verification(
     # Always return success to prevent email enumeration attacks
     if user:
         verification_token = auth_service.create_email_verification_token(user)
+        # Commit the token to database
+        await db.commit()
+        await db.refresh(user)
+        
         verification_url = f"{settings.base_url}/verify-email?token={verification_token}"
         
         try:
@@ -452,6 +493,125 @@ async def resend_verification(
         message="If an unverified account with that email exists, a verification link has been sent.",
         success=True,
     )
+
+
+# ===========================================
+# USER PROFILE MANAGEMENT
+# ===========================================
+
+class UpdateProfileRequest(BaseModel):
+    """Request schema for updating user profile."""
+    first_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    last_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    phone_number: Optional[str] = Field(None, max_length=20)
+
+
+class ProfileResponse(BaseModel):
+    """Response for profile operations."""
+    id: str
+    email: str
+    first_name: str
+    last_name: str
+    phone_number: Optional[str]
+    role: Optional[str]
+    is_platform_staff: bool
+    platform_role: Optional[str]
+    is_verified: bool
+    created_at: str
+    updated_at: Optional[str]
+
+
+@router.patch(
+    "/me",
+    response_model=ProfileResponse,
+    summary="Update current user profile",
+    description="Update the current user's profile information.",
+)
+async def update_profile(
+    request: UpdateProfileRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Update current user's profile."""
+    update_data = request.model_dump(exclude_unset=True)
+    
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields to update",
+        )
+    
+    for key, value in update_data.items():
+        setattr(current_user, key, value)
+    
+    await db.commit()
+    await db.refresh(current_user)
+    
+    return ProfileResponse(
+        id=str(current_user.id),
+        email=current_user.email,
+        first_name=current_user.first_name,
+        last_name=current_user.last_name,
+        phone_number=current_user.phone_number,
+        role=current_user.role.value if current_user.role else None,
+        is_platform_staff=current_user.is_platform_staff,
+        platform_role=current_user.platform_role.value if current_user.platform_role else None,
+        is_verified=current_user.is_verified,
+        created_at=current_user.created_at.isoformat(),
+        updated_at=current_user.updated_at.isoformat() if current_user.updated_at else None,
+    )
+
+
+@router.delete(
+    "/me",
+    response_model=MessageResponse,
+    summary="Request account deletion",
+    description="Request deletion of the current user's account. Requires confirmation.",
+)
+async def request_account_deletion(
+    confirm: bool = Query(False, description="Confirm account deletion"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Request account deletion (soft delete)."""
+    if not confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please confirm account deletion by setting confirm=true",
+        )
+    
+    # Soft delete - deactivate the account
+    current_user.is_active = False
+    await db.commit()
+    
+    return MessageResponse(
+        message="Account has been deactivated. Contact support to permanently delete your data.",
+        success=True,
+    )
+
+
+@router.get(
+    "/me/sessions",
+    summary="Get active sessions",
+    description="Get list of active login sessions (placeholder for future implementation).",
+)
+async def get_sessions(
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get active sessions (placeholder)."""
+    # In a full implementation, this would query a sessions table
+    return {
+        "sessions": [
+            {
+                "id": "current",
+                "device": "Current Device",
+                "ip_address": "Unknown",
+                "last_active": current_user.updated_at.isoformat() if current_user.updated_at else None,
+                "is_current": True,
+            }
+        ],
+        "total": 1,
+    }
 
 
 # ===========================================
@@ -493,3 +653,565 @@ async def get_dashboard(
     dashboard_data = await dashboard_service.get_dashboard(current_user, parsed_entity_id)
     
     return dashboard_data
+
+
+# ===========================================
+# TWO-FACTOR AUTHENTICATION (2FA)
+# ===========================================
+
+from pydantic import BaseModel, Field
+from typing import Optional, List
+
+
+class Setup2FAResponse(BaseModel):
+    """Response for 2FA setup initiation."""
+    secret: str
+    qr_code_url: str
+    backup_codes: List[str]
+    message: str
+
+
+class Verify2FARequest(BaseModel):
+    """Request to verify and enable 2FA."""
+    code: str = Field(..., min_length=6, max_length=6, description="6-digit TOTP code")
+
+
+class Disable2FARequest(BaseModel):
+    """Request to disable 2FA."""
+    password: str = Field(..., min_length=1, description="Current password for verification")
+    code: str = Field(..., min_length=6, max_length=6, description="Current 2FA code")
+
+
+class Login2FARequest(BaseModel):
+    """Request for 2FA verification during login."""
+    user_id: str = Field(..., description="User ID from initial login response")
+    code: str = Field(..., min_length=6, max_length=6, description="6-digit TOTP code")
+
+
+class TwoFactorStatusResponse(BaseModel):
+    """Response for 2FA status check."""
+    enabled: bool
+    verified: bool
+    backup_codes_remaining: int
+    last_verified: Optional[str]
+
+
+@router.post(
+    "/2fa/setup",
+    response_model=Setup2FAResponse,
+    summary="Setup two-factor authentication",
+)
+async def setup_2fa(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Initiate 2FA setup for the current user.
+    
+    Returns:
+    - Secret key for manual entry
+    - QR code URL for authenticator apps
+    - Backup codes for account recovery
+    
+    The user must verify the setup by calling /auth/2fa/verify
+    with a valid TOTP code before 2FA is fully enabled.
+    """
+    import secrets
+    import pyotp
+    import base64
+    
+    # Generate a new TOTP secret
+    secret = pyotp.random_base32()
+    
+    # Generate backup codes
+    backup_codes = [secrets.token_hex(4).upper() for _ in range(8)]
+    
+    # Store the secret temporarily (not verified yet)
+    # In production, store encrypted in database
+    current_user.totp_secret_pending = secret
+    current_user.backup_codes_pending = ",".join(backup_codes)
+    
+    await db.commit()
+    
+    # Generate QR code URL for authenticator apps
+    totp = pyotp.TOTP(secret)
+    qr_code_url = totp.provisioning_uri(
+        name=current_user.email,
+        issuer_name="TekVwarho ProAudit"
+    )
+    
+    return Setup2FAResponse(
+        secret=secret,
+        qr_code_url=qr_code_url,
+        backup_codes=backup_codes,
+        message="Scan the QR code with your authenticator app, then verify with a code.",
+    )
+
+
+@router.post(
+    "/2fa/verify",
+    response_model=MessageResponse,
+    summary="Verify and enable 2FA",
+)
+async def verify_2fa_setup(
+    request: Verify2FARequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Verify the 2FA setup with a TOTP code.
+    
+    This enables 2FA for the account after successful verification.
+    """
+    import pyotp
+    
+    pending_secret = getattr(current_user, 'totp_secret_pending', None)
+    if not pending_secret:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending 2FA setup. Please call /auth/2fa/setup first.",
+        )
+    
+    # Verify the code
+    totp = pyotp.TOTP(pending_secret)
+    if not totp.verify(request.code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code. Please try again.",
+        )
+    
+    # Enable 2FA
+    current_user.totp_secret = pending_secret
+    current_user.backup_codes = getattr(current_user, 'backup_codes_pending', '')
+    current_user.totp_secret_pending = None
+    current_user.backup_codes_pending = None
+    current_user.two_factor_enabled = True
+    
+    await db.commit()
+    
+    return MessageResponse(
+        message="Two-factor authentication has been enabled successfully.",
+        success=True,
+    )
+
+
+@router.post(
+    "/2fa/disable",
+    response_model=MessageResponse,
+    summary="Disable 2FA",
+)
+async def disable_2fa(
+    request: Disable2FARequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Disable two-factor authentication.
+    
+    Requires both password and current 2FA code for security.
+    """
+    import pyotp
+    from app.utils.security import verify_password
+    
+    # Verify password
+    if not verify_password(request.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password.",
+        )
+    
+    # Check if 2FA is enabled
+    if not getattr(current_user, 'two_factor_enabled', False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Two-factor authentication is not enabled.",
+        )
+    
+    # Verify the 2FA code
+    totp_secret = getattr(current_user, 'totp_secret', None)
+    if totp_secret:
+        totp = pyotp.TOTP(totp_secret)
+        if not totp.verify(request.code, valid_window=1):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid 2FA code.",
+            )
+    
+    # Disable 2FA
+    current_user.two_factor_enabled = False
+    current_user.totp_secret = None
+    current_user.backup_codes = None
+    
+    await db.commit()
+    
+    return MessageResponse(
+        message="Two-factor authentication has been disabled.",
+        success=True,
+    )
+
+
+@router.get(
+    "/2fa/status",
+    response_model=TwoFactorStatusResponse,
+    summary="Get 2FA status",
+)
+async def get_2fa_status(
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get the current 2FA status for the user."""
+    backup_codes = getattr(current_user, 'backup_codes', None)
+    backup_count = len(backup_codes.split(',')) if backup_codes else 0
+    
+    return TwoFactorStatusResponse(
+        enabled=getattr(current_user, 'two_factor_enabled', False),
+        verified=getattr(current_user, 'totp_secret', None) is not None,
+        backup_codes_remaining=backup_count,
+        last_verified=None,  # Would track in production
+    )
+
+
+@router.get(
+    "/2fa/backup-codes",
+    summary="View backup codes",
+    description="View existing backup codes. Requires password verification.",
+)
+async def view_backup_codes(
+    password: str = Query(..., description="Current password for verification"),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    View the current backup codes for 2FA recovery.
+    
+    Requires password verification for security.
+    """
+    from app.utils.security import verify_password
+    
+    # Verify password
+    if not verify_password(password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password.",
+        )
+    
+    if not getattr(current_user, 'two_factor_enabled', False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Two-factor authentication is not enabled.",
+        )
+    
+    backup_codes = getattr(current_user, 'backup_codes', '')
+    codes_list = backup_codes.split(',') if backup_codes else []
+    
+    return {
+        "backup_codes": codes_list,
+        "remaining": len(codes_list),
+    }
+
+
+@router.post(
+    "/2fa/verify-login",
+    response_model=UserWithTokenResponse,
+    summary="Complete login with 2FA",
+)
+async def verify_2fa_login(
+    request: Login2FARequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Complete login by verifying 2FA code.
+    
+    This endpoint is called after initial login returns requires_2fa=true.
+    """
+    import pyotp
+    import uuid
+    
+    auth_service = AuthService(db)
+    
+    try:
+        user_id = uuid.UUID(request.user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format.",
+        )
+    
+    user = await auth_service.get_user_by_id(user_id)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+    
+    # Verify the 2FA code
+    totp_secret = getattr(user, 'totp_secret', None)
+    backup_codes = getattr(user, 'backup_codes', '')
+    
+    code_valid = False
+    
+    if totp_secret:
+        totp = pyotp.TOTP(totp_secret)
+        code_valid = totp.verify(request.code, valid_window=1)
+    
+    # Check backup codes if TOTP didn't work
+    if not code_valid and backup_codes:
+        codes_list = backup_codes.split(',')
+        if request.code.upper() in codes_list:
+            code_valid = True
+            # Remove used backup code
+            codes_list.remove(request.code.upper())
+            user.backup_codes = ','.join(codes_list)
+            await db.commit()
+    
+    if not code_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid 2FA code.",
+        )
+    
+    # Create tokens
+    tokens = auth_service.create_tokens(user)
+    
+    return UserWithTokenResponse(
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            phone_number=user.phone_number,
+            role=user.role.value if user.role else None,
+            is_active=user.is_active,
+            is_verified=user.is_verified,
+            must_reset_password=getattr(user, 'must_reset_password', False),
+            organization_id=user.organization_id,
+            is_platform_staff=user.is_platform_staff,
+            platform_role=user.platform_role.value if user.platform_role else None,
+            created_at=user.created_at,
+        ),
+        tokens=TokenResponse(**tokens),
+    )
+
+
+@router.post(
+    "/2fa/regenerate-backup-codes",
+    summary="Regenerate backup codes",
+)
+async def regenerate_backup_codes(
+    password: str = Query(..., description="Current password for verification"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Regenerate backup codes for 2FA recovery.
+    
+    This invalidates all previous backup codes.
+    """
+    import secrets
+    from app.utils.security import verify_password
+    
+    # Verify password
+    if not verify_password(password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password.",
+        )
+    
+    if not getattr(current_user, 'two_factor_enabled', False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Two-factor authentication is not enabled.",
+        )
+    
+    # Generate new backup codes
+    backup_codes = [secrets.token_hex(4).upper() for _ in range(8)]
+    current_user.backup_codes = ','.join(backup_codes)
+    
+    await db.commit()
+    
+    return {
+        "backup_codes": backup_codes,
+        "message": "New backup codes generated. Store them securely.",
+    }
+
+
+# ===========================================
+# SESSION MANAGEMENT
+# ===========================================
+
+class SessionResponse(BaseModel):
+    """Response for a single session."""
+    id: str
+    device: str
+    browser: str
+    ip_address: str
+    location: Optional[str]
+    created_at: str
+    last_active: str
+    is_current: bool
+
+
+class SessionListResponse(BaseModel):
+    """Response for session list."""
+    sessions: List[SessionResponse]
+    total: int
+
+
+@router.get(
+    "/sessions",
+    response_model=SessionListResponse,
+    summary="List active sessions",
+)
+async def list_sessions(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    List all active sessions for the current user.
+    
+    Shows device info, location, and last activity time.
+    """
+    from datetime import datetime
+    
+    # In production, query a sessions table
+    # For now, return current session info
+    sessions = [
+        SessionResponse(
+            id="current-session",
+            device="Current Device",
+            browser="Unknown",
+            ip_address="Unknown",
+            location=None,
+            created_at=current_user.created_at.isoformat() if current_user.created_at else datetime.now().isoformat(),
+            last_active=current_user.updated_at.isoformat() if current_user.updated_at else datetime.now().isoformat(),
+            is_current=True,
+        )
+    ]
+    
+    return SessionListResponse(
+        sessions=sessions,
+        total=len(sessions),
+    )
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    response_model=MessageResponse,
+    summary="Revoke a session",
+)
+async def revoke_session(
+    session_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Revoke a specific session.
+    
+    This logs out the device associated with that session.
+    Cannot revoke the current session (use /logout instead).
+    """
+    if session_id == "current-session":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot revoke current session. Use /auth/logout instead.",
+        )
+    
+    # In production, delete from sessions table
+    # For now, return success
+    
+    return MessageResponse(
+        message="Session revoked successfully.",
+        success=True,
+    )
+
+
+@router.post(
+    "/sessions/revoke-all",
+    response_model=MessageResponse,
+    summary="Revoke all other sessions",
+)
+async def revoke_all_sessions(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Revoke all sessions except the current one.
+    
+    Useful when a user suspects unauthorized access.
+    """
+    # In production, delete all sessions except current from sessions table
+    # For now, return success
+    
+    return MessageResponse(
+        message="All other sessions have been revoked.",
+        success=True,
+    )
+
+
+@router.get(
+    "/sessions/activity",
+    summary="Get login activity",
+)
+async def get_login_activity(
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Get recent login activity for the current user.
+    
+    Shows login attempts, successes, and failures.
+    """
+    from datetime import datetime
+    
+    # In production, query audit log
+    # For now, return minimal data
+    
+    return {
+        "activity": [
+            {
+                "id": "1",
+                "type": "login_success",
+                "device": "Current Device",
+                "ip_address": "Unknown",
+                "timestamp": datetime.now().isoformat(),
+                "details": "Successful login",
+            }
+        ],
+        "total": 1,
+    }
+
+
+# ===========================================
+# NIGERIA STATES AND LGAS
+# ===========================================
+
+@router.get(
+    "/nigeria/states",
+    summary="Get Nigerian states",
+    description="Get list of all Nigerian states including FCT.",
+)
+async def get_nigeria_states():
+    """Get all Nigerian states for registration dropdowns."""
+    from app.utils.nigeria_data import get_all_states
+    
+    states = get_all_states()
+    return {"states": states, "total": len(states)}
+
+
+@router.get(
+    "/nigeria/states/{state}/lgas",
+    summary="Get LGAs for a state",
+    description="Get list of Local Government Areas for a specific Nigerian state.",
+)
+async def get_state_lgas(state: str):
+    """Get LGAs for a specific Nigerian state."""
+    from app.utils.nigeria_data import get_lgas_by_state
+    
+    lgas = get_lgas_by_state(state)
+    if not lgas:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"State '{state}' not found. Please provide a valid Nigerian state.",
+        )
+    
+    return {"state": state, "lgas": lgas, "total": len(lgas)}

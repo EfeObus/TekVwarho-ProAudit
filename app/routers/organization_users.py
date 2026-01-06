@@ -43,7 +43,7 @@ class InviteUserRequest(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     phone_number: Optional[str] = Field(None, max_length=20)
-    role: str = Field(..., description="User role: owner, admin, accountant, auditor, payroll_manager, inventory_manager, viewer")
+    role: str = Field(..., description="User role: owner, admin, accountant, external_accountant, auditor, payroll_manager, inventory_manager, viewer")
     entity_ids: Optional[List[uuid.UUID]] = Field(None, description="Optional list of entity IDs to grant access to")
 
 
@@ -117,6 +117,7 @@ def parse_user_role(role_str: str) -> UserRole:
         "owner": UserRole.OWNER,
         "admin": UserRole.ADMIN,
         "accountant": UserRole.ACCOUNTANT,
+        "external_accountant": UserRole.EXTERNAL_ACCOUNTANT,  # NTAA 2025: For outsourced accounting firms
         "auditor": UserRole.AUDITOR,
         "payroll_manager": UserRole.PAYROLL_MANAGER,
         "inventory_manager": UserRole.INVENTORY_MANAGER,
@@ -447,3 +448,410 @@ async def toggle_impersonation(
         return MessageResponse(message="Customer service can now access your account for troubleshooting")
     else:
         return MessageResponse(message="Customer service impersonation disabled")
+
+
+# ===========================================
+# ADDITIONAL USER MANAGEMENT ENDPOINTS
+# ===========================================
+
+@router.delete(
+    "/{org_id}/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete user",
+    description="Permanently delete a user from the organization. Requires MANAGE_USERS permission.",
+)
+async def delete_user(
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    permanent: bool = False,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_organization_permission([OrganizationPermission.MANAGE_USERS])),
+):
+    """
+    Delete a user from the organization.
+    
+    By default, this is a soft delete (deactivation).
+    Set permanent=true to permanently remove the user record.
+    
+    Note: Only org owners and admins can perform permanent deletions.
+    User's historical data (transactions, audit trail) is preserved.
+    """
+    if not current_user.is_platform_staff and current_user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete users in another organization",
+        )
+    
+    # Cannot delete yourself
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account",
+        )
+    
+    service = OrganizationUserService(db)
+    
+    try:
+        if permanent:
+            # Only owners can permanently delete
+            if current_user.role not in [UserRole.OWNER]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only organization owners can permanently delete users",
+                )
+            await service.permanently_delete_user(
+                requesting_user=current_user,
+                target_user_id=user_id,
+            )
+        else:
+            await service.deactivate_user(
+                requesting_user=current_user,
+                target_user_id=user_id,
+            )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    
+    return None
+
+
+class ForceResetPasswordRequest(BaseModel):
+    """Request for forcing password reset."""
+    send_email: bool = Field(True, description="Send password reset email to user")
+    generate_temp_password: bool = Field(False, description="Generate and return temporary password")
+
+
+class ForceResetPasswordResponse(BaseModel):
+    """Response for force password reset."""
+    message: str
+    temporary_password: Optional[str] = None
+    email_sent: bool
+
+
+@router.post(
+    "/{org_id}/users/{user_id}/force-reset-password",
+    response_model=ForceResetPasswordResponse,
+    summary="Force password reset",
+    description="Force a user to reset their password on next login.",
+)
+async def force_reset_password(
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    request: ForceResetPasswordRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_organization_permission([OrganizationPermission.MANAGE_USERS])),
+):
+    """
+    Force a user to reset their password.
+    
+    Options:
+    - Send password reset email
+    - Generate temporary password (for secure sharing)
+    - Mark account for password reset on next login
+    """
+    import secrets
+    
+    if not current_user.is_platform_staff and current_user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot manage users in another organization",
+        )
+    
+    service = OrganizationUserService(db)
+    
+    try:
+        target_user = await service.get_user_by_id(user_id)
+        
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        
+        if target_user.organization_id != org_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User does not belong to this organization",
+            )
+        
+        temp_password = None
+        email_sent = False
+        
+        # Mark user for forced password reset
+        target_user.must_reset_password = True
+        
+        if request.generate_temp_password:
+            # Generate temporary password
+            temp_password = secrets.token_urlsafe(12)
+            from app.utils.security import hash_password
+            target_user.hashed_password = hash_password(temp_password)
+        
+        if request.send_email:
+            from app.services.email_service import EmailService
+            from app.services.auth_service import AuthService
+            from app.config import settings
+            
+            auth_service = AuthService(db)
+            email_service = EmailService()
+            
+            reset_token = auth_service.create_password_reset_token(target_user)
+            reset_url = f"{settings.base_url}/reset-password?token={reset_token}"
+            
+            try:
+                await email_service.send_password_reset(
+                    to_email=target_user.email,
+                    user_name=target_user.first_name,
+                    reset_url=reset_url,
+                )
+                email_sent = True
+            except Exception:
+                pass
+        
+        await db.commit()
+        
+        return ForceResetPasswordResponse(
+            message="Password reset initiated. User will be prompted to change password on next login.",
+            temporary_password=temp_password,
+            email_sent=email_sent,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to initiate password reset: {str(e)}",
+        )
+
+
+class EntityAccessListItem(BaseModel):
+    """Entity access item for list response."""
+    entity_id: uuid.UUID
+    entity_name: str
+    can_read: bool
+    can_write: bool
+    can_delete: bool
+    granted_at: str
+    granted_by: Optional[str]
+
+
+class UserEntityAccessResponse(BaseModel):
+    """Response for user's entity access list."""
+    user_id: uuid.UUID
+    user_name: str
+    entities: List[EntityAccessListItem]
+    total: int
+
+
+@router.get(
+    "/{org_id}/users/{user_id}/entity-access",
+    response_model=UserEntityAccessResponse,
+    summary="Get user entity access",
+    description="Get all entity access permissions for a user.",
+)
+async def get_user_entity_access(
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_organization_permission([OrganizationPermission.MANAGE_USERS])),
+):
+    """Get all entities a user has access to."""
+    if not current_user.is_platform_staff and current_user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot view users in another organization",
+        )
+    
+    service = OrganizationUserService(db)
+    
+    try:
+        target_user = await service.get_user_by_id(user_id)
+        
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        
+        if target_user.organization_id != org_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User does not belong to this organization",
+            )
+        
+        # Get entity access list
+        entities = []
+        for access in target_user.entity_access:
+            entities.append(EntityAccessListItem(
+                entity_id=access.entity_id,
+                entity_name=access.entity.name if access.entity else "Unknown",
+                can_read=True,  # Read access is implicit if record exists
+                can_write=access.can_write,
+                can_delete=access.can_delete,
+                granted_at=access.created_at.isoformat() if hasattr(access, 'created_at') and access.created_at else "",
+                granted_by=None,  # Would need to track this
+            ))
+        
+        return UserEntityAccessResponse(
+            user_id=target_user.id,
+            user_name=f"{target_user.first_name} {target_user.last_name}",
+            entities=entities,
+            total=len(entities),
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to get entity access: {str(e)}",
+        )
+
+
+class GrantEntityAccessRequest(BaseModel):
+    """Request for granting entity access."""
+    entity_ids: List[uuid.UUID] = Field(..., min_length=1)
+    can_write: bool = True
+    can_delete: bool = False
+
+
+@router.post(
+    "/{org_id}/users/{user_id}/entity-access/grant",
+    response_model=MessageResponse,
+    summary="Grant entity access",
+    description="Grant access to multiple entities for a user.",
+)
+async def grant_entity_access(
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    request: GrantEntityAccessRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_organization_permission([OrganizationPermission.MANAGE_USERS])),
+):
+    """Grant access to multiple entities for a user."""
+    if not current_user.is_platform_staff and current_user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot manage users in another organization",
+        )
+    
+    service = OrganizationUserService(db)
+    
+    try:
+        granted_count = await service.grant_entity_access_bulk(
+            requesting_user=current_user,
+            target_user_id=user_id,
+            entity_ids=request.entity_ids,
+            can_write=request.can_write,
+            can_delete=request.can_delete,
+        )
+        
+        return MessageResponse(
+            message=f"Access granted to {granted_count} entities",
+        )
+        
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+class RevokeEntityAccessRequest(BaseModel):
+    """Request for revoking entity access."""
+    entity_ids: List[uuid.UUID] = Field(..., min_length=1)
+
+
+@router.post(
+    "/{org_id}/users/{user_id}/entity-access/revoke",
+    response_model=MessageResponse,
+    summary="Revoke entity access",
+    description="Revoke access to entities for a user.",
+)
+async def revoke_entity_access(
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    request: RevokeEntityAccessRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_organization_permission([OrganizationPermission.MANAGE_USERS])),
+):
+    """Revoke access to entities for a user."""
+    if not current_user.is_platform_staff and current_user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot manage users in another organization",
+        )
+    
+    service = OrganizationUserService(db)
+    
+    try:
+        revoked_count = await service.revoke_entity_access_bulk(
+            requesting_user=current_user,
+            target_user_id=user_id,
+            entity_ids=request.entity_ids,
+        )
+        
+        return MessageResponse(
+            message=f"Access revoked from {revoked_count} entities",
+        )
+        
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/{org_id}/users/{user_id}",
+    response_model=OrgUserResponse,
+    summary="Get user details",
+    description="Get detailed information about a specific user.",
+)
+async def get_user_details(
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_organization_permission([OrganizationPermission.MANAGE_USERS])),
+):
+    """Get details for a specific user."""
+    if not current_user.is_platform_staff and current_user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot view users in another organization",
+        )
+    
+    service = OrganizationUserService(db)
+    
+    user = await service.get_user_by_id(user_id)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    
+    if user.organization_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not belong to this organization",
+        )
+    
+    return user_to_response(user)

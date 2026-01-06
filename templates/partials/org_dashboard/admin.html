@@ -1,0 +1,80 @@
+<!-- Admin Dashboard Partial - Administrative Access -->
+<div class="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center">
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-gray-900">Admin Dashboard</h2>
+                <p class="text-sm text-gray-600">Administrative access to manage team, entities, and operations</p>
+            </div>
+        </div>
+        <span class="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium">Level 6 Access</span>
+    </div>
+    
+    <!-- Admin Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <a href="/settings/team" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Invite Users</span>
+        </a>
+        <a href="/entities/new" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">New Entity</span>
+        </a>
+        <a href="/invoices" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Invoices</span>
+        </a>
+        <a href="/tax-2026" class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition">
+            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            </svg>
+            <span class="text-sm font-medium text-gray-700">Tax Center</span>
+        </a>
+    </div>
+</div>
+
+<!-- Admin: Team Management Summary -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Team Management</h3>
+        <a href="/settings/team" class="text-sm text-blue-600 hover:text-blue-800">View All →</a>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" x-data>
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <p class="text-2xl font-bold text-gray-900" x-text="$store.team?.accountants || 0"></p>
+            <p class="text-xs text-gray-500">Accountants</p>
+        </div>
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <p class="text-2xl font-bold text-gray-900" x-text="$store.team?.auditors || 0"></p>
+            <p class="text-xs text-gray-500">Auditors</p>
+        </div>
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <p class="text-2xl font-bold text-gray-900" x-text="$store.team?.inventory_managers || 0"></p>
+            <p class="text-xs text-gray-500">Inventory Mgrs</p>
+        </div>
+        <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <p class="text-2xl font-bold text-gray-900" x-text="$store.team?.viewers || 0"></p>
+            <p class="text-xs text-gray-500">Viewers</p>
+        </div>
+    </div>
+</div>
+
+<!-- Admin: WREN Maker Role -->
+<div class="bg-white rounded-lg shadow p-6 mb-6 border-l-4 border-blue-500">
+    <h3 class="text-lg font-semibold text-gray-900 mb-2">WREN Categorization (Maker)</h3>
+    <p class="text-sm text-gray-600 mb-4">You can categorize expenses for WREN compliance. An Accountant or External Accountant will verify (Checker role).</p>
+    <a href="/transactions?wren_pending=true" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm inline-block">
+        Categorize Expenses
+    </a>
+</div>

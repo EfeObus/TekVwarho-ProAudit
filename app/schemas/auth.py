@@ -5,10 +5,23 @@ Pydantic schemas for authentication requests and responses.
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+
+
+# ===========================================
+# ACCOUNT TYPE DEFINITIONS
+# ===========================================
+
+AccountType = Literal["individual", "small_business", "sme", "school", "non_profit", "corporation"]
+SchoolType = Literal["primary", "secondary", "tertiary", "vocational", "other"]
+IndustryType = Literal[
+    "agriculture", "manufacturing", "retail", "wholesale", "technology", 
+    "healthcare", "education", "construction", "real_estate", "financial_services",
+    "hospitality", "transportation", "professional_services", "other"
+]
 
 
 # ===========================================
@@ -16,13 +29,77 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 # ===========================================
 
 class UserRegisterRequest(BaseModel):
-    """Schema for user registration request."""
+    """
+    Comprehensive schema for user registration request.
+    
+    Supports different account types:
+    - Individual: Personal use, minimal info required
+    - Small Business: Micro businesses (BN registration)
+    - SME: Small & Medium Enterprises (RC registration)
+    - School: Educational institutions
+    - Non-Profit: NGOs and charities (IT registration)
+    - Corporation: Large companies (RC registration + more details)
+    """
+    # ===== USER DETAILS (All account types) =====
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=100)
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     phone_number: Optional[str] = Field(None, max_length=20)
-    organization_name: str = Field(..., min_length=1, max_length=255)
+    
+    # ===== ACCOUNT TYPE =====
+    account_type: AccountType = Field(
+        default="individual",
+        description="Type of account: individual, small_business, sme, school, non_profit, corporation"
+    )
+    
+    # ===== ORGANIZATION/BUSINESS NAME =====
+    # For Individual: Optional (will use full name if not provided)
+    # For Others: Required
+    organization_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    
+    # ===== ADDRESS FIELDS (All except Individual) =====
+    street_address: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    lga: Optional[str] = Field(None, max_length=100, description="Local Government Area")
+    postal_code: Optional[str] = Field(None, max_length=20)
+    country: str = Field(default="Nigeria", max_length=100)
+    
+    # ===== NIGERIAN COMPLIANCE FIELDS =====
+    # TIN - Required for all business types
+    tin: Optional[str] = Field(None, max_length=20, description="Tax Identification Number")
+    
+    # CAC Registration - Type depends on organization type
+    # BN: Business Name (Small Business)
+    # RC: Registered Company (SME, Corporation)
+    # IT: Incorporated Trustees (Non-Profit)
+    cac_registration_number: Optional[str] = Field(None, max_length=50, description="CAC BN/RC/IT Number")
+    cac_registration_type: Optional[Literal["BN", "RC", "IT"]] = Field(None, description="CAC registration type")
+    date_of_incorporation: Optional[str] = Field(None, description="Date of incorporation (YYYY-MM-DD)")
+    
+    # NIN - For Individual accounts
+    nin: Optional[str] = Field(None, max_length=20, description="National Identification Number")
+    
+    # ===== BUSINESS-SPECIFIC FIELDS =====
+    industry: Optional[IndustryType] = Field(None, description="Industry/Sector")
+    employee_count: Optional[Literal["1-5", "6-20", "21-50", "51-100", "101-250", "251-500", "500+"]] = Field(
+        None, description="Number of employees"
+    )
+    annual_revenue_range: Optional[Literal[
+        "0-5m", "5m-25m", "25m-100m", "100m-500m", "500m-1b", "1b+"
+    ]] = Field(None, description="Annual revenue range in Naira")
+    
+    # ===== SCHOOL-SPECIFIC FIELDS =====
+    school_type: Optional[SchoolType] = Field(None, description="Type of school")
+    moe_registration_number: Optional[str] = Field(None, max_length=50, description="Ministry of Education registration")
+    
+    # ===== NON-PROFIT-SPECIFIC FIELDS =====
+    scuml_registration: Optional[str] = Field(None, max_length=50, description="SCUML registration number")
+    mission_statement: Optional[str] = Field(None, max_length=1000, description="Organization mission")
+    
+    # ===== REFERRAL =====
+    referral_code: Optional[str] = Field(None, max_length=20, description="Referral code if any")
     
     @field_validator('password')
     @classmethod
@@ -37,6 +114,54 @@ class UserRegisterRequest(BaseModel):
         if not any(c.isdigit() for c in v):
             raise ValueError('Password must contain at least one digit')
         return v
+    
+    @field_validator('tin')
+    @classmethod
+    def validate_tin(cls, v: Optional[str]) -> Optional[str]:
+        """Validate TIN format (Nigerian TIN is typically 10-14 digits)."""
+        if v:
+            v = v.replace("-", "").replace(" ", "")
+            if not v.isdigit() or len(v) < 10 or len(v) > 14:
+                raise ValueError('TIN must be 10-14 digits')
+        return v
+    
+    @field_validator('nin')
+    @classmethod
+    def validate_nin(cls, v: Optional[str]) -> Optional[str]:
+        """Validate NIN format (Nigerian NIN is 11 digits)."""
+        if v:
+            v = v.replace(" ", "")
+            if not v.isdigit() or len(v) != 11:
+                raise ValueError('NIN must be 11 digits')
+        return v
+    
+    @model_validator(mode='after')
+    def validate_account_type_requirements(self):
+        """Validate required fields based on account type."""
+        account_type = self.account_type
+        
+        # For Individual, organization_name is optional (will use full name)
+        if account_type == "individual":
+            if not self.organization_name:
+                self.organization_name = f"{self.first_name} {self.last_name}"
+        else:
+            # For all business types, organization_name is required
+            if not self.organization_name:
+                raise ValueError(f'Organization/Business name is required for {account_type} accounts')
+        
+        # Business types require address
+        if account_type in ["small_business", "sme", "school", "non_profit", "corporation"]:
+            if not self.state:
+                raise ValueError(f'State is required for {account_type} accounts')
+            if not self.city:
+                raise ValueError(f'City is required for {account_type} accounts')
+        
+        # School-specific validation
+        if account_type == "school":
+            if not self.school_type:
+                raise ValueError('School type is required for school accounts')
+        
+        return self
 
 
 class UserLoginRequest(BaseModel):

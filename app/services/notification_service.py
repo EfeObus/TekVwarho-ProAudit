@@ -128,9 +128,10 @@ class NotificationService:
     async def get_user_notifications(
         self,
         user_id: uuid.UUID,
-        unread_only: bool = False,
+        is_read: Optional[bool] = None,
         entity_id: Optional[uuid.UUID] = None,
         notification_type: Optional[NotificationType] = None,
+        priority: Optional[NotificationPriority] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[NotificationModel], int]:
@@ -146,14 +147,17 @@ class NotificationService:
         )
         
         # Apply filters
-        if unread_only:
-            query = query.where(NotificationModel.is_read == False)
+        if is_read is not None:
+            query = query.where(NotificationModel.is_read == is_read)
         
         if entity_id:
             query = query.where(NotificationModel.entity_id == entity_id)
         
         if notification_type:
             query = query.where(NotificationModel.notification_type == notification_type)
+        
+        if priority:
+            query = query.where(NotificationModel.priority == priority)
         
         # Exclude expired notifications
         query = query.where(
@@ -215,16 +219,24 @@ class NotificationService:
         logger.info(f"Notification {notification_id} marked as read")
         return True
     
-    async def mark_all_as_read(self, user_id: uuid.UUID) -> int:
+    async def mark_all_as_read(
+        self,
+        user_id: uuid.UUID,
+        entity_id: Optional[uuid.UUID] = None,
+    ) -> int:
         """Mark all notifications as read for a user."""
         now = datetime.utcnow()
         
-        result = await self.db.execute(
+        query = (
             update(NotificationModel)
             .where(NotificationModel.user_id == user_id)
             .where(NotificationModel.is_read == False)
-            .values(is_read=True, read_at=now)
         )
+        
+        if entity_id:
+            query = query.where(NotificationModel.entity_id == entity_id)
+        
+        result = await self.db.execute(query.values(is_read=True, read_at=now))
         
         await self.db.commit()
         
@@ -264,6 +276,58 @@ class NotificationService:
         count = result.rowcount
         logger.info(f"Deleted {count} old notifications")
         return count
+    
+    async def delete_read_notifications(self, user_id: uuid.UUID) -> int:
+        """Delete all read notifications for a user."""
+        result = await self.db.execute(
+            delete(NotificationModel)
+            .where(NotificationModel.user_id == user_id)
+            .where(NotificationModel.is_read == True)
+        )
+        
+        await self.db.commit()
+        return result.rowcount
+    
+    async def has_urgent_unread(self, user_id: uuid.UUID) -> bool:
+        """Check if user has any urgent unread notifications."""
+        result = await self.db.execute(
+            select(func.count(NotificationModel.id))
+            .where(NotificationModel.user_id == user_id)
+            .where(NotificationModel.is_read == False)
+            .where(NotificationModel.priority == NotificationPriority.URGENT)
+            .where(
+                (NotificationModel.expires_at == None) |
+                (NotificationModel.expires_at > datetime.utcnow())
+            )
+        )
+        return (result.scalar() or 0) > 0
+    
+    async def get_user_preferences(self, user_id: uuid.UUID) -> Dict[str, Any]:
+        """Get notification preferences for a user."""
+        # In a full implementation, this would query a user_preferences table
+        # For now, return default preferences
+        return {
+            "email_tax_reminders": True,
+            "email_invoice_updates": True,
+            "email_payment_received": True,
+            "email_low_stock_alerts": True,
+            "email_compliance_warnings": True,
+            "email_marketing": False,
+            "in_app_all": True,
+            "push_enabled": False,
+        }
+    
+    async def update_user_preferences(
+        self,
+        user_id: uuid.UUID,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Update notification preferences for a user."""
+        # In a full implementation, this would update a user_preferences table
+        # For now, merge with defaults and return
+        preferences = await self.get_user_preferences(user_id)
+        preferences.update(kwargs)
+        return preferences
     
     # ===========================================
     # CONVENIENCE METHODS FOR SPECIFIC NOTIFICATIONS

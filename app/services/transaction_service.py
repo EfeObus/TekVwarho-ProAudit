@@ -272,3 +272,40 @@ class TransactionService:
             "total_vat": float(row.vat),
             "total_wht": 0.0,
         }
+    
+    async def verify_wren_status(
+        self,
+        transaction: Transaction,
+        verifier_id: uuid.UUID,
+        wren_status: WRENStatus,
+        notes: Optional[str] = None,
+    ) -> Transaction:
+        """
+        Verify WREN status of a transaction (Maker-Checker SoD).
+        
+        NTAA 2025 Compliance:
+        - Records who verified (Checker) and when
+        - The service should be called after checking that Checker != Maker
+        
+        Args:
+            transaction: The transaction to verify
+            verifier_id: ID of the user verifying (Checker)
+            wren_status: The WREN status to set
+            notes: Optional notes for verification
+            
+        Returns:
+            Updated transaction
+        """
+        from datetime import datetime, timezone
+        
+        transaction.wren_status = wren_status
+        transaction.wren_verified_by_id = verifier_id
+        transaction.wren_verified_at = datetime.now(timezone.utc)
+        
+        if notes:
+            transaction.wren_notes = notes
+        
+        await self.db.commit()
+        await self.db.refresh(transaction)
+        
+        return transaction
