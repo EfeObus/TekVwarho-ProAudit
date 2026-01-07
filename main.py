@@ -394,6 +394,8 @@ from app.routers import (
     forensic_audit,
     # Enterprise Advanced Audit (Explainability, Replay, Confidence, Attestation, Export, Behavioral)
     advanced_audit,
+    # Advanced Audit System (Immutable Evidence, Reproducible Runs, Human-Readable Findings)
+    audit_system,
 )
 
 # View Routes (HTML pages)
@@ -470,6 +472,9 @@ app.include_router(forensic_audit.router, prefix="/api/v1/entities", tags=["Fore
 
 # Enterprise Advanced Audit (Explainability, Replay, Confidence, Attestation, Export, Behavioral Analytics)
 app.include_router(advanced_audit.router, prefix="/api/v1/entities", tags=["Advanced Audit"])
+
+# Advanced Audit System (Immutable Evidence, Reproducible Runs, Auditor Read-Only, Human-Readable Findings)
+app.include_router(audit_system.router, tags=["Audit System"])
 
 
 if __name__ == "__main__":

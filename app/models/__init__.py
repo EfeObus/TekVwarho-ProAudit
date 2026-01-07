@@ -21,6 +21,19 @@ from app.models.invoice import Invoice, InvoiceLineItem, InvoiceStatus
 from app.models.inventory import InventoryItem, StockMovement, StockWriteOff
 from app.models.tax import VATRecord, PAYERecord, TaxPeriod
 from app.models.audit import AuditLog
+from app.models.audit_system import (
+    AuditRun,
+    AuditRunStatus,
+    AuditRunType,
+    AuditFinding,
+    FindingRiskLevel,
+    FindingCategory,
+    AuditEvidence,
+    EvidenceType,
+    AuditorSession,
+    AuditorActionLog,
+    AuditorAction,
+)
 from app.models.tax_2026 import (
     VATRecoveryRecord,
     VATRecoveryType,
@@ -188,6 +201,18 @@ __all__ = [
     "PayrollSettings",
     # Audit
     "AuditLog",
+    # Advanced Audit System
+    "AuditRun",
+    "AuditRunStatus",
+    "AuditRunType",
+    "AuditFinding",
+    "FindingRiskLevel",
+    "FindingCategory",
+    "AuditEvidence",
+    "EvidenceType",
+    "AuditorSession",
+    "AuditorActionLog",
+    "AuditorAction",
     # Advanced Accounting (2026 Tax Reform)
     "AccountingDimension",
     "TransactionDimension",

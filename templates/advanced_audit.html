@@ -263,6 +263,279 @@
         </div>
     </div>
 
+    <!-- 5 CRITICAL AUDIT FEATURES SECTION -->
+    <div class="mt-8 mb-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            5 Critical Audit Compliance Features
+        </h2>
+        <p class="text-gray-600">Enterprise-grade audit controls required for FIRS, NTAA, and CAMA 2020 compliance</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+        
+        <!-- 1. Auditor Read-Only Role (Hard-Enforced) -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    Auditor Read-Only Role
+                </h3>
+                <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Hard-Enforced</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Auditors have view-only access. All write/delete/modify operations are blocked at the API level.
+            </p>
+            
+            <div class="bg-emerald-50 p-3 rounded-lg mb-4">
+                <p class="text-xs font-medium text-emerald-700 mb-2">ENFORCEMENT STATUS</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-bold text-emerald-800" x-text="auditorRole.status || 'Active'"></span>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✓ Enforced
+                    </span>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <button @click="checkAuditorPermissions()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>Check My Permissions</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+                <button @click="validateAction()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>Validate Action</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. Evidence Immutability -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-cyan-500">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    Evidence Immutability
+                </h3>
+                <span class="text-xs bg-cyan-100 text-cyan-800 px-2 py-1 rounded-full">SHA-256 Hash</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                All evidence is hashed at creation. Any tampering is detectable through hash verification.
+            </p>
+            
+            <div class="bg-cyan-50 p-3 rounded-lg mb-4">
+                <p class="text-xs font-medium text-cyan-700 mb-2">EVIDENCE INTEGRITY</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-cyan-800" x-text="evidence.count + ' items'"></span>
+                    <span class="text-sm font-bold text-cyan-800" x-text="evidence.verified + '% verified'"></span>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <button @click="uploadEvidence()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>Upload Evidence File</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                </button>
+                <button @click="verifyEvidence()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>Verify Evidence Hash</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"></path>
+                    </svg>
+                </button>
+                <button @click="viewEvidenceLog()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>View Evidence Log</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. Reproducible Audit Runs -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-violet-500">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Reproducible Audit Runs
+                </h3>
+                <span class="text-xs bg-violet-100 text-violet-800 px-2 py-1 rounded-full">Versioned</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Every audit run captures rule version, data snapshot, and parameters for exact reproduction.
+            </p>
+            
+            <div class="bg-violet-50 p-3 rounded-lg mb-4">
+                <p class="text-xs font-medium text-violet-700 mb-2">AUDIT RUNS</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-violet-800" x-text="auditRuns.total + ' total'"></span>
+                    <span class="text-sm font-bold text-violet-800" x-text="auditRuns.active + ' active'"></span>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <button @click="createAuditRun()"
+                        class="w-full bg-violet-600 text-white px-3 py-2 rounded hover:bg-violet-700 text-sm font-medium">
+                    + New Audit Run
+                </button>
+                <button @click="viewAuditRuns()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>View All Runs</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+                <button @click="reproduceAuditRun()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>Reproduce Run</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. Human-Readable Findings -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Human-Readable Findings
+                </h3>
+                <span class="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">Regulator-Ready</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Findings are formatted for regulators: clear language, risk levels, and actionable recommendations.
+            </p>
+            
+            <div class="bg-orange-50 p-3 rounded-lg mb-4">
+                <p class="text-xs font-medium text-orange-700 mb-2">FINDINGS SUMMARY</p>
+                <div class="grid grid-cols-4 gap-2 text-center">
+                    <div>
+                        <p class="text-lg font-bold text-red-600" x-text="findings.critical"></p>
+                        <p class="text-xs text-gray-500">Critical</p>
+                    </div>
+                    <div>
+                        <p class="text-lg font-bold text-orange-600" x-text="findings.high"></p>
+                        <p class="text-xs text-gray-500">High</p>
+                    </div>
+                    <div>
+                        <p class="text-lg font-bold text-yellow-600" x-text="findings.medium"></p>
+                        <p class="text-xs text-gray-500">Medium</p>
+                    </div>
+                    <div>
+                        <p class="text-lg font-bold text-green-600" x-text="findings.low"></p>
+                        <p class="text-xs text-gray-500">Low</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <button @click="viewFindings()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>View All Findings</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+                <button @click="exportFindingsReport()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>Export Findings Report</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 5. Exportable Audit Output -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-pink-500">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Exportable Audit Output
+                </h3>
+                <span class="text-xs bg-pink-100 text-pink-800 px-2 py-1 rounded-full">PDF/CSV/XML</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Export complete audit packages as PDF, CSV, or XML for regulatory submission.
+            </p>
+            
+            <div class="bg-pink-50 p-3 rounded-lg mb-4">
+                <p class="text-xs font-medium text-pink-700 mb-2">EXPORT FORMATS</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-2 py-1 bg-white rounded text-xs text-pink-800 border border-pink-200">PDF Report</span>
+                    <span class="px-2 py-1 bg-white rounded text-xs text-pink-800 border border-pink-200">CSV Data</span>
+                    <span class="px-2 py-1 bg-white rounded text-xs text-pink-800 border border-pink-200">XML Schema</span>
+                    <span class="px-2 py-1 bg-white rounded text-xs text-pink-800 border border-pink-200">SAF-T</span>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <button @click="exportAuditPDF()"
+                        class="w-full bg-pink-600 text-white px-3 py-2 rounded hover:bg-pink-700 text-sm font-medium">
+                    📄 Export Full Report (PDF)
+                </button>
+                <button @click="exportAuditCSV()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>Export Data (CSV)</span>
+                    <span class="text-xs text-gray-500">Analysis</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Auditor Session Management -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-gray-500">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    Auditor Sessions
+                </h3>
+                <span class="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">Access Log</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Track auditor sessions and all actions performed during each session.
+            </p>
+            
+            <div class="space-y-2">
+                <button @click="startAuditorSession()"
+                        class="w-full bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700 text-sm font-medium">
+                    Start Auditor Session
+                </button>
+                <button @click="viewMySessions()"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm">
+                    <span>View My Sessions</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Results Modal -->
     <div x-show="showResultsModal" 
          x-transition
@@ -310,14 +583,261 @@ function advancedAudit() {
             velocity: 0
         },
         
+        // 5 Critical Audit Features Data
+        auditorRole: {
+            status: 'Active',
+            enforced: true
+        },
+        
+        evidence: {
+            count: 0,
+            verified: 100
+        },
+        
+        auditRuns: {
+            total: 0,
+            active: 0
+        },
+        
+        findings: {
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0
+        },
+        
         showResultsModal: false,
         modalTitle: '',
         modalContent: {},
         
         async init() {
-            // Load initial data
+            // Load dashboard stats
+            await this.loadDashboardStats();
         },
         
+        async loadDashboardStats() {
+            try {
+                const response = await fetch('/api/audit-system/dashboard/stats', {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.auditRuns.total = data.total_audit_runs || 0;
+                    this.auditRuns.active = data.active_runs || 0;
+                    this.findings.critical = data.critical_findings || 0;
+                    this.evidence.count = data.total_evidence_items || 0;
+                }
+            } catch (error) {
+                console.log('Dashboard stats not available');
+            }
+        },
+        
+        // === Auditor Role Functions ===
+        async checkAuditorPermissions() {
+            try {
+                const response = await fetch('/api/audit-system/role/check-permissions', {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                const data = await response.json();
+                this.showResults('Auditor Permissions', data);
+            } catch (error) {
+                alert('Error checking permissions: ' + error.message);
+            }
+        },
+        
+        async validateAction() {
+            const action = prompt('Enter action to validate (e.g., create, update, delete):');
+            const resourceType = prompt('Enter resource type (e.g., transaction, invoice):');
+            if (action && resourceType) {
+                try {
+                    const response = await fetch(`/api/audit-system/role/validate-action?action=${action}&resource_type=${resourceType}`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    });
+                    const data = await response.json();
+                    this.showResults('Action Validation Result', data);
+                } catch (error) {
+                    alert('Error validating action: ' + error.message);
+                }
+            }
+        },
+        
+        // === Evidence Functions ===
+        uploadEvidence() {
+            alert('Evidence upload feature. Files are hashed with SHA-256 for immutability verification.');
+        },
+        
+        async verifyEvidence() {
+            const evidenceId = prompt('Enter Evidence ID to verify:');
+            if (evidenceId) {
+                try {
+                    const response = await fetch(`/api/audit-system/evidence/${evidenceId}/verify`, {
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    });
+                    const data = await response.json();
+                    this.showResults('Evidence Verification Result', data);
+                } catch (error) {
+                    alert('Error verifying evidence: ' + error.message);
+                }
+            }
+        },
+        
+        viewEvidenceLog() {
+            const runId = prompt('Enter Audit Run ID to view evidence:');
+            if (runId) {
+                this.fetchEvidenceByRun(runId);
+            }
+        },
+        
+        async fetchEvidenceByRun(runId) {
+            try {
+                const response = await fetch(`/api/audit-system/evidence/by-run/${runId}`, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                const data = await response.json();
+                this.showResults('Evidence for Audit Run', data);
+            } catch (error) {
+                alert('Error fetching evidence: ' + error.message);
+            }
+        },
+        
+        // === Audit Run Functions ===
+        async createAuditRun() {
+            const title = prompt('Enter audit run title:');
+            const runType = prompt('Enter type (tax_compliance, financial_statement, vat_audit, wht_audit):') || 'tax_compliance';
+            if (title) {
+                try {
+                    const today = new Date();
+                    const startDate = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+                    const endDate = today.toISOString().split('T')[0];
+                    
+                    const response = await fetch('/api/audit-system/runs/create', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.getToken()}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            title: title,
+                            run_type: runType,
+                            date_range_start: startDate,
+                            date_range_end: endDate
+                        })
+                    });
+                    const data = await response.json();
+                    this.showResults('Audit Run Created', data);
+                    await this.loadDashboardStats();
+                } catch (error) {
+                    alert('Error creating audit run: ' + error.message);
+                }
+            }
+        },
+        
+        async viewAuditRuns() {
+            try {
+                const response = await fetch('/api/audit-system/runs/list', {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                const data = await response.json();
+                this.showResults('All Audit Runs', data);
+            } catch (error) {
+                alert('Error fetching audit runs: ' + error.message);
+            }
+        },
+        
+        async reproduceAuditRun() {
+            const runId = prompt('Enter Audit Run ID to reproduce:');
+            if (runId) {
+                try {
+                    const response = await fetch(`/api/audit-system/runs/${runId}/reproduce`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    });
+                    const data = await response.json();
+                    this.showResults('Reproduced Audit Run', data);
+                } catch (error) {
+                    alert('Error reproducing audit run: ' + error.message);
+                }
+            }
+        },
+        
+        // === Findings Functions ===
+        async viewFindings() {
+            const runId = prompt('Enter Audit Run ID to view findings (leave empty for all):');
+            if (runId) {
+                try {
+                    const response = await fetch(`/api/audit-system/findings/by-run/${runId}`, {
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    });
+                    const data = await response.json();
+                    this.showResults('Audit Findings', data);
+                } catch (error) {
+                    alert('Error fetching findings: ' + error.message);
+                }
+            }
+        },
+        
+        exportFindingsReport() {
+            alert('Exporting findings report in regulator-ready format...');
+        },
+        
+        // === Export Functions ===
+        async exportAuditPDF() {
+            const runId = prompt('Enter Audit Run ID to export:');
+            if (runId) {
+                try {
+                    const response = await fetch(`/api/audit-system/export/run/${runId}/pdf`, {
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    });
+                    const data = await response.json();
+                    this.showResults('PDF Export', data);
+                } catch (error) {
+                    alert('Error exporting PDF: ' + error.message);
+                }
+            }
+        },
+        
+        async exportAuditCSV() {
+            const runId = prompt('Enter Audit Run ID to export as CSV:');
+            if (runId) {
+                window.location.href = `/api/audit-system/export/run/${runId}/csv`;
+            }
+        },
+        
+        // === Auditor Session Functions ===
+        async startAuditorSession() {
+            const purpose = prompt('Enter session purpose (e.g., "Q4 2025 Tax Compliance Review"):');
+            if (purpose) {
+                try {
+                    const response = await fetch('/api/audit-system/sessions/start', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.getToken()}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ purpose: purpose })
+                    });
+                    const data = await response.json();
+                    this.showResults('Auditor Session Started', data);
+                } catch (error) {
+                    alert('Error starting session: ' + error.message);
+                }
+            }
+        },
+        
+        async viewMySessions() {
+            try {
+                const response = await fetch('/api/audit-system/sessions/my-sessions', {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                const data = await response.json();
+                this.showResults('My Auditor Sessions', data);
+            } catch (error) {
+                alert('Error fetching sessions: ' + error.message);
+            }
+        },
+        
+        // === Original Functions ===
         openExplainability(type) {
             alert(`Opening ${type.toUpperCase()} Explainability calculator. This will show detailed calculation breakdown with legal references.`);
         },

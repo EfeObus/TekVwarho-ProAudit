@@ -34,6 +34,7 @@ Routers:
 - business_intelligence: BIK Automator, NIBSS Pension, Growth Radar, Inventory Management
 - forensic_audit: World-class forensic audit (Benford's Law, Z-score, NRS Gap Analysis, WORM)
 - advanced_audit: Enterprise audit (Explainability, Replay, Confidence Scoring, Attestation, Export, Behavioral)
+- audit_system: Advanced Audit System (Immutable Evidence, Reproducible Runs, Auditor Read-Only, Human-Readable Findings)
 """
 
 from app.routers import (
@@ -68,6 +69,7 @@ from app.routers import (
     business_intelligence,
     forensic_audit,
     advanced_audit,
+    audit_system,
 )
 
 __all__ = [
@@ -102,4 +104,5 @@ __all__ = [
     "business_intelligence",
     "forensic_audit",
     "advanced_audit",
+    "audit_system",
 ]
