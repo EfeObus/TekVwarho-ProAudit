@@ -61,6 +61,17 @@ from app.models.payroll import (
     PayItemCategory,
     BankName,
     PensionFundAdministrator,
+    # Loan Management
+    EmployeeLoan,
+    LoanRepayment,
+    LoanType,
+    LoanStatus,
+    # Leave Management
+    EmployeeLeave,
+    LeaveType,
+    LeaveStatus,
+    # Settings
+    PayrollSettings,
 )
 from app.models.advanced_accounting import (
     AccountingDimension,
@@ -164,6 +175,17 @@ __all__ = [
     "PayItemCategory",
     "BankName",
     "PensionFundAdministrator",
+    # Payroll - Loan Management
+    "EmployeeLoan",
+    "LoanRepayment",
+    "LoanType",
+    "LoanStatus",
+    # Payroll - Leave Management
+    "EmployeeLeave",
+    "LeaveType",
+    "LeaveStatus",
+    # Payroll - Settings
+    "PayrollSettings",
     # Audit
     "AuditLog",
     # Advanced Accounting (2026 Tax Reform)
