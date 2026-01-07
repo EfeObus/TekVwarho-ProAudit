@@ -112,7 +112,7 @@
                                     'bg-green-100 text-green-800': tx.wren_status === 'compliant',
                                     'bg-yellow-100 text-yellow-800': tx.wren_status === 'review_required',
                                     'bg-red-100 text-red-800': tx.wren_status === 'non_compliant'
-                                }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="tx.wren_status === 'compliant' ? '✓ Deductible' : tx.wren_status === 'review_required' ? '⚠ Review' : '✗ Non-Deductible'"></span>
+                                }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="tx.wren_status === 'compliant' ? 'OK Deductible' : tx.wren_status === 'review_required' ? 'Warning:  Review' : 'X Non-Deductible'"></span>
                             </template>
                             <template x-if="tx.transaction_type === 'income'">
                                 <span class="text-gray-400">—</span>
@@ -497,6 +497,7 @@ function transactionsPage() {
         async loadTransactions() {
             if (!this.entityId) {
                 console.warn('No entity selected');
+                window.location.href = '/select-entity?next=/transactions';
                 return;
             }
             const params = new URLSearchParams({

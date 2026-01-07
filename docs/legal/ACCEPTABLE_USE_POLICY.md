@@ -20,15 +20,15 @@ By using the Service, you agree to comply with this AUP. Violation may result in
 
 You may use TekVwarho ProAudit to:
 
-- ✅ Record legitimate business income and expenses
-- ✅ Generate invoices for actual business transactions
-- ✅ Submit compliant e-invoices to NRS
-- ✅ Calculate taxes in accordance with Nigerian law
-- ✅ Generate financial reports for your business
-- ✅ Manage your business inventory
-- ✅ Process payroll for your employees
-- ✅ Grant authorized access to your accountant or auditor
-- ✅ Export data for TaxPro Max filing
+- Record legitimate business income and expenses
+- Generate invoices for actual business transactions
+- Submit compliant e-invoices to NRS
+- Calculate taxes in accordance with Nigerian law
+- Generate financial reports for your business
+- Manage your business inventory
+- Process payroll for your employees
+- Grant authorized access to your accountant or auditor
+- Export data for TaxPro Max filing
 
 ### 2.2 Authorized Users
 

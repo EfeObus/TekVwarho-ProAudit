@@ -594,6 +594,7 @@ function fixedAssetsPage() {
                 const entityId = this.getEntityId();
                 if (!entityId) {
                     console.error('No entity ID found');
+                    window.location.href = '/select-entity?next=/fixed-assets';
                     return;
                 }
                 
@@ -805,6 +806,11 @@ function fixedAssetsPage() {
         },
         
         getEntityId() {
+            // Check localStorage first, then cookie
+            const fromStorage = localStorage.getItem('currentEntityId');
+            if (fromStorage && fromStorage !== 'null' && fromStorage !== 'undefined') {
+                return fromStorage;
+            }
             const cookie = document.cookie.split('; ').find(row => row.startsWith('entity_id='));
             return cookie ? cookie.split('=')[1] : null;
         },

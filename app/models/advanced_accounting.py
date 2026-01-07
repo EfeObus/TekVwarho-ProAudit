@@ -1,0 +1,675 @@
+"""
+Advanced Accounting Models for TekVwarho ProAudit
+Implements: Dimensional Accounting, 3-Way Matching, WHT Vault, Budget Management
+
+Nigerian Tax Reform 2026 Compliant
+"""
+
+from datetime import datetime, date
+from decimal import Decimal
+from enum import Enum
+from typing import Optional, List
+import uuid
+
+from sqlalchemy import (
+    Column, String, Text, Boolean, Integer, Float, Date, DateTime,
+    ForeignKey, Numeric, JSON, Enum as SQLEnum, Index, UniqueConstraint, CheckConstraint
+)
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.orm import relationship
+
+from app.models.base import BaseModel
+
+
+# =============================================================================
+# ENUMS
+# =============================================================================
+
+class DimensionType(str, Enum):
+    """Types of accounting dimensions for multi-dimensional reporting"""
+    DEPARTMENT = "department"
+    PROJECT = "project"
+    LOCATION = "location"
+    LGA = "lga"
+    STATE = "state"
+    SALES_CHANNEL = "sales_channel"
+    COST_CENTER = "cost_center"
+    PRODUCT_LINE = "product_line"
+    CUSTOM = "custom"
+
+
+class MatchingStatus(str, Enum):
+    """Status for 3-way matching (PO, GRN, Invoice)"""
+    PENDING = "pending"
+    PARTIAL_MATCH = "partial_match"
+    FULL_MATCH = "full_match"
+    MISMATCH = "mismatch"
+    DISPUTED = "disputed"
+    AUTO_APPROVED = "auto_approved"
+    MANUAL_OVERRIDE = "manual_override"
+
+
+class WHTCreditStatus(str, Enum):
+    """Status for WHT Credit Notes"""
+    PENDING = "pending"
+    RECEIVED = "received"
+    MATCHED = "matched"
+    DISPUTED = "disputed"
+    EXPIRED = "expired"
+    APPLIED = "applied"
+
+
+class ApprovalStatus(str, Enum):
+    """Status for M-of-N approval workflows"""
+    PENDING = "pending"
+    PARTIALLY_APPROVED = "partially_approved"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+
+
+class BudgetPeriodType(str, Enum):
+    """Budget period types"""
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    ANNUAL = "annual"
+
+
+# =============================================================================
+# DIMENSIONAL ACCOUNTING MODELS
+# =============================================================================
+
+class AccountingDimension(BaseModel):
+    """
+    Accounting Dimensions for multi-dimensional reporting
+    Allows tagging transactions with Department, Project, LGA, etc.
+    """
+    __tablename__ = "accounting_dimensions"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    
+    dimension_type = Column(SQLEnum(DimensionType), nullable=False)
+    code = Column(String(50), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("accounting_dimensions.id"), nullable=True)
+    
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    extra_data = Column(JSON, nullable=True)  # Additional dimension-specific data
+    
+    # Relationships
+    entity = relationship("BusinessEntity", back_populates="dimensions")
+    parent = relationship("AccountingDimension", remote_side="AccountingDimension.id")
+    
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'dimension_type', 'code', name='uq_dimension_entity_type_code'),
+        Index('ix_dimension_entity_type', 'entity_id', 'dimension_type'),
+    )
+
+
+class TransactionDimension(BaseModel):
+    """
+    Links transactions to accounting dimensions for multi-dimensional analysis
+    """
+    __tablename__ = "transaction_dimensions"
+    
+    transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False)
+    dimension_id = Column(UUID(as_uuid=True), ForeignKey("accounting_dimensions.id"), nullable=False)
+    
+    allocation_percentage = Column(Numeric(5, 2), default=100.00)  # For split allocations
+    allocated_amount = Column(Numeric(18, 2), nullable=True)
+    
+    __table_args__ = (
+        UniqueConstraint('transaction_id', 'dimension_id', name='uq_transaction_dimension'),
+        Index('ix_txn_dim_transaction', 'transaction_id'),
+        Index('ix_txn_dim_dimension', 'dimension_id'),
+    )
+
+
+# =============================================================================
+# 3-WAY MATCHING MODELS
+# =============================================================================
+
+class PurchaseOrder(BaseModel):
+    """
+    Purchase Order for 3-way matching
+    Links: PO -> GRN -> Invoice
+    """
+    __tablename__ = "purchase_orders"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    vendor_id = Column(UUID(as_uuid=True), ForeignKey("vendors.id"), nullable=False)
+    
+    po_number = Column(String(50), nullable=False)
+    po_date = Column(Date, nullable=False, default=date.today)
+    expected_delivery_date = Column(Date, nullable=True)
+    
+    subtotal = Column(Numeric(18, 2), nullable=False, default=0)
+    vat_amount = Column(Numeric(18, 2), nullable=False, default=0)
+    wht_amount = Column(Numeric(18, 2), nullable=False, default=0)
+    total_amount = Column(Numeric(18, 2), nullable=False, default=0)
+    
+    currency = Column(String(3), default="NGN")
+    terms_and_conditions = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    status = Column(String(20), default="draft")  # draft, sent, acknowledged, fulfilled, cancelled
+    matching_status = Column(SQLEnum(MatchingStatus), default=MatchingStatus.PENDING)
+    
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    entity = relationship("BusinessEntity")
+    vendor = relationship("Vendor")
+    items = relationship("PurchaseOrderItem", back_populates="purchase_order", cascade="all, delete-orphan")
+    grns = relationship("GoodsReceivedNote", back_populates="purchase_order")
+    
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'po_number', name='uq_po_entity_number'),
+        Index('ix_po_vendor', 'vendor_id'),
+        Index('ix_po_status', 'status'),
+    )
+
+
+class PurchaseOrderItem(BaseModel):
+    """Individual line items in a Purchase Order"""
+    __tablename__ = "purchase_order_items"
+    
+    purchase_order_id = Column(UUID(as_uuid=True), ForeignKey("purchase_orders.id", ondelete="CASCADE"), nullable=False)
+    inventory_item_id = Column(UUID(as_uuid=True), ForeignKey("inventory_items.id"), nullable=True)
+    
+    item_code = Column(String(50), nullable=True)
+    description = Column(Text, nullable=False)
+    quantity = Column(Numeric(18, 4), nullable=False)
+    unit_price = Column(Numeric(18, 4), nullable=False)
+    unit_of_measure = Column(String(20), default="unit")
+    
+    subtotal = Column(Numeric(18, 2), nullable=False)
+    vat_rate = Column(Numeric(5, 2), default=7.50)  # 2026 VAT rate
+    vat_amount = Column(Numeric(18, 2), default=0)
+    total = Column(Numeric(18, 2), nullable=False)
+    
+    received_quantity = Column(Numeric(18, 4), default=0)  # Updated by GRN
+    invoiced_quantity = Column(Numeric(18, 4), default=0)  # Updated by Invoice matching
+    
+    purchase_order = relationship("PurchaseOrder", back_populates="items")
+
+
+class GoodsReceivedNote(BaseModel):
+    """
+    Goods Received Note (GRN) for 3-way matching
+    """
+    __tablename__ = "goods_received_notes"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    purchase_order_id = Column(UUID(as_uuid=True), ForeignKey("purchase_orders.id"), nullable=False)
+    
+    grn_number = Column(String(50), nullable=False)
+    received_date = Column(Date, nullable=False, default=date.today)
+    
+    delivery_note_number = Column(String(100), nullable=True)
+    received_by = Column(String(255), nullable=True)
+    warehouse_location = Column(String(255), nullable=True)
+    
+    notes = Column(Text, nullable=True)
+    status = Column(String(20), default="draft")  # draft, confirmed, partial, complete
+    
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    # Relationships
+    purchase_order = relationship("PurchaseOrder", back_populates="grns")
+    items = relationship("GoodsReceivedNoteItem", back_populates="grn", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'grn_number', name='uq_grn_entity_number'),
+    )
+
+
+class GoodsReceivedNoteItem(BaseModel):
+    """Individual line items in a GRN"""
+    __tablename__ = "goods_received_note_items"
+    
+    grn_id = Column(UUID(as_uuid=True), ForeignKey("goods_received_notes.id", ondelete="CASCADE"), nullable=False)
+    po_item_id = Column(UUID(as_uuid=True), ForeignKey("purchase_order_items.id"), nullable=False)
+    
+    quantity_received = Column(Numeric(18, 4), nullable=False)
+    quantity_rejected = Column(Numeric(18, 4), default=0)
+    rejection_reason = Column(Text, nullable=True)
+    
+    batch_number = Column(String(100), nullable=True)
+    serial_numbers = Column(ARRAY(String), nullable=True)
+    expiry_date = Column(Date, nullable=True)
+    
+    inspection_notes = Column(Text, nullable=True)
+    
+    grn = relationship("GoodsReceivedNote", back_populates="items")
+
+
+class ThreeWayMatch(BaseModel):
+    """
+    3-Way Matching Record linking PO, GRN, and Invoice
+    Enables automatic payment authorization when all three match
+    """
+    __tablename__ = "three_way_matches"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    
+    purchase_order_id = Column(UUID(as_uuid=True), ForeignKey("purchase_orders.id"), nullable=False)
+    grn_id = Column(UUID(as_uuid=True), ForeignKey("goods_received_notes.id"), nullable=True)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id"), nullable=True)
+    
+    status = Column(SQLEnum(MatchingStatus), default=MatchingStatus.PENDING)
+    
+    # Matching details
+    po_amount = Column(Numeric(18, 2), nullable=False)
+    grn_amount = Column(Numeric(18, 2), nullable=True)
+    invoice_amount = Column(Numeric(18, 2), nullable=True)
+    
+    quantity_variance = Column(Numeric(18, 4), default=0)
+    price_variance = Column(Numeric(18, 2), default=0)
+    variance_percentage = Column(Numeric(5, 2), default=0)
+    
+    # Tolerance settings
+    price_tolerance = Column(Numeric(5, 2), default=2.00)  # 2% default tolerance
+    quantity_tolerance = Column(Numeric(5, 2), default=5.00)  # 5% default tolerance
+    
+    auto_approved = Column(Boolean, default=False)
+    auto_approved_at = Column(DateTime, nullable=True)
+    
+    manual_override = Column(Boolean, default=False)
+    override_reason = Column(Text, nullable=True)
+    override_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    override_at = Column(DateTime, nullable=True)
+    
+    # Payment authorization
+    payment_authorized = Column(Boolean, default=False)
+    payment_authorized_at = Column(DateTime, nullable=True)
+    payment_due_date = Column(Date, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_3way_entity_status', 'entity_id', 'status'),
+    )
+
+
+# =============================================================================
+# WHT CREDIT NOTE VAULT
+# =============================================================================
+
+class WHTCreditNote(BaseModel):
+    """
+    WHT Credit Note Vault
+    Tracks Withholding Tax credit notes and matches against receivables
+    """
+    __tablename__ = "wht_credit_notes"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    
+    # Credit note details
+    credit_note_number = Column(String(100), nullable=False)
+    issue_date = Column(Date, nullable=False)
+    expiry_date = Column(Date, nullable=True)  # WHT credits expire after 6 years
+    
+    # Issuer (client who withheld tax)
+    issuer_name = Column(String(255), nullable=False)
+    issuer_tin = Column(String(20), nullable=False)
+    issuer_address = Column(Text, nullable=True)
+    
+    # Amounts
+    gross_amount = Column(Numeric(18, 2), nullable=False)  # Original invoice amount
+    wht_rate = Column(Numeric(5, 2), nullable=False)  # WHT rate applied
+    wht_amount = Column(Numeric(18, 2), nullable=False)  # WHT deducted
+    
+    # Classification
+    wht_type = Column(String(50), nullable=False)  # professional, contract, rent, dividend, etc.
+    tax_year = Column(Integer, nullable=False)
+    
+    # Status tracking
+    status = Column(SQLEnum(WHTCreditStatus), default=WHTCreditStatus.PENDING)
+    
+    # Matching
+    matched_invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id"), nullable=True)
+    matched_transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=True)
+    matched_at = Column(DateTime, nullable=True)
+    matched_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    
+    # Application to tax liability
+    applied_amount = Column(Numeric(18, 2), default=0)
+    applied_to_period = Column(String(20), nullable=True)  # e.g., "2026-Q1"
+    applied_at = Column(DateTime, nullable=True)
+    
+    # Document storage
+    document_url = Column(String(500), nullable=True)
+    document_verified = Column(Boolean, default=False)
+    
+    notes = Column(Text, nullable=True)
+    
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'credit_note_number', 'issuer_tin', name='uq_wht_credit_note'),
+        Index('ix_wht_entity_status', 'entity_id', 'status'),
+        Index('ix_wht_issuer_tin', 'issuer_tin'),
+    )
+
+
+# =============================================================================
+# BUDGET MANAGEMENT
+# =============================================================================
+
+class Budget(BaseModel):
+    """
+    Budget definition for Budget vs Actual analysis
+    """
+    __tablename__ = "budgets"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    fiscal_year = Column(Integer, nullable=False)
+    period_type = Column(SQLEnum(BudgetPeriodType), default=BudgetPeriodType.MONTHLY)
+    
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    
+    total_revenue_budget = Column(Numeric(18, 2), default=0)
+    total_expense_budget = Column(Numeric(18, 2), default=0)
+    total_capex_budget = Column(Numeric(18, 2), default=0)
+    
+    status = Column(String(20), default="draft")  # draft, approved, active, closed
+    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    # Relationships
+    line_items = relationship("BudgetLineItem", back_populates="budget", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'fiscal_year', 'name', name='uq_budget_entity_year_name'),
+    )
+
+
+class BudgetLineItem(BaseModel):
+    """
+    Individual budget line items by category/account
+    """
+    __tablename__ = "budget_line_items"
+    
+    budget_id = Column(UUID(as_uuid=True), ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True)
+    dimension_id = Column(UUID(as_uuid=True), ForeignKey("accounting_dimensions.id"), nullable=True)
+    
+    account_code = Column(String(50), nullable=True)
+    account_name = Column(String(255), nullable=False)
+    line_type = Column(String(20), nullable=False)  # revenue, expense, capex
+    
+    # Monthly allocations (for monthly budgets)
+    jan_amount = Column(Numeric(18, 2), default=0)
+    feb_amount = Column(Numeric(18, 2), default=0)
+    mar_amount = Column(Numeric(18, 2), default=0)
+    apr_amount = Column(Numeric(18, 2), default=0)
+    may_amount = Column(Numeric(18, 2), default=0)
+    jun_amount = Column(Numeric(18, 2), default=0)
+    jul_amount = Column(Numeric(18, 2), default=0)
+    aug_amount = Column(Numeric(18, 2), default=0)
+    sep_amount = Column(Numeric(18, 2), default=0)
+    oct_amount = Column(Numeric(18, 2), default=0)
+    nov_amount = Column(Numeric(18, 2), default=0)
+    dec_amount = Column(Numeric(18, 2), default=0)
+    
+    total_budget = Column(Numeric(18, 2), default=0)
+    
+    notes = Column(Text, nullable=True)
+    
+    budget = relationship("Budget", back_populates="line_items")
+    
+    __table_args__ = (
+        Index('ix_budget_item_budget', 'budget_id'),
+    )
+
+
+# =============================================================================
+# M-OF-N APPROVAL WORKFLOWS
+# =============================================================================
+
+class ApprovalWorkflow(BaseModel):
+    """
+    Configurable M-of-N approval workflow definitions
+    """
+    __tablename__ = "approval_workflows"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # What triggers this workflow
+    trigger_type = Column(String(50), nullable=False)  # payment, purchase_order, journal_entry, etc.
+    trigger_condition = Column(JSON, nullable=True)  # e.g., {"amount_gte": 1000000}
+    
+    # M-of-N configuration
+    required_approvals = Column(Integer, nullable=False, default=1)  # M
+    total_approvers = Column(Integer, nullable=False, default=1)  # N
+    
+    # Timeout
+    approval_timeout_hours = Column(Integer, default=72)
+    
+    is_active = Column(Boolean, default=True)
+    priority = Column(Integer, default=0)  # Higher priority workflows evaluated first
+    
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    # Relationships
+    approvers = relationship("ApprovalWorkflowApprover", back_populates="workflow", cascade="all, delete-orphan")
+
+
+class ApprovalWorkflowApprover(BaseModel):
+    """
+    Approvers assigned to a workflow
+    """
+    __tablename__ = "approval_workflow_approvers"
+    
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("approval_workflows.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    approver_level = Column(Integer, default=1)  # For sequential approvals
+    can_delegate = Column(Boolean, default=False)
+    
+    workflow = relationship("ApprovalWorkflow", back_populates="approvers")
+
+
+class ApprovalRequest(BaseModel):
+    """
+    Individual approval requests created when workflow is triggered
+    """
+    __tablename__ = "approval_requests"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("approval_workflows.id"), nullable=False)
+    
+    # What needs approval
+    resource_type = Column(String(50), nullable=False)  # payment, purchase_order, etc.
+    resource_id = Column(UUID(as_uuid=True), nullable=False)
+    resource_data = Column(JSON, nullable=True)  # Snapshot of resource at request time
+    
+    # Request details
+    requested_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    
+    status = Column(SQLEnum(ApprovalStatus), default=ApprovalStatus.PENDING)
+    
+    required_approvals = Column(Integer, nullable=False)
+    current_approvals = Column(Integer, default=0)
+    current_rejections = Column(Integer, default=0)
+    
+    expires_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    
+    notes = Column(Text, nullable=True)
+    
+    # Relationships
+    decisions = relationship("ApprovalDecision", back_populates="request", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('ix_approval_request_resource', 'resource_type', 'resource_id'),
+        Index('ix_approval_request_status', 'status'),
+    )
+
+
+class ApprovalDecision(BaseModel):
+    """
+    Individual approval/rejection decisions
+    """
+    __tablename__ = "approval_decisions"
+    
+    request_id = Column(UUID(as_uuid=True), ForeignKey("approval_requests.id", ondelete="CASCADE"), nullable=False)
+    approver_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    decision = Column(String(20), nullable=False)  # approved, rejected
+    decided_at = Column(DateTime, default=datetime.utcnow)
+    
+    comments = Column(Text, nullable=True)
+    
+    # Digital signature (for audit purposes)
+    signature_hash = Column(String(256), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    
+    request = relationship("ApprovalRequest", back_populates="decisions")
+    
+    __table_args__ = (
+        UniqueConstraint('request_id', 'approver_id', name='uq_approval_decision_request_approver'),
+    )
+
+
+# =============================================================================
+# IMMUTABLE LEDGER (HASH CHAIN)
+# =============================================================================
+
+class LedgerEntry(BaseModel):
+    """
+    Immutable ledger entries with hash chain for audit integrity
+    Every financial transaction creates an entry here that cannot be modified
+    """
+    __tablename__ = "ledger_entries"
+    
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False, index=True)
+    
+    # Sequence number for ordering
+    sequence_number = Column(Integer, nullable=False)
+    
+    # Entry details
+    entry_type = Column(String(50), nullable=False)  # transaction, adjustment, opening_balance, etc.
+    source_type = Column(String(50), nullable=False)  # invoice, payment, journal, etc.
+    source_id = Column(UUID(as_uuid=True), nullable=False)
+    
+    # Financial data
+    account_code = Column(String(50), nullable=True)
+    debit_amount = Column(Numeric(18, 2), default=0)
+    credit_amount = Column(Numeric(18, 2), default=0)
+    balance = Column(Numeric(18, 2), nullable=True)
+    
+    currency = Column(String(3), default="NGN")
+    
+    # Entry metadata
+    entry_date = Column(Date, nullable=False)
+    description = Column(Text, nullable=True)
+    reference = Column(String(100), nullable=True)
+    
+    # User tracking
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    # Hash chain for immutability
+    previous_hash = Column(String(256), nullable=True)  # Hash of previous entry
+    entry_hash = Column(String(256), nullable=False)  # Hash of this entry
+    
+    # Verification
+    is_verified = Column(Boolean, default=False)
+    verified_at = Column(DateTime, nullable=True)
+    
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'sequence_number', name='uq_ledger_entity_sequence'),
+        Index('ix_ledger_entry_date', 'entry_date'),
+        Index('ix_ledger_source', 'source_type', 'source_id'),
+    )
+
+
+# =============================================================================
+# CONSOLIDATION (MULTI-ENTITY)
+# =============================================================================
+
+class EntityGroup(BaseModel):
+    """
+    Parent-subsidiary relationships for consolidation
+    """
+    __tablename__ = "entity_groups"
+    
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    parent_entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False)
+    consolidation_currency = Column(String(3), default="NGN")
+    
+    fiscal_year_end_month = Column(Integer, default=12)  # December
+    
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    members = relationship("EntityGroupMember", back_populates="group", cascade="all, delete-orphan")
+
+
+class EntityGroupMember(BaseModel):
+    """
+    Members of an entity group for consolidation
+    """
+    __tablename__ = "entity_group_members"
+    
+    group_id = Column(UUID(as_uuid=True), ForeignKey("entity_groups.id", ondelete="CASCADE"), nullable=False)
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False)
+    
+    ownership_percentage = Column(Numeric(5, 2), default=100.00)
+    consolidation_method = Column(String(20), default="full")  # full, proportional, equity
+    
+    is_parent = Column(Boolean, default=False)
+    
+    group = relationship("EntityGroup", back_populates="members")
+    
+    __table_args__ = (
+        UniqueConstraint('group_id', 'entity_id', name='uq_group_member'),
+    )
+
+
+class IntercompanyTransaction(BaseModel):
+    """
+    Tracks inter-company transactions for elimination during consolidation
+    """
+    __tablename__ = "intercompany_transactions"
+    
+    group_id = Column(UUID(as_uuid=True), ForeignKey("entity_groups.id"), nullable=False)
+    
+    from_entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False)
+    to_entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False)
+    
+    transaction_date = Column(Date, nullable=False)
+    transaction_type = Column(String(50), nullable=False)  # sale, purchase, loan, dividend, etc.
+    
+    amount = Column(Numeric(18, 2), nullable=False)
+    currency = Column(String(3), default="NGN")
+    
+    # Matching
+    from_transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=True)
+    to_transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=True)
+    
+    is_eliminated = Column(Boolean, default=False)
+    elimination_date = Column(Date, nullable=True)
+    
+    notes = Column(Text, nullable=True)
+    
+    __table_args__ = (
+        Index('ix_interco_group', 'group_id'),
+        Index('ix_interco_entities', 'from_entity_id', 'to_entity_id'),
+    )

@@ -13,7 +13,7 @@ This module provides dependency injection for:
 import uuid
 from typing import List, Optional, Union
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -126,6 +126,67 @@ async def get_current_verified_user(
             detail="Email not verified",
         )
     return current_user
+
+
+async def get_current_entity_id(
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+) -> uuid.UUID:
+    """
+    Get the current entity ID from cookie or user's first accessible entity.
+    
+    For API endpoints, retrieves entity_id from:
+    1. Cookie (if set by UI entity selection)
+    2. User's first accessible entity (fallback)
+    
+    Args:
+        request: FastAPI request object (for cookie access)
+        current_user: Authenticated user
+        db: Database session
+        
+    Returns:
+        uuid.UUID of the current entity
+        
+    Raises:
+        HTTPException: 400 if no entity selected or accessible
+    """
+    from app.models.entity import BusinessEntity
+    
+    # Try to get from cookie first
+    entity_id_str = request.cookies.get("entity_id")
+    if entity_id_str:
+        try:
+            entity_id = uuid.UUID(entity_id_str)
+            # Verify user has access to this entity
+            has_access = any(
+                access.entity_id == entity_id 
+                for access in current_user.entity_access
+            )
+            if has_access:
+                return entity_id
+        except ValueError:
+            pass
+    
+    # Fallback: Get user's first accessible entity
+    if current_user.entity_access:
+        return current_user.entity_access[0].entity_id
+    
+    # For platform staff, get first entity from their organization
+    if current_user.is_platform_staff and current_user.organization_id:
+        result = await db.execute(
+            select(BusinessEntity)
+            .where(BusinessEntity.organization_id == current_user.organization_id)
+            .limit(1)
+        )
+        entity = result.scalar_one_or_none()
+        if entity:
+            return entity.id
+    
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="No entity selected. Please select a business entity first.",
+    )
 
 
 async def verify_entity_access(

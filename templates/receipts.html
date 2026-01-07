@@ -197,6 +197,7 @@ function receiptScanner() {
         async init() {
             if (!this.entityId) {
                 console.warn('No entity selected');
+                window.location.href = '/select-entity?next=/receipts';
                 return;
             }
             // Load categories

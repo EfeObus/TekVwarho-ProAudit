@@ -33,7 +33,7 @@
                     :class="activeTab === 'selfAssessment' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center space-x-2"
                 >
-                    <span>📋</span>
+                    <span></span>
                     <span>Self-Assessment</span>
                 </button>
                 <button 
@@ -41,7 +41,7 @@
                     :class="activeTab === 'vault' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center space-x-2"
                 >
-                    <span>🔒</span>
+                    <span></span>
                     <span>Audit Vault</span>
                 </button>
             </nav>
@@ -193,8 +193,8 @@
                 </div>
                 <div class="mt-4 flex items-center gap-2">
                     <span class="text-sm font-medium">Status:</span>
-                    <span x-show="reports.trialBalance?.totals?.is_balanced" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">✓ Balanced</span>
-                    <span x-show="!reports.trialBalance?.totals?.is_balanced" class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">✗ Not Balanced</span>
+                    <span x-show="reports.trialBalance?.totals?.is_balanced" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">OK Balanced</span>
+                    <span x-show="!reports.trialBalance?.totals?.is_balanced" class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">X Not Balanced</span>
                 </div>
             </div>
         </div>
@@ -290,7 +290,7 @@
                             </div>
                         </div>
                         <div class="mt-4 flex items-center gap-2">
-                            <span x-show="reports.balanceSheet?.validation?.assets_equal_liabilities_plus_equity" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">✓ Balanced</span>
+                            <span x-show="reports.balanceSheet?.validation?.assets_equal_liabilities_plus_equity" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">OK Balanced</span>
                         </div>
                     </div>
                 </div>
@@ -689,7 +689,7 @@
         <!-- Info Banner -->
         <div class="bg-green-50 rounded-lg p-4 border border-green-200">
             <div class="flex items-start space-x-3">
-                <span class="text-2xl">📋</span>
+                <span class="text-2xl"></span>
                 <div>
                     <h3 class="text-sm font-medium text-green-800">Self-Assessment & TaxPro Max Export</h3>
                     <p class="text-sm text-green-700 mt-1">Pre-fill NRS tax forms based on your yearly financial data. Export ready-to-upload CSV/Excel files for the TaxPro Max portal.</p>
@@ -916,7 +916,7 @@
         <!-- Vault Info Banner -->
         <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
             <div class="flex items-start space-x-3">
-                <span class="text-2xl">🔒</span>
+                <span class="text-2xl"></span>
                 <div>
                     <h3 class="text-sm font-medium text-blue-800">NTAA 2025 Compliant Audit Vault</h3>
                     <p class="text-sm text-blue-700 mt-1">5-year digital record keeping with immutable audit trail, cryptographic integrity verification, and regulatory export capabilities.</p>
@@ -929,7 +929,7 @@
             <div class="bg-white rounded-lg shadow p-6">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-sm text-gray-500">Total Records</span>
-                    <span class="p-2 bg-green-100 rounded-lg">📊</span>
+                    <span class="p-2 bg-green-100 rounded-lg"></span>
                 </div>
                 <p class="text-2xl font-bold text-gray-900" x-text="vaultStats.total_records?.toLocaleString() || '0'"></p>
                 <p class="text-xs text-gray-500 mt-1">Since <span x-text="vaultStats.oldest_record || 'N/A'"></span></p>
@@ -937,7 +937,7 @@
             <div class="bg-white rounded-lg shadow p-6">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-sm text-gray-500">Active Records</span>
-                    <span class="p-2 bg-blue-100 rounded-lg">✅</span>
+                    <span class="p-2 bg-blue-100 rounded-lg">Success: </span>
                 </div>
                 <p class="text-2xl font-bold text-blue-600" x-text="vaultStats.active_records?.toLocaleString() || '0'"></p>
                 <p class="text-xs text-gray-500 mt-1">Last 2 years</p>
@@ -945,7 +945,7 @@
             <div class="bg-white rounded-lg shadow p-6">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-sm text-gray-500">Archived Records</span>
-                    <span class="p-2 bg-yellow-100 rounded-lg">📁</span>
+                    <span class="p-2 bg-yellow-100 rounded-lg"></span>
                 </div>
                 <p class="text-2xl font-bold text-yellow-600" x-text="vaultStats.archived_records?.toLocaleString() || '0'"></p>
                 <p class="text-xs text-gray-500 mt-1">2-5 years old</p>
@@ -1077,7 +1077,7 @@
                                           x-text="record.status"></span>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <span x-show="record.has_nrs_data" class="text-green-600">✓</span>
+                                    <span x-show="record.has_nrs_data" class="text-green-600">OK</span>
                                     <span x-show="!record.has_nrs_data" class="text-gray-400">-</span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
@@ -1180,7 +1180,7 @@
                     </div>
                     <div x-show="verificationResult" class="p-4 rounded-lg" :class="verificationResult?.verified ? 'bg-green-50' : 'bg-red-50'">
                         <div class="flex items-center space-x-2">
-                            <span x-text="verificationResult?.verified ? '✅' : '❌'" class="text-xl"></span>
+                            <span x-text="verificationResult?.verified ? 'Success: ' : 'Failed: '" class="text-xl"></span>
                             <div>
                                 <p class="font-medium" :class="verificationResult?.verified ? 'text-green-800' : 'text-red-800'">
                                     <span x-text="verificationResult?.verified ? 'Integrity Verified' : 'Verification Failed'"></span>
@@ -1581,7 +1581,7 @@ function reportsPage() {
         
         async loadSelfAssessmentInfo() {
             try {
-                const response = await fetch('/api/v1/self-assessment/info', {
+                const response = await fetch('/api/v1/tax-2026/self-assessment/info', {
                     headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
                 });
                 if (response.ok) {
@@ -1762,9 +1762,9 @@ function reportsPage() {
                 });
                 if (res.ok) {
                     const result = await res.json();
-                    alert(`✅ Record Verified\n\nHash: ${result.integrity_hash.substring(0, 32)}...`);
+                    alert(`Success:  Record Verified\n\nHash: ${result.integrity_hash.substring(0, 32)}...`);
                 } else {
-                    alert('❌ Verification failed');
+                    alert('Failed:  Verification failed');
                 }
             } catch (e) {
                 console.error('Failed to verify record:', e);

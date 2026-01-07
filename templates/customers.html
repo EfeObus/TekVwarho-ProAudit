@@ -215,6 +215,12 @@ function customersPage() {
         },
         
         async init() {
+            // Validate entity_id before loading
+            const entityId = localStorage.getItem('currentEntityId');
+            if (!entityId || entityId === 'null' || entityId === 'undefined') {
+                window.location.href = '/select-entity?next=/customers';
+                return;
+            }
             await this.loadCustomers();
         },
         
@@ -228,12 +234,19 @@ function customersPage() {
                 });
                 
                 if (response.ok) {
-                    this.customers = await response.json();
+                    const data = await response.json();
+                    this.customers = Array.isArray(data) ? data : (data.customers || []);
                     this.filteredCustomers = this.customers;
                     this.calculateStats();
+                } else {
+                    console.error('Failed to load customers:', response.status);
+                    this.customers = [];
+                    this.filteredCustomers = [];
                 }
             } catch (error) {
                 console.error('Failed to load customers:', error);
+                this.customers = [];
+                this.filteredCustomers = [];
             }
         },
         
@@ -384,9 +397,9 @@ function customersPage() {
                     const result = await response.json();
                     
                     if (result.is_valid || result.verified) {
-                        alert(`✓ TIN Verified!\n\nTIN: ${customer.tin}\nRegistered Name: ${result.registered_name || customer.name}\nStatus: Valid`);
+                        alert(`OK TIN Verified!\n\nTIN: ${customer.tin}\nRegistered Name: ${result.registered_name || customer.name}\nStatus: Valid`);
                     } else {
-                        alert(`✗ TIN Verification Failed\n\nTIN: ${customer.tin}\nReason: ${result.message || 'TIN not found in FIRS database'}`);
+                        alert(`X TIN Verification Failed\n\nTIN: ${customer.tin}\nReason: ${result.message || 'TIN not found in FIRS database'}`);
                     }
                 } else {
                     const error = await response.json();

@@ -4,7 +4,7 @@ TekVwarho ProAudit - Authentication Router
 API endpoints for user authentication.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -147,9 +147,31 @@ async def register(
 )
 async def login(
     request: UserLoginRequest,
+    fastapi_request: Request = None,
     db: AsyncSession = Depends(get_async_session),
 ):
     """Login with email and password."""
+    from app.utils.ndpa_security import AccountLockoutManager
+    
+    # Get client IP for lockout tracking
+    client_ip = "127.0.0.1"
+    if fastapi_request and hasattr(fastapi_request, 'state') and hasattr(fastapi_request.state, 'client_ip'):
+        client_ip = fastapi_request.state.client_ip
+    elif fastapi_request and fastapi_request.client:
+        client_ip = fastapi_request.client.host
+    
+    # Check if account/IP is locked out
+    is_locked, seconds_remaining = AccountLockoutManager.is_locked_out(request.email)
+    if not is_locked:
+        is_locked, seconds_remaining = AccountLockoutManager.is_locked_out(client_ip)
+    
+    if is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Account temporarily locked. Try again in {seconds_remaining} seconds.",
+            headers={"Retry-After": str(seconds_remaining)},
+        )
+    
     auth_service = AuthService(db)
     
     user = await auth_service.authenticate_user(
@@ -158,10 +180,25 @@ async def login(
     )
     
     if not user:
+        # Record failed attempt
+        remaining, lockout_duration = AccountLockoutManager.record_failed_attempt(request.email)
+        AccountLockoutManager.record_failed_attempt(client_ip)
+        
+        if lockout_duration:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed attempts. Account locked for {lockout_duration} seconds.",
+                headers={"Retry-After": str(lockout_duration)},
+            )
+        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+            detail=f"Invalid email or password. {remaining} attempts remaining.",
         )
+    
+    # Clear failed attempts on successful login
+    AccountLockoutManager.clear_attempts(request.email)
+    AccountLockoutManager.clear_attempts(client_ip)
     
     if not user.is_active:
         raise HTTPException(

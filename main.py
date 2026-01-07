@@ -17,9 +17,15 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
 from app.database import init_db, close_db, async_session_factory
+from app.utils.error_handling import (
+    AppException,
+    setup_exception_handlers,
+    ErrorTrackingMiddleware,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -114,6 +120,16 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Setup Security Middleware (NDPA/NITDA Compliance)
+from app.middleware.security import setup_security_middleware
+setup_security_middleware(
+    app=app,
+    development_mode=settings.is_development,
+    geo_fencing_enabled=not settings.is_development,  # Disable geo-fencing in dev
+    rate_limiting_enabled=True,  # Always enable, but relaxed in dev
+    csrf_enabled=True,  # Always enable CSRF
 )
 
 # Mount static files
@@ -255,6 +271,67 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+    """Handle custom application exceptions with standardized format."""
+    logger.error(
+        f"AppException: {exc.code.value} - {exc.message}",
+        extra={"code": exc.code.value, "path": request.url.path}
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": exc.to_dict()
+        }
+    )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+    """Handle SQLAlchemy database errors."""
+    from sqlalchemy.exc import IntegrityError, OperationalError, DataError
+    
+    error_message = "A database error occurred"
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    error_type = "database_error"
+    
+    if isinstance(exc, IntegrityError):
+        error_str = str(exc.orig).lower() if exc.orig else ""
+        if "unique" in error_str or "duplicate" in error_str:
+            error_message = "A record with this value already exists"
+            status_code = status.HTTP_409_CONFLICT
+            error_type = "duplicate_entry"
+        elif "foreign key" in error_str:
+            error_message = "Referenced record does not exist"
+            status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+            error_type = "foreign_key_violation"
+        else:
+            error_message = "Data integrity constraint violated"
+            error_type = "integrity_error"
+    elif isinstance(exc, OperationalError):
+        error_message = "Database connection or operation failed"
+        error_type = "connection_error"
+    elif isinstance(exc, DataError):
+        error_message = "Invalid data format for database field"
+        status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+        error_type = "data_error"
+    
+    logger.error(f"SQLAlchemyError ({error_type}): {str(exc)}", exc_info=True)
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": status_code,
+                "message": error_message,
+                "type": error_type
+            }
+        }
+    )
+
+
 # ===========================================
 # API ROUTES
 # ===========================================
@@ -305,10 +382,14 @@ from app.routers import (
     auth, entities, categories, vendors, customers, 
     transactions, invoices, tax, inventory, receipts,
     reports, audit, views, tax_2026, staff, organization_users,
-    fixed_assets, sales, dashboard,
+    fixed_assets, sales, dashboard, payroll, payroll_views,
     # New routers added
     notifications, self_assessment, organization_settings,
     bulk_operations, exports, search_analytics,
+    # 2026 Tax Reform Advanced Features
+    advanced_accounting,
+    # Business Intelligence (BIK, NIBSS, Growth Radar, Inventory)
+    business_intelligence,
 )
 
 # View Routes (HTML pages)
@@ -351,7 +432,7 @@ app.include_router(fixed_assets.router, tags=["Fixed Assets"])
 app.include_router(dashboard.router, tags=["Dashboard"])
 
 # Notifications
-app.include_router(notifications.router, tags=["Notifications"])
+app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
 
 # Self-Assessment & Tax Returns
 app.include_router(self_assessment.router, tags=["Self-Assessment"])
@@ -367,6 +448,18 @@ app.include_router(exports.router, tags=["Export & Download"])
 
 # Search & Analytics
 app.include_router(search_analytics.router, tags=["Search & Analytics"])
+
+# Payroll System (Nigerian Compliance)
+app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["Payroll"])
+
+# Payroll HTML Views
+app.include_router(payroll_views.router, tags=["Payroll Views"])
+
+# 2026 Tax Reform Advanced Features (3-Way Matching, WHT Vault, Approvals, AI)
+app.include_router(advanced_accounting.router, tags=["Advanced Accounting"])
+
+# Business Intelligence (BIK Automator, NIBSS Pension, Growth Radar, Inventory Management)
+app.include_router(business_intelligence.router, tags=["Business Intelligence"])
 
 
 if __name__ == "__main__":

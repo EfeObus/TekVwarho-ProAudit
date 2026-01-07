@@ -91,7 +91,7 @@ async def verify_entity_access(
 ) -> None:
     """Verify user has access to the entity."""
     entity_service = EntityService(db)
-    entity = await entity_service.get_entity_by_id(entity_id)
+    entity = await entity_service.get_entity_by_id(entity_id, user)
     
     if not entity:
         raise HTTPException(

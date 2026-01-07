@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from app.models.customer import Customer
     from app.models.inventory import InventoryItem
     from app.models.notification import Notification
+    from app.models.advanced_accounting import AccountingDimension
 
 
 class BusinessType(str, Enum):
@@ -181,6 +182,11 @@ class BusinessEntity(BaseModel):
     )
     notifications: Mapped[List["Notification"]] = relationship(
         "Notification",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+    )
+    dimensions: Mapped[List["AccountingDimension"]] = relationship(
+        "AccountingDimension",
         back_populates="entity",
         cascade="all, delete-orphan",
     )

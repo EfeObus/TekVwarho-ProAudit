@@ -69,13 +69,13 @@
                 <button @click="activeTab = 'vat-recovery'" 
                         :class="activeTab === 'vat-recovery' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
-                    <span>📊</span>
+                    <span></span>
                     <span>VAT Recovery</span>
                 </button>
                 <button @click="activeTab = 'development-levy'" 
                         :class="activeTab === 'development-levy' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
-                    <span>💰</span>
+                    <span></span>
                     <span>Development Levy (4%)</span>
                 </button>
                 <button @click="activeTab = 'pit-relief'" 
@@ -87,13 +87,13 @@
                 <button @click="activeTab = 'credit-notes'" 
                         :class="activeTab === 'credit-notes' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
-                    <span>📝</span>
+                    <span></span>
                     <span>Credit Notes</span>
                 </button>
                 <button @click="activeTab = 'tin-validation'" 
                         :class="activeTab === 'tin-validation' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
-                    <span>🔍</span>
+                    <span></span>
                     <span>TIN Validation</span>
                 </button>
                 <button @click="activeTab = 'zero-rated'" 
@@ -105,7 +105,7 @@
                 <button @click="activeTab = 'minimum-etr'" 
                         :class="activeTab === 'minimum-etr' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
-                    <span>📊</span>
+                    <span></span>
                     <span>Minimum ETR (15%)</span>
                 </button>
                 <button @click="activeTab = 'cgt'" 
@@ -130,7 +130,7 @@
                 <button @click="activeTab = 'penalties'" 
                         :class="activeTab === 'penalties' ? 'border-green-500 text-green-600 bg-green-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition flex items-center space-x-2">
-                    <span>⚠️</span>
+                    <span>Warning: </span>
                     <span>Penalties</span>
                     <span x-show="penaltySummary.total_outstanding > 0" class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" x-text="formatCurrency(penaltySummary.total_outstanding)"></span>
                 </button>
@@ -161,7 +161,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Overdue</h3>
-                        <span class="p-2 bg-red-100 rounded-lg">⚠️</span>
+                        <span class="p-2 bg-red-100 rounded-lg">Warning: </span>
                     </div>
                     <p class="text-3xl font-bold text-red-600" x-text="overdueReviews.length">0</p>
                     <p class="text-sm text-gray-500 mt-1">72-hour window expired</p>
@@ -169,7 +169,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Auto-Confirmed</h3>
-                        <span class="p-2 bg-green-100 rounded-lg">✅</span>
+                        <span class="p-2 bg-green-100 rounded-lg">Success: </span>
                     </div>
                     <p class="text-3xl font-bold text-green-600" x-text="autoAcceptedReviews.length">0</p>
                     <p class="text-sm text-gray-500 mt-1">Deemed accepted by law</p>
@@ -665,7 +665,7 @@
                             <button type="submit" 
                                     :disabled="tinValidating || !tinForm.tin"
                                     class="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium transition">
-                                <span x-show="!tinValidating">🔍 Validate TIN</span>
+                                <span x-show="!tinValidating"> Validate TIN</span>
                                 <span x-show="tinValidating">Validating...</span>
                             </button>
                         </div>
@@ -689,7 +689,7 @@
                             <div class="mb-4">
                                 <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium"
                                       :class="tinResult.is_valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-                                    <span x-text="tinResult.is_valid ? '✅ Valid TIN' : '❌ Invalid TIN'"></span>
+                                    <span x-text="tinResult.is_valid ? 'Success:  Valid TIN' : 'Failed:  Invalid TIN'"></span>
                                 </span>
                             </div>
                             
@@ -762,7 +762,7 @@
                         <button @click="validateBulkTINs()" 
                                 :disabled="bulkValidating || !bulkTins.trim()"
                                 class="mt-3 w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium transition">
-                            <span x-show="!bulkValidating">🔍 Validate All TINs</span>
+                            <span x-show="!bulkValidating"> Validate All TINs</span>
                             <span x-show="bulkValidating">Validating...</span>
                         </button>
                     </div>
@@ -788,7 +788,7 @@
                                         <div class="flex items-center justify-between py-2 border-b border-gray-100">
                                             <span class="font-mono text-sm" x-text="result.tin"></span>
                                             <span class="text-sm" :class="result.is_valid ? 'text-green-600' : 'text-red-600'"
-                                                  x-text="result.is_valid ? '✓ Valid' : '✕ Invalid'"></span>
+                                                  x-text="result.is_valid ? 'OK Valid' : '✕ Invalid'"></span>
                                         </div>
                                     </template>
                                 </div>
@@ -1168,7 +1168,7 @@
                 <template x-if="cgtExemptionResult">
                     <div class="mt-4 p-4 rounded-lg" :class="cgtExemptionResult.is_exempt ? 'bg-green-50' : 'bg-amber-50'">
                         <div class="flex items-center">
-                            <span class="text-2xl mr-2" x-text="cgtExemptionResult.is_exempt ? '✅' : '⚠️'"></span>
+                            <span class="text-2xl mr-2" x-text="cgtExemptionResult.is_exempt ? 'Success: ' : 'Warning: '"></span>
                             <div>
                                 <p class="font-medium" :class="cgtExemptionResult.is_exempt ? 'text-green-800' : 'text-amber-800'" 
                                    x-text="cgtExemptionResult.is_exempt ? 'Small Company - CGT Exempt' : 'Large Company - Subject to 30% CGT'"></p>
@@ -1327,7 +1327,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div class="bg-white rounded-xl shadow-sm p-4">
                     <div class="flex items-center mb-2">
-                        <span class="text-2xl mr-2">📋</span>
+                        <span class="text-2xl mr-2"></span>
                         <span class="font-semibold text-gray-900">CRA</span>
                     </div>
                     <p class="text-indigo-600 font-medium">₦200,000 + 20%</p>
@@ -1343,7 +1343,7 @@
                 </div>
                 <div class="bg-white rounded-xl shadow-sm p-4">
                     <div class="flex items-center mb-2">
-                        <span class="text-2xl mr-2">🏠</span>
+                        <span class="text-2xl mr-2"></span>
                         <span class="font-semibold text-gray-900">NHF</span>
                     </div>
                     <p class="text-indigo-600 font-medium">2.5%</p>
@@ -1446,7 +1446,7 @@
                 <template x-if="payeThresholdResult">
                     <div class="mt-4 p-4 rounded-lg" :class="payeThresholdResult.is_tax_exempt ? 'bg-green-50' : 'bg-indigo-50'">
                         <div class="flex items-center">
-                            <span class="text-2xl mr-2" x-text="payeThresholdResult.is_tax_exempt ? '✅' : '📊'"></span>
+                            <span class="text-2xl mr-2" x-text="payeThresholdResult.is_tax_exempt ? 'Success: ' : ''"></span>
                             <div>
                                 <p class="font-medium" :class="payeThresholdResult.is_tax_exempt ? 'text-green-800' : 'text-indigo-800'" 
                                    x-text="payeThresholdResult.message"></p>
@@ -1476,7 +1476,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Overdue</h3>
-                        <span class="p-2 bg-red-100 rounded-lg">⚠️</span>
+                        <span class="p-2 bg-red-100 rounded-lg">Warning: </span>
                     </div>
                     <p class="text-3xl font-bold text-red-600" x-text="b2cOverdue.length">0</p>
                     <p class="text-sm text-gray-500 mt-1">Past 24-hour deadline</p>
@@ -1484,7 +1484,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Reported</h3>
-                        <span class="p-2 bg-green-100 rounded-lg">✅</span>
+                        <span class="p-2 bg-green-100 rounded-lg">Success: </span>
                     </div>
                     <p class="text-3xl font-bold text-green-600" x-text="b2cReported.length">0</p>
                     <p class="text-sm text-gray-500 mt-1">Successfully reported</p>
@@ -1492,7 +1492,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Penalty Risk</h3>
-                        <span class="p-2 bg-orange-100 rounded-lg">💰</span>
+                        <span class="p-2 bg-orange-100 rounded-lg"></span>
                     </div>
                     <p class="text-3xl font-bold text-orange-600" x-text="formatCurrency(b2cSummary.potential_penalty || 0)">₦0</p>
                     <p class="text-sm text-gray-500 mt-1">₦10,000 per late transaction</p>
@@ -1653,7 +1653,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Total Penalties</h3>
-                        <span class="p-2 bg-purple-100 rounded-lg">📋</span>
+                        <span class="p-2 bg-purple-100 rounded-lg"></span>
                     </div>
                     <p class="text-3xl font-bold text-purple-600" x-text="penaltySummary.total_penalties || 0">0</p>
                     <p class="text-sm text-gray-500 mt-1">All time records</p>
@@ -1669,7 +1669,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Outstanding</h3>
-                        <span class="p-2 bg-orange-100 rounded-lg">⚠️</span>
+                        <span class="p-2 bg-orange-100 rounded-lg">Warning: </span>
                     </div>
                     <p class="text-3xl font-bold text-orange-600" x-text="formatCurrency(penaltySummary.total_outstanding || 0)">₦0</p>
                     <p class="text-sm text-gray-500 mt-1">Unpaid penalties</p>
@@ -1677,7 +1677,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Paid</h3>
-                        <span class="p-2 bg-green-100 rounded-lg">✅</span>
+                        <span class="p-2 bg-green-100 rounded-lg">Success: </span>
                     </div>
                     <p class="text-3xl font-bold text-green-600" x-text="formatCurrency(penaltySummary.total_paid || 0)">₦0</p>
                     <p class="text-sm text-gray-500 mt-1">Settled penalties</p>
@@ -1883,7 +1883,7 @@
                 </div>
                 <!-- Empty State -->
                 <div x-show="penaltyRecords.length === 0" class="p-8 text-center">
-                    <div class="text-4xl mb-4">✅</div>
+                    <div class="text-4xl mb-4">Success: </div>
                     <h3 class="text-lg font-semibold text-gray-900 mb-2">No Penalty Records</h3>
                     <p class="text-gray-500">Your compliance is in good standing. No penalties have been incurred.</p>
                 </div>
@@ -1924,7 +1924,7 @@
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">XML Export</h3>
-                        <span class="p-2 bg-green-100 rounded-lg">📝</span>
+                        <span class="p-2 bg-green-100 rounded-lg"></span>
                     </div>
                     <p class="text-sm text-gray-600">UBL 2.1 compliant XML for cross-border e-invoicing</p>
                 </div>
@@ -2110,7 +2110,7 @@
                     <button @click="exportPeppolXML()" 
                             :disabled="peppolExporting || !peppolForm.invoice_number"
                             class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2">
-                        <span>📝</span>
+                        <span></span>
                         <span x-show="!peppolExporting">Export XML</span>
                         <span x-show="peppolExporting">Exporting...</span>
                     </button>
@@ -2129,7 +2129,7 @@
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-900">Export Result</h3>
                     <div class="flex items-center space-x-2">
-                        <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">✅ Compliant</span>
+                        <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Success:  Compliant</span>
                         <span class="text-sm text-gray-500">Format: <span class="font-medium" x-text="peppolResult?.format?.toUpperCase()"></span></span>
                     </div>
                 </div>
@@ -2161,7 +2161,7 @@
                     </button>
                     <button @click="copyPeppolContent()" 
                             class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                        📋 Copy to Clipboard
+                         Copy to Clipboard
                     </button>
                 </div>
             </div>

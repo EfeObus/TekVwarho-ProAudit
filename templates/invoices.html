@@ -88,7 +88,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            <span x-show="inv.nrs_irn" class="text-green-600 cursor-pointer" :title="'IRN: ' + inv.nrs_irn" @click="showNRSDetails(inv)">✓</span>
+                            <span x-show="inv.nrs_irn" class="text-green-600 cursor-pointer" :title="'IRN: ' + inv.nrs_irn" @click="showNRSDetails(inv)">OK</span>
                             <span x-show="!inv.nrs_irn && inv.status === 'pending'" class="text-amber-600" title="Ready for NRS Submission">⏳</span>
                             <span x-show="!inv.nrs_irn && inv.status === 'draft'" class="text-gray-400" title="Finalize first">-</span>
                         </td>
@@ -278,6 +278,7 @@ function invoicesPage() {
         async loadInvoices() {
             if (!this.entityId) {
                 console.warn('No entity selected');
+                window.location.href = '/select-entity?next=/invoices';
                 return;
             }
             try {
@@ -618,7 +619,7 @@ function invoicesPage() {
                 if (response.ok) {
                     const aging = await response.json();
                     const report = [
-                        '📊 Invoice Aging Report',
+                        ' Invoice Aging Report',
                         '=' .repeat(40),
                         '',
                         `Current (0-30 days):    ${this.formatCurrency(aging.current || 0)}`,

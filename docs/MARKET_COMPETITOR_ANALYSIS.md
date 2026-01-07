@@ -153,11 +153,11 @@ Realistic market capture over 5 years:
 | **Pricing** | $15-$30/month (₦22K-₦45K at parallel rate) |
 | **Strengths** | Brand recognition, feature-rich, reliable |
 | **Weaknesses** | No NRS integration, USD pricing, no Naira-first design |
-| **NRS E-Invoicing** | ❌ Not available |
-| **2026 Tax Logic** | ❌ Not implemented |
-| **TIN Verification** | ❌ Not available |
-| **Naira Support** | ⚠️ Limited (secondary currency) |
-| **Local Support** | ⚠️ No local team |
+| **NRS E-Invoicing** |  Not available |
+| **2026 Tax Logic** |  Not implemented |
+| **TIN Verification** |  Not available |
+| **Naira Support** |  Limited (secondary currency) |
+| **Local Support** |  No local team |
 | **Threat Level** | Medium - Strong brand but compliance gap |
 
 #### 3.2.2 Sage Business Cloud
@@ -169,11 +169,11 @@ Realistic market capture over 5 years:
 | **Pricing** | $25-$100/month (₦37K-₦150K) |
 | **Strengths** | Enterprise features, scalability, reputation |
 | **Weaknesses** | Complex, expensive, no Nigerian tax compliance |
-| **NRS E-Invoicing** | ❌ Not available |
-| **2026 Tax Logic** | ❌ Not implemented |
-| **TIN Verification** | ❌ Not available |
-| **Naira Support** | ⚠️ Multi-currency but not optimized |
-| **Local Support** | ⚠️ Through partners only |
+| **NRS E-Invoicing** |  Not available |
+| **2026 Tax Logic** |  Not implemented |
+| **TIN Verification** |  Not available |
+| **Naira Support** |  Multi-currency but not optimized |
+| **Local Support** |  Through partners only |
 | **Threat Level** | Low - Wrong market segment |
 
 #### 3.2.3 Wave Accounting
@@ -185,11 +185,11 @@ Realistic market capture over 5 years:
 | **Pricing** | Free (revenue from payments/payroll) |
 | **Strengths** | Free, easy to use, modern UI |
 | **Weaknesses** | No Nigerian features, limited support, monetization model doesn't work in Nigeria |
-| **NRS E-Invoicing** | ❌ Not available |
-| **2026 Tax Logic** | ❌ Not implemented |
-| **TIN Verification** | ❌ Not available |
-| **Naira Support** | ❌ USD-centric |
-| **Local Support** | ❌ None |
+| **NRS E-Invoicing** |  Not available |
+| **2026 Tax Logic** |  Not implemented |
+| **TIN Verification** |  Not available |
+| **Naira Support** |  USD-centric |
+| **Local Support** |  None |
 | **Threat Level** | Low - No localization |
 
 #### 3.2.4 Zoho Books
@@ -201,11 +201,11 @@ Realistic market capture over 5 years:
 | **Pricing** | Free tier + $15-$60/month (₦22K-₦90K) |
 | **Strengths** | Affordable, integrates with Zoho suite |
 | **Weaknesses** | No NRS compliance, limited Nigerian bank support |
-| **NRS E-Invoicing** | ❌ Not available |
-| **2026 Tax Logic** | ❌ Not implemented |
-| **TIN Verification** | ❌ Not available |
-| **Naira Support** | ✅ Available |
-| **Local Support** | ⚠️ Limited |
+| **NRS E-Invoicing** |  Not available |
+| **2026 Tax Logic** |  Not implemented |
+| **TIN Verification** |  Not available |
+| **Naira Support** | Available |
+| **Local Support** |  Limited |
 | **Threat Level** | Medium - Could add Nigeria features |
 
 #### 3.2.5 Local Nigerian Solutions
@@ -216,7 +216,7 @@ Realistic market capture over 5 years:
 | **Focus** | Payroll only |
 | **Strengths** | PAYE compliance, local knowledge |
 | **Weaknesses** | Limited to payroll, no invoicing |
-| **NRS E-Invoicing** | ❌ Not their focus |
+| **NRS E-Invoicing** |  Not their focus |
 | **Threat Level** | Low - Different segment |
 
 **Accounteer**
@@ -225,7 +225,7 @@ Realistic market capture over 5 years:
 | **Focus** | Basic bookkeeping |
 | **Strengths** | Nigerian-made, affordable |
 | **Weaknesses** | Limited features, no e-invoicing |
-| **NRS E-Invoicing** | ❌ Not available |
+| **NRS E-Invoicing** |  Not available |
 | **Threat Level** | Medium - Potential to add features |
 
 **TaxIT Nigeria**
@@ -234,27 +234,27 @@ Realistic market capture over 5 years:
 | **Focus** | Tax filing assistance |
 | **Strengths** | Tax expertise, FIRS knowledge |
 | **Weaknesses** | Not a full platform, manual processes |
-| **NRS E-Invoicing** | ⚠️ May add |
+| **NRS E-Invoicing** |  May add |
 | **Threat Level** | Medium - Could be competitor or partner |
 
 ### 3.3 Competitor Feature Matrix
 
 | Feature | QuickBooks | Sage | Wave | Zoho | SimplePay | Accounteer | TekVwarho |
 |---------|------------|------|------|------|-----------|------------|-----------|
-| **NRS E-Invoicing** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **IRN & QR Codes** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **72-Hour Monitor** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **2026 PAYE Bands** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
-| **Input VAT Recovery** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **WREN Classification** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **TIN Verification** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **TaxPro Max Export** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Multi-Entity** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
-| **Naira-First** | ⚠️ | ⚠️ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| **Nigerian Banks** | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ | ✅ |
-| **Offline Mode** | ✅ | ✅ | ❌ | ⚠️ | ⚠️ | ✅ | ✅ |
+| **NRS E-Invoicing** |  |  |  |  |  |  | |
+| **IRN & QR Codes** |  |  |  |  |  |  | |
+| **72-Hour Monitor** |  |  |  |  |  |  | |
+| **2026 PAYE Bands** |  |  |  |  | |  | |
+| **Input VAT Recovery** |  |  |  |  |  |  | |
+| **WREN Classification** |  |  |  |  |  |  | |
+| **TIN Verification** |  |  |  |  |  |  | |
+| **TaxPro Max Export** |  |  |  |  |  |  | |
+| **Multi-Entity** | | |  | |  |  | |
+| **Naira-First** |  |  |  | | | | |
+| **Nigerian Banks** |  |  |  |  | |  | |
+| **Offline Mode** | | |  |  |  | | |
 
-**Legend:** ✅ Full support | ⚠️ Partial/Limited | ❌ Not available
+**Legend:** Full support |  Partial/Limited |  Not available
 
 ### 3.4 Competitive Gap Analysis
 

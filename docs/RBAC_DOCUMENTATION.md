@@ -1,5 +1,9 @@
 # TekVwarho ProAudit - Role-Based Access Control (RBAC) Documentation
 
+**Document Version:** 2.1  
+**Last Updated:** January 6, 2026  
+**Status:** Production
+
 ## Overview
 
 TekVwarho ProAudit implements a comprehensive two-tier RBAC system:
@@ -346,7 +350,7 @@ SUPER_ADMIN_FIRST_NAME=<configured-in-env>
 SUPER_ADMIN_LAST_NAME=<configured-in-env>
 ```
 
-> ⚠️ **Security Note:** Super Admin credentials are stored securely in `.env` (not committed to version control) and seeded to the database on first startup. Never expose actual credentials in documentation or code.
+>  **Security Note:** Super Admin credentials are stored securely in `.env` (not committed to version control) and seeded to the database on first startup. Never expose actual credentials in documentation or code.
 
 ---
 
@@ -363,7 +367,7 @@ curl -X POST http://localhost:5120/api/v1/auth/login \
   }'
 ```
 
-> 💡 Replace `$SUPER_ADMIN_EMAIL` and `$SUPER_ADMIN_PASSWORD` with the values from your `.env` file.
+>  Replace `$SUPER_ADMIN_EMAIL` and `$SUPER_ADMIN_PASSWORD` with the values from your `.env` file.
 
 ### Onboard an Admin
 
@@ -380,7 +384,7 @@ curl -X POST http://localhost:5120/api/v1/staff/onboard \
   }'
 ```
 
-> 💡 Use a strong password meeting the platform's password policy. The new staff member will be required to change this password on first login.
+>  Use a strong password meeting the platform's password policy. The new staff member will be required to change this password on first login.
 
 ### Check Current User Permissions
 
@@ -500,7 +504,7 @@ Under the NTAA 2025, the government has introduced "Continuous Transaction Contr
 **Permission Required:**
 - `CANCEL_NRS_SUBMISSION` - Owner only
 
-> ⚠️ **Legal Warning**: Modifying a "Submitted" invoice without a formal NRS-tracked Credit Note is a criminal offense under the NTAA 2025.
+>  **Legal Warning**: Modifying a "Submitted" invoice without a formal NRS-tracked Credit Note is a criminal offense under the NTAA 2025.
 
 ### Maker-Checker Segregation of Duties (SoD)
 

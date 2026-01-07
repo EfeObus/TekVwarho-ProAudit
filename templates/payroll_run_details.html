@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Payroll Run Details - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="payrollRunDetails()" x-init="init()">
+    <!-- Back Button & Header -->
+    <div class="mb-6">
+        <a href="/payroll" class="inline-flex items-center text-green-600 hover:text-green-700 mb-4">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to Payroll
+        </a>
+        
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900" x-text="run.name || 'Payroll Run'"></h1>
+                <p class="text-gray-600">
+                    <span x-text="run.payroll_code"></span> • 
+                    Period: <span x-text="formatDate(run.period_start)"></span> - <span x-text="formatDate(run.period_end)"></span>
+                </p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span class="px-3 py-1 text-sm rounded-full font-medium"
+                      :class="{
+                          'bg-gray-100 text-gray-800': run.status === 'draft',
+                          'bg-yellow-100 text-yellow-800': run.status === 'pending_approval',
+                          'bg-blue-100 text-blue-800': run.status === 'approved',
+                          'bg-purple-100 text-purple-800': run.status === 'processing',
+                          'bg-green-100 text-green-800': run.status === 'completed',
+                          'bg-emerald-100 text-emerald-800': run.status === 'paid'
+                      }"
+                      x-text="(run.status || 'draft').replace('_', ' ').toUpperCase()"></span>
+                
+                <template x-if="run.status === 'draft'">
+                    <button @click="approveRun()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Approve</button>
+                </template>
+                <template x-if="run.status === 'approved'">
+                    <button @click="processRun()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">Process</button>
+                </template>
+                <template x-if="run.status === 'completed'">
+                    <button @click="markPaid()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Mark Paid</button>
+                </template>
+                
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+                        </svg>
+                    </button>
+                    <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                        <button @click="exportBankSchedule(); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">Export Bank Schedule</button>
+                        <button @click="exportPayslips(); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">Export All Payslips</button>
+                        <button @click="exportRemittances(); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">Export Remittance Schedule</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Employees</p>
+            <p class="text-2xl font-bold text-gray-900" x-text="run.total_employees || 0"></p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Gross Pay</p>
+            <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCurrency(run.total_gross_pay || 0)"></span></p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Total Deductions</p>
+            <p class="text-2xl font-bold text-red-600">₦<span x-text="formatCurrency(run.total_deductions || 0)"></span></p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Net Pay</p>
+            <p class="text-2xl font-bold text-green-600">₦<span x-text="formatCurrency(run.total_net_pay || 0)"></span></p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <p class="text-sm text-gray-500">Payment Date</p>
+            <p class="text-xl font-bold text-gray-900" x-text="formatDate(run.payment_date)"></p>
+        </div>
+    </div>
+
+    <!-- Statutory Breakdown -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Statutory Deductions Summary</h3>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="text-center p-4 bg-orange-50 rounded-lg">
+                <p class="text-2xl font-bold text-orange-600">₦<span x-text="formatCompact(run.total_paye || 0)"></span></p>
+                <p class="text-xs text-gray-600 mt-1">PAYE Tax</p>
+            </div>
+            <div class="text-center p-4 bg-blue-50 rounded-lg">
+                <p class="text-2xl font-bold text-blue-600">₦<span x-text="formatCompact(run.total_pension || 0)"></span></p>
+                <p class="text-xs text-gray-600 mt-1">Pension (Employee)</p>
+            </div>
+            <div class="text-center p-4 bg-green-50 rounded-lg">
+                <p class="text-2xl font-bold text-green-600">₦<span x-text="formatCompact(run.total_nhf || 0)"></span></p>
+                <p class="text-xs text-gray-600 mt-1">NHF</p>
+            </div>
+            <div class="text-center p-4 bg-purple-50 rounded-lg">
+                <p class="text-2xl font-bold text-purple-600">₦<span x-text="formatCompact(run.employer_pension || 0)"></span></p>
+                <p class="text-xs text-gray-600 mt-1">Pension (Employer)</p>
+            </div>
+            <div class="text-center p-4 bg-indigo-50 rounded-lg">
+                <p class="text-2xl font-bold text-indigo-600">₦<span x-text="formatCompact((run.total_nsitf || 0) + (run.total_itf || 0))"></span></p>
+                <p class="text-xs text-gray-600 mt-1">NSITF + ITF</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payslips Table -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900">Payslips</h3>
+            <input type="text" x-model="searchQuery" @input="filterPayslips()" placeholder="Search employees..." class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Pay</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">PAYE</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Pension</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="slip in filteredPayslips" :key="slip.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                        <span class="text-green-600 font-semibold text-sm" x-text="slip.employee?.first_name?.charAt(0) || 'E'"></span>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900" x-text="slip.employee?.full_name || 'Unknown'"></div>
+                                        <div class="text-xs text-gray-500" x-text="slip.employee?.employee_id"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="slip.employee?.department || '-'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">₦<span x-text="formatCurrency(slip.gross_pay)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">₦<span x-text="formatCurrency(slip.paye_tax)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">₦<span x-text="formatCurrency(slip.employee_pension)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">₦<span x-text="formatCurrency(slip.net_pay)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                                <button @click="viewPayslip(slip)" class="text-green-600 hover:text-green-800 text-sm font-medium">View</button>
+                                <span class="text-gray-300 mx-2">|</span>
+                                <button @click="downloadPayslip(slip.id)" class="text-blue-600 hover:text-blue-800 text-sm font-medium">PDF</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        
+        <template x-if="payslips.length === 0">
+            <div class="text-center py-12">
+                <svg class="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">No payslips generated</h3>
+                <p class="mt-2 text-gray-500">This payroll run has not been processed yet.</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- Payslip Modal -->
+    <div x-show="showPayslipModal" x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75" @click="showPayslipModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+                <button @click="showPayslipModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                
+                <template x-if="selectedPayslip">
+                    <div>
+                        <div class="text-center mb-6">
+                            <h2 class="text-xl font-bold text-gray-900">Payslip</h2>
+                            <p class="text-sm text-gray-500" x-text="formatDate(selectedPayslip.period_start) + ' - ' + formatDate(selectedPayslip.period_end)"></p>
+                        </div>
+                        
+                        <div class="border-b pb-4 mb-4">
+                            <h3 class="font-semibold text-gray-900" x-text="selectedPayslip.employee?.full_name"></h3>
+                            <p class="text-sm text-gray-500" x-text="(selectedPayslip.employee?.employee_id || '') + ' • ' + (selectedPayslip.employee?.department || '')"></p>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-6">
+                            <div>
+                                <h4 class="font-medium text-green-600 mb-2">Earnings</h4>
+                                <div class="space-y-1 text-sm">
+                                    <div class="flex justify-between"><span>Basic Salary</span><span>₦<span x-text="formatCurrency(selectedPayslip.basic_salary)"></span></span></div>
+                                    <div class="flex justify-between"><span>Housing Allowance</span><span>₦<span x-text="formatCurrency(selectedPayslip.housing_allowance)"></span></span></div>
+                                    <div class="flex justify-between"><span>Transport Allowance</span><span>₦<span x-text="formatCurrency(selectedPayslip.transport_allowance)"></span></span></div>
+                                    <div class="flex justify-between font-semibold border-t pt-1"><span>Gross Pay</span><span>₦<span x-text="formatCurrency(selectedPayslip.gross_pay)"></span></span></div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-red-600 mb-2">Deductions</h4>
+                                <div class="space-y-1 text-sm">
+                                    <div class="flex justify-between"><span>PAYE Tax</span><span class="text-red-600">₦<span x-text="formatCurrency(selectedPayslip.paye_tax)"></span></span></div>
+                                    <div class="flex justify-between"><span>Pension (8%)</span><span class="text-red-600">₦<span x-text="formatCurrency(selectedPayslip.employee_pension)"></span></span></div>
+                                    <div class="flex justify-between"><span>NHF (2.5%)</span><span class="text-red-600">₦<span x-text="formatCurrency(selectedPayslip.nhf_contribution)"></span></span></div>
+                                    <div class="flex justify-between font-semibold border-t pt-1"><span>Total Deductions</span><span class="text-red-600">₦<span x-text="formatCurrency(selectedPayslip.total_deductions)"></span></span></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 p-4 bg-green-50 rounded-lg">
+                            <div class="flex justify-between items-center">
+                                <span class="font-semibold text-green-800">Net Pay</span>
+                                <span class="text-2xl font-bold text-green-700">₦<span x-text="formatCurrency(selectedPayslip.net_pay)"></span></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function payrollRunDetails() {
+    return {
+        runId: {{ run_id }},
+        run: {},
+        payslips: [],
+        filteredPayslips: [],
+        searchQuery: '',
+        showPayslipModal: false,
+        selectedPayslip: null,
+        
+        async init() {
+            await this.loadRun();
+            await this.loadPayslips();
+        },
+        
+        async loadRun() {
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}`);
+                if (response.ok) {
+                    this.run = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading payroll run:', error);
+            }
+        },
+        
+        async loadPayslips() {
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/payslips`);
+                if (response.ok) {
+                    this.payslips = await response.json();
+                    this.filteredPayslips = this.payslips;
+                }
+            } catch (error) {
+                console.error('Error loading payslips:', error);
+            }
+        },
+        
+        filterPayslips() {
+            const query = this.searchQuery.toLowerCase();
+            this.filteredPayslips = this.payslips.filter(slip => 
+                (slip.employee?.full_name || '').toLowerCase().includes(query) ||
+                (slip.employee?.employee_id || '').toLowerCase().includes(query) ||
+                (slip.employee?.department || '').toLowerCase().includes(query)
+            );
+        },
+        
+        viewPayslip(slip) {
+            this.selectedPayslip = slip;
+            this.showPayslipModal = true;
+        },
+        
+        async approveRun() {
+            if (!confirm('Approve this payroll run?')) return;
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/approve`, { method: 'POST' });
+                if (response.ok) {
+                    await this.loadRun();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        async processRun() {
+            if (!confirm('Process this payroll? This will generate payslips and remittances.')) return;
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/process`, { method: 'POST' });
+                if (response.ok) {
+                    await this.loadRun();
+                    await this.loadPayslips();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        async markPaid() {
+            if (!confirm('Mark this payroll as paid?')) return;
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/mark-paid`, { method: 'POST' });
+                if (response.ok) {
+                    await this.loadRun();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        exportBankSchedule() {
+            window.open(`/api/v1/payroll/payroll-runs/${this.runId}/bank-schedule/export`, '_blank');
+        },
+        
+        exportPayslips() {
+            window.open(`/api/v1/payroll/payroll-runs/${this.runId}/payslips/export`, '_blank');
+        },
+        
+        exportRemittances() {
+            window.open(`/api/v1/payroll/payroll-runs/${this.runId}/remittances/export`, '_blank');
+        },
+        
+        downloadPayslip(slipId) {
+            window.open(`/api/v1/payroll/payslips/${slipId}/pdf`, '_blank');
+        },
+        
+        formatCurrency(value) {
+            return new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2 }).format(value || 0);
+        },
+        
+        formatCompact(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value?.toFixed(0) || '0';
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -27,7 +27,11 @@ Routers:
 - bulk_operations: Bulk import/export operations
 - exports: Report and data exports
 - search_analytics: Global search and analytics
+- payroll: Payroll management with Nigerian compliance
+- payroll_views: Payroll HTML page views
 - views: HTML page views
+- advanced_accounting: 2026 Tax Reform advanced features (3-way matching, WHT vault, approvals, AI)
+- business_intelligence: BIK Automator, NIBSS Pension, Growth Radar, Inventory Management
 """
 
 from app.routers import (
@@ -54,8 +58,12 @@ from app.routers import (
     bulk_operations,
     exports,
     search_analytics,
+    payroll,
+    payroll_views,
     views,
     sales,
+    advanced_accounting,
+    business_intelligence,
 )
 
 __all__ = [
@@ -82,6 +90,10 @@ __all__ = [
     "bulk_operations",
     "exports",
     "search_analytics",
+    "payroll",
+    "payroll_views",
     "views",
     "sales",
+    "advanced_accounting",
+    "business_intelligence",
 ]

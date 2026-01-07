@@ -115,12 +115,12 @@ You will be notified via:
 
 | Channel | Starter | Professional | Business | Enterprise |
 |---------|---------|--------------|----------|------------|
-| **Help Center/Docs** | ✅ | ✅ | ✅ | ✅ |
-| **Email Support** | ✅ | ✅ | ✅ | ✅ |
-| **Live Chat** | ❌ | ✅ | ✅ | ✅ |
-| **Phone Support** | ❌ | ❌ | ✅ | ✅ |
-| **Dedicated Manager** | ❌ | ❌ | ❌ | ✅ |
-| **WhatsApp Business** | ❌ | ❌ | ✅ | ✅ |
+| **Help Center/Docs** | | | | |
+| **Email Support** | | | | |
+| **Live Chat** |  | | | |
+| **Phone Support** |  |  | | |
+| **Dedicated Manager** |  |  |  | |
+| **WhatsApp Business** |  |  | | |
 
 ### 6.2 Support Hours
 

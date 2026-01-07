@@ -479,7 +479,7 @@ class TINValidationService:
                 "message": result.message,
             },
             "compliance_warning": None if is_compliant else (
-                "⚠️ WARNING: Awarding contracts to entities not registered for tax "
+                "WARNING: Awarding contracts to entities not registered for tax "
                 "can result in a ₦5,000,000 penalty under the 2026 Tax Reform Act. "
                 "Please verify the vendor's tax registration status before proceeding."
             ),

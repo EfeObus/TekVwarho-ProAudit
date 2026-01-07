@@ -17,9 +17,31 @@
     <!-- Custom Styles -->
     <link rel="stylesheet" href="/static/css/main.css">
     
+    <!-- CSRF Token Script -->
+    <script>
+        // Get CSRF token from cookie
+        function getCsrfToken() {
+            const name = 'csrf_token=';
+            const decodedCookie = decodeURIComponent(document.cookie);
+            const cookies = decodedCookie.split(';');
+            for(let i = 0; i < cookies.length; i++) {
+                let c = cookies[i].trim();
+                if (c.indexOf(name) == 0) {
+                    return c.substring(name.length, c.length);
+                }
+            }
+            return '';
+        }
+        
+        // Configure HTMX to include CSRF token in all requests
+        document.addEventListener('htmx:configRequest', function(event) {
+            event.detail.headers['X-CSRF-Token'] = getCsrfToken();
+        });
+    </script>
+    
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 min-h-screen" hx-headers='{"X-CSRF-Token": "{{ csrf_token if csrf_token else '' }}"}'>
     <!-- Navigation -->
     {% block nav %}
     <nav class="bg-white shadow-sm border-b border-gray-200">
@@ -51,6 +73,7 @@
                                 <a href="/customers" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Customers</a>
                                 <a href="/inventory" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Inventory</a>
                                 <a href="/fixed-assets" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Fixed Assets</a>
+                                <a href="/payroll" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Payroll</a>
                                 <a href="/receipts/upload" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Receipt Scanner</a>
                                 <hr class="my-1 border-gray-100">
                                 <a href="/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Settings</a>
@@ -217,8 +240,8 @@
                     });
                     if (response.ok) {
                         const data = await response.json();
-                        this.notifications = data.items || data;
-                        this.unreadCount = this.notifications.filter(n => !n.is_read).length;
+                        this.notifications = data.notifications || data.items || [];
+                        this.unreadCount = data.unread_count || this.notifications.filter(n => !n.is_read).length;
                     }
                 } catch (error) {
                     console.error('Failed to fetch notifications:', error);

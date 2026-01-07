@@ -88,11 +88,11 @@ We are committed to your privacy and do NOT use:
 
 | Cookie Type | Status | Reason |
 |-------------|--------|--------|
-| **Advertising Cookies** | ❌ Not Used | We don't serve ads |
-| **Social Media Tracking** | ❌ Not Used | No social login or sharing |
-| **Cross-site Tracking** | ❌ Not Used | Privacy-first approach |
-| **Third-party Analytics (Google)** | ❌ Not Used | We use self-hosted analytics |
-| **Retargeting Pixels** | ❌ Not Used | We don't do retargeting |
+| **Advertising Cookies** |  Not Used | We don't serve ads |
+| **Social Media Tracking** |  Not Used | No social login or sharing |
+| **Cross-site Tracking** |  Not Used | Privacy-first approach |
+| **Third-party Analytics (Google)** |  Not Used | We use self-hosted analytics |
+| **Retargeting Pixels** |  Not Used | We don't do retargeting |
 
 ---
 
@@ -127,11 +127,11 @@ We do not participate in advertising networks and do not allow third parties to 
 
 ### 5.2 What We Do NOT Do
 
-- ❌ Sell cookie data to third parties
-- ❌ Use cookies to build advertising profiles
-- ❌ Track you across other websites
-- ❌ Share identifiable cookie data with third parties
-- ❌ Use cookies to make automated decisions about you
+-  Sell cookie data to third parties
+-  Use cookies to build advertising profiles
+-  Track you across other websites
+-  Share identifiable cookie data with third parties
+-  Use cookies to make automated decisions about you
 
 ---
 

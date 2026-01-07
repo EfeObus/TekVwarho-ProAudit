@@ -7,6 +7,218 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] - 2026-01-06
+
+### Security & Compliance Suite (NDPA/NITDA 2023)
+
+This release introduces comprehensive enterprise security and Nigerian Data Protection Act compliance.
+
+### Added
+
+#### Data Privacy & Encryption
+- **PII Encryption Engine**: AES-256-GCM field-level encryption for sensitive data (BVN, NIN, RSA PIN, bank accounts)
+- **PIIMasker Utility**: Display-safe masking for all 14 PII categories
+- **Key Rotation Support**: Versioned key management for security updates
+- **Right-to-Erasure Service**: NDPA Article 36 compliance with statutory retention validation
+
+#### Network & Access Security
+- **Geo-Fencing Middleware**: Nigerian IP range enforcement (AFRINIC allocations)
+- **Rate Limiting**: Per-endpoint protection (Login 5/min, Register 3/min, Tax calculators 30/min, NRS 10/min)
+- **Account Lockout**: Progressive lockout (1min → 5min → 15min → 1hr → 24hr after 5 failed attempts)
+
+#### Web Application Security
+- **CSRF Protection**: Double-submit cookie pattern with HTMX integration
+- **Content Security Policy**: Strict CSP headers with NRS/NIBSS trusted sources
+- **Security Headers**: X-Frame-Options DENY, HSTS, X-Content-Type-Options nosniff
+
+#### Nigerian Validators
+- `validate_nigerian_tin`: FIRS TIN format (10 characters)
+- `validate_nigerian_bvn`: BVN format (11 digits)
+- `validate_nigerian_nin`: NIN format (11 digits)
+- `validate_nigerian_phone`: Nigerian phone (+234/0 prefix)
+- `validate_nigerian_account`: NUBAN account (10 digits)
+
+### New Files
+- `app/utils/ndpa_security.py` - NDPA security utilities (~700 lines)
+- `app/middleware/security.py` - Security middleware stack (~500 lines)
+- `app/middleware/__init__.py` - Middleware package exports
+- `docs/SECURITY_ARCHITECTURE.md` - Comprehensive security documentation
+- `docs/SYSTEM_AUDIT_REPORT.md` - System audit and verification report
+
+### Changed
+- `templates/base.html` - Added CSRF token JavaScript for HTMX
+- `templates/reports.html` - Fixed self-assessment API endpoint path
+- `main.py` - Integrated security middleware stack
+- `app/routers/auth.py` - Integrated AccountLockoutManager in login endpoint
+
+### Verified
+- **313 tests passing** (3 skipped)
+- **527 total routes** (471 API, 52 view routes)
+- **84 database model exports**
+- Complete frontend-backend integration verified
+
+---
+
+## [2.0.0] - 2026-01-06
+
+### Business Intelligence & Executive Compensation Suite
+
+This major release introduces advanced business intelligence features for Nigerian tax compliance.
+
+### Added
+
+#### BIK (Benefit-in-Kind) Automator
+- Vehicle BIK calculation (5% of cost + 25% for private use)
+- Accommodation benefit (7.5% rental, 15% owned of annual salary)
+- Driver benefit (₦600,000/year flat rate)
+- Domestic staff benefit (₦500,000/year per staff)
+- PAYE calculation on BIK using 2026 tax brackets
+
+#### NIBSS Pension Direct-Debit Generation
+- NIBSS NIP Bulk Payment XML format
+- All 20+ licensed PFAs supported
+- RSA PIN validation (PEN + 12 digits format)
+- CSV export alternative
+
+#### Growth Radar & Tax Threshold Alerts
+- Threshold proximity analysis (₦25M, ₦100M)
+- Growth projection from historical data
+- Tax bracket transition planning
+
+#### Stock Write-off VAT Workflow
+- 9 write-off reasons supported
+- VAT input adjustment calculation (7.5%)
+- Approval workflow integration
+
+#### Multi-Location Inventory Transfers
+- 7 transfer types supported
+- Interstate levy calculation (0.5%)
+- All 37 Nigerian states + FCT supported
+
+---
+
+## [1.9.0] - 2026-01-06
+
+### Payroll System with Nigerian 2026 Tax Reform Compliance
+
+This major release introduces a comprehensive payroll management system with full Nigerian tax compliance, including the 2026 Tax Reform PAYE changes.
+
+### Added
+
+#### Payroll Core System
+- **Payroll Service**: `app/services/payroll_service.py` - Complete payroll calculation engine (1,295 lines)
+- **Payroll Models**: `app/models/payroll.py` - Enhanced SQLAlchemy models for all payroll entities
+- **Payroll Schemas**: `app/schemas/payroll.py` - Pydantic schemas for API request/response validation
+- **Payroll Router**: `app/routers/payroll.py` - 20 REST API endpoints for payroll management
+- **Payroll Views**: `app/routers/payroll_views.py` - HTML page routes for frontend
+
+#### Nigerian 2026 Tax Reform PAYE Compliance
+- **New Tax-Free Threshold**: ₦800,000 annual (increased from ₦300,000)
+- **Progressive PAYE Bands**:
+  - ₦0 - ₦800,000: 0% (Exempt)
+  - ₦800,001 - ₦2,400,000: 15%
+  - ₦2,400,001 - ₦4,800,000: 20%
+  - ₦4,800,001 - ₦7,200,000: 25%
+  - Above ₦7,200,000: 30%
+- **Consolidated Relief Allowance (CRA)**: ₦200,000 + 20% of Gross Income
+- **2026 Rent Relief**: 20% of annual rent paid (max ₦500,000/year)
+- **Life Insurance Premium Relief**: Monthly premiums (max ₦250,000/year)
+
+#### Statutory Deductions & Contributions
+- **Employee Pension**: 8% of pensionable earnings (Basic + Housing + Transport)
+- **Employer Pension**: 10% of pensionable earnings
+- **NHF**: 2.5% of basic salary for qualifying employees
+- **NSITF**: 1% employer contribution
+- **ITF**: 1% employer contribution for qualifying organizations
+
+#### Employee Management
+- Full employee records with Nigerian compliance fields (NIN, BVN, TIN, Tax State)
+- Multiple bank accounts per employee with primary designation
+- All 20 licensed Nigerian PFAs supported
+- Department and job grade classification
+- Leave entitlement and balance tracking
+
+#### Payroll Processing
+- Payroll run management (monthly, bi-weekly, weekly)
+- Automated gross/deductions/net calculation
+- Approval workflow: Draft → Pending Approval → Approved → Processing → Paid
+- Bank schedule generation for payment file uploads
+- Payslip generation with itemized earnings and deductions
+
+#### Remittance Tracking
+- PAYE remittance tracking by state tax authority
+- Pension remittance to PFAs
+- NHF, NSITF, ITF remittance management
+- Due date tracking and payment recording
+
+#### Loan Management
+- Employee loans and salary advances
+- Configurable repayment schedules
+- Automatic payroll deduction integration
+- Loan balance tracking
+
+#### Leave Management
+- Leave request and approval workflow
+- Multiple leave types (annual, sick, maternity, paternity, etc.)
+- Leave balance tracking
+
+#### Frontend Templates
+- **Main Payroll Page**: `templates/payroll.html` - Dashboard with 5 tabs (841 lines)
+- **Employee Modal**: `templates/partials/payroll/employee_modal.html`
+- **Run Payroll Modal**: `templates/partials/payroll/run_payroll_modal.html`
+- **Salary Calculator Modal**: `templates/partials/payroll/salary_calculator_modal.html`
+- **Payslip Modal**: `templates/partials/payroll/payslip_modal.html`
+- **Payroll Run Details**: `templates/payroll_run_details.html`
+- Navigation updated with Payroll link in `templates/base.html`
+
+#### API Endpoints
+- `POST /api/v1/payroll/employees` - Create new employee
+- `GET /api/v1/payroll/employees` - List employees with filters
+- `GET /api/v1/payroll/employees/{id}` - Get employee details
+- `PUT /api/v1/payroll/employees/{id}` - Update employee
+- `POST /api/v1/payroll/employees/{id}/bank-accounts` - Add bank account
+- `POST /api/v1/payroll/payroll-runs` - Create payroll run
+- `GET /api/v1/payroll/payroll-runs` - List payroll runs
+- `GET /api/v1/payroll/payroll-runs/{id}` - Get payroll run details
+- `POST /api/v1/payroll/payroll-runs/{id}/process` - Process payroll
+- `POST /api/v1/payroll/payroll-runs/{id}/approve` - Approve payroll
+- `POST /api/v1/payroll/payroll-runs/{id}/mark-paid` - Mark as paid
+- `GET /api/v1/payroll/payslips` - List payslips
+- `GET /api/v1/payroll/payslips/{id}` - Get payslip details
+- `POST /api/v1/payroll/calculate-salary` - Calculate salary breakdown
+- `GET /api/v1/payroll/remittances` - List statutory remittances
+- `PUT /api/v1/payroll/remittances/{id}` - Update remittance status
+- `GET /api/v1/payroll/bank-schedule/{run_id}` - Generate bank schedule
+- `GET /api/v1/payroll/dashboard` - Get payroll dashboard stats
+- `GET /api/v1/payroll/departments` - List departments
+
+#### Database Migration
+- **Migration**: `alembic/versions/20260106_1600_add_payroll_system.py` (489 lines)
+- **Tables Created**:
+  - `employees` - Employee master records with comprehensive fields
+  - `employee_bank_accounts` - Bank account details with Nigerian banks
+  - `payroll_runs` - Payroll batch processing records
+  - `payslips` - Individual employee payslips
+  - `payslip_items` - Earnings and deduction line items
+  - `statutory_remittances` - PAYE, pension, NHF tracking
+  - `employee_loans` - Loan and advance management
+  - `loan_repayments` - Loan repayment history
+  - `employee_leaves` - Leave requests and approvals
+  - `payroll_settings` - Entity-level payroll configuration
+- **Enums Created**: EmploymentType, EmploymentStatus, PayrollFrequency, BankName, PayrollStatus, PayItemType, PayItemCategory, LoanType, LoanStatus, LeaveType, LeaveStatus, PensionFundAdministrator
+
+### Fixed
+
+- **Fixed**: `ForwardRef('UploadFile')` error in `transactions.py` - Added proper `UploadFile` import from FastAPI
+- **Fixed**: Duplicate index creation in payroll migration - Removed redundant `op.create_index()` calls for columns with `index=True`
+- **Added**: `get_current_entity_id` dependency function in `app/dependencies.py` for cookie-based entity selection
+
+### Dependencies
+
+- **New Dependency**: `get_current_entity_id` - Retrieves current entity from cookie or user's first accessible entity
+
+---
+
 ## [1.8.0] - 2026-01-06
 
 ### Nigeria Address Fields & Email Verification
@@ -75,24 +287,24 @@ This release includes a full audit of all API routes, endpoints, database migrat
 #### All 18 Routers Verified
 | Router | Prefix | Endpoints | Status |
 |--------|--------|-----------|--------|
-| auth.py | /api/v1/auth | 10 endpoints | ✅ Verified |
-| audit.py | /api/v1/entities/{entity_id}/audit | 12 endpoints | ✅ Verified |
-| categories.py | /api/v1/entities | 3 endpoints | ✅ Verified |
-| customers.py | /api/v1/entities | 5 endpoints | ✅ Verified |
-| entities.py | /api/v1/entities | 5 endpoints | ✅ Verified |
-| fixed_assets.py | /api/v1/fixed-assets | 10 endpoints | ✅ Verified |
-| inventory.py | /api/v1/entities | 15+ endpoints | ✅ Verified |
-| invoices.py | /api/v1/entities | 12+ endpoints | ✅ Verified |
-| organization_users.py | /api/v1/organizations | 8 endpoints | ✅ Verified |
-| receipts.py | /api/v1/entities | 5+ endpoints | ✅ Verified |
-| reports.py | /api/v1/entities | 15+ endpoints | ✅ Verified |
-| sales.py | /api/v1/entities | 8+ endpoints | ✅ Verified |
-| staff.py | /api/v1/staff | 10+ endpoints | ✅ Verified |
-| tax.py | /api/v1/tax | 10+ endpoints | ✅ Verified |
-| tax_2026.py | /api/v1/tax-2026 | 30+ endpoints | ✅ Verified |
-| transactions.py | /api/v1/entities | 6 endpoints | ✅ Verified |
-| vendors.py | /api/v1/entities | 6 endpoints | ✅ Verified |
-| views.py | / (HTML) | 15+ pages | ✅ Verified |
+| auth.py | /api/v1/auth | 10 endpoints | Verified |
+| audit.py | /api/v1/entities/{entity_id}/audit | 12 endpoints | Verified |
+| categories.py | /api/v1/entities | 3 endpoints | Verified |
+| customers.py | /api/v1/entities | 5 endpoints | Verified |
+| entities.py | /api/v1/entities | 5 endpoints | Verified |
+| fixed_assets.py | /api/v1/fixed-assets | 10 endpoints | Verified |
+| inventory.py | /api/v1/entities | 15+ endpoints | Verified |
+| invoices.py | /api/v1/entities | 12+ endpoints | Verified |
+| organization_users.py | /api/v1/organizations | 8 endpoints | Verified |
+| receipts.py | /api/v1/entities | 5+ endpoints | Verified |
+| reports.py | /api/v1/entities | 15+ endpoints | Verified |
+| sales.py | /api/v1/entities | 8+ endpoints | Verified |
+| staff.py | /api/v1/staff | 10+ endpoints | Verified |
+| tax.py | /api/v1/tax | 10+ endpoints | Verified |
+| tax_2026.py | /api/v1/tax-2026 | 30+ endpoints | Verified |
+| transactions.py | /api/v1/entities | 6 endpoints | Verified |
+| vendors.py | /api/v1/entities | 6 endpoints | Verified |
+| views.py | / (HTML) | 15+ pages | Verified |
 
 ### Test Results
 - **313 tests passing**

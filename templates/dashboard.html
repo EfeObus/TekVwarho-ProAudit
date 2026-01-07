@@ -262,6 +262,7 @@ function dashboard() {
         async loadDashboard() {
             if (!this.entityId) {
                 console.warn('No entity selected');
+                window.location.href = '/select-entity?next=/dashboard';
                 return;
             }
             try {

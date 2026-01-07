@@ -1,0 +1,870 @@
+{% extends "base.html" %}
+
+{% block title %}Payroll - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="payrollPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Payroll Management</h1>
+            <p class="text-gray-600">Nigerian-compliant payroll with PAYE, Pension, NHF & statutory deductions</p>
+        </div>
+        <div class="flex items-center space-x-3 mt-4 sm:mt-0">
+            <button @click="showCalculatorModal = true" class="inline-flex items-center px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                Salary Calculator
+            </button>
+            <button @click="showRunPayrollModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Run Payroll
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-8">
+            <button @click="activeTab = 'dashboard'" :class="activeTab === 'dashboard' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
+                Dashboard
+            </button>
+            <button @click="activeTab = 'employees'" :class="activeTab === 'employees' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
+                Employees
+            </button>
+            <button @click="activeTab = 'payroll-runs'" :class="activeTab === 'payroll-runs' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
+                Payroll Runs
+            </button>
+            <button @click="activeTab = 'remittances'" :class="activeTab === 'remittances' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
+                Remittances
+            </button>
+            <button @click="activeTab = 'loans'" :class="activeTab === 'loans' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
+                Loans & Advances
+            </button>
+        </nav>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div x-show="activeTab === 'dashboard'" x-transition>
+        <!-- 2026 PAYE Compliance Banner -->
+        <div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-4 mb-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-sm font-semibold text-orange-800">2026 PAYE Tax Reform Active</h3>
+                    <p class="text-sm text-orange-700">Progressive bands with ₦800,000 tax-free threshold. Rent Relief (20% up to ₦500K) now applies.</p>
+                </div>
+                <div class="ml-auto">
+                    <span class="px-3 py-1 bg-orange-100 text-orange-800 text-xs rounded-full font-medium">Filing Due: 10th Monthly</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Total Employees -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Active Employees</p>
+                        <p class="text-2xl font-bold text-gray-900" x-text="stats.active_employees || 0"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Gross -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Monthly Gross</p>
+                        <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCurrency(stats.total_monthly_payroll || 0)"></span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly PAYE -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Current Month PAYE</p>
+                        <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCurrency(stats.current_month_paye || 0)"></span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Remittances -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-red-100 text-red-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Pending Remittances</p>
+                        <p class="text-2xl font-bold text-red-600" x-text="stats.pending_remittances?.length || 0"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statutory Summary -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Current Month Breakdown -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Current Month Statutory Summary</h3>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="text-center p-4 bg-orange-50 rounded-lg">
+                        <p class="text-2xl font-bold text-orange-600">₦<span x-text="formatCompact(stats.current_month_paye || 0)"></span></p>
+                        <p class="text-xs text-gray-600 mt-1">PAYE Tax</p>
+                    </div>
+                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                        <p class="text-2xl font-bold text-blue-600">₦<span x-text="formatCompact(stats.current_month_pension || 0)"></span></p>
+                        <p class="text-xs text-gray-600 mt-1">Pension</p>
+                    </div>
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <p class="text-2xl font-bold text-green-600">₦<span x-text="formatCompact(stats.current_month_nhf || 0)"></span></p>
+                        <p class="text-xs text-gray-600 mt-1">NHF (2.5%)</p>
+                    </div>
+                    <div class="text-center p-4 bg-purple-50 rounded-lg">
+                        <p class="text-2xl font-bold text-purple-600">₦<span x-text="formatCompact(stats.current_month_nsitf || 0)"></span></p>
+                        <p class="text-xs text-gray-600 mt-1">NSITF (1%)</p>
+                    </div>
+                    <div class="text-center p-4 bg-indigo-50 rounded-lg">
+                        <p class="text-2xl font-bold text-indigo-600">₦<span x-text="formatCompact(stats.current_month_itf || 0)"></span></p>
+                        <p class="text-xs text-gray-600 mt-1">ITF (1%)</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Department Breakdown -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">By Department</h3>
+                <div class="space-y-3 max-h-48 overflow-y-auto">
+                    <template x-for="dept in stats.department_breakdown || []" :key="dept.department">
+                        <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900" x-text="dept.department"></p>
+                                <p class="text-xs text-gray-500"><span x-text="dept.employee_count"></span> employees</p>
+                            </div>
+                            <p class="text-sm font-semibold text-gray-700">₦<span x-text="formatCompact(dept.total_salary)"></span></p>
+                        </div>
+                    </template>
+                    <template x-if="!stats.department_breakdown || stats.department_breakdown.length === 0">
+                        <p class="text-sm text-gray-500 text-center py-4">No department data</p>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Payroll Runs & Pending Remittances -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Recent Payroll Runs -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Recent Payroll Runs</h3>
+                    <button @click="activeTab = 'payroll-runs'" class="text-sm text-green-600 hover:text-green-700">View All →</button>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="run in stats.recent_payroll_runs || []" :key="run.id">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900" x-text="run.name"></p>
+                                <p class="text-xs text-gray-500" x-text="run.payroll_code"></p>
+                            </div>
+                            <div class="text-right">
+                                <span class="px-2 py-1 text-xs rounded-full font-medium"
+                                      :class="{
+                                          'bg-gray-100 text-gray-800': run.status === 'draft',
+                                          'bg-yellow-100 text-yellow-800': run.status === 'pending_approval',
+                                          'bg-blue-100 text-blue-800': run.status === 'approved',
+                                          'bg-green-100 text-green-800': run.status === 'completed' || run.status === 'paid'
+                                      }"
+                                      x-text="run.status.replace('_', ' ').toUpperCase()"></span>
+                                <p class="text-sm font-semibold text-gray-700 mt-1">₦<span x-text="formatCurrency(run.total_net_pay)"></span></p>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!stats.recent_payroll_runs || stats.recent_payroll_runs.length === 0">
+                        <p class="text-sm text-gray-500 text-center py-4">No payroll runs yet</p>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Pending Remittances -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Pending Remittances</h3>
+                    <button @click="activeTab = 'remittances'" class="text-sm text-green-600 hover:text-green-700">View All →</button>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="rem in stats.pending_remittances || []" :key="rem.id">
+                        <div class="flex items-center justify-between p-3 border rounded-lg"
+                             :class="new Date(rem.due_date) < new Date() ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900 uppercase" x-text="rem.remittance_type"></p>
+                                <p class="text-xs text-gray-500">Due: <span x-text="formatDate(rem.due_date)"></span></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-semibold text-gray-700">₦<span x-text="formatCurrency(rem.amount_due)"></span></p>
+                                <span x-show="new Date(rem.due_date) < new Date()" class="text-xs text-red-600 font-medium">OVERDUE</span>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!stats.pending_remittances || stats.pending_remittances.length === 0">
+                        <div class="text-center py-4">
+                            <svg class="w-12 h-12 mx-auto text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p class="text-sm text-gray-500 mt-2">All remittances up to date!</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employees Tab -->
+    <div x-show="activeTab === 'employees'" x-transition>
+        <!-- Search & Add -->
+        <div class="flex flex-col md:flex-row gap-4 mb-6">
+            <div class="flex-1">
+                <input type="text" x-model="employeeSearch" @input="searchEmployees()" placeholder="Search employees by name, ID, or email..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div class="flex gap-2">
+                <select x-model="departmentFilter" @change="loadEmployees()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                    <option value="">All Departments</option>
+                    <template x-for="dept in departments" :key="dept">
+                        <option :value="dept" x-text="dept"></option>
+                    </template>
+                </select>
+                <button @click="showEmployeeModal = true; resetEmployeeForm()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                    </svg>
+                    Add Employee
+                </button>
+            </div>
+        </div>
+
+        <!-- Employees Table -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Gross</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TIN</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="emp in employees" :key="emp.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                                            <span class="text-green-600 font-semibold" x-text="emp.full_name?.charAt(0)?.toUpperCase() || 'E'"></span>
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900" x-text="emp.full_name"></div>
+                                            <div class="text-sm text-gray-500" x-text="emp.employee_id + ' • ' + (emp.job_title || 'No title')"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="emp.department || '-'"></td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900">₦<span x-text="formatCurrency(emp.monthly_gross)"></span></div>
+                                    <div class="text-xs text-gray-500">Basic: ₦<span x-text="formatCurrency(emp.basic_salary)"></span></div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span x-text="emp.tin || 'Not provided'" class="text-sm" :class="emp.tin ? 'text-gray-900' : 'text-gray-400'"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="{
+                                        'bg-green-100 text-green-800': emp.employment_status === 'active',
+                                        'bg-gray-100 text-gray-800': emp.employment_status === 'inactive',
+                                        'bg-yellow-100 text-yellow-800': emp.employment_status === 'probation' || emp.employment_status === 'on_leave',
+                                        'bg-red-100 text-red-800': emp.employment_status === 'terminated' || emp.employment_status === 'resigned'
+                                    }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="emp.employment_status?.replace('_', ' ').toUpperCase() || 'ACTIVE'"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                    <div class="relative" x-data="{ open: false }">
+                                        <button @click="open = !open" class="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50">
+                                            Actions <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                                            <button @click="editEmployee(emp); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                                Edit
+                                            </button>
+                                            <button @click="viewPayslips(emp.id); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                                View Payslips
+                                            </button>
+                                            <button @click="viewLoans(emp.id); open = false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                                Loans & Advances
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            <template x-if="employees.length === 0">
+                <div class="text-center py-12">
+                    <svg class="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <h3 class="mt-4 text-lg font-medium text-gray-900">No employees yet</h3>
+                    <p class="mt-2 text-gray-500">Add your first employee to get started with payroll.</p>
+                    <button @click="showEmployeeModal = true; resetEmployeeForm()" class="mt-4 inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        Add Employee
+                    </button>
+                </div>
+            </template>
+
+            <!-- Pagination -->
+            <div x-show="employees.length > 0" class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                <p class="text-sm text-gray-700">
+                    Showing <span x-text="((employeePage - 1) * employeePerPage) + 1"></span> to <span x-text="Math.min(employeePage * employeePerPage, employeeTotal)"></span> of <span x-text="employeeTotal"></span> employees
+                </p>
+                <div class="flex space-x-2">
+                    <button @click="employeePage > 1 && (employeePage--, loadEmployees())" :disabled="employeePage <= 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Previous</button>
+                    <button @click="employeePage < employeePages && (employeePage++, loadEmployees())" :disabled="employeePage >= employeePages" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payroll Runs Tab -->
+    <div x-show="activeTab === 'payroll-runs'" x-transition>
+        <!-- Filter -->
+        <div class="flex gap-4 mb-6">
+            <select x-model="payrollYear" @change="loadPayrollRuns()" class="px-4 py-2 border border-gray-300 rounded-lg">
+                <template x-for="y in [2026, 2025, 2024]" :key="y">
+                    <option :value="y" x-text="y"></option>
+                </template>
+            </select>
+            <select x-model="payrollStatusFilter" @change="loadPayrollRuns()" class="px-4 py-2 border border-gray-300 rounded-lg">
+                <option value="">All Status</option>
+                <option value="draft">Draft</option>
+                <option value="approved">Approved</option>
+                <option value="completed">Completed</option>
+                <option value="paid">Paid</option>
+            </select>
+        </div>
+
+        <!-- Payroll Runs List -->
+        <div class="space-y-4">
+            <template x-for="run in payrollRuns" :key="run.id">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <div class="flex items-center space-x-3">
+                                <h3 class="text-lg font-semibold text-gray-900" x-text="run.name"></h3>
+                                <span class="px-2 py-1 text-xs rounded-full font-medium"
+                                      :class="{
+                                          'bg-gray-100 text-gray-800': run.status === 'draft',
+                                          'bg-yellow-100 text-yellow-800': run.status === 'pending_approval',
+                                          'bg-blue-100 text-blue-800': run.status === 'approved',
+                                          'bg-purple-100 text-purple-800': run.status === 'processing',
+                                          'bg-green-100 text-green-800': run.status === 'completed',
+                                          'bg-emerald-100 text-emerald-800': run.status === 'paid'
+                                      }"
+                                      x-text="run.status.replace('_', ' ').toUpperCase()"></span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1">
+                                <span x-text="run.payroll_code"></span> • 
+                                Period: <span x-text="formatDate(run.period_start)"></span> - <span x-text="formatDate(run.period_end)"></span>
+                            </p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button @click="viewPayrollDetails(run.id)" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">View Details</button>
+                            <template x-if="run.status === 'draft'">
+                                <button @click="approvePayroll(run.id)" class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Approve</button>
+                            </template>
+                            <template x-if="run.status === 'approved'">
+                                <button @click="processPayroll(run.id)" class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700">Process</button>
+                            </template>
+                            <template x-if="run.status === 'completed'">
+                                <button @click="markPayrollPaid(run.id)" class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">Mark Paid</button>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Summary -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 pt-4 border-t border-gray-100">
+                        <div>
+                            <p class="text-xs text-gray-500">Employees</p>
+                            <p class="text-lg font-semibold text-gray-900" x-text="run.total_employees"></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Gross Pay</p>
+                            <p class="text-lg font-semibold text-gray-900">₦<span x-text="formatCurrency(run.total_gross_pay)"></span></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Deductions</p>
+                            <p class="text-lg font-semibold text-red-600">₦<span x-text="formatCurrency(run.total_deductions)"></span></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Net Pay</p>
+                            <p class="text-lg font-semibold text-green-600">₦<span x-text="formatCurrency(run.total_net_pay)"></span></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Payment Date</p>
+                            <p class="text-lg font-semibold text-gray-900" x-text="formatDate(run.payment_date)"></p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template x-if="payrollRuns.length === 0">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                    <svg class="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    <h3 class="mt-4 text-lg font-medium text-gray-900">No payroll runs yet</h3>
+                    <p class="mt-2 text-gray-500">Create your first payroll run to process employee salaries.</p>
+                    <button @click="showRunPayrollModal = true" class="mt-4 inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        Run Payroll
+                    </button>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Remittances Tab -->
+    <div x-show="activeTab === 'remittances'" x-transition>
+        <div class="flex gap-4 mb-6">
+            <select x-model="remittanceType" @change="loadRemittances()" class="px-4 py-2 border border-gray-300 rounded-lg">
+                <option value="">All Types</option>
+                <option value="paye">PAYE</option>
+                <option value="pension">Pension</option>
+                <option value="nhf">NHF</option>
+                <option value="nsitf">NSITF</option>
+                <option value="itf">ITF</option>
+            </select>
+            <select x-model="remittancePaid" @change="loadRemittances()" class="px-4 py-2 border border-gray-300 rounded-lg">
+                <option value="">All Status</option>
+                <option value="false">Pending</option>
+                <option value="true">Paid</option>
+            </select>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount Due</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <template x-for="rem in remittances" :key="rem.id">
+                        <tr :class="!rem.is_paid && new Date(rem.due_date) < new Date() ? 'bg-red-50' : ''">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs font-medium rounded uppercase"
+                                      :class="{
+                                          'bg-orange-100 text-orange-800': rem.remittance_type === 'paye',
+                                          'bg-blue-100 text-blue-800': rem.remittance_type === 'pension',
+                                          'bg-green-100 text-green-800': rem.remittance_type === 'nhf',
+                                          'bg-purple-100 text-purple-800': rem.remittance_type === 'nsitf',
+                                          'bg-indigo-100 text-indigo-800': rem.remittance_type === 'itf'
+                                      }"
+                                      x-text="rem.remittance_type"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="getMonthName(rem.period_month) + ' ' + rem.period_year"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₦<span x-text="formatCurrency(rem.amount_due)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" :class="!rem.is_paid && new Date(rem.due_date) < new Date() ? 'text-red-600 font-medium' : 'text-gray-900'" x-text="formatDate(rem.due_date)"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span :class="rem.is_paid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'" class="px-2 py-1 text-xs font-medium rounded-full" x-text="rem.is_paid ? 'Paid' : 'Pending'"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                                <template x-if="!rem.is_paid">
+                                    <button @click="markRemittancePaid(rem)" class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">Mark Paid</button>
+                                </template>
+                                <template x-if="rem.is_paid">
+                                    <span class="text-sm text-gray-500">Paid: <span x-text="formatDate(rem.payment_date)"></span></span>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Loans Tab -->
+    <div x-show="activeTab === 'loans'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-semibold text-gray-900">Employee Loans & Salary Advances</h2>
+            <button @click="showLoanModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                New Loan/Advance
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            <h3 class="mt-4 text-lg font-medium text-gray-900">Loan Management</h3>
+            <p class="mt-2 text-gray-500">Track employee loans and salary advances with automatic payroll deductions.</p>
+        </div>
+    </div>
+
+    <!-- Include Modals -->
+    {% include "partials/payroll/employee_modal.html" %}
+    {% include "partials/payroll/run_payroll_modal.html" %}
+    {% include "partials/payroll/salary_calculator_modal.html" %}
+    {% include "partials/payroll/payslip_modal.html" %}
+</div>
+
+<script>
+function payrollPage() {
+    return {
+        activeTab: 'dashboard',
+        
+        // Dashboard
+        stats: {},
+        
+        // Employees
+        employees: [],
+        employeeSearch: '',
+        departmentFilter: '',
+        departments: [],
+        employeePage: 1,
+        employeePerPage: 20,
+        employeeTotal: 0,
+        employeePages: 1,
+        
+        // Payroll Runs
+        payrollRuns: [],
+        payrollYear: new Date().getFullYear(),
+        payrollStatusFilter: '',
+        
+        // Remittances
+        remittances: [],
+        remittanceType: '',
+        remittancePaid: '',
+        
+        // Modals
+        showEmployeeModal: false,
+        showRunPayrollModal: false,
+        showCalculatorModal: false,
+        showLoanModal: false,
+        showPayslipModal: false,
+        
+        // Forms
+        employeeForm: {},
+        payrollForm: {},
+        editingEmployee: null,
+        
+        // Calculator
+        calcResult: null,
+        
+        async init() {
+            await this.loadDashboard();
+            await this.loadDepartments();
+        },
+        
+        async loadDashboard() {
+            try {
+                const response = await fetch('/api/v1/payroll/dashboard');
+                if (response.ok) {
+                    this.stats = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        },
+        
+        async loadDepartments() {
+            try {
+                const response = await fetch('/api/v1/payroll/employees/departments');
+                if (response.ok) {
+                    this.departments = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading departments:', error);
+            }
+        },
+        
+        async loadEmployees() {
+            try {
+                const params = new URLSearchParams({
+                    page: this.employeePage,
+                    per_page: this.employeePerPage
+                });
+                if (this.employeeSearch) params.append('search', this.employeeSearch);
+                if (this.departmentFilter) params.append('department', this.departmentFilter);
+                
+                const response = await fetch(`/api/v1/payroll/employees?${params}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.employees = data.items;
+                    this.employeeTotal = data.total;
+                    this.employeePages = data.pages;
+                }
+            } catch (error) {
+                console.error('Error loading employees:', error);
+            }
+        },
+        
+        searchEmployees: Alpine.debounce(function() {
+            this.employeePage = 1;
+            this.loadEmployees();
+        }, 300),
+        
+        async loadPayrollRuns() {
+            try {
+                const params = new URLSearchParams({ year: this.payrollYear });
+                if (this.payrollStatusFilter) params.append('status', this.payrollStatusFilter);
+                
+                const response = await fetch(`/api/v1/payroll/payroll-runs?${params}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.payrollRuns = data.items;
+                }
+            } catch (error) {
+                console.error('Error loading payroll runs:', error);
+            }
+        },
+        
+        async loadRemittances() {
+            try {
+                const params = new URLSearchParams();
+                if (this.remittanceType) params.append('remittance_type', this.remittanceType);
+                if (this.remittancePaid) params.append('is_paid', this.remittancePaid);
+                
+                const response = await fetch(`/api/v1/payroll/remittances?${params}`);
+                if (response.ok) {
+                    this.remittances = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading remittances:', error);
+            }
+        },
+        
+        resetEmployeeForm() {
+            this.editingEmployee = null;
+            this.employeeForm = {
+                employee_id: '',
+                first_name: '',
+                last_name: '',
+                email: '',
+                phone_number: '',
+                department: '',
+                job_title: '',
+                hire_date: new Date().toISOString().split('T')[0],
+                basic_salary: 0,
+                housing_allowance: 0,
+                transport_allowance: 0,
+                employment_type: 'full_time',
+                tin: '',
+                pension_pin: '',
+                pfa: '',
+                nhf_number: '',
+                bank_name: '',
+                account_number: '',
+                account_name: ''
+            };
+        },
+        
+        editEmployee(emp) {
+            this.editingEmployee = emp;
+            this.employeeForm = { ...emp };
+            this.showEmployeeModal = true;
+        },
+        
+        async saveEmployee() {
+            try {
+                const url = this.editingEmployee 
+                    ? `/api/v1/payroll/employees/${this.editingEmployee.id}`
+                    : '/api/v1/payroll/employees';
+                const method = this.editingEmployee ? 'PATCH' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.employeeForm)
+                });
+                
+                if (response.ok) {
+                    this.showEmployeeModal = false;
+                    this.loadEmployees();
+                    this.loadDashboard();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to save employee');
+                }
+            } catch (error) {
+                console.error('Error saving employee:', error);
+            }
+        },
+        
+        async approvePayroll(id) {
+            if (!confirm('Approve this payroll run?')) return;
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${id}/approve`, { method: 'POST' });
+                if (response.ok) this.loadPayrollRuns();
+            } catch (error) {
+                console.error('Error approving payroll:', error);
+            }
+        },
+        
+        async processPayroll(id) {
+            if (!confirm('Process this payroll? This will create statutory remittance records.')) return;
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${id}/process`, { method: 'POST' });
+                if (response.ok) {
+                    this.loadPayrollRuns();
+                    this.loadRemittances();
+                }
+            } catch (error) {
+                console.error('Error processing payroll:', error);
+            }
+        },
+        
+        async markPayrollPaid(id) {
+            if (!confirm('Mark this payroll as paid?')) return;
+            try {
+                const response = await fetch(`/api/v1/payroll/payroll-runs/${id}/mark-paid`, { method: 'POST' });
+                if (response.ok) this.loadPayrollRuns();
+            } catch (error) {
+                console.error('Error marking payroll paid:', error);
+            }
+        },
+        
+        async createPayrollRun() {
+            try {
+                const form = document.querySelector('[x-data*="payrollForm"]')?.__x?.$data?.payrollForm;
+                if (!form) {
+                    alert('Please fill in the payroll details');
+                    return;
+                }
+                
+                const response = await fetch('/api/v1/payroll/payroll-runs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(form)
+                });
+                
+                if (response.ok) {
+                    const newRun = await response.json();
+                    this.showRunPayrollModal = false;
+                    this.loadPayrollRuns();
+                    this.loadDashboard();
+                    // Navigate to the new payroll run details
+                    window.location.href = `/payroll/runs/${newRun.id}`;
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to create payroll run');
+                }
+            } catch (error) {
+                console.error('Error creating payroll run:', error);
+            }
+        },
+        
+        async calculateSalary() {
+            try {
+                const response = await fetch('/api/v1/payroll/calculate-salary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.calcForm)
+                });
+                if (response.ok) {
+                    this.calcResult = await response.json();
+                }
+            } catch (error) {
+                console.error('Error calculating salary:', error);
+            }
+        },
+        
+        formatCurrency(value) {
+            return new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2 }).format(value || 0);
+        },
+        
+        formatCompact(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value?.toFixed(0) || '0';
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+        },
+        
+        getMonthName(month) {
+            const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return months[month] || '';
+        },
+        
+        viewPayslips(empId) {
+            // Navigate or show modal
+            window.location.href = `/payroll/employees/${empId}/payslips`;
+        },
+        
+        viewLoans(empId) {
+            // Navigate or show modal
+        },
+        
+        viewPayrollDetails(id) {
+            window.location.href = `/payroll/runs/${id}`;
+        },
+        
+        markRemittancePaid(rem) {
+            // Show modal to enter payment details
+            const paymentRef = prompt('Enter payment reference:');
+            if (!paymentRef) return;
+            
+            const today = new Date().toISOString().split('T')[0];
+            fetch(`/api/v1/payroll/remittances/${rem.id}/mark-paid?payment_date=${today}&payment_reference=${paymentRef}`, {
+                method: 'POST'
+            }).then(res => {
+                if (res.ok) this.loadRemittances();
+            });
+        }
+    };
+}
+</script>
+{% endblock %}

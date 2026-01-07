@@ -786,7 +786,7 @@ class NRSCancellationResponse(BaseModel):
     
     Required permission: CANCEL_NRS_SUBMISSION (Owner only)
     
-    ⚠️ Legal Warning: Modifying a "Submitted" invoice without proper NRS-tracked 
+    Legal Warning: Modifying a "Submitted" invoice without proper NRS-tracked 
     Credit Note is a criminal offense under the NTAA 2025.
     """,
 )

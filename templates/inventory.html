@@ -306,6 +306,12 @@ function inventoryPage() {
         },
         
         async init() {
+            // Validate entity_id before loading
+            const entityId = localStorage.getItem('currentEntityId');
+            if (!entityId || entityId === 'null' || entityId === 'undefined') {
+                window.location.href = '/select-entity?next=/inventory';
+                return;
+            }
             await this.loadItems();
         },
         

@@ -69,7 +69,7 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="text-sm text-gray-900" x-text="vendor.tin || 'Not provided'"></span>
                                 <template x-if="vendor.tin_verified">
-                                    <span class="ml-1 text-green-500">✓</span>
+                                    <span class="ml-1 text-green-500">OK</span>
                                 </template>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -306,6 +306,12 @@ function vendorsPage() {
         },
         
         async init() {
+            const entityId = localStorage.getItem('currentEntityId');
+            if (!entityId || entityId === 'null' || entityId === 'undefined') {
+                // Redirect to entity selection if no entity selected
+                window.location.href = '/select-entity?next=/vendors';
+                return;
+            }
             await this.loadVendors();
         },
         
@@ -313,6 +319,11 @@ function vendorsPage() {
             try {
                 const entityId = localStorage.getItem('currentEntityId');
                 const token = localStorage.getItem('token');
+                
+                if (!entityId || entityId === 'null' || entityId === 'undefined') {
+                    console.error('No entity selected');
+                    return;
+                }
                 
                 let url = `/api/v1/entities/${entityId}/vendors`;
                 if (this.searchQuery) {
@@ -335,11 +346,11 @@ function vendorsPage() {
                     }
                 } else {
                     console.error('Failed to load vendors:', response.status);
-                    alert('Failed to load vendors');
+                    this.vendors = [];
                 }
             } catch (error) {
                 console.error('Failed to load vendors:', error);
-                alert('Failed to load vendors: ' + error.message);
+                this.vendors = [];
             }
         },
         
@@ -424,9 +435,9 @@ function vendorsPage() {
                 
                 if (response.ok) {
                     if (data.verified) {
-                        alert(`✅ TIN Verified: ${data.verification_message}`);
+                        alert(`Success:  TIN Verified: ${data.verification_message}`);
                     } else {
-                        alert(`❌ Verification Failed: ${data.verification_message}`);
+                        alert(`Failed:  Verification Failed: ${data.verification_message}`);
                     }
                     await this.loadVendors();
                 } else {

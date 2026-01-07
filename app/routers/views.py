@@ -111,7 +111,7 @@ async def require_auth(
                 return user, demo_entity.id, None
             except Exception as e:
                 # If test entity creation fails, continue without entity
-                print(f"⚠️ Could not assign test entity to staff: {e}")
+                print(f"Could not assign test entity to staff: {e}")
                 return user, None, None
         return user, entity_id, None
     

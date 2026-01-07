@@ -12,7 +12,7 @@ from datetime import date
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -843,7 +843,7 @@ async def duplicate_transaction(
 )
 async def import_transactions(
     entity_id: UUID,
-    file: "UploadFile" = None,
+    file: UploadFile = None,
     request: ImportTransactionsRequest = None,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_async_session),

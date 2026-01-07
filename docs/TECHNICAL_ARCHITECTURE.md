@@ -1,9 +1,23 @@
 # TekVwarho ProAudit - Technical Architecture Document
 
-**Document Version:** 1.0  
-**Date:** January 3, 2026  
-**Status:** Proposed Architecture  
+**Document Version:** 2.1  
+**Date:** January 6, 2026  
+**Status:** Production Architecture  
 **Classification:** Internal Technical Document  
+
+---
+
+## Current System Statistics
+
+| Metric | Value |
+|--------|-------|
+| **Total Routes** | 527 |
+| **API Endpoints** | 471 |
+| **View Routes** | 52 |
+| **Database Models** | 84 exports |
+| **Test Coverage** | 313 tests passing |
+| **Security Middleware** | 6 layers |
+| **Templates** | 26 HTML files |
 
 ---
 
@@ -590,7 +604,57 @@ GET    /api/v1/entities/{entityId}/banking/reconciliation
 - **CSRF:** SameSite cookies, token validation
 - **Audit Logging:** All financial operations logged
 
-### 8.5 Email Verification
+### 8.5 NDPA/NITDA Security Implementation (v2.1.0)
+
+The following security middleware stack is loaded in order:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SECURITY MIDDLEWARE STACK                 │
+├─────────────────────────────────────────────────────────────┤
+│  1. RequestLoggingMiddleware    - Security event logging    │
+│  2. SecurityHeadersMiddleware   - CSP, HSTS, X-Frame-Options│
+│  3. CSRFMiddleware              - Double-submit validation  │
+│  4. AccountLockoutMiddleware    - Pre-login lockout check   │
+│  5. RateLimitingMiddleware      - Per-endpoint rate limits  │
+│  6. GeoFencingMiddleware        - Nigerian IP enforcement   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### PII Encryption (AES-256-GCM)
+
+| PII Category | Encryption | Masking Example |
+|--------------|------------|-----------------|
+| BVN | AES-256-GCM | `***45***901` |
+| NIN | AES-256-GCM | `***56***234` |
+| RSA PIN | AES-256-GCM | `PEN***678901234` |
+| Bank Account | AES-256-GCM | `******7890` |
+| TIN | AES-256-GCM | `12***-0001` |
+| Phone | AES-256-GCM | `+234***4567` |
+
+#### Rate Limiting Configuration
+
+| Endpoint | Limit | Window | Purpose |
+|----------|-------|--------|---------|
+| `/auth/login` | 5 | 1 min | Brute force protection |
+| `/auth/register` | 3 | 1 min | Account spam prevention |
+| `/tax/*/calculate` | 30 | 1 min | API abuse prevention |
+| `/*/nrs/*` | 10 | 1 min | FIRS rate compliance |
+| `/auth/forgot-password` | 3 | 15 min | Email spam prevention |
+| General API | 100 | 1 min | Overall protection |
+
+#### Account Lockout (Progressive)
+
+| Failed Attempts | Lockout Duration |
+|-----------------|------------------|
+| 1-4 | None |
+| 5 | 1 minute |
+| 6 | 5 minutes |
+| 7 | 15 minutes |
+| 8 | 1 hour |
+| 9+ | 24 hours |
+
+### 8.6 Email Verification
 
 New organization users must verify their email before accessing full features:
 - Verification token generated on registration (24-hour expiry)

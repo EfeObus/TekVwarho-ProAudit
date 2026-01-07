@@ -163,9 +163,9 @@ def upgrade() -> None:
         op.create_index('ix_fixed_assets_status', 'fixed_assets', ['status'])
         op.create_index('ix_fixed_assets_vendor_irn', 'fixed_assets', ['vendor_irn'])
         
-        print("✅ Created fixed_assets table")
+        print("Created fixed_assets table")
     else:
-        print("⚠️ fixed_assets table already exists, skipping...")
+        print("fixed_assets table already exists, skipping...")
     
     # Create depreciation_entries table
     if 'depreciation_entries' not in existing_tables:
@@ -207,9 +207,9 @@ def upgrade() -> None:
             unique=True
         )
         
-        print("✅ Created depreciation_entries table")
+        print("Created depreciation_entries table")
     else:
-        print("⚠️ depreciation_entries table already exists, skipping...")
+        print("depreciation_entries table already exists, skipping...")
 
 
 def downgrade() -> None:
