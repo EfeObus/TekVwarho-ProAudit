@@ -137,6 +137,109 @@ docs/AUDIT_SYSTEM_DOCUMENTATION.md      - Complete documentation
 ### Documentation
 For complete audit system documentation, see:
 - [`docs/AUDIT_SYSTEM_DOCUMENTATION.md`](docs/AUDIT_SYSTEM_DOCUMENTATION.md)
+- [`docs/WORLD_CLASS_AUDIT_DOCUMENTATION.md`](docs/WORLD_CLASS_AUDIT_DOCUMENTATION.md)
+
+---
+
+## Version 2.2.1 - 5 Critical Advanced Audit Features
+
+### Overview
+Building on the world-class forensic audit system, TekVwarho ProAudit now implements **5 critical audit compliance features** required by Nigerian FIRS, NTAA 2025, and CAMA 2020.
+
+### 1. Auditor Read-Only Role (Hard-Enforced)
+Enterprise-grade access control for external auditors:
+- **Hard Enforcement**: All write operations blocked at API level
+- **Forbidden Actions**: create, update, delete, submit, cancel, approve, reject
+- **Allowed Actions**: view, read, list, get, export, download only
+- **Session Tracking**: Complete audit trail of all auditor activities
+- **Action Logging**: Every auditor action logged with timestamps
+
+### 2. Evidence Immutability (Files + Records)
+Tamper-proof evidence collection and verification:
+- **SHA-256 Hashing**: Every piece of evidence hashed at creation
+- **Hash Verification**: Detect any tampering through recalculation
+- **Evidence Types**: Documents, screenshots, database records, calculations, correspondence
+- **File Uploads**: Immediate hash capture on receipt
+- **Integrity Proof**: Cryptographic verification on demand
+
+### 3. Reproducible Audit Runs
+Deterministic audit execution for verification:
+- **Rule Versioning**: Capture exact version of audit rules used
+- **Data Snapshots**: Preserve state of data at audit time
+- **Parameter Capture**: Store all inputs for exact reproduction
+- **Reproduce Function**: Re-run any audit with identical results
+- **Comparison Reports**: Compare original vs reproduction
+
+### 4. Human-Readable Findings
+Regulator-friendly audit reports:
+- **Plain Language**: `to_human_readable()` method on all findings
+- **Risk Classification**: Critical, High, Medium, Low, Info
+- **Categories**: Tax Calculation, VAT/WHT/PAYE Compliance, Documentation, Internal Control
+- **Recommendations**: Actionable remediation steps
+- **Regulatory References**: Links to specific laws and sections
+- **Management Response**: Built-in response tracking
+
+### 5. Exportable Audit Output
+Multiple export formats for different stakeholders:
+- **PDF Reports**: Formatted for FIRS regulatory submission
+- **CSV Data**: For external analysis and verification
+- **Hash Verification**: All exports include integrity proof
+- **Executive Summary**: High-level findings for management
+- **Detailed Findings**: Complete technical documentation
+
+### New API Endpoints (25+)
+```
+# Auditor Role Management
+GET  /api/audit-system/role/check-permissions
+POST /api/audit-system/role/validate-action
+
+# Auditor Sessions
+POST /api/audit-system/sessions/start
+POST /api/audit-system/sessions/{session_id}/end
+GET  /api/audit-system/sessions/my-sessions
+GET  /api/audit-system/sessions/{session_id}/actions
+
+# Audit Runs (Reproducible)
+POST /api/audit-system/runs/create
+POST /api/audit-system/runs/{run_id}/execute
+POST /api/audit-system/runs/{run_id}/reproduce
+GET  /api/audit-system/runs/list
+GET  /api/audit-system/runs/{run_id}
+
+# Findings (Human-Readable)
+POST /api/audit-system/findings/create
+GET  /api/audit-system/findings/by-run/{run_id}
+GET  /api/audit-system/findings/{finding_id}/human-readable
+
+# Evidence (Immutable)
+POST /api/audit-system/evidence/create
+POST /api/audit-system/evidence/upload-file
+GET  /api/audit-system/evidence/{evidence_id}/verify
+GET  /api/audit-system/evidence/by-run/{run_id}
+
+# Export
+GET  /api/audit-system/export/run/{run_id}/pdf
+GET  /api/audit-system/export/run/{run_id}/csv
+GET  /api/audit-system/export/findings/{finding_id}/pdf
+
+# Dashboard
+GET  /api/audit-system/dashboard/stats
+```
+
+### New Database Tables
+- `audit_runs` - Reproducible audit execution records
+- `audit_findings` - Human-readable findings with risk levels
+- `audit_evidence` - Immutable evidence with SHA-256 hashes
+- `auditor_sessions` - Session tracking for auditor access
+- `auditor_action_logs` - Individual action logging
+
+### New Files
+```
+app/models/audit_system.py              - 5 models, 7 enums
+app/services/audit_system_service.py    - 5 service classes
+app/routers/audit_system.py             - 25+ API endpoints
+alembic/versions/20260107_1800_audit_system.py - Database migration
+```
 
 ---
 
