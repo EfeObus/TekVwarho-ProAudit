@@ -491,5 +491,3 @@ For technical support, contact:
 | 1.0.2 | 2026-01-06 | Added advanced audit features |
 
 ---
-
-*Documentation generated for TekVwarho ProAudit v0.1.0*

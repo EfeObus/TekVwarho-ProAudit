@@ -61,6 +61,12 @@
                         <a href="/sales" :class="currentPath === '/sales' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">Sales</a>
                         <a href="/tax-2026" :class="currentPath === '/tax-2026' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">2026 Tax</a>
                         <a href="/reports" :class="currentPath === '/reports' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium">Reports</a>
+                        <a href="/audit" :class="currentPath.startsWith('/audit') || currentPath === '/forensic-audit' || currentPath === '/advanced-audit' || currentPath === '/worm-storage' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'" class="px-3 py-2 rounded-md text-sm font-medium flex items-center">
+                            <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                            Audit
+                        </a>
                         <div class="relative" x-data="{ open: false }">
                             <button @click="open = !open" class="text-gray-600 hover:bg-gray-50 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium flex items-center">
                                 More
@@ -75,6 +81,11 @@
                                 <a href="/fixed-assets" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Fixed Assets</a>
                                 <a href="/payroll" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Payroll</a>
                                 <a href="/receipts/upload" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Receipt Scanner</a>
+                                <hr class="my-1 border-gray-100">
+                                <p class="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Forensic Audit</p>
+                                <a href="/audit-logs" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Audit Logs</a>
+                                <a href="/advanced-audit" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Advanced Audit</a>
+                                <a href="/worm-storage" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">WORM Storage</a>
                                 <hr class="my-1 border-gray-100">
                                 <a href="/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Settings</a>
                             </div>
