@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+
+{% block title %}Advanced Audit - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="advancedAudit()" x-init="init()">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    Advanced Audit Tools
+                </h1>
+                <p class="text-gray-600 mt-1">Enterprise-grade audit features for tax explainability, compliance replay, and attestation</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <a href="/audit" class="text-sm text-indigo-600 hover:text-indigo-800">← Back to Audit Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tool Cards Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        
+        <!-- Tax Explainability Layer -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Tax Explainability Layer
+                </h2>
+                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Legal References</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Generate detailed calculation breakdowns with legal references for PAYE, VAT, WHT, and CIT.
+            </p>
+            
+            <div class="space-y-3 mb-4">
+                <button @click="openExplainability('paye')"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">PAYE Explainability</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+                <button @click="openExplainability('vat')"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">VAT Explainability</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+                <button @click="openExplainability('wht')"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">WHT Explainability</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+                <button @click="openExplainability('cit')"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">CIT Explainability</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Compliance Replay Engine -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Compliance Replay Engine
+                </h2>
+                <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Time Travel</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Recalculate taxes using historical rules. Prove compliance at any point in time.
+            </p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Calculation Date</label>
+                    <input type="date" x-model="replay.date"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Calculation Type</label>
+                    <select x-model="replay.type"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500">
+                        <option value="paye">PAYE</option>
+                        <option value="vat">VAT</option>
+                    </select>
+                </div>
+                <div class="flex space-x-2">
+                    <button @click="runReplay()"
+                            class="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">
+                        Run Replay
+                    </button>
+                    <button @click="compareCalculations()"
+                            class="flex-1 bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 text-sm font-medium">
+                        Compare Dates
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Regulatory Confidence Scoring -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-amber-500">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                    </svg>
+                    Regulatory Confidence Score
+                </h2>
+                <span class="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">Quantified</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Get a quantified compliance score with specific issues identified and remediation steps.
+            </p>
+            
+            <div class="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg mb-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600">Current Score</p>
+                        <p class="text-3xl font-bold text-amber-600" x-text="confidenceScore.score + '%'"></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-600">Grade</p>
+                        <p class="text-2xl font-bold" 
+                           :class="{
+                               'text-green-600': confidenceScore.grade === 'A',
+                               'text-blue-600': confidenceScore.grade === 'B',
+                               'text-amber-600': confidenceScore.grade === 'C',
+                               'text-red-600': confidenceScore.grade === 'D' || confidenceScore.grade === 'F'
+                           }"
+                           x-text="confidenceScore.grade || '-'"></p>
+                    </div>
+                </div>
+            </div>
+            
+            <button @click="generateScorecard()"
+                    class="w-full bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 text-sm font-medium">
+                Generate Full Scorecard
+            </button>
+        </div>
+
+        <!-- Third-Party Attestation -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    Third-Party Attestation
+                </h2>
+                <span class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">Digital Sign-off</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Enable auditors, accountants, and CFOs to digitally attest to financial statements.
+            </p>
+            
+            <div class="space-y-3">
+                <button @click="registerAttestor()"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">Register New Attestor</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </button>
+                <button @click="createWorkflow()"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">Create Attestation Workflow</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+                <button @click="viewWorkflows()"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">View Active Workflows</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Behavioral Analytics -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Behavioral Analytics
+                </h2>
+                <span class="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">AI Detection</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Detect unusual patterns: round-number bias, time-based anomalies, velocity changes.
+            </p>
+            
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="p-3 bg-gray-50 rounded-lg text-center">
+                    <p class="text-2xl font-bold text-red-600" x-text="behavioral.roundNumber || 0"></p>
+                    <p class="text-xs text-gray-600">Round Number Bias</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-lg text-center">
+                    <p class="text-2xl font-bold text-amber-600" x-text="behavioral.velocity || 0"></p>
+                    <p class="text-xs text-gray-600">Velocity Anomalies</p>
+                </div>
+            </div>
+            
+            <button @click="runBehavioralAnalysis()"
+                    class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm font-medium">
+                Run Behavioral Analysis
+            </button>
+        </div>
+
+        <!-- Audit-Ready Export -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Audit-Ready Export
+                </h2>
+                <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">Multi-Format</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Export data in FIRS, ICAN, SAF-T, and other regulatory formats with hash verification.
+            </p>
+            
+            <div class="space-y-3">
+                <button @click="exportData('firs')"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">FIRS Format</span>
+                    <span class="text-xs text-gray-500">Tax Filing</span>
+                </button>
+                <button @click="exportData('ican')"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">ICAN Format</span>
+                    <span class="text-xs text-gray-500">Auditor Review</span>
+                </button>
+                <button @click="exportData('saft')"
+                        class="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <span class="text-sm font-medium text-gray-700">SAF-T Format</span>
+                    <span class="text-xs text-gray-500">International</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div x-show="showResultsModal" 
+         x-transition
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.self="showResultsModal = false">
+        <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-lg bg-white">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900" x-text="modalTitle"></h3>
+                <button @click="showResultsModal = false" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="max-h-96 overflow-y-auto">
+                <pre class="bg-gray-50 p-4 rounded-lg text-sm overflow-x-auto" x-text="JSON.stringify(modalContent, null, 2)"></pre>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button @click="showResultsModal = false"
+                        class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function advancedAudit() {
+    return {
+        entityId: '{{ entity_id }}',
+        
+        replay: {
+            date: new Date().toISOString().split('T')[0],
+            type: 'paye'
+        },
+        
+        confidenceScore: {
+            score: 0,
+            grade: '-'
+        },
+        
+        behavioral: {
+            roundNumber: 0,
+            velocity: 0
+        },
+        
+        showResultsModal: false,
+        modalTitle: '',
+        modalContent: {},
+        
+        async init() {
+            // Load initial data
+        },
+        
+        openExplainability(type) {
+            alert(`Opening ${type.toUpperCase()} Explainability calculator. This will show detailed calculation breakdown with legal references.`);
+        },
+        
+        async runReplay() {
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/advanced-audit/replay/calculate`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        calculation_type: this.replay.type,
+                        calculation_date: this.replay.date,
+                        inputs: { gross_annual_income: 5000000 }
+                    })
+                });
+                const data = await response.json();
+                this.showResults('Compliance Replay Result', data);
+            } catch (error) {
+                console.error('Error running replay:', error);
+            }
+        },
+        
+        compareCalculations() {
+            alert('Compare calculations between two dates to see the impact of rule changes.');
+        },
+        
+        async generateScorecard() {
+            alert('Generating full compliance scorecard. This requires VAT, PAYE, NRS, and documentation metrics.');
+        },
+        
+        registerAttestor() {
+            alert('Attestor registration form will open. You can register accountants, auditors, and CFOs.');
+        },
+        
+        createWorkflow() {
+            alert('Create an attestation workflow for financial statements or tax returns.');
+        },
+        
+        viewWorkflows() {
+            alert('View all active attestation workflows and their status.');
+        },
+        
+        async runBehavioralAnalysis() {
+            alert('Behavioral analysis will detect unusual patterns in transaction data.');
+        },
+        
+        exportData(format) {
+            alert(`Exporting data in ${format.toUpperCase()} format. This will generate a hash-verified export file.`);
+        },
+        
+        showResults(title, content) {
+            this.modalTitle = title;
+            this.modalContent = content;
+            this.showResultsModal = true;
+        },
+        
+        getToken() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'access_token') {
+                    return value.replace('Bearer ', '');
+                }
+            }
+            return '';
+        }
+    };
+}
+</script>
+{% endblock %}

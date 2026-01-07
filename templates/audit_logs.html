@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="auditLogs()" x-init="init()">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                    Audit Logs
+                </h1>
+                <p class="text-gray-600 mt-1">Complete audit trail of all system activities - NTAA 2025 Compliant</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <a href="/audit" class="text-sm text-indigo-600 hover:text-indigo-800">← Back to Audit Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <!-- Action Type -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+                <select x-model="filters.action" @change="loadLogs()"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">All Actions</option>
+                    <option value="create">Create</option>
+                    <option value="update">Update</option>
+                    <option value="delete">Delete</option>
+                    <option value="view">View</option>
+                    <option value="export">Export</option>
+                    <option value="login">Login</option>
+                    <option value="logout">Logout</option>
+                    <option value="nrs_submit">NRS Submit</option>
+                </select>
+            </div>
+
+            <!-- Entity Type -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
+                <select x-model="filters.entityType" @change="loadLogs()"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">All Types</option>
+                    <option value="transaction">Transaction</option>
+                    <option value="invoice">Invoice</option>
+                    <option value="customer">Customer</option>
+                    <option value="vendor">Vendor</option>
+                    <option value="user">User</option>
+                    <option value="payroll">Payroll</option>
+                    <option value="fixed_asset">Fixed Asset</option>
+                </select>
+            </div>
+
+            <!-- Start Date -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                <input type="date" x-model="filters.startDate" @change="loadLogs()"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <!-- End Date -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                <input type="date" x-model="filters.endDate" @change="loadLogs()"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <!-- Search -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input type="text" x-model="filters.search" @input.debounce.500ms="loadLogs()"
+                       placeholder="Search by entity ID..."
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+        </div>
+        
+        <div class="mt-4 flex items-center justify-between">
+            <button @click="clearFilters()" class="text-sm text-gray-600 hover:text-gray-800">
+                Clear Filters
+            </button>
+            <button @click="exportLogs()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                Export Logs
+            </button>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entity Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entity ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <template x-for="log in logs" :key="log.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="formatDate(log.timestamp)"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                      :class="{
+                                          'bg-green-100 text-green-800': log.action === 'create',
+                                          'bg-blue-100 text-blue-800': log.action === 'update',
+                                          'bg-red-100 text-red-800': log.action === 'delete',
+                                          'bg-purple-100 text-purple-800': log.action === 'login' || log.action === 'logout',
+                                          'bg-yellow-100 text-yellow-800': log.action === 'nrs_submit',
+                                          'bg-gray-100 text-gray-800': !['create', 'update', 'delete', 'login', 'logout', 'nrs_submit'].includes(log.action)
+                                      }"
+                                      x-text="log.action.toUpperCase()"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.target_entity_type"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono" x-text="log.target_entity_id.substring(0, 8) + '...'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.user_id ? log.user_id.substring(0, 8) + '...' : 'System'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.ip_address || '-'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <button @click="showLogDetails(log)" 
+                                        class="text-indigo-600 hover:text-indigo-800 text-sm">
+                                    View
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="logs.length === 0 && !loading">
+                        <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                            <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            No audit logs found matching your criteria
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="bg-gray-50 px-6 py-4 border-t flex items-center justify-between">
+            <div class="text-sm text-gray-600">
+                Showing <span x-text="pagination.skip + 1"></span> to <span x-text="Math.min(pagination.skip + logs.length, pagination.total)"></span> 
+                of <span x-text="pagination.total"></span> entries
+            </div>
+            <div class="flex space-x-2">
+                <button @click="prevPage()" :disabled="pagination.skip === 0"
+                        class="px-4 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">
+                    Previous
+                </button>
+                <button @click="nextPage()" :disabled="pagination.skip + pagination.limit >= pagination.total"
+                        class="px-4 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">
+                    Next
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Details Modal -->
+    <div x-show="showDetailsModal" 
+         x-transition
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.self="showDetailsModal = false">
+        <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-lg bg-white">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Audit Log Details</h3>
+                <button @click="showDetailsModal = false" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div x-show="selectedLog" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-500">Timestamp</p>
+                        <p class="font-medium" x-text="selectedLog ? formatDate(selectedLog.timestamp) : ''"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Action</p>
+                        <p class="font-medium" x-text="selectedLog ? selectedLog.action.toUpperCase() : ''"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Entity Type</p>
+                        <p class="font-medium" x-text="selectedLog ? selectedLog.target_entity_type : ''"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Entity ID</p>
+                        <p class="font-medium font-mono text-sm" x-text="selectedLog ? selectedLog.target_entity_id : ''"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">User ID</p>
+                        <p class="font-medium font-mono text-sm" x-text="selectedLog ? (selectedLog.user_id || 'System') : ''"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">IP Address</p>
+                        <p class="font-medium" x-text="selectedLog ? (selectedLog.ip_address || 'N/A') : ''"></p>
+                    </div>
+                </div>
+                
+                <div x-show="selectedLog && selectedLog.changes">
+                    <p class="text-sm text-gray-500 mb-2">Changes</p>
+                    <pre class="bg-gray-50 p-4 rounded-lg text-sm overflow-x-auto max-h-64" 
+                         x-text="selectedLog ? JSON.stringify(selectedLog.changes, null, 2) : ''"></pre>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button @click="showDetailsModal = false"
+                        class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function auditLogs() {
+    return {
+        entityId: '{{ entity_id }}',
+        logs: [],
+        loading: false,
+        
+        filters: {
+            action: '',
+            entityType: '',
+            startDate: '',
+            endDate: '',
+            search: ''
+        },
+        
+        pagination: {
+            skip: 0,
+            limit: 50,
+            total: 0
+        },
+        
+        showDetailsModal: false,
+        selectedLog: null,
+        
+        async init() {
+            await this.loadLogs();
+        },
+        
+        async loadLogs() {
+            this.loading = true;
+            try {
+                let url = `/api/v1/entities/${this.entityId}/audit/logs?skip=${this.pagination.skip}&limit=${this.pagination.limit}`;
+                
+                if (this.filters.action) {
+                    url += `&action=${this.filters.action}`;
+                }
+                if (this.filters.entityType) {
+                    url += `&target_entity_type=${this.filters.entityType}`;
+                }
+                if (this.filters.startDate) {
+                    url += `&start_date=${this.filters.startDate}`;
+                }
+                if (this.filters.endDate) {
+                    url += `&end_date=${this.filters.endDate}`;
+                }
+                if (this.filters.search) {
+                    url += `&target_entity_id=${this.filters.search}`;
+                }
+                
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.logs = data.items || [];
+                    this.pagination.total = data.total || this.logs.length;
+                }
+            } catch (error) {
+                console.error('Error loading audit logs:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        clearFilters() {
+            this.filters = {
+                action: '',
+                entityType: '',
+                startDate: '',
+                endDate: '',
+                search: ''
+            };
+            this.pagination.skip = 0;
+            this.loadLogs();
+        },
+        
+        prevPage() {
+            if (this.pagination.skip > 0) {
+                this.pagination.skip = Math.max(0, this.pagination.skip - this.pagination.limit);
+                this.loadLogs();
+            }
+        },
+        
+        nextPage() {
+            if (this.pagination.skip + this.pagination.limit < this.pagination.total) {
+                this.pagination.skip += this.pagination.limit;
+                this.loadLogs();
+            }
+        },
+        
+        showLogDetails(log) {
+            this.selectedLog = log;
+            this.showDetailsModal = true;
+        },
+        
+        async exportLogs() {
+            alert('Audit logs export feature coming soon!');
+        },
+        
+        getToken() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'access_token') {
+                    return value.replace('Bearer ', '');
+                }
+            }
+            return '';
+        },
+        
+        formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+    };
+}
+</script>
+{% endblock %}

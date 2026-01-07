@@ -547,3 +547,115 @@ async def reset_password_page(request: Request, token: str = None):
 async def verify_email_page(request: Request, token: str = None):
     """Email verification page."""
     return templates.TemplateResponse("verify_email.html", {"request": request, "token": token})
+
+
+# ===========================================
+# WORLD-CLASS AUDIT PAGES
+# ===========================================
+
+@router.get("/audit", response_class=HTMLResponse)
+async def audit_dashboard_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    World-Class Audit Dashboard.
+    
+    Provides access to:
+    - Benford's Law Analysis
+    - Z-Score Anomaly Detection
+    - NRS Gap Analysis
+    - Hash Chain Verification
+    - Full Forensic Audit
+    """
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("audit_dashboard.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/audit-logs", response_class=HTMLResponse)
+async def audit_logs_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Audit logs page - view all audit trail entries."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("audit_logs.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/forensic-audit", response_class=HTMLResponse)
+async def forensic_audit_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Forensic Audit page - deep dive into forensic analysis tools."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("audit_dashboard.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/advanced-audit", response_class=HTMLResponse)
+async def advanced_audit_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Advanced Audit page - Enterprise audit features.
+    
+    Provides:
+    - Tax Explainability Layer
+    - Compliance Replay Engine
+    - Regulatory Confidence Scoring
+    - Third-Party Attestation
+    - Behavioral Analytics
+    """
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("advanced_audit.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/worm-storage", response_class=HTMLResponse)
+async def worm_storage_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """WORM Storage (Audit Vault) management page."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("worm_storage.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response

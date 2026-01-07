@@ -31,6 +31,115 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 ---
 
+## Version 2.2.0 - World-Class Forensic Audit System
+
+### Overview
+TekVwarho ProAudit now includes a **world-class forensic audit system** designed for Nigerian tax compliance and enterprise-grade auditing. The system provides:
+
+- **Benford's Law Analysis** - Statistical fraud detection using first/second digit distribution
+- **Z-Score Anomaly Detection** - Identify statistical outliers in transaction data
+- **NRS Gap Analysis** - FIRS National Revenue Service compliance checking
+- **Hash Chain Immutable Ledger** - Blockchain-like transaction integrity
+- **WORM Storage** - Write-Once-Read-Many document vault (AWS S3 Object Lock)
+- **3-Way Matching** - Purchase Order, Goods Receipt, Invoice reconciliation
+- **Tax Explainability** - Detailed calculation breakdowns with legal references
+- **Compliance Replay Engine** - Recalculate taxes using historical rules
+
+### Benford's Law Analysis
+Detects potential fraud by analyzing the distribution of leading digits in transaction amounts:
+- **Chi-square Testing**: Statistical significance testing
+- **First & Second Digit Analysis**: Comprehensive distribution checks
+- **Risk Levels**: conforming, non_conforming, critically_non_conforming
+- **Flagged Transactions**: Automatic identification of suspicious patterns
+
+### Z-Score Anomaly Detection
+Identifies transactions that are statistically unusual:
+- **Grouped Analysis**: By transaction type, vendor, or category
+- **Severity Levels**: high (Z > 5), medium (Z 4-5), low (Z 3-4)
+- **Configurable Thresholds**: Customizable sensitivity
+
+### NRS Gap Analysis
+FIRS National Revenue Service compliance checking:
+- **IRN Validation**: Invoice Reference Number format checks
+- **e-Invoice Compliance**: NRS registration verification
+- **Signatory Requirements**: Authorized signatory validation
+- **Missing Document Detection**: Identify compliance gaps
+
+### Hash Chain Immutable Ledger
+Blockchain-like integrity for financial records:
+- **SHA-256 Hash Chain**: Each entry linked to previous
+- **Tamper Detection**: Automatic integrity verification
+- **Chain Reconstruction**: Detailed verification reports
+- **Merkle Root**: Chain-level integrity proof
+
+### WORM Storage (Audit Vault)
+Legal-grade document retention:
+- **AWS S3 Object Lock**: Immutable storage
+- **7-Year Retention**: Nigerian tax compliance
+- **Document Types**: Tax filings, invoices, statements, audit reports
+- **Hash Verification**: Document integrity proof
+
+### 3-Way Matching
+Purchase Order - Goods Receipt - Invoice reconciliation:
+- **Automatic Matching**: Smart document correlation
+- **Tolerance Levels**: Configurable price/quantity tolerances
+- **Match Status**: perfect_match, partial_match, no_match
+- **Discrepancy Reports**: Detailed variance analysis
+
+### Advanced Audit Features
+Enterprise-grade capabilities:
+- **Tax Explainability Layer**: PAYE, VAT, WHT, CIT calculation breakdowns
+- **Compliance Replay Engine**: Historical rule recalculation
+- **Regulatory Confidence Score**: Quantified compliance metrics
+- **Third-Party Attestation**: Digital auditor sign-off workflow
+- **Behavioral Analytics**: Round-number bias, velocity anomalies
+
+### New API Endpoints
+```
+# Forensic Audit
+GET  /api/v1/entities/{id}/forensic-audit/overview
+POST /api/v1/entities/{id}/forensic-audit/benfords-law
+POST /api/v1/entities/{id}/forensic-audit/z-score
+POST /api/v1/entities/{id}/forensic-audit/nrs-gap-analysis
+POST /api/v1/entities/{id}/forensic-audit/three-way-match
+POST /api/v1/entities/{id}/forensic-audit/full
+POST /api/v1/entities/{id}/forensic-audit/integrity/verify
+GET  /api/v1/entities/{id}/forensic-audit/worm-storage/status
+
+# Audit Logs
+GET  /api/v1/entities/{id}/audit/logs
+GET  /api/v1/entities/{id}/audit/history/{resource_type}/{resource_id}
+GET  /api/v1/entities/{id}/audit/summary
+GET  /api/v1/entities/{id}/audit/export
+
+# Advanced Audit
+POST /api/v1/entities/{id}/advanced-audit/explainability/paye
+POST /api/v1/entities/{id}/advanced-audit/replay/calculate
+POST /api/v1/entities/{id}/advanced-audit/attestation/register
+```
+
+### New Frontend Pages
+- `/audit` - Main audit dashboard with forensic analysis tools
+- `/audit-logs` - Filterable audit log viewer with export
+- `/advanced-audit` - Enterprise audit tools (explainability, attestation)
+- `/worm-storage` - WORM vault management and verification
+
+### New Files Created
+```
+app/schemas/audit.py                    - Comprehensive Pydantic schemas
+templates/audit_dashboard.html          - Main audit dashboard
+templates/audit_logs.html               - Audit log viewer
+templates/advanced_audit.html           - Enterprise audit tools
+templates/worm_storage.html             - WORM vault management
+docs/AUDIT_SYSTEM_DOCUMENTATION.md      - Complete documentation
+```
+
+### Documentation
+For complete audit system documentation, see:
+- [`docs/AUDIT_SYSTEM_DOCUMENTATION.md`](docs/AUDIT_SYSTEM_DOCUMENTATION.md)
+
+---
+
 ## Version 2.1.0 - Security & Compliance Suite (NDPA/NITDA 2023)
 
 ### Nigerian Data Protection Compliance

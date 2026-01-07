@@ -32,6 +32,8 @@ Routers:
 - views: HTML page views
 - advanced_accounting: 2026 Tax Reform advanced features (3-way matching, WHT vault, approvals, AI)
 - business_intelligence: BIK Automator, NIBSS Pension, Growth Radar, Inventory Management
+- forensic_audit: World-class forensic audit (Benford's Law, Z-score, NRS Gap Analysis, WORM)
+- advanced_audit: Enterprise audit (Explainability, Replay, Confidence Scoring, Attestation, Export, Behavioral)
 """
 
 from app.routers import (
@@ -64,6 +66,8 @@ from app.routers import (
     sales,
     advanced_accounting,
     business_intelligence,
+    forensic_audit,
+    advanced_audit,
 )
 
 __all__ = [
@@ -96,4 +100,6 @@ __all__ = [
     "sales",
     "advanced_accounting",
     "business_intelligence",
+    "forensic_audit",
+    "advanced_audit",
 ]

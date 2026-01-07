@@ -390,6 +390,10 @@ from app.routers import (
     advanced_accounting,
     # Business Intelligence (BIK, NIBSS, Growth Radar, Inventory)
     business_intelligence,
+    # World-Class Forensic Audit (Benford's Law, Z-Score, NRS Gap, WORM)
+    forensic_audit,
+    # Enterprise Advanced Audit (Explainability, Replay, Confidence, Attestation, Export, Behavioral)
+    advanced_audit,
 )
 
 # View Routes (HTML pages)
@@ -460,6 +464,12 @@ app.include_router(advanced_accounting.router, tags=["Advanced Accounting"])
 
 # Business Intelligence (BIK Automator, NIBSS Pension, Growth Radar, Inventory Management)
 app.include_router(business_intelligence.router, tags=["Business Intelligence"])
+
+# World-Class Forensic Audit (Benford's Law, Z-Score Anomaly, NRS Gap, WORM Storage)
+app.include_router(forensic_audit.router, prefix="/api/v1/entities", tags=["Forensic Audit"])
+
+# Enterprise Advanced Audit (Explainability, Replay, Confidence, Attestation, Export, Behavioral Analytics)
+app.include_router(advanced_audit.router, prefix="/api/v1/entities", tags=["Advanced Audit"])
 
 
 if __name__ == "__main__":

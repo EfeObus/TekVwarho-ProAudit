@@ -1,0 +1,701 @@
+{% extends "base.html" %}
+
+{% block title %}World-Class Audit Dashboard - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="auditDashboard()" x-init="init()">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    World-Class Audit Dashboard
+                </h1>
+                <p class="text-gray-600 mt-1">Comprehensive forensic audit tools for Nigerian Tax Reform 2026 compliance</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span class="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium">NTAA 2025</span>
+                <span class="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium">2026 Tax Reform</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <!-- Data Integrity Status -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4"
+             :class="integrity.verified ? 'border-green-500' : 'border-red-500'">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Data Integrity</p>
+                    <p class="text-lg font-bold" :class="integrity.verified ? 'text-green-600' : 'text-red-600'"
+                       x-text="integrity.status || 'Unknown'"></p>
+                </div>
+                <div class="p-3 rounded-full" :class="integrity.verified ? 'bg-green-100' : 'bg-red-100'">
+                    <svg class="w-6 h-6" :class="integrity.verified ? 'text-green-600' : 'text-red-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              :d="integrity.verified ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'"></path>
+                    </svg>
+                </div>
+            </div>
+            <button @click="verifyIntegrity()" 
+                    class="mt-3 text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                Verify Now →
+            </button>
+        </div>
+
+        <!-- NRS Compliance -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4"
+             :class="{'border-green-500': nrsCompliance.rate >= 95, 'border-yellow-500': nrsCompliance.rate >= 80 && nrsCompliance.rate < 95, 'border-red-500': nrsCompliance.rate < 80}">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">NRS Compliance</p>
+                    <p class="text-lg font-bold"
+                       :class="{'text-green-600': nrsCompliance.rate >= 95, 'text-yellow-600': nrsCompliance.rate >= 80 && nrsCompliance.rate < 95, 'text-red-600': nrsCompliance.rate < 80}"
+                       x-text="nrsCompliance.rate + '%'"></p>
+                </div>
+                <div class="p-3 rounded-full"
+                     :class="{'bg-green-100': nrsCompliance.rate >= 95, 'bg-yellow-100': nrsCompliance.rate >= 80 && nrsCompliance.rate < 95, 'bg-red-100': nrsCompliance.rate < 80}">
+                    <svg class="w-6 h-6" 
+                         :class="{'text-green-600': nrsCompliance.rate >= 95, 'text-yellow-600': nrsCompliance.rate >= 80 && nrsCompliance.rate < 95, 'text-red-600': nrsCompliance.rate < 80}"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2" x-text="nrsCompliance.missing + ' missing IRNs'"></p>
+        </div>
+
+        <!-- Anomalies Detected -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-amber-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Anomalies Detected</p>
+                    <p class="text-lg font-bold text-amber-600" x-text="anomalies.total || 0"></p>
+                </div>
+                <div class="p-3 bg-amber-100 rounded-full">
+                    <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="text-xs text-gray-500 mt-2 space-x-2">
+                <span class="text-red-600" x-text="anomalies.critical + ' critical'"></span>
+                <span>•</span>
+                <span class="text-yellow-600" x-text="anomalies.warning + ' warning'"></span>
+            </div>
+        </div>
+
+        <!-- 3-Way Match Rate -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">3-Way Match Rate</p>
+                    <p class="text-lg font-bold text-blue-600" x-text="threeWayMatch.rate + '%'"></p>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2" x-text="threeWayMatch.exceptions + ' exceptions'"></p>
+        </div>
+    </div>
+
+    <!-- Audit Tools Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Benford's Law Analysis -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Benford's Law Analysis
+                </h2>
+                <span class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">Fraud Detection</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Analyzes digit distribution to detect potential data manipulation or fabricated entries.
+            </p>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Last Analysis Status:</span>
+                    <span class="font-medium"
+                          :class="{'text-green-600': benfords.status === 'PASS', 'text-yellow-600': benfords.status === 'WARNING', 'text-red-600': benfords.status === 'FAIL'}"
+                          x-text="benfords.status || 'Not Run'"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Conformity Level:</span>
+                    <span class="text-sm text-gray-900" x-text="benfords.conformity || '-'"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">MAD Score:</span>
+                    <span class="text-sm text-gray-900" x-text="benfords.mad || '-'"></span>
+                </div>
+            </div>
+            <div class="mt-4 flex space-x-2">
+                <button @click="runBenfordsAnalysis('first_digit')"
+                        class="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium">
+                    Analyze First Digit
+                </button>
+                <button @click="runBenfordsAnalysis('second_digit')"
+                        class="flex-1 bg-purple-100 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-200 text-sm font-medium">
+                    Second Digit
+                </button>
+            </div>
+        </div>
+
+        <!-- Z-Score Anomaly Detection -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                    Z-Score Anomaly Detection
+                </h2>
+                <span class="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">Outlier Detection</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Identifies statistically unusual transactions that deviate from normal patterns.
+            </p>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Transactions Analyzed:</span>
+                    <span class="font-medium text-gray-900" x-text="zScore.sampleSize || 0"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Extreme Anomalies:</span>
+                    <span class="font-medium text-red-600" x-text="zScore.extreme || 0"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Critical Anomalies:</span>
+                    <span class="font-medium text-orange-600" x-text="zScore.critical || 0"></span>
+                </div>
+            </div>
+            <div class="mt-4 flex space-x-2">
+                <button @click="runAnomalyDetection(null)"
+                        class="flex-1 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm font-medium">
+                    Detect Overall
+                </button>
+                <button @click="runAnomalyDetection('category')"
+                        class="flex-1 bg-orange-100 text-orange-700 px-4 py-2 rounded-lg hover:bg-orange-200 text-sm font-medium">
+                    By Category
+                </button>
+            </div>
+        </div>
+
+        <!-- NRS Gap Analysis -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    NRS Gap Analysis
+                </h2>
+                <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">FIRS Compliance</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Compares local records against NRS government portal to identify missing IRNs.
+            </p>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Missing IRNs:</span>
+                    <span class="font-medium text-red-600" x-text="nrsGap.missingIrn || 0"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Pending Validation:</span>
+                    <span class="font-medium text-yellow-600" x-text="nrsGap.pending || 0"></span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700">Value at Risk:</span>
+                    <span class="font-medium text-gray-900" x-text="formatCurrency(nrsGap.valueAtRisk || 0)"></span>
+                </div>
+            </div>
+            <button @click="runNRSGapAnalysis()"
+                    class="mt-4 w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">
+                Run Gap Analysis
+            </button>
+        </div>
+
+        <!-- Hash Chain Verification -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    Hash Chain Verification
+                </h2>
+                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Immutable Ledger</span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">
+                Cryptographic verification ensures no retroactive modifications to financial records.
+            </p>
+            <div class="p-4 rounded-lg mb-4"
+                 :class="integrity.verified ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'">
+                <div class="flex items-center">
+                    <svg class="w-8 h-8 mr-3" :class="integrity.verified ? 'text-green-500' : 'text-red-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              :d="integrity.verified ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z'"></path>
+                    </svg>
+                    <div>
+                        <p class="font-semibold" :class="integrity.verified ? 'text-green-800' : 'text-red-800'"
+                           x-text="integrity.message || 'Click to verify integrity'"></p>
+                        <p class="text-xs" :class="integrity.verified ? 'text-green-600' : 'text-red-600'"
+                           x-text="integrity.discrepancies + ' discrepancies found'"></p>
+                    </div>
+                </div>
+            </div>
+            <button @click="verifyIntegrity()"
+                    class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+                <span x-show="!loading.integrity">Verify Integrity</span>
+                <span x-show="loading.integrity">Verifying...</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Full Forensic Audit Section -->
+    <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg shadow p-6 mb-8 border border-indigo-200">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                    Full Population Forensic Audit
+                </h2>
+                <p class="text-sm text-gray-600 mt-1">Comprehensive audit testing ALL transactions, not just samples</p>
+            </div>
+            <div class="text-right">
+                <label class="block text-sm text-gray-600">Fiscal Year</label>
+                <select x-model="auditYear"
+                        class="mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-4 gap-4 mb-4">
+            <div class="bg-white rounded-lg p-4 text-center">
+                <p class="text-2xl font-bold text-indigo-600" x-text="fullAudit.sampleSize || '-'"></p>
+                <p class="text-xs text-gray-600">Transactions Analyzed</p>
+            </div>
+            <div class="bg-white rounded-lg p-4 text-center">
+                <p class="text-2xl font-bold" 
+                   :class="{'text-green-600': fullAudit.riskLevel === 'low', 'text-yellow-600': fullAudit.riskLevel === 'medium', 'text-red-600': fullAudit.riskLevel === 'high'}"
+                   x-text="fullAudit.riskLevel?.toUpperCase() || '-'"></p>
+                <p class="text-xs text-gray-600">Overall Risk</p>
+            </div>
+            <div class="bg-white rounded-lg p-4 text-center">
+                <p class="text-2xl font-bold text-gray-900" x-text="fullAudit.riskFactors?.length || 0"></p>
+                <p class="text-xs text-gray-600">Risk Factors</p>
+            </div>
+            <div class="bg-white rounded-lg p-4 text-center">
+                <p class="text-2xl font-bold"
+                   :class="fullAudit.status === 'PASS' ? 'text-green-600' : 'text-red-600'"
+                   x-text="fullAudit.status || '-'"></p>
+                <p class="text-xs text-gray-600">Status</p>
+            </div>
+        </div>
+        
+        <button @click="runFullForensicAudit()"
+                :disabled="loading.fullAudit"
+                class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50">
+            <span x-show="!loading.fullAudit" class="flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Run Full Forensic Audit
+            </span>
+            <span x-show="loading.fullAudit" class="flex items-center justify-center">
+                <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Running Comprehensive Audit...
+            </span>
+        </button>
+    </div>
+
+    <!-- Audit History & Export -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Recent Audit Logs -->
+        <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Audit Activity</h2>
+                <a href="/audit-logs" class="text-sm text-indigo-600 hover:text-indigo-800">View All →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-gray-600">Timestamp</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Action</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Entity</th>
+                            <th class="px-4 py-2 text-left text-gray-600">User</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        <template x-for="log in recentLogs" :key="log.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3 text-gray-900" x-text="formatDate(log.timestamp)"></td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                          :class="{
+                                              'bg-green-100 text-green-800': log.action === 'create',
+                                              'bg-blue-100 text-blue-800': log.action === 'update',
+                                              'bg-red-100 text-red-800': log.action === 'delete',
+                                              'bg-gray-100 text-gray-800': !['create', 'update', 'delete'].includes(log.action)
+                                          }"
+                                          x-text="log.action"></span>
+                                </td>
+                                <td class="px-4 py-3 text-gray-600" x-text="log.target_entity_type"></td>
+                                <td class="px-4 py-3 text-gray-600" x-text="log.user_id || 'System'"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="recentLogs.length === 0">
+                            <td colspan="4" class="px-4 py-8 text-center text-gray-500">No audit logs found</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <div class="space-y-3">
+                <a href="/api/v1/entities/{{ entity_id }}/forensic-audit/info" target="_blank"
+                   class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="text-sm font-medium text-gray-700">View Audit Capabilities</span>
+                </a>
+                <button @click="exportAuditReport()"
+                        class="flex items-center w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="text-sm font-medium text-gray-700">Export Audit Report</span>
+                </button>
+                <a href="/advanced-audit"
+                   class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span class="text-sm font-medium text-gray-700">Advanced Audit Tools</span>
+                </a>
+                <a href="/worm-storage"
+                   class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
+                    </svg>
+                    <span class="text-sm font-medium text-gray-700">WORM Storage (Audit Vault)</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div x-show="showResultsModal" 
+         x-transition
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.self="showResultsModal = false">
+        <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-lg bg-white">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900" x-text="modalTitle"></h3>
+                <button @click="showResultsModal = false" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="max-h-96 overflow-y-auto">
+                <pre class="bg-gray-50 p-4 rounded-lg text-sm overflow-x-auto" x-text="JSON.stringify(modalContent, null, 2)"></pre>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button @click="showResultsModal = false"
+                        class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function auditDashboard() {
+    return {
+        entityId: '{{ entity_id }}',
+        auditYear: new Date().getFullYear(),
+        
+        // Status data
+        integrity: {
+            verified: false,
+            status: 'Unknown',
+            message: 'Click to verify integrity',
+            discrepancies: 0
+        },
+        nrsCompliance: {
+            rate: 0,
+            missing: 0
+        },
+        anomalies: {
+            total: 0,
+            critical: 0,
+            warning: 0
+        },
+        threeWayMatch: {
+            rate: 0,
+            exceptions: 0
+        },
+        benfords: {
+            status: null,
+            conformity: null,
+            mad: null
+        },
+        zScore: {
+            sampleSize: 0,
+            extreme: 0,
+            critical: 0
+        },
+        nrsGap: {
+            missingIrn: 0,
+            pending: 0,
+            valueAtRisk: 0
+        },
+        fullAudit: {
+            sampleSize: null,
+            riskLevel: null,
+            riskFactors: [],
+            status: null
+        },
+        recentLogs: [],
+        
+        // Loading states
+        loading: {
+            integrity: false,
+            benfords: false,
+            anomaly: false,
+            nrsGap: false,
+            fullAudit: false
+        },
+        
+        // Modal state
+        showResultsModal: false,
+        modalTitle: '',
+        modalContent: {},
+        
+        async init() {
+            await this.loadDashboardData();
+            await this.loadRecentLogs();
+        },
+        
+        async loadDashboardData() {
+            try {
+                // Load audit summary
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/audit-summary/${this.auditYear}`, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.integrity.verified = data.summary?.data_integrity?.badge === 'green';
+                    this.integrity.status = data.summary?.data_integrity?.status || 'Unknown';
+                    this.nrsCompliance.rate = data.summary?.nrs_compliance?.rate || 0;
+                    this.threeWayMatch.rate = data.summary?.three_way_matching?.match_rate || 0;
+                    this.threeWayMatch.exceptions = data.summary?.three_way_matching?.exceptions || 0;
+                }
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        },
+        
+        async loadRecentLogs() {
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/audit/logs?limit=10`, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.recentLogs = data.items || [];
+                }
+            } catch (error) {
+                console.error('Error loading audit logs:', error);
+            }
+        },
+        
+        async verifyIntegrity() {
+            this.loading.integrity = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/verify-integrity`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${this.getToken()}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                this.integrity = {
+                    verified: data.verified,
+                    status: data.status,
+                    message: data.message,
+                    discrepancies: data.discrepancy_count || 0
+                };
+                this.showResults('Data Integrity Verification', data);
+            } catch (error) {
+                console.error('Error verifying integrity:', error);
+            } finally {
+                this.loading.integrity = false;
+            }
+        },
+        
+        async runBenfordsAnalysis(type) {
+            this.loading.benfords = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/benfords-law?fiscal_year=${this.auditYear}&analysis_type=${type}`, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                const data = await response.json();
+                this.benfords = {
+                    status: data.conformity_status,
+                    conformity: data.conformity_level,
+                    mad: data.mean_absolute_deviation
+                };
+                this.showResults("Benford's Law Analysis", data);
+            } catch (error) {
+                console.error('Error running Benfords analysis:', error);
+            } finally {
+                this.loading.benfords = false;
+            }
+        },
+        
+        async runAnomalyDetection(groupBy) {
+            this.loading.anomaly = true;
+            try {
+                let url = `/api/v1/entities/${this.entityId}/forensic-audit/anomaly-detection?fiscal_year=${this.auditYear}`;
+                if (groupBy) {
+                    url += `&group_by=${groupBy}`;
+                }
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                const data = await response.json();
+                this.zScore = {
+                    sampleSize: data.sample_size || 0,
+                    extreme: data.summary?.extreme || 0,
+                    critical: data.summary?.critical || 0
+                };
+                this.anomalies = {
+                    total: data.anomaly_count || 0,
+                    critical: data.summary?.critical || 0,
+                    warning: data.summary?.warning || 0
+                };
+                this.showResults('Z-Score Anomaly Detection', data);
+            } catch (error) {
+                console.error('Error running anomaly detection:', error);
+            } finally {
+                this.loading.anomaly = false;
+            }
+        },
+        
+        async runNRSGapAnalysis() {
+            this.loading.nrsGap = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/nrs-gap-analysis/${this.auditYear}`, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                });
+                const data = await response.json();
+                this.nrsGap = {
+                    missingIrn: data.summary?.missing_irn || 0,
+                    pending: data.summary?.pending_validation || 0,
+                    valueAtRisk: parseFloat(data.financials?.value_at_risk || 0)
+                };
+                this.nrsCompliance.rate = data.compliance?.rate || 0;
+                this.nrsCompliance.missing = data.summary?.missing_irn || 0;
+                this.showResults('NRS Gap Analysis', data);
+            } catch (error) {
+                console.error('Error running NRS gap analysis:', error);
+            } finally {
+                this.loading.nrsGap = false;
+            }
+        },
+        
+        async runFullForensicAudit() {
+            this.loading.fullAudit = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/full-audit`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${this.getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ fiscal_year: parseInt(this.auditYear) })
+                });
+                const data = await response.json();
+                this.fullAudit = {
+                    sampleSize: data.sample_size,
+                    riskLevel: data.overall_risk,
+                    riskFactors: data.risk_factors || [],
+                    status: data.overall_status
+                };
+                this.showResults('Full Forensic Audit Results', data);
+            } catch (error) {
+                console.error('Error running full forensic audit:', error);
+            } finally {
+                this.loading.fullAudit = false;
+            }
+        },
+        
+        async exportAuditReport() {
+            alert('Audit report export will be generated. This feature is coming soon.');
+        },
+        
+        showResults(title, content) {
+            this.modalTitle = title;
+            this.modalContent = content;
+            this.showResultsModal = true;
+        },
+        
+        getToken() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'access_token') {
+                    return value.replace('Bearer ', '');
+                }
+            }
+            return '';
+        },
+        
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount);
+        },
+        
+        formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleString('en-NG', {
+                dateStyle: 'short',
+                timeStyle: 'short'
+            });
+        }
+    };
+}
+</script>
+{% endblock %}
