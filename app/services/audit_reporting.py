@@ -46,7 +46,7 @@ class AuditReportingService:
         
         Shows who created, edited, or deleted any entry with timestamps and IP addresses
         """
-        from app.models.audit import AuditLog
+        from app.models.audit_consolidated import AuditLog
         from app.models.user import User
         
         # Build query

@@ -396,6 +396,14 @@ from app.routers import (
     advanced_audit,
     # Advanced Audit System (Immutable Evidence, Reproducible Runs, Human-Readable Findings)
     audit_system,
+    # Advanced Payroll (Compliance, Impact Preview, Exceptions, Decision Logs, YTD, CTC)
+    payroll_advanced,
+    # NRS Integration (Invoice Reporting, TIN Validation, Disputes)
+    nrs,
+    # Bank Reconciliation
+    bank_reconciliation,
+    # Expense Claims
+    expense_claims,
 )
 
 # View Routes (HTML pages)
@@ -461,6 +469,9 @@ app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["Payroll"])
 # Payroll HTML Views
 app.include_router(payroll_views.router, tags=["Payroll Views"])
 
+# Advanced Payroll (Compliance Status, Impact Preview, Exceptions, Decision Logs, YTD, CTC, What-If)
+app.include_router(payroll_advanced.router, prefix="/api/v1/payroll/advanced", tags=["Advanced Payroll"])
+
 # 2026 Tax Reform Advanced Features (3-Way Matching, WHT Vault, Approvals, AI)
 app.include_router(advanced_accounting.router, tags=["Advanced Accounting"])
 
@@ -475,6 +486,15 @@ app.include_router(advanced_audit.router, prefix="/api/v1/entities", tags=["Adva
 
 # Advanced Audit System (Immutable Evidence, Reproducible Runs, Auditor Read-Only, Human-Readable Findings)
 app.include_router(audit_system.router, tags=["Audit System"])
+
+# NRS Integration (Invoice Reporting System - 2026 Compliance)
+app.include_router(nrs.router, prefix="/api/v1", tags=["NRS Integration"])
+
+# Bank Reconciliation
+app.include_router(bank_reconciliation.router, prefix="/api/v1/entities", tags=["Bank Reconciliation"])
+
+# Expense Claims
+app.include_router(expense_claims.router, prefix="/api/v1/entities", tags=["Expense Claims"])
 
 
 if __name__ == "__main__":

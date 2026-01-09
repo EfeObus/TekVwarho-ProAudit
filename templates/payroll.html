@@ -29,7 +29,7 @@
 
     <!-- Tabs -->
     <div class="border-b border-gray-200 mb-6">
-        <nav class="-mb-px flex space-x-8">
+        <nav class="-mb-px flex space-x-8 overflow-x-auto">
             <button @click="activeTab = 'dashboard'" :class="activeTab === 'dashboard' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
                 Dashboard
             </button>
@@ -41,6 +41,39 @@
             </button>
             <button @click="activeTab = 'remittances'" :class="activeTab === 'remittances' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
                 Remittances
+            </button>
+            <button @click="activeTab = 'compliance'; loadComplianceStatus()" :class="activeTab === 'compliance' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                Compliance Status
+            </button>
+            <button @click="activeTab = 'impact-preview'; loadImpactPreview()" :class="activeTab === 'impact-preview' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                Impact Preview
+            </button>
+            <button @click="activeTab = 'exceptions'; loadExceptions()" :class="activeTab === 'exceptions' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Exceptions
+                <span x-show="exceptionSummary?.unacknowledged_count > 0" class="ml-1 px-1.5 py-0.5 text-xs bg-red-100 text-red-800 rounded-full" x-text="exceptionSummary?.unacknowledged_count"></span>
+            </button>
+            <button @click="activeTab = 'decision-logs'; loadDecisionLogs()" :class="activeTab === 'decision-logs' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Decision Logs
+            </button>
+            <button @click="activeTab = 'ytd-ledger'; loadYTDLedger()" :class="activeTab === 'ytd-ledger' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                YTD Ledger
+            </button>
+            <button @click="activeTab = 'ctc'; loadCTCData()" :class="activeTab === 'ctc' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                CTC Analytics
+            </button>
+            <button @click="activeTab = 'simulations'; loadSimulations()" :class="activeTab === 'simulations' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                What-If Simulations
+            </button>
+            <button @click="activeTab = 'ghost-detection'; loadGhostDetections()" :class="activeTab === 'ghost-detection' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                Ghost Detection
             </button>
             <button @click="activeTab = 'loans'" :class="activeTab === 'loans' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
                 Loans & Advances
@@ -530,6 +563,1296 @@
         </div>
     </div>
 
+    <!-- Compliance Status Tab -->
+    <div x-show="activeTab === 'compliance'" x-transition>
+        <!-- Compliance Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Statutory Compliance Status</h2>
+                <p class="text-sm text-gray-500">PAYE, Pension, NHF, NSITF & ITF remittance tracking with penalty estimates</p>
+            </div>
+            <div class="flex space-x-3">
+                <select x-model="complianceYear" @change="loadComplianceCalendar()" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <template x-for="y in [2026, 2025, 2024]" :key="y">
+                        <option :value="y" x-text="y"></option>
+                    </template>
+                </select>
+                <button @click="refreshComplianceSnapshot()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Overall Status Banner -->
+        <div x-show="complianceData" class="mb-6">
+            <div :class="{
+                'bg-green-50 border-green-200': complianceData?.overall_status === 'compliant',
+                'bg-yellow-50 border-yellow-200': complianceData?.overall_status === 'at_risk',
+                'bg-red-50 border-red-200': complianceData?.overall_status === 'overdue'
+            }" class="rounded-lg border p-4">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <template x-if="complianceData?.overall_status === 'compliant'">
+                            <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </template>
+                        <template x-if="complianceData?.overall_status === 'at_risk'">
+                            <svg class="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                        </template>
+                        <template x-if="complianceData?.overall_status === 'overdue'">
+                            <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </template>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <h3 :class="{
+                            'text-green-800': complianceData?.overall_status === 'compliant',
+                            'text-yellow-800': complianceData?.overall_status === 'at_risk',
+                            'text-red-800': complianceData?.overall_status === 'overdue'
+                        }" class="font-semibold" x-text="complianceData?.current_period?.snapshot?.summary_message || 'Loading...'"></h3>
+                        <p class="text-sm text-gray-600 mt-1">
+                            Period: <span x-text="getMonthName(complianceData?.current_period?.month)"></span> <span x-text="complianceData?.current_period?.year"></span>
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Total Penalty Exposure</p>
+                        <p :class="{
+                            'text-green-700': complianceData?.current_period?.snapshot?.total_penalty_exposure === 0,
+                            'text-red-700 font-bold': complianceData?.current_period?.snapshot?.total_penalty_exposure > 0
+                        }" class="text-xl">₦<span x-text="formatCurrency(complianceData?.current_period?.snapshot?.total_penalty_exposure || 0)"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Period Remittance Cards -->
+        <div x-show="complianceData?.current_period?.snapshot" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <!-- PAYE Card -->
+            <div class="bg-white rounded-lg shadow-sm border p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-900">PAYE</h4>
+                    <span :class="{
+                        'bg-green-100 text-green-800': complianceData?.current_period?.snapshot?.paye_status?.status === 'on_time',
+                        'bg-gray-100 text-gray-800': complianceData?.current_period?.snapshot?.paye_status?.status === 'not_due',
+                        'bg-yellow-100 text-yellow-800': complianceData?.current_period?.snapshot?.paye_status?.status === 'penalty_risk' || complianceData?.current_period?.snapshot?.paye_status?.status === 'partially_paid',
+                        'bg-red-100 text-red-800': complianceData?.current_period?.snapshot?.paye_status?.status === 'overdue'
+                    }" class="px-2 py-1 text-xs rounded-full font-medium" x-text="complianceData?.current_period?.snapshot?.paye_status?.status?.replace('_', ' ') || '-'"></span>
+                </div>
+                <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.paye_status?.amount_due || 0)"></span></p>
+                <p class="text-xs text-gray-500 mt-1">
+                    Paid: ₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.paye_status?.amount_paid || 0)"></span>
+                </p>
+                <p class="text-xs text-gray-400 mt-2" x-text="complianceData?.current_period?.snapshot?.paye_status?.human_message"></p>
+            </div>
+
+            <!-- Pension Card -->
+            <div class="bg-white rounded-lg shadow-sm border p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-900">Pension</h4>
+                    <span :class="{
+                        'bg-green-100 text-green-800': complianceData?.current_period?.snapshot?.pension_status?.status === 'on_time',
+                        'bg-gray-100 text-gray-800': complianceData?.current_period?.snapshot?.pension_status?.status === 'not_due',
+                        'bg-yellow-100 text-yellow-800': complianceData?.current_period?.snapshot?.pension_status?.status === 'penalty_risk' || complianceData?.current_period?.snapshot?.pension_status?.status === 'partially_paid',
+                        'bg-red-100 text-red-800': complianceData?.current_period?.snapshot?.pension_status?.status === 'overdue'
+                    }" class="px-2 py-1 text-xs rounded-full font-medium" x-text="complianceData?.current_period?.snapshot?.pension_status?.status?.replace('_', ' ') || '-'"></span>
+                </div>
+                <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.pension_status?.amount_due || 0)"></span></p>
+                <p class="text-xs text-gray-500 mt-1">
+                    Paid: ₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.pension_status?.amount_paid || 0)"></span>
+                </p>
+                <p class="text-xs text-gray-400 mt-2" x-text="complianceData?.current_period?.snapshot?.pension_status?.human_message"></p>
+            </div>
+
+            <!-- NHF Card -->
+            <div class="bg-white rounded-lg shadow-sm border p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-900">NHF</h4>
+                    <span :class="{
+                        'bg-green-100 text-green-800': complianceData?.current_period?.snapshot?.nhf_status?.status === 'on_time',
+                        'bg-gray-100 text-gray-800': complianceData?.current_period?.snapshot?.nhf_status?.status === 'not_due',
+                        'bg-yellow-100 text-yellow-800': complianceData?.current_period?.snapshot?.nhf_status?.status === 'penalty_risk' || complianceData?.current_period?.snapshot?.nhf_status?.status === 'partially_paid',
+                        'bg-red-100 text-red-800': complianceData?.current_period?.snapshot?.nhf_status?.status === 'overdue'
+                    }" class="px-2 py-1 text-xs rounded-full font-medium" x-text="complianceData?.current_period?.snapshot?.nhf_status?.status?.replace('_', ' ') || '-'"></span>
+                </div>
+                <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.nhf_status?.amount_due || 0)"></span></p>
+                <p class="text-xs text-gray-500 mt-1">
+                    Paid: ₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.nhf_status?.amount_paid || 0)"></span>
+                </p>
+                <p class="text-xs text-gray-400 mt-2" x-text="complianceData?.current_period?.snapshot?.nhf_status?.human_message"></p>
+            </div>
+
+            <!-- NSITF Card -->
+            <div class="bg-white rounded-lg shadow-sm border p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-900">NSITF</h4>
+                    <span :class="{
+                        'bg-green-100 text-green-800': complianceData?.current_period?.snapshot?.nsitf_status?.status === 'on_time',
+                        'bg-gray-100 text-gray-800': complianceData?.current_period?.snapshot?.nsitf_status?.status === 'not_due',
+                        'bg-yellow-100 text-yellow-800': complianceData?.current_period?.snapshot?.nsitf_status?.status === 'partially_paid',
+                        'bg-red-100 text-red-800': complianceData?.current_period?.snapshot?.nsitf_status?.status === 'overdue'
+                    }" class="px-2 py-1 text-xs rounded-full font-medium" x-text="complianceData?.current_period?.snapshot?.nsitf_status?.status?.replace('_', ' ') || '-'"></span>
+                </div>
+                <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.nsitf_status?.amount_due || 0)"></span></p>
+                <p class="text-xs text-gray-500 mt-1">
+                    Paid: ₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.nsitf_status?.amount_paid || 0)"></span>
+                </p>
+            </div>
+
+            <!-- ITF Card -->
+            <div class="bg-white rounded-lg shadow-sm border p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-900">ITF</h4>
+                    <span :class="{
+                        'bg-green-100 text-green-800': complianceData?.current_period?.snapshot?.itf_status?.status === 'on_time',
+                        'bg-gray-100 text-gray-800': complianceData?.current_period?.snapshot?.itf_status?.status === 'not_due',
+                        'bg-yellow-100 text-yellow-800': complianceData?.current_period?.snapshot?.itf_status?.status === 'partially_paid',
+                        'bg-red-100 text-red-800': complianceData?.current_period?.snapshot?.itf_status?.status === 'overdue'
+                    }" class="px-2 py-1 text-xs rounded-full font-medium" x-text="complianceData?.current_period?.snapshot?.itf_status?.status?.replace('_', ' ') || '-'"></span>
+                </div>
+                <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.itf_status?.amount_due || 0)"></span></p>
+                <p class="text-xs text-gray-500 mt-1">
+                    Paid: ₦<span x-text="formatCompact(complianceData?.current_period?.snapshot?.itf_status?.amount_paid || 0)"></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- YTD Summary -->
+        <div x-show="complianceData?.ytd_summary" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-sm border p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Year-to-Date Summary</h3>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">PAYE Due / Paid</span>
+                        <div class="text-right">
+                            <span class="font-medium">₦<span x-text="formatCompact(complianceData?.ytd_summary?.paye_due || 0)"></span></span>
+                            <span class="text-gray-400">/</span>
+                            <span class="text-green-600">₦<span x-text="formatCompact(complianceData?.ytd_summary?.paye_paid || 0)"></span></span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">Pension Due / Paid</span>
+                        <div class="text-right">
+                            <span class="font-medium">₦<span x-text="formatCompact(complianceData?.ytd_summary?.pension_due || 0)"></span></span>
+                            <span class="text-gray-400">/</span>
+                            <span class="text-green-600">₦<span x-text="formatCompact(complianceData?.ytd_summary?.pension_paid || 0)"></span></span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">NHF Due / Paid</span>
+                        <div class="text-right">
+                            <span class="font-medium">₦<span x-text="formatCompact(complianceData?.ytd_summary?.nhf_due || 0)"></span></span>
+                            <span class="text-gray-400">/</span>
+                            <span class="text-green-600">₦<span x-text="formatCompact(complianceData?.ytd_summary?.nhf_paid || 0)"></span></span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center py-2 pt-4 border-t-2 border-gray-300">
+                        <span class="font-semibold text-gray-900">Total Penalty Exposure</span>
+                        <span :class="complianceData?.ytd_summary?.total_penalty_exposure > 0 ? 'text-red-600 font-bold' : 'text-green-600 font-bold'">
+                            ₦<span x-text="formatCurrency(complianceData?.ytd_summary?.total_penalty_exposure || 0)"></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compliance Calendar -->
+            <div class="bg-white rounded-lg shadow-sm border p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Compliance Calendar <span x-text="complianceYear"></span></h3>
+                <div class="grid grid-cols-4 gap-2">
+                    <template x-for="m in complianceCalendar?.months || []" :key="m.month">
+                        <div :class="{
+                            'bg-green-100 border-green-300': m.status === 'reviewed' && !m.has_penalty && (m.paye_status === 'on_time' || m.paye_status === 'not_due'),
+                            'bg-yellow-100 border-yellow-300': m.status === 'reviewed' && (m.paye_status === 'partially_paid' || m.paye_status === 'penalty_risk'),
+                            'bg-red-100 border-red-300': m.status === 'reviewed' && (m.paye_status === 'overdue' || m.has_penalty),
+                            'bg-gray-100 border-gray-300': m.status === 'pending',
+                            'bg-gray-50 border-gray-200': m.status === 'future'
+                        }" class="p-3 rounded-lg border text-center cursor-pointer hover:shadow" @click="viewComplianceMonth(m.month)">
+                            <p class="text-sm font-medium" x-text="getMonthName(m.month)"></p>
+                            <template x-if="m.status === 'reviewed'">
+                                <p class="text-xs mt-1">₦<span x-text="formatCompact(m.paye_amount || 0)"></span></p>
+                            </template>
+                            <template x-if="m.status === 'future'">
+                                <p class="text-xs mt-1 text-gray-400">Future</p>
+                            </template>
+                            <template x-if="m.status === 'pending'">
+                                <p class="text-xs mt-1 text-gray-500">Pending</p>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div x-show="!complianceData" class="bg-white rounded-lg shadow-sm border p-8 text-center">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading compliance status...</p>
+        </div>
+    </div>
+
+    <!-- Impact Preview Tab -->
+    <div x-show="activeTab === 'impact-preview'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Payroll Impact Preview</h2>
+                <p class="text-sm text-gray-500 mt-1">Compare current vs. previous payroll runs with variance analysis</p>
+            </div>
+            <button @click="refreshImpactPreview()" :disabled="impactLoading" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                <svg :class="impactLoading ? 'animate-spin' : ''" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Refresh
+            </button>
+        </div>
+
+        <!-- Impact Preview Content -->
+        <div x-show="impactPreview && impactPreview.has_preview !== false">
+            <!-- Summary Card -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6 mb-6">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900">Impact Summary</h3>
+                        <p class="mt-2 text-gray-700" x-text="impactPreview?.impact_summary || 'No summary available'"></p>
+                        <p class="mt-2 text-sm text-gray-500" x-show="impactPreview?.generated_at">
+                            Generated: <span x-text="formatDateTime(impactPreview?.generated_at)"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Variance Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <!-- Gross Variance -->
+                <div class="bg-white rounded-lg border shadow-sm p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Gross Payroll</p>
+                            <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatNumber(impactPreview?.current_gross || 0)"></span></p>
+                        </div>
+                        <div :class="(impactPreview?.gross_variance || 0) >= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 rounded-full text-xs font-medium flex items-center">
+                            <svg x-show="(impactPreview?.gross_variance || 0) >= 0" class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                            <svg x-show="(impactPreview?.gross_variance || 0) < 0" class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                            <span x-text="((impactPreview?.gross_variance_percent || 0) >= 0 ? '+' : '') + (impactPreview?.gross_variance_percent || 0).toFixed(1) + '%'"></span>
+                        </div>
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Variance: ₦<span x-text="formatNumber(Math.abs(impactPreview?.gross_variance || 0))"></span>
+                        <span :class="(impactPreview?.gross_variance || 0) >= 0 ? 'text-red-600' : 'text-green-600'" x-text="(impactPreview?.gross_variance || 0) >= 0 ? '↑' : '↓'"></span>
+                    </p>
+                </div>
+
+                <!-- Net Variance -->
+                <div class="bg-white rounded-lg border shadow-sm p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Net Payroll</p>
+                            <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatNumber(impactPreview?.current_net || 0)"></span></p>
+                        </div>
+                        <div :class="(impactPreview?.net_variance || 0) >= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 rounded-full text-xs font-medium">
+                            <span x-text="(impactPreview?.net_variance || 0) >= 0 ? '+₦' + formatNumber(impactPreview?.net_variance || 0) : '-₦' + formatNumber(Math.abs(impactPreview?.net_variance || 0))"></span>
+                        </div>
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Previous: ₦<span x-text="formatNumber(impactPreview?.previous_net || 0)"></span>
+                    </p>
+                </div>
+
+                <!-- PAYE Variance -->
+                <div class="bg-white rounded-lg border shadow-sm p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">PAYE Tax</p>
+                            <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatNumber(impactPreview?.current_paye || 0)"></span></p>
+                        </div>
+                        <div :class="(impactPreview?.paye_variance || 0) >= 0 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 rounded-full text-xs font-medium">
+                            <span x-text="(impactPreview?.paye_variance || 0) >= 0 ? '+₦' + formatNumber(impactPreview?.paye_variance || 0) : '-₦' + formatNumber(Math.abs(impactPreview?.paye_variance || 0))"></span>
+                        </div>
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Previous: ₦<span x-text="formatNumber(impactPreview?.previous_paye || 0)"></span>
+                    </p>
+                </div>
+
+                <!-- Employer Cost Variance -->
+                <div class="bg-white rounded-lg border shadow-sm p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Employer Cost</p>
+                            <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatNumber(impactPreview?.current_employer_cost || 0)"></span></p>
+                        </div>
+                        <div :class="(impactPreview?.employer_cost_variance || 0) >= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 rounded-full text-xs font-medium">
+                            <span x-text="(impactPreview?.employer_cost_variance || 0) >= 0 ? '+₦' + formatNumber(impactPreview?.employer_cost_variance || 0) : '-₦' + formatNumber(Math.abs(impactPreview?.employer_cost_variance || 0))"></span>
+                        </div>
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Previous: ₦<span x-text="formatNumber(impactPreview?.previous_employer_cost || 0)"></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Headcount & Variance Drivers -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Headcount Changes -->
+                <div class="bg-white rounded-lg border shadow-sm">
+                    <div class="px-4 py-3 border-b bg-gray-50">
+                        <h3 class="font-semibold text-gray-900">Headcount Changes</h3>
+                    </div>
+                    <div class="p-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <!-- Current vs Previous -->
+                            <div class="bg-blue-50 rounded-lg p-4 text-center">
+                                <p class="text-3xl font-bold text-blue-600" x-text="impactPreview?.current_employee_count || 0"></p>
+                                <p class="text-sm text-gray-600 mt-1">Current Employees</p>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                                <p class="text-3xl font-bold text-gray-600" x-text="impactPreview?.previous_employee_count || 0"></p>
+                                <p class="text-sm text-gray-600 mt-1">Previous Employees</p>
+                            </div>
+                            <!-- New Hires -->
+                            <div class="bg-green-50 rounded-lg p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-2xl font-bold text-green-600" x-text="impactPreview?.new_hires_count || 0"></p>
+                                        <p class="text-sm text-gray-600">New Hires</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium text-green-600">+₦<span x-text="formatNumber(impactPreview?.new_hires_cost || 0)"></span></p>
+                                        <p class="text-xs text-gray-500">Added Cost</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Terminations -->
+                            <div class="bg-red-50 rounded-lg p-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-2xl font-bold text-red-600" x-text="impactPreview?.terminations_count || 0"></p>
+                                        <p class="text-sm text-gray-600">Terminations</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-sm font-medium text-green-600">-₦<span x-text="formatNumber(impactPreview?.terminations_savings || 0)"></span></p>
+                                        <p class="text-xs text-gray-500">Savings</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Variance Drivers -->
+                <div class="bg-white rounded-lg border shadow-sm">
+                    <div class="px-4 py-3 border-b bg-gray-50">
+                        <h3 class="font-semibold text-gray-900">Top Variance Drivers</h3>
+                    </div>
+                    <div class="p-4">
+                        <template x-if="impactPreview?.variance_drivers && impactPreview.variance_drivers.length > 0">
+                            <div class="space-y-3">
+                                <template x-for="(driver, index) in impactPreview.variance_drivers" :key="index">
+                                    <div class="flex items-center justify-between p-3 rounded-lg" :class="driver.amount >= 0 ? 'bg-red-50' : 'bg-green-50'">
+                                        <div class="flex items-center">
+                                            <div class="w-8 h-8 rounded-full flex items-center justify-center mr-3" :class="driver.amount >= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'">
+                                                <span x-text="index + 1" class="font-bold text-sm"></span>
+                                            </div>
+                                            <div>
+                                                <p class="font-medium text-gray-900" x-text="driver.description"></p>
+                                                <p class="text-xs text-gray-500"><span x-text="driver.affected_employees || 0"></span> employee(s) affected</p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-semibold" :class="driver.amount >= 0 ? 'text-red-600' : 'text-green-600'">
+                                                <span x-text="driver.amount >= 0 ? '+' : '-'"></span>₦<span x-text="formatNumber(Math.abs(driver.amount))"></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!impactPreview?.variance_drivers || impactPreview.variance_drivers.length === 0">
+                            <div class="text-center py-6 text-gray-500">
+                                <svg class="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                </svg>
+                                <p>No variance drivers identified</p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Period Comparison Table -->
+            <div class="bg-white rounded-lg border shadow-sm">
+                <div class="px-4 py-3 border-b bg-gray-50">
+                    <h3 class="font-semibold text-gray-900">Period-over-Period Comparison</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Previous Period</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Current Period</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Variance</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">Gross Payroll</td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-600">₦<span x-text="formatNumber(impactPreview?.previous_gross || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-900 font-medium">₦<span x-text="formatNumber(impactPreview?.current_gross || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right" :class="(impactPreview?.gross_variance || 0) >= 0 ? 'text-red-600' : 'text-green-600'">
+                                    <span x-text="(impactPreview?.gross_variance || 0) >= 0 ? '+' : ''"></span>₦<span x-text="formatNumber(impactPreview?.gross_variance || 0)"></span>
+                                </td>
+                            </tr>
+                            <tr class="bg-gray-50">
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">Net Payroll</td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-600">₦<span x-text="formatNumber(impactPreview?.previous_net || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-900 font-medium">₦<span x-text="formatNumber(impactPreview?.current_net || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right" :class="(impactPreview?.net_variance || 0) >= 0 ? 'text-red-600' : 'text-green-600'">
+                                    <span x-text="(impactPreview?.net_variance || 0) >= 0 ? '+' : ''"></span>₦<span x-text="formatNumber(impactPreview?.net_variance || 0)"></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">PAYE Tax</td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-600">₦<span x-text="formatNumber(impactPreview?.previous_paye || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-900 font-medium">₦<span x-text="formatNumber(impactPreview?.current_paye || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right" :class="(impactPreview?.paye_variance || 0) >= 0 ? 'text-amber-600' : 'text-green-600'">
+                                    <span x-text="(impactPreview?.paye_variance || 0) >= 0 ? '+' : ''"></span>₦<span x-text="formatNumber(impactPreview?.paye_variance || 0)"></span>
+                                </td>
+                            </tr>
+                            <tr class="bg-gray-50">
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">Employer Cost</td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-600">₦<span x-text="formatNumber(impactPreview?.previous_employer_cost || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-900 font-medium">₦<span x-text="formatNumber(impactPreview?.current_employer_cost || 0)"></span></td>
+                                <td class="px-4 py-3 text-sm text-right" :class="(impactPreview?.employer_cost_variance || 0) >= 0 ? 'text-red-600' : 'text-green-600'">
+                                    <span x-text="(impactPreview?.employer_cost_variance || 0) >= 0 ? '+' : ''"></span>₦<span x-text="formatNumber(impactPreview?.employer_cost_variance || 0)"></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">Employee Count</td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-600" x-text="impactPreview?.previous_employee_count || 0"></td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-900 font-medium" x-text="impactPreview?.current_employee_count || 0"></td>
+                                <td class="px-4 py-3 text-sm text-right" :class="((impactPreview?.current_employee_count || 0) - (impactPreview?.previous_employee_count || 0)) >= 0 ? 'text-green-600' : 'text-red-600'">
+                                    <span x-text="((impactPreview?.current_employee_count || 0) - (impactPreview?.previous_employee_count || 0)) >= 0 ? '+' : ''"></span><span x-text="(impactPreview?.current_employee_count || 0) - (impactPreview?.previous_employee_count || 0)"></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- No Preview State -->
+        <div x-show="impactPreview && impactPreview.has_preview === false" class="bg-white rounded-lg border shadow-sm p-8 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No Impact Preview Available</h3>
+            <p class="text-gray-500 mb-4">Run a payroll first to generate impact analysis comparing current vs. previous periods.</p>
+            <button @click="activeTab = 'payroll-runs'" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                Go to Payroll Runs
+            </button>
+        </div>
+
+        <!-- Loading State -->
+        <div x-show="!impactPreview && impactLoading" class="bg-white rounded-lg shadow-sm border p-8 text-center">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading impact preview...</p>
+        </div>
+    </div>
+
+    <!-- Exceptions Tab -->
+    <div x-show="activeTab === 'exceptions'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Payroll Exceptions</h2>
+                <p class="text-sm text-gray-500 mt-1">Review and acknowledge validation exceptions before payroll approval</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <select x-model="exceptionPayrollRunId" @change="loadExceptionsForRun()" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">Select Payroll Run</option>
+                    <template x-for="run in payrollRuns" :key="run.id">
+                        <option :value="run.id" x-text="formatPayrollRunLabel(run)"></option>
+                    </template>
+                </select>
+                <button @click="validatePayrollRun()" :disabled="!exceptionPayrollRunId || exceptionsLoading" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Run Validation
+                </button>
+            </div>
+        </div>
+
+        <!-- Exception Summary Cards -->
+        <div x-show="exceptionSummary" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <!-- Total Exceptions -->
+            <div class="bg-white rounded-lg border shadow-sm p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Total Exceptions</p>
+                        <p class="text-2xl font-bold text-gray-900" x-text="exceptionSummary?.total_exceptions || 0"></p>
+                    </div>
+                    <div class="p-3 bg-gray-100 rounded-full">
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Critical -->
+            <div class="bg-white rounded-lg border shadow-sm p-4" :class="exceptionSummary?.critical_count > 0 ? 'border-red-300 bg-red-50' : ''">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Critical</p>
+                        <p class="text-2xl font-bold" :class="exceptionSummary?.critical_count > 0 ? 'text-red-600' : 'text-gray-900'" x-text="exceptionSummary?.critical_count || 0"></p>
+                    </div>
+                    <div class="p-3 rounded-full" :class="exceptionSummary?.critical_count > 0 ? 'bg-red-100' : 'bg-gray-100'">
+                        <svg class="w-6 h-6" :class="exceptionSummary?.critical_count > 0 ? 'text-red-600' : 'text-gray-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p x-show="exceptionSummary?.critical_count > 0" class="mt-1 text-xs text-red-600">Blocks approval</p>
+            </div>
+
+            <!-- Warnings -->
+            <div class="bg-white rounded-lg border shadow-sm p-4" :class="exceptionSummary?.warning_count > 0 ? 'border-amber-300 bg-amber-50' : ''">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Warnings</p>
+                        <p class="text-2xl font-bold" :class="exceptionSummary?.warning_count > 0 ? 'text-amber-600' : 'text-gray-900'" x-text="exceptionSummary?.warning_count || 0"></p>
+                    </div>
+                    <div class="p-3 rounded-full" :class="exceptionSummary?.warning_count > 0 ? 'bg-amber-100' : 'bg-gray-100'">
+                        <svg class="w-6 h-6" :class="exceptionSummary?.warning_count > 0 ? 'text-amber-600' : 'text-gray-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div class="bg-white rounded-lg border shadow-sm p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Info</p>
+                        <p class="text-2xl font-bold text-blue-600" x-text="exceptionSummary?.info_count || 0"></p>
+                    </div>
+                    <div class="p-3 bg-blue-100 rounded-full">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Approval Status -->
+            <div class="bg-white rounded-lg border shadow-sm p-4" :class="exceptionSummary?.can_approve ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Approval Status</p>
+                        <p class="text-lg font-bold" :class="exceptionSummary?.can_approve ? 'text-green-600' : 'text-red-600'" x-text="exceptionSummary?.can_approve ? 'Can Approve' : 'Blocked'"></p>
+                    </div>
+                    <div class="p-3 rounded-full" :class="exceptionSummary?.can_approve ? 'bg-green-100' : 'bg-red-100'">
+                        <svg x-show="exceptionSummary?.can_approve" class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <svg x-show="!exceptionSummary?.can_approve" class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p class="mt-1 text-xs" :class="exceptionSummary?.can_approve ? 'text-green-600' : 'text-red-600'" x-text="exceptionSummary?.unacknowledged_count + ' unacknowledged'"></p>
+            </div>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div x-show="exceptions.length > 0" class="bg-white rounded-lg border shadow-sm p-4 mb-6">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm text-gray-600">Severity:</label>
+                    <select x-model="exceptionSeverityFilter" @change="filterExceptions()" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                        <option value="">All</option>
+                        <option value="critical">Critical</option>
+                        <option value="warning">Warning</option>
+                        <option value="info">Info</option>
+                    </select>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm text-gray-600">Status:</label>
+                    <select x-model="exceptionAcknowledgedFilter" @change="filterExceptions()" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                        <option value="">All</option>
+                        <option value="false">Unacknowledged</option>
+                        <option value="true">Acknowledged</option>
+                    </select>
+                </div>
+                <div class="flex-1"></div>
+                <button @click="bulkAcknowledgeExceptions()" x-show="selectedExceptions.length > 0" class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Acknowledge Selected (<span x-text="selectedExceptions.length"></span>)
+                </button>
+            </div>
+        </div>
+
+        <!-- Exceptions List -->
+        <div x-show="filteredExceptions.length > 0" class="space-y-4">
+            <template x-for="exception in filteredExceptions" :key="exception.id">
+                <div class="bg-white rounded-lg border shadow-sm overflow-hidden" :class="{
+                    'border-l-4 border-l-red-500': exception.severity === 'critical',
+                    'border-l-4 border-l-amber-500': exception.severity === 'warning',
+                    'border-l-4 border-l-blue-500': exception.severity === 'info'
+                }">
+                    <div class="p-4">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start space-x-3">
+                                <input type="checkbox" :value="exception.id" x-model="selectedExceptions" class="mt-1 rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-0.5 text-xs font-medium rounded-full" :class="{
+                                            'bg-red-100 text-red-800': exception.severity === 'critical',
+                                            'bg-amber-100 text-amber-800': exception.severity === 'warning',
+                                            'bg-blue-100 text-blue-800': exception.severity === 'info'
+                                        }" x-text="exception.severity.toUpperCase()"></span>
+                                        <span class="text-xs text-gray-500 font-mono" x-text="exception.exception_code"></span>
+                                        <span x-show="exception.is_acknowledged" class="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">Acknowledged</span>
+                                        <span x-show="exception.is_resolved" class="px-2 py-0.5 text-xs bg-gray-100 text-gray-800 rounded-full">Resolved</span>
+                                    </div>
+                                    <h4 class="mt-1 font-semibold text-gray-900" x-text="exception.title"></h4>
+                                    <p class="mt-1 text-sm text-gray-600" x-text="exception.description"></p>
+                                    
+                                    <!-- Field Details -->
+                                    <div x-show="exception.related_field" class="mt-2 p-2 bg-gray-50 rounded text-sm">
+                                        <span class="text-gray-500">Field:</span> <span class="font-mono text-gray-700" x-text="exception.related_field"></span>
+                                        <span x-show="exception.current_value" class="ml-3"><span class="text-gray-500">Current:</span> <span class="text-red-600 font-mono" x-text="exception.current_value"></span></span>
+                                        <span x-show="exception.expected_value" class="ml-3"><span class="text-gray-500">Expected:</span> <span class="text-green-600 font-mono" x-text="exception.expected_value"></span></span>
+                                    </div>
+                                    
+                                    <!-- Acknowledgement Info -->
+                                    <div x-show="exception.is_acknowledged" class="mt-2 text-xs text-gray-500">
+                                        Acknowledged by <span x-text="exception.acknowledged_by_name || 'User'"></span> on <span x-text="formatDateTime(exception.acknowledged_at)"></span>
+                                        <span x-show="exception.acknowledgement_note" class="block mt-1 italic" x-text="'Note: ' + exception.acknowledgement_note"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button x-show="!exception.is_acknowledged" @click="acknowledgeException(exception.id)" class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                    Acknowledge
+                                </button>
+                                <button x-show="exception.is_acknowledged && !exception.is_resolved" @click="resolveException(exception.id)" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Resolve
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- No Exceptions State -->
+        <div x-show="exceptionPayrollRunId && !exceptionsLoading && filteredExceptions.length === 0" class="bg-white rounded-lg border shadow-sm p-8 text-center">
+            <svg class="w-16 h-16 mx-auto text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No Exceptions Found</h3>
+            <p class="text-gray-500">This payroll run has no validation exceptions. You can proceed with approval.</p>
+        </div>
+
+        <!-- Select Payroll Run State -->
+        <div x-show="!exceptionPayrollRunId && !exceptionsLoading" class="bg-white rounded-lg border shadow-sm p-8 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">Select a Payroll Run</h3>
+            <p class="text-gray-500">Choose a payroll run from the dropdown above to view its exceptions.</p>
+        </div>
+
+        <!-- Loading State -->
+        <div x-show="exceptionsLoading" class="bg-white rounded-lg shadow-sm border p-8 text-center">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading exceptions...</p>
+        </div>
+    </div>
+
+    <!-- Decision Logs Tab -->
+    <div x-show="activeTab === 'decision-logs'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Payroll Decision Logs</h2>
+                <p class="text-sm text-gray-500 mt-1">Immutable audit trail of payroll decisions, approvals, and adjustments</p>
+            </div>
+            <button @click="showNewLogModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Add Log Entry
+            </button>
+        </div>
+
+        <!-- Summary Cards -->
+        <div x-show="decisionLogSummary" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg border shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-blue-100 rounded-lg">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-2xl font-bold text-gray-900" x-text="decisionLogSummary?.total_logs || 0"></p>
+                        <p class="text-sm text-gray-500">Total Logs</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg border shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-green-100 rounded-lg">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-2xl font-bold text-gray-900" x-text="decisionLogSummary?.by_type?.approval || 0"></p>
+                        <p class="text-sm text-gray-500">Approvals</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg border shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-amber-100 rounded-lg">
+                        <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-2xl font-bold text-gray-900" x-text="decisionLogSummary?.by_type?.adjustment || 0"></p>
+                        <p class="text-sm text-gray-500">Adjustments</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg border shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-gray-100 rounded-lg">
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-2xl font-bold text-gray-900" x-text="decisionLogSummary?.locked_count || 0"></p>
+                        <p class="text-sm text-gray-500">Locked</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg border shadow-sm p-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Payroll Run</label>
+                    <select x-model="logPayrollRunFilter" @change="loadDecisionLogs()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="">All Payroll Runs</option>
+                        <template x-for="run in payrollRuns" :key="run.id">
+                            <option :value="run.id" x-text="formatPayrollRunLabel(run)"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Decision Type</label>
+                    <select x-model="logTypeFilter" @change="loadDecisionLogs()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="">All Types</option>
+                        <option value="approval">Approval</option>
+                        <option value="adjustment">Adjustment</option>
+                        <option value="exception_override">Exception Override</option>
+                        <option value="note">Note</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select x-model="logCategoryFilter" @change="loadDecisionLogs()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="">All Categories</option>
+                        <option value="payroll">Payroll</option>
+                        <option value="salary">Salary</option>
+                        <option value="deduction">Deduction</option>
+                        <option value="exception">Exception</option>
+                        <option value="approval">Approval</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button @click="resetLogFilters()" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                        Reset Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs List -->
+        <div x-show="decisionLogs.length > 0" class="space-y-4">
+            <template x-for="log in decisionLogs" :key="log.id">
+                <div class="bg-white rounded-lg border shadow-sm p-4 hover:border-green-300 transition-colors">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <!-- Type Badge -->
+                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                    :class="{
+                                        'bg-green-100 text-green-800': log.decision_type === 'approval',
+                                        'bg-amber-100 text-amber-800': log.decision_type === 'adjustment',
+                                        'bg-red-100 text-red-800': log.decision_type === 'exception_override',
+                                        'bg-blue-100 text-blue-800': log.decision_type === 'note'
+                                    }"
+                                    x-text="log.decision_type?.replace('_', ' ').toUpperCase()">
+                                </span>
+                                <!-- Category Badge -->
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700" x-text="log.category?.toUpperCase()"></span>
+                                <!-- Lock Badge -->
+                                <span x-show="log.is_locked" class="px-2 py-1 text-xs font-medium rounded-full bg-gray-800 text-white flex items-center">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                    Locked
+                                </span>
+                            </div>
+                            <h4 class="font-semibold text-gray-900" x-text="log.title"></h4>
+                            <p class="text-sm text-gray-600 mt-1" x-text="log.description"></p>
+                            <div class="flex items-center gap-4 mt-3 text-xs text-gray-500">
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                    <span x-text="log.created_by_name"></span>
+                                    <span class="ml-1 text-gray-400" x-text="'(' + log.created_by_role + ')'"></span>
+                                </span>
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span x-text="formatDateTime(log.created_at)"></span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="ml-4 flex items-center gap-2">
+                            <button @click="viewLogDetails(log)" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100" title="View Details">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            </button>
+                            <button @click="verifyLogIntegrity(log.id)" class="p-2 text-gray-400 hover:text-green-600 rounded-lg hover:bg-green-50" title="Verify Integrity">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Pagination -->
+            <div class="flex justify-between items-center mt-6">
+                <p class="text-sm text-gray-500">
+                    Showing <span x-text="((logPage - 1) * logPerPage) + 1"></span> to <span x-text="Math.min(logPage * logPerPage, logTotal)"></span> of <span x-text="logTotal"></span> logs
+                </p>
+                <div class="flex gap-2">
+                    <button @click="logPage > 1 && (logPage--, loadDecisionLogs())" :disabled="logPage <= 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Previous</button>
+                    <button @click="logPage < logPages && (logPage++, loadDecisionLogs())" :disabled="logPage >= logPages" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="decisionLogs.length === 0 && !decisionLogsLoading" class="bg-white rounded-lg border shadow-sm p-8 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No Decision Logs Found</h3>
+            <p class="text-gray-500 mb-4">Start recording payroll decisions to maintain an audit trail.</p>
+            <button @click="showNewLogModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                Create First Log
+            </button>
+        </div>
+
+        <!-- Loading State -->
+        <div x-show="decisionLogsLoading" class="bg-white rounded-lg shadow-sm border p-8 text-center">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading decision logs...</p>
+        </div>
+    </div>
+
+    <!-- New Log Modal -->
+    <div x-show="showNewLogModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showNewLogModal = false"></div>
+            <div class="relative bg-white rounded-lg max-w-lg w-full p-6 z-10">
+                <h3 class="text-lg font-semibold mb-4">Add Decision Log Entry</h3>
+                <form @submit.prevent="createDecisionLog()">
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Decision Type *</label>
+                                <select x-model="newLog.decision_type" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Select Type</option>
+                                    <option value="approval">Approval</option>
+                                    <option value="adjustment">Adjustment</option>
+                                    <option value="exception_override">Exception Override</option>
+                                    <option value="note">Note</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                                <select x-model="newLog.category" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Select Category</option>
+                                    <option value="payroll">Payroll</option>
+                                    <option value="salary">Salary</option>
+                                    <option value="deduction">Deduction</option>
+                                    <option value="exception">Exception</option>
+                                    <option value="approval">Approval</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                            <input type="text" x-model="newLog.title" required maxlength="255" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Brief title for the decision">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                            <textarea x-model="newLog.description" required rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Detailed description of the decision or note"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Related Payroll Run (Optional)</label>
+                            <select x-model="newLog.payroll_run_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                <option value="">None</option>
+                                <template x-for="run in payrollRuns" :key="run.id">
+                                    <option :value="run.id" x-text="formatPayrollRunLabel(run)"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showNewLogModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Create Log</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- YTD Ledger Tab -->
+    <div x-show="activeTab === 'ytd-ledger'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-semibold text-gray-900">Year-to-Date Payroll Ledger</h2>
+            <div class="flex items-center space-x-4">
+                <select x-model="ytdYear" @change="loadYTDLedger()" class="rounded-lg border-gray-300 text-sm">
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                </select>
+                <button @click="loadYTDLedger()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- YTD Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6" x-show="ytdSummary">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Total Employees</p>
+                <p class="text-2xl font-bold text-gray-900" x-text="ytdSummary?.total_employees || 0"></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">YTD Gross</p>
+                <p class="text-2xl font-bold text-green-600">₦<span x-text="(ytdSummary?.total_ytd_gross || 0).toLocaleString()"></span></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">YTD PAYE</p>
+                <p class="text-2xl font-bold text-red-600">₦<span x-text="(ytdSummary?.total_ytd_paye || 0).toLocaleString()"></span></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">YTD Net</p>
+                <p class="text-2xl font-bold text-blue-600">₦<span x-text="(ytdSummary?.total_ytd_net || 0).toLocaleString()"></span></p>
+            </div>
+        </div>
+
+        <!-- YTD Ledger Table -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div x-show="ytdLoading" class="p-8 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                <p class="mt-2 text-gray-500">Loading YTD data...</p>
+            </div>
+            <table x-show="!ytdLoading && ytdLedgers.length > 0" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">YTD Gross</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">YTD PAYE</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">YTD Pension</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">YTD Net</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Months</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="ledger in ytdLedgers" :key="ledger.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="ledger.employee_name || ledger.employee_id"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">₦<span x-text="ledger.ytd_gross.toLocaleString()"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">₦<span x-text="ledger.ytd_paye.toLocaleString()"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">₦<span x-text="ledger.ytd_pension_employee.toLocaleString()"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">₦<span x-text="ledger.ytd_net.toLocaleString()"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500" x-text="ledger.months_processed"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <div x-show="!ytdLoading && ytdLedgers.length === 0" class="p-8 text-center text-gray-500">
+                No YTD data available for this year.
+            </div>
+        </div>
+    </div>
+
+    <!-- CTC Analytics Tab -->
+    <div x-show="activeTab === 'ctc'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-semibold text-gray-900">Cost-to-Company Analytics</h2>
+            <button @click="generateCTCSnapshot()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                Generate Snapshot
+            </button>
+        </div>
+
+        <!-- CTC Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6" x-show="ctcSnapshot">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Total Employees</p>
+                <p class="text-2xl font-bold text-gray-900" x-text="ctcSnapshot?.total_employees || 0"></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Total Gross Salary</p>
+                <p class="text-2xl font-bold text-blue-600">₦<span x-text="(ctcSnapshot?.total_gross_salary || 0).toLocaleString()"></span></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Total CTC</p>
+                <p class="text-2xl font-bold text-green-600">₦<span x-text="(ctcSnapshot?.total_ctc || 0).toLocaleString()"></span></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Avg CTC per Employee</p>
+                <p class="text-2xl font-bold text-purple-600">₦<span x-text="(ctcSnapshot?.average_ctc_per_employee || 0).toLocaleString()"></span></p>
+            </div>
+        </div>
+
+        <!-- CTC Breakdown -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6" x-show="ctcSnapshot">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Cost Breakdown</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center p-3 bg-blue-50 rounded-lg">
+                    <p class="text-sm text-gray-600">Gross Salary</p>
+                    <p class="text-lg font-semibold text-blue-600">₦<span x-text="(ctcSnapshot?.total_gross_salary || 0).toLocaleString()"></span></p>
+                </div>
+                <div class="text-center p-3 bg-green-50 rounded-lg">
+                    <p class="text-sm text-gray-600">Employer Pension</p>
+                    <p class="text-lg font-semibold text-green-600">₦<span x-text="(ctcSnapshot?.total_pension_employer || 0).toLocaleString()"></span></p>
+                </div>
+                <div class="text-center p-3 bg-orange-50 rounded-lg">
+                    <p class="text-sm text-gray-600">NSITF</p>
+                    <p class="text-lg font-semibold text-orange-600">₦<span x-text="(ctcSnapshot?.total_nsitf || 0).toLocaleString()"></span></p>
+                </div>
+                <div class="text-center p-3 bg-purple-50 rounded-lg">
+                    <p class="text-sm text-gray-600">ITF</p>
+                    <p class="text-lg font-semibold text-purple-600">₦<span x-text="(ctcSnapshot?.total_itf || 0).toLocaleString()"></span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CTC Trend -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">CTC Trend (Last 12 Months)</h3>
+            <div x-show="ctcLoading" class="p-8 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+            </div>
+            <div x-show="!ctcLoading && ctcTrend.length > 0" class="space-y-2">
+                <template x-for="period in ctcTrend" :key="`${period.month}-${period.year}`">
+                    <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <span class="text-sm text-gray-600" x-text="`${period.month}/${period.year}`"></span>
+                        <span class="text-sm font-medium text-gray-900">₦<span x-text="period.total_ctc.toLocaleString()"></span></span>
+                        <span class="text-xs text-gray-500" x-text="`${period.employee_count} employees`"></span>
+                    </div>
+                </template>
+            </div>
+            <div x-show="!ctcLoading && ctcTrend.length === 0" class="text-center text-gray-500 py-4">
+                No CTC trend data available.
+            </div>
+        </div>
+    </div>
+
+    <!-- What-If Simulations Tab -->
+    <div x-show="activeTab === 'simulations'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-semibold text-gray-900">What-If Simulations</h2>
+            <button @click="showSimulationModal = true" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                New Simulation
+            </button>
+        </div>
+
+        <!-- Recent Simulations -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div x-show="simulationsLoading" class="p-8 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+            </div>
+            <table x-show="!simulationsLoading && simulations.length > 0" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">CTC Impact</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="sim in simulations" :key="sim.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="sim.simulation_name"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800" x-text="sim.scenario_type.replace('_', ' ')"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right" :class="sim.ctc_impact >= 0 ? 'text-red-600' : 'text-green-600'">
+                                <span x-text="sim.ctc_impact >= 0 ? '+' : ''"></span>₦<span x-text="Math.abs(sim.ctc_impact).toLocaleString()"></span>
+                                <span class="text-xs text-gray-500">(<span x-text="sim.ctc_impact_percent"></span>%)</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500" x-text="formatDate(sim.created_at)"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                <button @click="viewSimulation(sim)" class="text-blue-600 hover:text-blue-800 mr-2">View</button>
+                                <button @click="deleteSimulation(sim.id)" class="text-red-600 hover:text-red-800">Delete</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <div x-show="!simulationsLoading && simulations.length === 0" class="p-8 text-center text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p>No simulations yet. Create one to see the impact of payroll changes.</p>
+            </div>
+        </div>
+
+        <!-- Simulation Modal -->
+        <div x-show="showSimulationModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" x-cloak>
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
+                <h3 class="text-lg font-semibold mb-4">New Salary Increase Simulation</h3>
+                <form @submit.prevent="runSalarySimulation()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Simulation Name</label>
+                            <input type="text" x-model="newSimulation.name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="e.g., Q2 2026 Salary Review">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Increase Type</label>
+                                <select x-model="newSimulation.increase_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                    <option value="percentage">Percentage</option>
+                                    <option value="flat_amount">Flat Amount</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Value</label>
+                                <input type="number" x-model="newSimulation.increase_value" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" :placeholder="newSimulation.increase_type === 'percentage' ? '10' : '50000'">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Apply To</label>
+                            <select x-model="newSimulation.apply_to" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                <option value="all">All Employees</option>
+                                <option value="department">Specific Department</option>
+                            </select>
+                        </div>
+                        <div x-show="newSimulation.apply_to === 'department'">
+                            <label class="block text-sm font-medium text-gray-700">Department</label>
+                            <input type="text" x-model="newSimulation.department" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="e.g., Engineering">
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" x-model="newSimulation.save" id="saveSimulation" class="rounded border-gray-300 text-green-600">
+                            <label for="saveSimulation" class="ml-2 text-sm text-gray-700">Save simulation for later reference</label>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showSimulationModal = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Run Simulation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ghost Worker Detection Tab -->
+    <div x-show="activeTab === 'ghost-detection'" x-transition>
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-semibold text-gray-900">Ghost Worker Detection</h2>
+            <button @click="runGhostScan()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                Run Scan
+            </button>
+        </div>
+
+        <!-- Scan Results Summary -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" x-show="ghostScanResult">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Employees Scanned</p>
+                <p class="text-2xl font-bold text-gray-900" x-text="ghostScanResult?.total_employees_scanned || 0"></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Detections Found</p>
+                <p class="text-2xl font-bold" :class="ghostScanResult?.detections_found > 0 ? 'text-red-600' : 'text-green-600'" x-text="ghostScanResult?.detections_found || 0"></p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <p class="text-sm text-gray-500">Critical Issues</p>
+                <p class="text-2xl font-bold text-red-600" x-text="ghostScanResult?.critical_detections || 0"></p>
+            </div>
+        </div>
+
+        <!-- Detections List -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div x-show="ghostLoading" class="p-8 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                <p class="mt-2 text-gray-500">Scanning for duplicates...</p>
+            </div>
+            <table x-show="!ghostLoading && ghostDetections.length > 0" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duplicate Field</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Severity</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="detection in ghostDetections" :key="detection.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="detection.detection_type.replace('_', ' ')"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="detection.duplicate_field"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="detection.duplicate_value"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="px-2 py-1 text-xs rounded-full" :class="detection.severity === 'critical' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'" x-text="detection.severity"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span x-show="detection.is_resolved" class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Resolved</span>
+                                <span x-show="!detection.is_resolved" class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Unresolved</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                <button x-show="!detection.is_resolved" @click="resolveGhostDetection(detection.id)" class="text-green-600 hover:text-green-800">Resolve</button>
+                                <span x-show="detection.is_resolved" class="text-gray-400">-</span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <div x-show="!ghostLoading && ghostDetections.length === 0" class="p-8 text-center">
+                <svg class="w-16 h-16 mx-auto text-green-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <h3 class="text-lg font-medium text-gray-900">No Ghost Workers Detected</h3>
+                <p class="text-gray-500 mt-1">All employee records appear to be unique.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Loans Tab -->
     <div x-show="activeTab === 'loans'" x-transition>
         <div class="flex justify-between items-center mb-6">
@@ -585,6 +1908,74 @@ function payrollPage() {
         remittances: [],
         remittanceType: '',
         remittancePaid: '',
+        
+        // Compliance Status
+        complianceData: null,
+        complianceCalendar: null,
+        complianceYear: new Date().getFullYear(),
+        
+        // Impact Preview
+        impactPreview: null,
+        impactLoading: false,
+        
+        // Exceptions
+        exceptions: [],
+        filteredExceptions: [],
+        exceptionSummary: null,
+        exceptionsLoading: false,
+        exceptionPayrollRunId: '',
+        exceptionSeverityFilter: '',
+        exceptionAcknowledgedFilter: '',
+        selectedExceptions: [],
+        
+        // Decision Logs
+        decisionLogs: [],
+        decisionLogSummary: null,
+        decisionLogsLoading: false,
+        logPayrollRunFilter: '',
+        logTypeFilter: '',
+        logCategoryFilter: '',
+        logPage: 1,
+        logPerPage: 20,
+        logTotal: 0,
+        logPages: 0,
+        showNewLogModal: false,
+        newLog: {
+            decision_type: '',
+            category: '',
+            title: '',
+            description: '',
+            payroll_run_id: '',
+        },
+        
+        // YTD Ledger
+        ytdLedgers: [],
+        ytdSummary: null,
+        ytdLoading: false,
+        ytdYear: new Date().getFullYear(),
+        
+        // CTC Analytics
+        ctcSnapshot: null,
+        ctcTrend: [],
+        ctcLoading: false,
+        
+        // Simulations
+        simulations: [],
+        simulationsLoading: false,
+        showSimulationModal: false,
+        newSimulation: {
+            name: '',
+            increase_type: 'percentage',
+            increase_value: 10,
+            apply_to: 'all',
+            department: '',
+            save: false,
+        },
+        
+        // Ghost Worker Detection
+        ghostDetections: [],
+        ghostScanResult: null,
+        ghostLoading: false,
         
         // Modals
         showEmployeeModal: false,
@@ -863,6 +2254,647 @@ function payrollPage() {
             }).then(res => {
                 if (res.ok) this.loadRemittances();
             });
+        },
+        
+        // ===========================================
+        // COMPLIANCE STATUS METHODS
+        // ===========================================
+        
+        async loadComplianceStatus() {
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/compliance/current');
+                if (response.ok) {
+                    this.complianceData = await response.json();
+                    // Also load calendar
+                    await this.loadComplianceCalendar();
+                } else {
+                    console.error('Failed to load compliance status');
+                }
+            } catch (error) {
+                console.error('Error loading compliance status:', error);
+            }
+        },
+        
+        async loadComplianceCalendar() {
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/compliance/calendar/${this.complianceYear}`);
+                if (response.ok) {
+                    this.complianceCalendar = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading compliance calendar:', error);
+            }
+        },
+        
+        async refreshComplianceSnapshot() {
+            try {
+                const today = new Date();
+                const response = await fetch('/api/v1/payroll/advanced/compliance/snapshots', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        period_month: today.getMonth() + 1,
+                        period_year: today.getFullYear()
+                    })
+                });
+                if (response.ok) {
+                    await this.loadComplianceStatus();
+                    alert('Compliance snapshot refreshed successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to refresh compliance snapshot');
+                }
+            } catch (error) {
+                console.error('Error refreshing compliance:', error);
+            }
+        },
+        
+        async viewComplianceMonth(month) {
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/compliance/snapshots/${month}/${this.complianceYear}`);
+                if (response.ok) {
+                    const snapshot = await response.json();
+                    // Show details in modal or update current view
+                    alert(`${this.getMonthName(month)} ${this.complianceYear}\n\nPAYE Due: ₦${this.formatCurrency(snapshot.paye_status?.amount_due || 0)}\nPAYE Paid: ₦${this.formatCurrency(snapshot.paye_status?.amount_paid || 0)}\nStatus: ${snapshot.paye_status?.status}\n\n${snapshot.summary_message}`);
+                } else if (response.status === 404) {
+                    // Generate snapshot for this month
+                    if (confirm(`No snapshot exists for ${this.getMonthName(month)} ${this.complianceYear}. Generate now?`)) {
+                        const genResponse = await fetch('/api/v1/payroll/advanced/compliance/snapshots', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                period_month: month,
+                                period_year: this.complianceYear
+                            })
+                        });
+                        if (genResponse.ok) {
+                            await this.loadComplianceCalendar();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error viewing compliance month:', error);
+            }
+        },
+        
+        // ========================================
+        // IMPACT PREVIEW METHODS
+        // ========================================
+        
+        async loadImpactPreview() {
+            this.impactLoading = true;
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/impact-preview/latest');
+                if (response.ok) {
+                    this.impactPreview = await response.json();
+                } else {
+                    this.impactPreview = { has_preview: false };
+                }
+            } catch (error) {
+                console.error('Error loading impact preview:', error);
+                this.impactPreview = { has_preview: false };
+            } finally {
+                this.impactLoading = false;
+            }
+        },
+        
+        async refreshImpactPreview() {
+            if (!this.impactPreview?.payroll_run_id) {
+                alert('No payroll run available to refresh. Please run payroll first.');
+                return;
+            }
+            
+            this.impactLoading = true;
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/impact-preview/${this.impactPreview.payroll_run_id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    this.impactPreview = await response.json();
+                    alert('Impact preview refreshed successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to refresh impact preview');
+                }
+            } catch (error) {
+                console.error('Error refreshing impact preview:', error);
+                alert('Failed to refresh impact preview');
+            } finally {
+                this.impactLoading = false;
+            }
+        },
+        
+        async generateImpactPreviewForRun(payrollRunId) {
+            this.impactLoading = true;
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/impact-preview/${payrollRunId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    this.impactPreview = await response.json();
+                    this.activeTab = 'impact-preview';
+                    return true;
+                } else {
+                    const error = await response.json();
+                    console.error('Failed to generate impact preview:', error);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error generating impact preview:', error);
+                return false;
+            } finally {
+                this.impactLoading = false;
+            }
+        },
+        
+        formatDateTime(isoString) {
+            if (!isoString) return 'N/A';
+            const date = new Date(isoString);
+            return date.toLocaleString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+        
+        // ========================================
+        // EXCEPTION MANAGEMENT METHODS
+        // ========================================
+        
+        async loadExceptions() {
+            // Load payroll runs for selector if not already loaded
+            if (this.payrollRuns.length === 0) {
+                await this.loadPayrollRuns();
+            }
+            
+            // If a payroll run is selected, load its exceptions
+            if (this.exceptionPayrollRunId) {
+                await this.loadExceptionsForRun();
+            }
+        },
+        
+        async loadExceptionsForRun() {
+            if (!this.exceptionPayrollRunId) return;
+            
+            this.exceptionsLoading = true;
+            this.selectedExceptions = [];
+            
+            try {
+                // Load summary
+                const summaryResponse = await fetch(`/api/v1/payroll/advanced/exceptions/${this.exceptionPayrollRunId}/summary`);
+                if (summaryResponse.ok) {
+                    this.exceptionSummary = await summaryResponse.json();
+                    this.exceptions = this.exceptionSummary.exceptions || [];
+                    this.filterExceptions();
+                }
+            } catch (error) {
+                console.error('Error loading exceptions:', error);
+            } finally {
+                this.exceptionsLoading = false;
+            }
+        },
+        
+        filterExceptions() {
+            let filtered = [...this.exceptions];
+            
+            if (this.exceptionSeverityFilter) {
+                filtered = filtered.filter(e => e.severity === this.exceptionSeverityFilter);
+            }
+            
+            if (this.exceptionAcknowledgedFilter !== '') {
+                const isAcknowledged = this.exceptionAcknowledgedFilter === 'true';
+                filtered = filtered.filter(e => e.is_acknowledged === isAcknowledged);
+            }
+            
+            this.filteredExceptions = filtered;
+        },
+        
+        async validatePayrollRun() {
+            if (!this.exceptionPayrollRunId) return;
+            
+            this.exceptionsLoading = true;
+            
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/exceptions/${this.exceptionPayrollRunId}/validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`Validation complete. ${result.exceptions_created} exception(s) found.`);
+                    await this.loadExceptionsForRun();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Validation failed');
+                }
+            } catch (error) {
+                console.error('Error validating payroll:', error);
+                alert('Validation failed');
+            } finally {
+                this.exceptionsLoading = false;
+            }
+        },
+        
+        async acknowledgeException(exceptionId, note = null) {
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/exceptions/${exceptionId}/acknowledge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ acknowledgement_note: note })
+                });
+                
+                if (response.ok) {
+                    await this.loadExceptionsForRun();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to acknowledge exception');
+                }
+            } catch (error) {
+                console.error('Error acknowledging exception:', error);
+            }
+        },
+        
+        async bulkAcknowledgeExceptions() {
+            if (this.selectedExceptions.length === 0) return;
+            
+            const note = prompt('Enter acknowledgement note (optional):');
+            
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/exceptions/bulk-acknowledge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        exception_ids: this.selectedExceptions,
+                        acknowledgement_note: note
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`${result.acknowledged_count} exception(s) acknowledged.`);
+                    this.selectedExceptions = [];
+                    await this.loadExceptionsForRun();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Bulk acknowledge failed');
+                }
+            } catch (error) {
+                console.error('Error bulk acknowledging:', error);
+            }
+        },
+        
+        async resolveException(exceptionId) {
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/exceptions/${exceptionId}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    await this.loadExceptionsForRun();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to resolve exception');
+                }
+            } catch (error) {
+                console.error('Error resolving exception:', error);
+            }
+        },
+        
+        formatPayrollRunLabel(run) {
+            if (!run) return '';
+            const startDate = run.pay_period_start ? new Date(run.pay_period_start).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' }) : '';
+            const endDate = run.pay_period_end ? new Date(run.pay_period_end).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+            return `${startDate} - ${endDate} (${run.status || 'Draft'})`;
+        },
+        
+        // ========================================
+        // DECISION LOG METHODS
+        // ========================================
+        
+        async loadDecisionLogs() {
+            // Load payroll runs for filter if not already loaded
+            if (this.payrollRuns.length === 0) {
+                await this.loadPayrollRuns();
+            }
+            
+            this.decisionLogsLoading = true;
+            
+            try {
+                // Build query params
+                const params = new URLSearchParams({
+                    page: this.logPage.toString(),
+                    per_page: this.logPerPage.toString(),
+                });
+                
+                if (this.logPayrollRunFilter) params.append('payroll_run_id', this.logPayrollRunFilter);
+                if (this.logTypeFilter) params.append('decision_type', this.logTypeFilter);
+                if (this.logCategoryFilter) params.append('category', this.logCategoryFilter);
+                
+                // Load logs
+                const logsResponse = await fetch(`/api/v1/payroll/advanced/decision-logs?${params}`);
+                if (logsResponse.ok) {
+                    const data = await logsResponse.json();
+                    this.decisionLogs = data.logs || [];
+                    this.logTotal = data.total || 0;
+                    this.logPages = data.pages || 0;
+                }
+                
+                // Load summary
+                const summaryParams = this.logPayrollRunFilter ? `?payroll_run_id=${this.logPayrollRunFilter}` : '';
+                const summaryResponse = await fetch(`/api/v1/payroll/advanced/decision-logs/summary${summaryParams}`);
+                if (summaryResponse.ok) {
+                    this.decisionLogSummary = await summaryResponse.json();
+                }
+            } catch (error) {
+                console.error('Error loading decision logs:', error);
+            } finally {
+                this.decisionLogsLoading = false;
+            }
+        },
+        
+        resetLogFilters() {
+            this.logPayrollRunFilter = '';
+            this.logTypeFilter = '';
+            this.logCategoryFilter = '';
+            this.logPage = 1;
+            this.loadDecisionLogs();
+        },
+        
+        async createDecisionLog() {
+            if (!this.newLog.decision_type || !this.newLog.category || !this.newLog.title || !this.newLog.description) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/decision-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        decision_type: this.newLog.decision_type,
+                        category: this.newLog.category,
+                        title: this.newLog.title,
+                        description: this.newLog.description,
+                        payroll_run_id: this.newLog.payroll_run_id || null,
+                    })
+                });
+                
+                if (response.ok) {
+                    this.showNewLogModal = false;
+                    this.newLog = { decision_type: '', category: '', title: '', description: '', payroll_run_id: '' };
+                    await this.loadDecisionLogs();
+                    alert('Decision log created successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to create decision log');
+                }
+            } catch (error) {
+                console.error('Error creating decision log:', error);
+                alert('Failed to create decision log');
+            }
+        },
+        
+        viewLogDetails(log) {
+            const contextStr = log.context_data && Object.keys(log.context_data).length > 0
+                ? `\n\nContext Data:\n${JSON.stringify(log.context_data, null, 2)}`
+                : '';
+            
+            alert(`${log.title}\n\nType: ${log.decision_type}\nCategory: ${log.category}\n\n${log.description}\n\nCreated by: ${log.created_by_name} (${log.created_by_role})\nCreated at: ${this.formatDateTime(log.created_at)}\n\nHash: ${log.content_hash?.substring(0, 16)}...${contextStr}`);
+        },
+        
+        async verifyLogIntegrity(logId) {
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/decision-logs/${logId}/verify`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.has_hash) {
+                        alert(`✅ Log Integrity Verified\n\nHash: ${result.content_hash?.substring(0, 32)}...\nLocked: ${result.is_locked ? 'Yes' : 'No'}\n\n${result.verification_note}`);
+                    } else {
+                        alert('⚠️ Log integrity could not be verified: No hash found');
+                    }
+                } else {
+                    alert('Failed to verify log integrity');
+                }
+            } catch (error) {
+                console.error('Error verifying log:', error);
+            }
+        },
+        
+        // ========================================
+        // YTD LEDGER METHODS
+        // ========================================
+        
+        async loadYTDLedger() {
+            this.ytdLoading = true;
+            try {
+                // Load summary
+                const summaryResponse = await fetch(`/api/v1/payroll/advanced/ytd-ledger/summary?tax_year=${this.ytdYear}`);
+                if (summaryResponse.ok) {
+                    this.ytdSummary = await summaryResponse.json();
+                }
+                
+                // Load ledgers
+                const response = await fetch(`/api/v1/payroll/advanced/ytd-ledger?tax_year=${this.ytdYear}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.ytdLedgers = data.items || [];
+                }
+            } catch (error) {
+                console.error('Error loading YTD ledger:', error);
+            } finally {
+                this.ytdLoading = false;
+            }
+        },
+        
+        // ========================================
+        // CTC ANALYTICS METHODS
+        // ========================================
+        
+        async loadCTCData() {
+            this.ctcLoading = true;
+            try {
+                const now = new Date();
+                const month = now.getMonth() + 1;
+                const year = now.getFullYear();
+                
+                // Load current snapshot
+                const snapshotResponse = await fetch(`/api/v1/payroll/advanced/ctc/snapshots/${month}/${year}`);
+                if (snapshotResponse.ok) {
+                    this.ctcSnapshot = await snapshotResponse.json();
+                }
+                
+                // Load trend
+                const trendResponse = await fetch('/api/v1/payroll/advanced/ctc/trend?months=12');
+                if (trendResponse.ok) {
+                    const data = await trendResponse.json();
+                    this.ctcTrend = data.periods || [];
+                }
+            } catch (error) {
+                console.error('Error loading CTC data:', error);
+            } finally {
+                this.ctcLoading = false;
+            }
+        },
+        
+        async generateCTCSnapshot() {
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            const year = now.getFullYear();
+            
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/ctc/snapshots?month=${month}&year=${year}`, {
+                    method: 'POST',
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.ctcSnapshot = data.snapshot;
+                    await this.loadCTCData();
+                    alert('CTC snapshot generated successfully!');
+                }
+            } catch (error) {
+                console.error('Error generating CTC snapshot:', error);
+            }
+        },
+        
+        // ========================================
+        // SIMULATION METHODS
+        // ========================================
+        
+        async loadSimulations() {
+            this.simulationsLoading = true;
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/simulations');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.simulations = data.items || [];
+                }
+            } catch (error) {
+                console.error('Error loading simulations:', error);
+            } finally {
+                this.simulationsLoading = false;
+            }
+        },
+        
+        async runSalarySimulation() {
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/simulations/salary-increase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        simulation_name: this.newSimulation.name,
+                        scenario_type: 'salary_increase',
+                        save_simulation: this.newSimulation.save,
+                        salary_increase: {
+                            increase_type: this.newSimulation.increase_type,
+                            increase_value: parseFloat(this.newSimulation.increase_value),
+                            apply_to: this.newSimulation.apply_to,
+                            department: this.newSimulation.department || null,
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showSimulationModal = false;
+                    await this.loadSimulations();
+                    
+                    const sim = data.simulation;
+                    alert(`Simulation Complete!\n\n${sim.impact_summary}\n\nBaseline CTC: ₦${sim.baseline_ctc.toLocaleString()}\nProjected CTC: ₦${sim.projected_ctc.toLocaleString()}\nImpact: ₦${sim.ctc_impact.toLocaleString()} (${sim.ctc_impact_percent}%)`);
+                }
+            } catch (error) {
+                console.error('Error running simulation:', error);
+            }
+        },
+        
+        viewSimulation(sim) {
+            alert(`${sim.simulation_name}\n\nType: ${sim.scenario_type}\n\n${sim.impact_summary}\n\nBaseline CTC: ₦${sim.baseline_ctc.toLocaleString()}\nProjected CTC: ₦${sim.projected_ctc.toLocaleString()}\nImpact: ₦${sim.ctc_impact.toLocaleString()} (${sim.ctc_impact_percent}%)`);
+        },
+        
+        async deleteSimulation(simId) {
+            if (!confirm('Delete this simulation?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/simulations/${simId}`, {
+                    method: 'DELETE',
+                });
+                if (response.ok) {
+                    await this.loadSimulations();
+                }
+            } catch (error) {
+                console.error('Error deleting simulation:', error);
+            }
+        },
+        
+        // ========================================
+        // GHOST WORKER DETECTION METHODS
+        // ========================================
+        
+        async loadGhostDetections() {
+            this.ghostLoading = true;
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/ghost-worker/detections');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.ghostDetections = data.items || [];
+                }
+            } catch (error) {
+                console.error('Error loading ghost detections:', error);
+            } finally {
+                this.ghostLoading = false;
+            }
+        },
+        
+        async runGhostScan() {
+            this.ghostLoading = true;
+            try {
+                const response = await fetch('/api/v1/payroll/advanced/ghost-worker/scan', {
+                    method: 'POST',
+                });
+                if (response.ok) {
+                    this.ghostScanResult = await response.json();
+                    this.ghostDetections = this.ghostScanResult.detections || [];
+                    
+                    if (this.ghostScanResult.detections_found === 0) {
+                        alert('✅ Scan Complete\n\nNo ghost workers detected. All employee records appear to be unique.');
+                    } else {
+                        alert(`⚠️ Scan Complete\n\nFound ${this.ghostScanResult.detections_found} potential issues:\n- ${this.ghostScanResult.critical_detections} critical\n\nPlease review the detections below.`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error running ghost scan:', error);
+            } finally {
+                this.ghostLoading = false;
+            }
+        },
+        
+        async resolveGhostDetection(detectionId) {
+            const note = prompt('Please provide a resolution note (min 10 characters):');
+            if (!note || note.length < 10) {
+                alert('Resolution note must be at least 10 characters.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/v1/payroll/advanced/ghost-worker/detections/${detectionId}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resolution_note: note }),
+                });
+                if (response.ok) {
+                    await this.loadGhostDetections();
+                    alert('Detection resolved successfully!');
+                }
+            } catch (error) {
+                console.error('Error resolving detection:', error);
+            }
         }
     };
 }

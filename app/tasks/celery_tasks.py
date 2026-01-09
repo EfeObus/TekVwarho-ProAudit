@@ -416,7 +416,7 @@ def archive_audit_logs_task() -> Dict[str, Any]:
 
 async def _archive_audit_logs() -> Dict[str, Any]:
     """Archive audit logs older than 5 years (NTAA requirement)."""
-    from app.models.audit import AuditLog
+    from app.models.audit_consolidated import AuditLog
     from sqlalchemy import select, func
     
     async with async_session_factory() as db:

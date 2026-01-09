@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User, UserRole
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.transaction import Transaction, WRENStatus
-from app.models.audit import AuditLog, AuditAction
+from app.models.audit_consolidated import AuditLog, AuditAction
 from app.utils.permissions import OrganizationPermission, has_organization_permission
 
 

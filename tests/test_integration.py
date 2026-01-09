@@ -529,7 +529,7 @@ class TestAuditLogging:
     async def test_login_attempt_logging(self, db_session: AsyncSession, test_user: User, test_entity: BusinessEntity):
         """Test login attempt audit logging."""
         from app.services.audit_service import AuditService
-        from app.models.audit import AuditAction
+        from app.models.audit_consolidated import AuditAction
         
         audit_service = AuditService(db_session)
         

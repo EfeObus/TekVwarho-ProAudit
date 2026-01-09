@@ -1,0 +1,835 @@
+{% extends "base.html" %}
+
+{% block title %}Unified Audit Center - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="unifiedAudit()" x-init="init()">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    Unified Audit Center
+                </h1>
+                <p class="text-gray-600 mt-1">Comprehensive audit tools for Nigerian Tax Reform 2026 compliance</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span class="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium">NTAA 2025</span>
+                <span class="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium">2026 Tax Reform</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats Bar -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <!-- Data Integrity -->
+        <div class="bg-white rounded-lg shadow p-4 border-l-4"
+             :class="integrity.verified ? 'border-green-500' : 'border-red-500'">
+            <p class="text-xs font-medium text-gray-600">Data Integrity</p>
+            <p class="text-lg font-bold" :class="integrity.verified ? 'text-green-600' : 'text-red-600'"
+               x-text="integrity.status || 'Unknown'"></p>
+        </div>
+        
+        <!-- NRS Compliance -->
+        <div class="bg-white rounded-lg shadow p-4 border-l-4"
+             :class="{'border-green-500': nrsCompliance.rate >= 95, 'border-yellow-500': nrsCompliance.rate >= 80 && nrsCompliance.rate < 95, 'border-red-500': nrsCompliance.rate < 80}">
+            <p class="text-xs font-medium text-gray-600">NRS Compliance</p>
+            <p class="text-lg font-bold" x-text="nrsCompliance.rate + '%'"></p>
+        </div>
+        
+        <!-- Anomalies -->
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-amber-500">
+            <p class="text-xs font-medium text-gray-600">Anomalies</p>
+            <p class="text-lg font-bold text-amber-600" x-text="anomalies.total || 0"></p>
+        </div>
+        
+        <!-- Audit Runs -->
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+            <p class="text-xs font-medium text-gray-600">Audit Runs</p>
+            <p class="text-lg font-bold text-purple-600" x-text="auditRuns.total || 0"></p>
+        </div>
+        
+        <!-- Findings -->
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+            <p class="text-xs font-medium text-gray-600">Open Findings</p>
+            <p class="text-lg font-bold text-blue-600" x-text="findings.open || 0"></p>
+        </div>
+    </div>
+
+    <!-- Main Tabs Navigation -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+            <button @click="activeTab = 'dashboard'"
+                    :class="activeTab === 'dashboard' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Dashboard
+            </button>
+            <button @click="activeTab = 'logs'; loadAuditLogs()"
+                    :class="activeTab === 'logs' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Audit Logs
+            </button>
+            <button @click="activeTab = 'forensic'"
+                    :class="activeTab === 'forensic' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Forensic Analysis
+            </button>
+            <button @click="activeTab = 'runs'; loadAuditRuns()"
+                    :class="activeTab === 'runs' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Audit Runs
+            </button>
+            <button @click="activeTab = 'findings'; loadFindings()"
+                    :class="activeTab === 'findings' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Findings
+            </button>
+            <button @click="activeTab = 'evidence'; loadEvidence()"
+                    :class="activeTab === 'evidence' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Evidence
+            </button>
+            <button @click="activeTab = 'explainability'"
+                    :class="activeTab === 'explainability' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Tax Explainability
+            </button>
+            <button @click="activeTab = 'vault'; loadVaultStats()"
+                    :class="activeTab === 'vault' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Audit Vault
+            </button>
+        </nav>
+    </div>
+
+    <!-- ========================================
+         TAB: DASHBOARD
+         ======================================== -->
+    <div x-show="activeTab === 'dashboard'" class="space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Integrity Verification Card -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    Data Integrity Verification
+                </h3>
+                <p class="text-sm text-gray-600 mb-4">Verify blockchain-style hash chain integrity for all records.</p>
+                <button @click="verifyIntegrity()" 
+                        :disabled="loading"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    <span x-show="!loading">Run Integrity Check</span>
+                    <span x-show="loading">Checking...</span>
+                </button>
+                <div x-show="integrity.lastCheck" class="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <p class="text-sm"><strong>Last Check:</strong> <span x-text="integrity.lastCheck"></span></p>
+                    <p class="text-sm"><strong>Records Verified:</strong> <span x-text="integrity.recordCount"></span></p>
+                </div>
+            </div>
+
+            <!-- Quick Forensic Tools -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    Quick Forensic Tools
+                </h3>
+                <div class="space-y-3">
+                    <button @click="runBenfordsLaw()" class="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                        <span class="font-medium">Benford's Law Analysis</span>
+                        <p class="text-xs text-gray-500">Detect manipulated numbers</p>
+                    </button>
+                    <button @click="runAnomalyDetection()" class="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                        <span class="font-medium">Z-Score Anomaly Detection</span>
+                        <p class="text-xs text-gray-500">Find statistical outliers</p>
+                    </button>
+                    <button @click="runNRSGapAnalysis()" class="w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                        <span class="font-medium">NRS Gap Analysis</span>
+                        <p class="text-xs text-gray-500">Find missing IRN submissions</p>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Audit Activity -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">Recent Audit Activity</h3>
+            <div class="space-y-3" x-show="recentLogs.length > 0">
+                <template x-for="log in recentLogs.slice(0, 5)" :key="log.id">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                            <span class="font-medium" x-text="log.action"></span>
+                            <span class="text-gray-600" x-text="' on ' + log.target_entity_type"></span>
+                        </div>
+                        <span class="text-sm text-gray-500" x-text="log.timestamp"></span>
+                    </div>
+                </template>
+            </div>
+            <p x-show="recentLogs.length === 0" class="text-gray-500 text-center py-4">No recent activity</p>
+        </div>
+    </div>
+
+    <!-- ========================================
+         TAB: AUDIT LOGS
+         ======================================== -->
+    <div x-show="activeTab === 'logs'" class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold">Audit Trail</h3>
+                <div class="flex items-center space-x-4">
+                    <select x-model="logsFilter.action" @change="loadAuditLogs()"
+                            class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="">All Actions</option>
+                        <option value="create">Create</option>
+                        <option value="update">Update</option>
+                        <option value="delete">Delete</option>
+                        <option value="view">View</option>
+                        <option value="export">Export</option>
+                    </select>
+                    <input type="date" x-model="logsFilter.startDate" @change="loadAuditLogs()"
+                           class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <button @click="exportLogs()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                        Export
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entity</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="log in auditLogs" :key="log.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="log.timestamp"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs rounded-full"
+                                      :class="{
+                                          'bg-green-100 text-green-800': log.action === 'create',
+                                          'bg-blue-100 text-blue-800': log.action === 'update',
+                                          'bg-red-100 text-red-800': log.action === 'delete',
+                                          'bg-gray-100 text-gray-800': log.action === 'view'
+                                      }"
+                                      x-text="log.action"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="log.target_entity_type"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.user_id || 'System'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.ip_address || '-'"></td>
+                            <td class="px-6 py-4 text-sm">
+                                <button @click="viewLogDetails(log)" class="text-indigo-600 hover:text-indigo-800">View</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        
+        <div x-show="auditLogs.length === 0" class="p-8 text-center text-gray-500">
+            No audit logs found
+        </div>
+    </div>
+
+    <!-- ========================================
+         TAB: FORENSIC ANALYSIS
+         ======================================== -->
+    <div x-show="activeTab === 'forensic'" class="space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Benford's Law -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                    <span class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-2">
+                        <span class="text-blue-600 font-bold text-sm">B</span>
+                    </span>
+                    Benford's Law
+                </h3>
+                <p class="text-sm text-gray-600 mb-4">Analyze first-digit distribution to detect potential manipulation.</p>
+                <button @click="runBenfordsLaw()" 
+                        :disabled="forensicLoading"
+                        class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    Run Analysis
+                </button>
+            </div>
+
+            <!-- Z-Score Anomaly -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                    <span class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center mr-2">
+                        <span class="text-amber-600 font-bold text-sm">Z</span>
+                    </span>
+                    Z-Score Anomaly
+                </h3>
+                <p class="text-sm text-gray-600 mb-4">Identify statistical outliers using Z-score analysis.</p>
+                <button @click="runAnomalyDetection()" 
+                        :disabled="forensicLoading"
+                        class="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                    Detect Anomalies
+                </button>
+            </div>
+
+            <!-- NRS Gap Analysis -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                    <span class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-2">
+                        <span class="text-green-600 font-bold text-sm">N</span>
+                    </span>
+                    NRS Gap Analysis
+                </h3>
+                <p class="text-sm text-gray-600 mb-4">Find invoices missing IRN submissions.</p>
+                <button @click="runNRSGapAnalysis()" 
+                        :disabled="forensicLoading"
+                        class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    Analyze Gaps
+                </button>
+            </div>
+        </div>
+
+        <!-- Forensic Results -->
+        <div x-show="forensicResult" class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">Analysis Results</h3>
+            <pre class="bg-gray-50 p-4 rounded-lg overflow-auto text-sm" x-text="JSON.stringify(forensicResult, null, 2)"></pre>
+        </div>
+    </div>
+
+    <!-- ========================================
+         TAB: AUDIT RUNS
+         ======================================== -->
+    <div x-show="activeTab === 'runs'" class="space-y-6">
+        <div class="flex justify-between items-center">
+            <h3 class="text-lg font-semibold">Reproducible Audit Runs</h3>
+            <button @click="showNewRunModal = true" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                + New Audit Run
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Run ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Findings</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="run in auditRunsList" :key="run.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900" x-text="run.id.slice(0,8)"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" x-text="run.run_type"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs rounded-full"
+                                      :class="{
+                                          'bg-green-100 text-green-800': run.status === 'completed',
+                                          'bg-yellow-100 text-yellow-800': run.status === 'running',
+                                          'bg-red-100 text-red-800': run.status === 'failed'
+                                      }"
+                                      x-text="run.status"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="run.period_start + ' - ' + run.period_end"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="text-red-600" x-text="run.critical_findings + ' critical'"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <button @click="viewRunDetails(run)" class="text-indigo-600 hover:text-indigo-800 mr-3">View</button>
+                                <button @click="reproduceRun(run.id)" class="text-green-600 hover:text-green-800">Reproduce</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ========================================
+         TAB: FINDINGS
+         ======================================== -->
+    <div x-show="activeTab === 'findings'" class="space-y-6">
+        <div class="flex justify-between items-center">
+            <h3 class="text-lg font-semibold">Audit Findings</h3>
+            <div class="flex items-center space-x-4">
+                <select x-model="findingsFilter.riskLevel" @change="loadFindings()"
+                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">All Risk Levels</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <template x-for="finding in findingsList" :key="finding.id">
+                <div class="bg-white rounded-lg shadow p-6 border-l-4"
+                     :class="{
+                         'border-red-500': finding.risk_level === 'critical',
+                         'border-orange-500': finding.risk_level === 'high',
+                         'border-yellow-500': finding.risk_level === 'medium',
+                         'border-blue-500': finding.risk_level === 'low'
+                     }">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <span class="text-xs font-mono text-gray-500" x-text="finding.finding_ref"></span>
+                            <h4 class="text-lg font-semibold mt-1" x-text="finding.title"></h4>
+                            <p class="text-sm text-gray-600 mt-2" x-text="finding.description"></p>
+                        </div>
+                        <span class="px-3 py-1 text-xs rounded-full font-medium"
+                              :class="{
+                                  'bg-red-100 text-red-800': finding.risk_level === 'critical',
+                                  'bg-orange-100 text-orange-800': finding.risk_level === 'high',
+                                  'bg-yellow-100 text-yellow-800': finding.risk_level === 'medium',
+                                  'bg-blue-100 text-blue-800': finding.risk_level === 'low'
+                              }"
+                              x-text="finding.risk_level.toUpperCase()"></span>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <p class="text-sm"><strong>Impact:</strong> <span x-text="finding.impact"></span></p>
+                        <p class="text-sm mt-1"><strong>Recommendation:</strong> <span x-text="finding.recommendation"></span></p>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- ========================================
+         TAB: EVIDENCE
+         ======================================== -->
+    <div x-show="activeTab === 'evidence'" class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold">Immutable Evidence</h3>
+            <p class="text-sm text-gray-600">Evidence is hash-verified and tamper-proof</p>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Collected</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verified</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="ev in evidenceList" :key="ev.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono" x-text="ev.evidence_ref"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" x-text="ev.evidence_type"></td>
+                            <td class="px-6 py-4 text-sm" x-text="ev.title"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="ev.collected_at"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span x-show="ev.is_verified" class="text-green-600">✓ Verified</span>
+                                <span x-show="!ev.is_verified" class="text-yellow-600">Pending</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <button @click="verifyEvidence(ev.id)" class="text-indigo-600 hover:text-indigo-800">Verify Integrity</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ========================================
+         TAB: TAX EXPLAINABILITY
+         ======================================== -->
+    <div x-show="activeTab === 'explainability'" class="space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- PAYE Explainability -->
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+                <h3 class="text-lg font-semibold mb-4">PAYE Tax Explainability</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Annual Gross Income (₦)</label>
+                        <input type="number" x-model.number="payeInput.grossIncome"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Basic Salary (₦)</label>
+                        <input type="number" x-model.number="payeInput.basicSalary"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <button @click="explainPAYE()" 
+                            class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Generate Explanation
+                    </button>
+                </div>
+            </div>
+
+            <!-- VAT Explainability -->
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+                <h3 class="text-lg font-semibold mb-4">VAT Explainability</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Output VAT Base (₦)</label>
+                        <input type="number" x-model.number="vatInput.outputVatBase"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Input VAT Base (₦)</label>
+                        <input type="number" x-model.number="vatInput.inputVatBase"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <button @click="explainVAT()" 
+                            class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        Generate Explanation
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Explanation Result -->
+        <div x-show="explainabilityResult" class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">Tax Calculation Breakdown</h3>
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <pre class="text-sm overflow-auto" x-text="JSON.stringify(explainabilityResult, null, 2)"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================
+         TAB: AUDIT VAULT
+         ======================================== -->
+    <div x-show="activeTab === 'vault'" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="bg-white rounded-lg shadow p-6 text-center">
+                <p class="text-3xl font-bold text-indigo-600" x-text="vaultStats.total_records || 0"></p>
+                <p class="text-sm text-gray-600">Total Records</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6 text-center">
+                <p class="text-3xl font-bold text-green-600" x-text="vaultStats.active_records || 0"></p>
+                <p class="text-sm text-gray-600">Active</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6 text-center">
+                <p class="text-3xl font-bold text-gray-600" x-text="vaultStats.archived_records || 0"></p>
+                <p class="text-sm text-gray-600">Archived</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6 text-center">
+                <p class="text-3xl font-bold text-amber-600" x-text="vaultStats.legal_hold || 0"></p>
+                <p class="text-sm text-gray-600">Legal Hold</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">5-Year Retention Compliance (NTAA 2025)</h3>
+            <p class="text-sm text-gray-600 mb-4">
+                All records are retained for minimum 5 years as required by NTAA 2025.
+                Records cannot be deleted or modified.
+            </p>
+            <div class="flex items-center space-x-4">
+                <button @click="verifyVaultIntegrity()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    Verify Vault Integrity
+                </button>
+                <button @click="exportVaultRecords()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                    Export for FIRS Audit
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function unifiedAudit() {
+    return {
+        entityId: '{{ entity_id }}',
+        activeTab: 'dashboard',
+        loading: false,
+        forensicLoading: false,
+        
+        // Stats
+        integrity: { verified: false, status: 'Not Checked', lastCheck: null, recordCount: 0 },
+        nrsCompliance: { rate: 0, missing: 0 },
+        anomalies: { total: 0, critical: 0, warning: 0 },
+        auditRuns: { total: 0 },
+        findings: { open: 0 },
+        
+        // Data
+        recentLogs: [],
+        auditLogs: [],
+        auditRunsList: [],
+        findingsList: [],
+        evidenceList: [],
+        forensicResult: null,
+        explainabilityResult: null,
+        vaultStats: {},
+        
+        // Filters
+        logsFilter: { action: '', startDate: '' },
+        findingsFilter: { riskLevel: '' },
+        
+        // Inputs
+        payeInput: { grossIncome: 0, basicSalary: 0 },
+        vatInput: { outputVatBase: 0, inputVatBase: 0 },
+        
+        // Modals
+        showNewRunModal: false,
+        
+        async init() {
+            await this.loadDashboardData();
+        },
+        
+        async loadDashboardData() {
+            try {
+                // Load audit summary
+                const summaryRes = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/audit-summary/${new Date().getFullYear()}`);
+                if (summaryRes.ok) {
+                    const data = await summaryRes.json();
+                    this.nrsCompliance = { rate: data.nrs_compliance?.rate || 0, missing: data.nrs_compliance?.missing || 0 };
+                    this.anomalies = data.anomalies || { total: 0, critical: 0, warning: 0 };
+                }
+                
+                // Load recent logs
+                const logsRes = await fetch(`/api/v1/entities/${this.entityId}/audit/logs?limit=10`);
+                if (logsRes.ok) {
+                    const data = await logsRes.json();
+                    this.recentLogs = data.items || [];
+                }
+                
+                // Load dashboard stats
+                const statsRes = await fetch('/api/audit-system/dashboard/stats');
+                if (statsRes.ok) {
+                    const data = await statsRes.json();
+                    this.auditRuns = { total: data.audit_runs || 0 };
+                    this.findings = { open: data.open_findings || 0 };
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        },
+        
+        async verifyIntegrity() {
+            this.loading = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/verify-integrity`, { method: 'POST' });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.integrity = {
+                        verified: data.valid,
+                        status: data.valid ? 'Verified' : 'Issues Found',
+                        lastCheck: new Date().toLocaleString(),
+                        recordCount: data.records_checked
+                    };
+                }
+            } catch (error) {
+                console.error('Error verifying integrity:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadAuditLogs() {
+            try {
+                let url = `/api/v1/entities/${this.entityId}/audit/logs?limit=100`;
+                if (this.logsFilter.action) url += `&action=${this.logsFilter.action}`;
+                if (this.logsFilter.startDate) url += `&start_date=${this.logsFilter.startDate}`;
+                
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.auditLogs = data.items || [];
+                }
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        },
+        
+        async runBenfordsLaw() {
+            this.forensicLoading = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/benfords-law?fiscal_year=${new Date().getFullYear()}`);
+                if (response.ok) {
+                    this.forensicResult = await response.json();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                this.forensicLoading = false;
+            }
+        },
+        
+        async runAnomalyDetection() {
+            this.forensicLoading = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/anomaly-detection?fiscal_year=${new Date().getFullYear()}`);
+                if (response.ok) {
+                    this.forensicResult = await response.json();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                this.forensicLoading = false;
+            }
+        },
+        
+        async runNRSGapAnalysis() {
+            this.forensicLoading = true;
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/nrs-gap-analysis/${new Date().getFullYear()}`);
+                if (response.ok) {
+                    this.forensicResult = await response.json();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                this.forensicLoading = false;
+            }
+        },
+        
+        async loadAuditRuns() {
+            try {
+                const response = await fetch('/api/audit-system/runs/list');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.auditRunsList = data.runs || [];
+                }
+            } catch (error) {
+                console.error('Error loading runs:', error);
+            }
+        },
+        
+        async loadFindings() {
+            try {
+                let url = '/api/audit-system/findings/list';
+                if (this.findingsFilter.riskLevel) url += `?risk_level=${this.findingsFilter.riskLevel}`;
+                
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.findingsList = data.findings || [];
+                }
+            } catch (error) {
+                console.error('Error loading findings:', error);
+            }
+        },
+        
+        async loadEvidence() {
+            try {
+                const response = await fetch('/api/audit-system/evidence/list');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.evidenceList = data.evidence || [];
+                }
+            } catch (error) {
+                console.error('Error loading evidence:', error);
+            }
+        },
+        
+        async verifyEvidence(evidenceId) {
+            try {
+                const response = await fetch(`/api/audit-system/evidence/${evidenceId}/verify`);
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(data.is_valid ? '✅ Evidence integrity verified' : '❌ Evidence integrity check failed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        async explainPAYE() {
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/advanced-audit/explainability/paye`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        gross_annual_income: this.payeInput.grossIncome,
+                        basic_salary: this.payeInput.basicSalary,
+                        period_year: new Date().getFullYear()
+                    })
+                });
+                if (response.ok) {
+                    this.explainabilityResult = await response.json();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        async explainVAT() {
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/advanced-audit/explainability/vat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        output_vat_base: this.vatInput.outputVatBase,
+                        input_vat_base: this.vatInput.inputVatBase,
+                        wren_compliant_input: this.vatInput.inputVatBase,
+                        non_compliant_input: 0,
+                        period_month: new Date().getMonth() + 1,
+                        period_year: new Date().getFullYear()
+                    })
+                });
+                if (response.ok) {
+                    this.explainabilityResult = await response.json();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        async loadVaultStats() {
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/statistics`);
+                if (response.ok) {
+                    this.vaultStats = await response.json();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        async verifyVaultIntegrity() {
+            alert('Vault integrity verification started. This may take a few minutes.');
+        },
+        
+        async exportVaultRecords() {
+            window.location.href = `/api/v1/entities/${this.entityId}/audit/vault/export/${new Date().getFullYear()}?format=xlsx`;
+        },
+        
+        viewLogDetails(log) {
+            alert(`Log Details:\n\nAction: ${log.action}\nEntity: ${log.target_entity_type}\nID: ${log.target_entity_id}\nUser: ${log.user_id || 'System'}\nIP: ${log.ip_address || 'N/A'}\n\nChanges: ${JSON.stringify(log.changes, null, 2)}`);
+        },
+        
+        viewRunDetails(run) {
+            alert(`Run Details:\n\nType: ${run.run_type}\nStatus: ${run.status}\nPeriod: ${run.period_start} - ${run.period_end}\nRecords Analyzed: ${run.total_records_analyzed}\nFindings: ${run.findings_count}`);
+        },
+        
+        async reproduceRun(runId) {
+            try {
+                const response = await fetch(`/api/audit-system/runs/${runId}/reproduce`, { method: 'POST' });
+                if (response.ok) {
+                    alert('Audit run reproduced successfully!');
+                    await this.loadAuditRuns();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        },
+        
+        exportLogs() {
+            window.location.href = `/api/v1/entities/${this.entityId}/audit/logs/export?format=csv`;
+        }
+    };
+}
+</script>
+{% endblock %}

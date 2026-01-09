@@ -141,7 +141,7 @@ async def archive_old_audit_logs(db: AsyncSession, retention_years: int = 5) -> 
     NTAA requires 5-year retention.
     Should run monthly.
     """
-    from app.models.audit import AuditLog
+    from app.models.audit_consolidated import AuditLog
     
     cutoff_date = datetime.utcnow() - timedelta(days=365 * retention_years)
     

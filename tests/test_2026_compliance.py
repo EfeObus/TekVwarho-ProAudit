@@ -1209,14 +1209,14 @@ class TestAuditVaultCompliance:
     
     def test_immutability_concept(self):
         """Audit logs should be immutable (no UPDATE/DELETE)."""
-        from app.models.audit import AuditLog
+        from app.models.audit_consolidated import AuditLog
         
         # The model docstring should mention immutability
         assert "Immutable" in AuditLog.__doc__ or "immutable" in AuditLog.__doc__.lower()
     
     def test_nrs_fields_exist(self):
         """NRS submission fields should exist for compliance."""
-        from app.models.audit import AuditLog
+        from app.models.audit_consolidated import AuditLog
         
         # Check NRS fields exist in the model
         columns = [c.name for c in AuditLog.__table__.columns]
@@ -1225,7 +1225,7 @@ class TestAuditVaultCompliance:
     
     def test_device_fingerprint_for_submission_verification(self):
         """Device fingerprint required for proving tax return submission."""
-        from app.models.audit import AuditLog
+        from app.models.audit_consolidated import AuditLog
         
         columns = [c.name for c in AuditLog.__table__.columns]
         assert "device_fingerprint" in columns

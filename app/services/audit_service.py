@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.audit import AuditLog, AuditAction
+from app.models.audit_consolidated import AuditLog, AuditAction
 
 
 @dataclass

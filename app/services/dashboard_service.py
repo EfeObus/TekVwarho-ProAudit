@@ -27,7 +27,7 @@ from app.models.organization import Organization, VerificationStatus, Organizati
 from app.models.entity import BusinessEntity, BusinessType
 from app.models.transaction import Transaction, TransactionType
 from app.models.invoice import Invoice, InvoiceStatus
-from app.models.audit import AuditLog, AuditAction
+from app.models.audit_consolidated import AuditLog, AuditAction
 from app.models.inventory import InventoryItem
 from app.utils.permissions import (
     PlatformPermission,

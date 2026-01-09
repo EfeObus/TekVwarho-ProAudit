@@ -94,7 +94,7 @@ class TaxIntelligenceService:
         (Decimal("2000000"), Decimal("15")),  # Next 2M - 15%
         (Decimal("3200000"), Decimal("20")),  # Next 3.2M - 20%
         (Decimal("6000000"), Decimal("25")),  # Next 6M - 25%
-        (Decimal("float('inf')"), Decimal("30")),  # Above - 30%
+        (Decimal("999999999999"), Decimal("30")),  # Above - 30% (effectively infinite)
     ]
     
     async def calculate_etr(

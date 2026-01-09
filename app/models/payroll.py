@@ -396,6 +396,10 @@ class Employee(BaseModel, AuditMixin):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Relationships
+    entity: Mapped["BusinessEntity"] = relationship(
+        "BusinessEntity",
+        back_populates="employees",
+    )
     bank_accounts: Mapped[List["EmployeeBankAccount"]] = relationship(
         "EmployeeBankAccount",
         back_populates="employee",
@@ -632,6 +636,10 @@ class PayrollRun(BaseModel, AuditMixin):
     )
     
     # Relationships
+    entity: Mapped["BusinessEntity"] = relationship(
+        "BusinessEntity",
+        back_populates="payroll_runs",
+    )
     payslips: Mapped[List["Payslip"]] = relationship(
         "Payslip",
         back_populates="payroll_run",

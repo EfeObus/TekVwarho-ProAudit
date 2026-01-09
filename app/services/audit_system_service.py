@@ -23,13 +23,13 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User, UserRole
-from app.models.audit_system import (
+from app.models.audit_consolidated import (
+    AuditLog,
     AuditRun, AuditRunStatus, AuditRunType,
     AuditFinding, FindingRiskLevel, FindingCategory,
     AuditEvidence, EvidenceType,
-    AuditorSession, AuditorActionLog, AuditorAction,
+    AuditorSession, AuditorActionLog, AuditorActionType,
 )
-from app.models.audit import AuditLog
 from app.utils.permissions import OrganizationPermission, has_organization_permission
 
 
@@ -706,7 +706,7 @@ class AuditorSessionService:
     async def log_action(
         self,
         session_id: uuid.UUID,
-        action: AuditorAction,
+        action: AuditorActionType,
         resource_type: str,
         resource_id: Optional[uuid.UUID] = None,
         details: Optional[Dict[str, Any]] = None,
@@ -728,10 +728,10 @@ class AuditorSessionService:
         session = result.scalar_one()
         
         session.actions_count += 1
-        if action in [AuditorAction.VIEW_TRANSACTION, AuditorAction.VIEW_INVOICE, 
-                      AuditorAction.VIEW_REPORT, AuditorAction.VIEW_TAX_FILING]:
+        if action in [AuditorActionType.VIEW_TRANSACTION, AuditorActionType.VIEW_INVOICE, 
+                      AuditorActionType.VIEW_REPORT, AuditorActionType.VIEW_TAX_FILING]:
             session.records_viewed += 1
-        if action == AuditorAction.EXPORT_DATA:
+        if action == AuditorActionType.EXPORT_DATA:
             session.exports_count += 1
         
         await self.db.flush()

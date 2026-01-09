@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.models.inventory import InventoryItem
     from app.models.notification import Notification
     from app.models.advanced_accounting import AccountingDimension
+    from app.models.payroll import Employee, PayrollRun
 
 
 class BusinessType(str, Enum):
@@ -187,6 +188,16 @@ class BusinessEntity(BaseModel):
     )
     dimensions: Mapped[List["AccountingDimension"]] = relationship(
         "AccountingDimension",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+    )
+    employees: Mapped[List["Employee"]] = relationship(
+        "Employee",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+    )
+    payroll_runs: Mapped[List["PayrollRun"]] = relationship(
+        "PayrollRun",
         back_populates="entity",
         cascade="all, delete-orphan",
     )

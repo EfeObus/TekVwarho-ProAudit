@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2026-01-07
+
+### System Audit & Module Expansion Release
+
+This release addresses findings from comprehensive 17-phase system audit and adds critical missing modules.
+
+### Fixed
+
+#### Critical Bug Fixes
+- **Tax Intelligence Decimal Error**: Fixed `decimal.InvalidOperation` in `tax_intelligence.py` line 97
+  - Changed `Decimal("float('inf')")` to `Decimal("999999999999")` (effectively infinite for tax bracket calculations)
+  - This was causing crashes during tax analysis operations
+
+- **Model Relationship Integrity**: Fixed missing ORM relationships between models
+  - Added `Employee.entity` relationship with `back_populates="employees"`
+  - Added `PayrollRun.entity` relationship with `back_populates="payroll_runs"`
+  - Added `BusinessEntity.employees` and `BusinessEntity.payroll_runs` inverse relationships
+  - Ensures proper cascade operations and ORM navigation
+
+### Added
+
+#### NRS Integration Router (`app/routers/nrs.py`)
+Complete Nigerian Revenue Service (NRS) integration API:
+- `POST /api/v1/nrs/invoices/submit` - Submit invoice for IRN generation
+- `GET /api/v1/nrs/invoices/{irn}/status` - Check invoice IRN status
+- `POST /api/v1/nrs/tin/validate` - Validate single TIN
+- `POST /api/v1/nrs/tin/validate/bulk` - Bulk TIN validation (up to 100)
+- `POST /api/v1/nrs/disputes/submit` - Submit buyer dispute for invoice
+- `POST /api/v1/nrs/b2c/report` - B2C transaction reporting (2026 compliance)
+- `GET /api/v1/nrs/b2c/status` - Check B2C reporting status
+- `GET /api/v1/nrs/health` - NRS API health check
+
+#### Bank Reconciliation Module
+Complete bank account reconciliation system for Nigerian businesses:
+- **Models** (`app/models/bank_reconciliation.py`):
+  - `BankAccount` - Bank account management with CBN bank codes
+  - `BankStatement` - Statement import tracking
+  - `BankStatementTransaction` - Individual transaction records
+  - `BankReconciliation` - Reconciliation workflow state
+- **Service** (`app/services/bank_reconciliation_service.py`):
+  - Bank account CRUD operations
+  - Statement import with transaction parsing (CSV/OFX/PDF)
+  - Auto-matching using fuzzy logic (amount + date + description)
+  - Manual matching/unmatching capabilities
+  - Full reconciliation workflow (create → adjust → complete → approve)
+  - Summary statistics and analytics
+- **Router** (`app/routers/bank_reconciliation.py`):
+  - Complete REST API for all bank reconciliation operations
+  - Entity-scoped endpoints with authentication
+
+#### Expense Claims Module
+Employee expense claim management with approval workflow:
+- **Models** (`app/models/expense_claims.py`):
+  - `ExpenseClaim` - Main claim with workflow status
+  - `ExpenseClaimItem` - Individual expense line items
+  - 12 expense categories (Travel, Accommodation, Meals, etc.)
+  - Nigerian compliance fields (is_tax_deductible, gl_account_code)
+- **Service** (`app/services/expense_claims_service.py`):
+  - Expense claim CRUD with line items
+  - Multi-level approval/rejection workflow
+  - Payment tracking and status updates
+  - Summary statistics and category breakdown
+- **Router** (`app/routers/expense_claims.py`):
+  - Complete REST API for expense claims management
+  - Entity-scoped endpoints with authentication
+
+### New Files
+- `app/routers/nrs.py` - NRS integration router (~500 lines)
+- `app/models/bank_reconciliation.py` - Bank reconciliation models (~200 lines)
+- `app/services/bank_reconciliation_service.py` - Bank reconciliation service (~400 lines)
+- `app/routers/bank_reconciliation.py` - Bank reconciliation API router (~300 lines)
+- `app/models/expense_claims.py` - Expense claims models (~150 lines)
+- `app/services/expense_claims_service.py` - Expense claims service (~300 lines)
+- `app/routers/expense_claims.py` - Expense claims API router (~250 lines)
+
+### Changed
+- `app/services/tax_intelligence.py` - Fixed Decimal infinity bug
+- `app/models/entity.py` - Added employees and payroll_runs relationships
+- `app/models/payroll.py` - Added entity relationship to Employee and PayrollRun
+- `main.py` - Registered new routers (nrs, bank_reconciliation, expense_claims)
+
+### Verified
+- **433 tests passing** (3 skipped, 74 warnings)
+- **648+ total routes** (including new NRS and module routes)
+- All new modules import and integrate correctly
+- Full frontend-backend integration maintained
+
+---
+
 ## [2.1.0] - 2026-01-06
 
 ### Security & Compliance Suite (NDPA/NITDA 2023)

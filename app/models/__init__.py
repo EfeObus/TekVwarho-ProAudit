@@ -20,8 +20,12 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.invoice import Invoice, InvoiceLineItem, InvoiceStatus
 from app.models.inventory import InventoryItem, StockMovement, StockWriteOff
 from app.models.tax import VATRecord, PAYERecord, TaxPeriod
-from app.models.audit import AuditLog
-from app.models.audit_system import (
+# Consolidated Audit System - all audit models in one file
+from app.models.audit_consolidated import (
+    # Basic Audit
+    AuditLog,
+    AuditAction,
+    # Advanced Audit System
     AuditRun,
     AuditRunStatus,
     AuditRunType,
@@ -32,7 +36,7 @@ from app.models.audit_system import (
     EvidenceType,
     AuditorSession,
     AuditorActionLog,
-    AuditorAction,
+    AuditorActionType,
 )
 from app.models.tax_2026 import (
     VATRecoveryRecord,
@@ -212,7 +216,8 @@ __all__ = [
     "EvidenceType",
     "AuditorSession",
     "AuditorActionLog",
-    "AuditorAction",
+    "AuditorActionType",
+    "AuditAction",
     # Advanced Accounting (2026 Tax Reform)
     "AccountingDimension",
     "TransactionDimension",

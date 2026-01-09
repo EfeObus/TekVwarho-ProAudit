@@ -29,8 +29,8 @@ from app.models import (
     AuditRun, AuditRunStatus, AuditRunType,
     AuditFinding, FindingRiskLevel, FindingCategory,
     AuditEvidence, EvidenceType,
-    AuditorSession, AuditorActionLog, AuditorAction,
-    AuditLog
+    AuditorSession, AuditorActionLog, AuditorActionType,
+    AuditLog, AuditAction
 )
 from app.services.audit_system_service import (
     AuditorRoleEnforcer,

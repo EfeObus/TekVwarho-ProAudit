@@ -19,11 +19,11 @@ import json
 import uuid
 
 # Import models
-from app.models.audit_system import (
+from app.models.audit_consolidated import (
     AuditRun, AuditRunStatus, AuditRunType,
     AuditFinding, FindingRiskLevel, FindingCategory,
     AuditEvidence, EvidenceType,
-    AuditorSession, AuditorActionLog, AuditorAction,
+    AuditorSession, AuditorActionLog, AuditorActionType,
 )
 from app.models.user import UserRole
 
@@ -164,35 +164,35 @@ class TestAuditorActionLog:
 
 
 class TestAuditorActionEnum:
-    """Tests for AuditorAction enum"""
+    """Tests for AuditorActionType enum (renamed from AuditorAction)"""
     
     def test_auditor_action_enum_exists(self):
-        """Test that AuditorAction enum exists"""
-        assert AuditorAction is not None
+        """Test that AuditorActionType enum exists"""
+        assert AuditorActionType is not None
     
     def test_auditor_action_has_view_transaction(self):
         """Test that VIEW_TRANSACTION action exists"""
-        assert hasattr(AuditorAction, 'VIEW_TRANSACTION')
+        assert hasattr(AuditorActionType, 'VIEW_TRANSACTION')
     
     def test_auditor_action_has_view_invoice(self):
         """Test that VIEW_INVOICE action exists"""
-        assert hasattr(AuditorAction, 'VIEW_INVOICE')
+        assert hasattr(AuditorActionType, 'VIEW_INVOICE')
     
     def test_auditor_action_has_run_analysis(self):
         """Test that RUN_ANALYSIS action exists"""
-        assert hasattr(AuditorAction, 'RUN_ANALYSIS')
+        assert hasattr(AuditorActionType, 'RUN_ANALYSIS')
     
     def test_auditor_action_has_export_data(self):
         """Test that EXPORT_DATA action exists"""
-        assert hasattr(AuditorAction, 'EXPORT_DATA')
+        assert hasattr(AuditorActionType, 'EXPORT_DATA')
     
     def test_auditor_action_has_add_finding(self):
         """Test that ADD_FINDING action exists"""
-        assert hasattr(AuditorAction, 'ADD_FINDING')
+        assert hasattr(AuditorActionType, 'ADD_FINDING')
     
     def test_auditor_action_has_add_evidence(self):
         """Test that ADD_EVIDENCE action exists"""
-        assert hasattr(AuditorAction, 'ADD_EVIDENCE')
+        assert hasattr(AuditorActionType, 'ADD_EVIDENCE')
 
 
 # ===========================================

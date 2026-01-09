@@ -22,7 +22,7 @@ from enum import Enum
 from sqlalchemy import select, func, and_, or_, case, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.audit import AuditLog, AuditAction
+from app.models.audit_consolidated import AuditLog, AuditAction
 
 
 class RetentionStatus(str, Enum):

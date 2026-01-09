@@ -719,11 +719,44 @@ New tables added via Alembic migration `20260106_1600_add_payroll_system.py`:
 | **WHT Manager** | Automatic Withholding Tax calculations by service type and payee |
 | **Compliance Health** | Real-time compliance score with automated threshold monitoring |
 
+### NRS Integration (NEW in v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Invoice IRN Submission** | Submit invoices to NRS for Invoice Reference Number generation |
+| **IRN Status Tracking** | Real-time status checking for submitted invoice IRNs |
+| **TIN Validation API** | Single and bulk TIN validation (up to 100 at once) |
+| **Buyer Dispute System** | Submit buyer disputes within 72-hour window |
+| **B2C Transaction Reporting** | 2026 compliant real-time B2C reporting to NRS |
+| **Health Monitoring** | NRS API health check and status monitoring |
+
+### Bank Reconciliation (NEW in v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Bank Account Management** | Track multiple bank accounts with CBN bank codes |
+| **Statement Import** | Import bank statements (CSV, OFX, PDF) with auto-parsing |
+| **Auto-Matching** | Fuzzy matching of bank transactions to system records |
+| **Manual Matching** | Manual transaction matching/unmatching interface |
+| **Reconciliation Workflow** | Full workflow: create → adjust → complete → approve |
+| **Variance Analysis** | Reconciliation summary with discrepancy reporting |
+
+### Expense Claims (NEW in v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Employee Expense Claims** | Submit and track employee expense reimbursements |
+| **12 Expense Categories** | Travel, Accommodation, Meals, Transport, Communication, etc. |
+| **Multi-Item Claims** | Multiple expense items per claim with receipt tracking |
+| **Approval Workflow** | Multi-level approval/rejection with comments |
+| **Tax Deductibility** | Track tax-deductible expenses with GL account codes |
+| **Payment Tracking** | Track claim payment status and dates |
+
 ---
 
 ## Test Coverage
 
-Comprehensive test suite verified with **313 tests passing**:
+Comprehensive test suite verified with **433 tests passing**:
 
 | Category | Tests | Status |
 |----------|-------|--------|
@@ -732,7 +765,8 @@ Comprehensive test suite verified with **313 tests passing**:
 | **API & Authentication** | 50 tests | Passing |
 | **Transaction Service** | 11 tests | Passing |
 | **Compliance Health** | 47 tests | Passing |
-| **Total** | **313 tests** | **All Passing** |
+| **Integration Tests** | 120+ tests | Passing |
+| **Total** | **433 tests** | **All Passing** |
 
 ### Tax Calculator Details
 

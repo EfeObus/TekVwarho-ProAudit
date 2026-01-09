@@ -22,7 +22,7 @@ from app.dependencies import get_current_user
 from app.services.audit_service import AuditService
 from app.services.audit_vault_service import AuditVaultService
 from app.models.user import User
-from app.models.audit import AuditAction
+from app.models.audit_consolidated import AuditAction
 
 router = APIRouter(prefix="/audit", tags=["Audit Trail"])
 
