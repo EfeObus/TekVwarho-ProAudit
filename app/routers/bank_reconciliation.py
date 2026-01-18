@@ -1,22 +1,25 @@
 """
-TekVwarho ProAudit - Bank Reconciliation Router
+TekVwarho ProAudit - Bank Reconciliation API Router
 
-API endpoints for bank reconciliation operations.
-Features:
-- Bank account management
-- Statement import
-- Transaction matching (auto and manual)
-- Reconciliation workflow
+Comprehensive API endpoints for Nigerian bank reconciliation operations.
+Supports:
+- Bank account management with API integrations (Mono, Okra, Stitch)
+- Statement import (CSV, API sync)
+- Transaction matching (auto, manual, rule-based)
+- Nigerian charge detection and management
+- Reconciliation workflow (draft → review → approve/reject)
+- Adjustment management
+- Reporting
 """
 
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from io import StringIO
+import csv
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
-from pydantic import BaseModel, Field
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -24,169 +27,68 @@ from app.dependencies import get_current_user, get_current_entity_id
 from app.models.entity import BusinessEntity
 from app.models.user import User
 from app.models.bank_reconciliation import (
-    BankAccountType, BankStatementSource, MatchStatus, ReconciliationStatus
+    BankAccountType, BankAccountCurrency, BankStatementSource,
+    ReconciliationStatus, MatchStatus, MatchType, AdjustmentType,
+    UnmatchedItemType,
 )
 from app.services.bank_reconciliation_service import (
-    BankReconciliationService, get_bank_reconciliation_service
+    BankReconciliationService, get_bank_reconciliation_service,
+)
+from app.services.bank_integration_service import BankIntegrationService
+from app.services.matching_engine import MatchingConfig
+from app.schemas.bank_reconciliation import (
+    BankAccountCreate, BankAccountUpdate, BankAccountResponse,
+    BankStatementTransactionResponse, BankStatementImportCreate,
+    BankReconciliationCreate, BankReconciliationUpdate, BankReconciliationResponse,
+    BankReconciliationDetailResponse,
+    ReconciliationAdjustmentCreate, ReconciliationAdjustmentResponse,
+    UnmatchedItemCreate, UnmatchedItemUpdate, UnmatchedItemResponse,
+    ManualMatchRequest, AutoMatchConfig, AutoMatchResult,
+    BankChargeRuleCreate, BankChargeRuleUpdate, BankChargeRuleResponse,
+    MatchingRuleCreate, MatchingRuleUpdate, MatchingRuleResponse,
+    MonoConnectRequest, OkraConnectRequest, BankSyncRequest, BankSyncResponse,
+    ReconciliationSummaryReport,
 )
 
 router = APIRouter(prefix="/bank-reconciliation", tags=["Bank Reconciliation"])
 
 
-# ===========================================
-# REQUEST/RESPONSE SCHEMAS
-# ===========================================
-
-class BankAccountCreate(BaseModel):
-    """Schema for creating a bank account."""
-    bank_name: str = Field(..., min_length=1, max_length=100)
-    account_name: str = Field(..., min_length=1, max_length=200)
-    account_number: str = Field(..., min_length=1, max_length=20)
-    account_type: BankAccountType = BankAccountType.CURRENT
-    currency: str = Field(default="NGN", max_length=3)
-    opening_balance: float = Field(default=0.0)
-    opening_balance_date: Optional[date] = None
-    gl_account_code: Optional[str] = Field(None, max_length=20)
-    bank_code: Optional[str] = Field(None, max_length=10)
-    notes: Optional[str] = None
+# Helper to get entity
+async def get_entity(entity_id: uuid.UUID, db: AsyncSession) -> BusinessEntity:
+    """Get entity from ID."""
+    from sqlalchemy import select
+    result = await db.execute(
+        select(BusinessEntity).where(BusinessEntity.id == entity_id)
+    )
+    entity = result.scalar_one_or_none()
+    if not entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return entity
 
 
-class BankAccountUpdate(BaseModel):
-    """Schema for updating a bank account."""
-    bank_name: Optional[str] = Field(None, max_length=100)
-    account_name: Optional[str] = Field(None, max_length=200)
-    account_type: Optional[BankAccountType] = None
-    gl_account_code: Optional[str] = Field(None, max_length=20)
-    bank_code: Optional[str] = Field(None, max_length=10)
-    notes: Optional[str] = None
-    is_active: Optional[bool] = None
-
-
-class BankAccountResponse(BaseModel):
-    """Response schema for bank account."""
-    id: str
-    bank_name: str
-    account_name: str
-    account_number: str
-    account_type: str
-    currency: str
-    opening_balance: float
-    current_balance: float
-    last_reconciled_date: Optional[date]
-    last_reconciled_balance: Optional[float]
-    gl_account_code: Optional[str]
-    is_active: bool
-    
-    class Config:
-        from_attributes = True
-
-
-class StatementTransactionInput(BaseModel):
-    """Schema for a statement transaction."""
-    transaction_date: date
-    description: str
-    debit_amount: float = 0.0
-    credit_amount: float = 0.0
-    balance: float
-    reference: Optional[str] = None
-    value_date: Optional[date] = None
-
-
-class StatementImportRequest(BaseModel):
-    """Schema for importing a bank statement."""
-    statement_date: date
-    period_start: date
-    period_end: date
-    opening_balance: float
-    closing_balance: float
-    transactions: List[StatementTransactionInput]
-
-
-class StatementTransactionResponse(BaseModel):
-    """Response schema for statement transaction."""
-    id: str
-    transaction_date: date
-    description: str
-    debit_amount: float
-    credit_amount: float
-    balance: float
-    reference: Optional[str]
-    match_status: str
-    matched_transaction_id: Optional[str]
-    match_confidence: Optional[float]
-
-
-class AutoMatchResponse(BaseModel):
-    """Response for auto-matching results."""
-    total_unmatched: int
-    auto_matched: int
-    remaining_unmatched: int
-    matches: List[dict]
-
-
-class MatchTransactionRequest(BaseModel):
-    """Request for manual transaction matching."""
-    statement_transaction_id: str
-    book_transaction_id: str
-
-
-class ReconciliationCreate(BaseModel):
-    """Schema for creating a reconciliation."""
-    reconciliation_date: date
-    period_start: date
-    period_end: date
-    statement_opening_balance: float
-    statement_closing_balance: float
-    book_opening_balance: float
-    book_closing_balance: float
-
-
-class ReconciliationAdjustments(BaseModel):
-    """Schema for reconciliation adjustments."""
-    deposits_in_transit: Optional[float] = None
-    outstanding_checks: Optional[float] = None
-    bank_charges: Optional[float] = None
-    interest_earned: Optional[float] = None
-    other_adjustments: Optional[float] = None
-
-
-class ReconciliationResponse(BaseModel):
-    """Response schema for reconciliation."""
-    id: str
-    bank_account_id: str
-    reconciliation_date: date
-    period_start: date
-    period_end: date
-    statement_opening_balance: float
-    statement_closing_balance: float
-    book_opening_balance: float
-    book_closing_balance: float
-    deposits_in_transit: float
-    outstanding_checks: float
-    bank_charges: float
-    interest_earned: float
-    other_adjustments: float
-    adjusted_bank_balance: float
-    adjusted_book_balance: float
-    difference: float
-    status: str
-    is_balanced: bool
-    completed_at: Optional[datetime]
-    approved_at: Optional[datetime]
-
-
-# ===========================================
+# =============================================================================
 # BANK ACCOUNT ENDPOINTS
-# ===========================================
+# =============================================================================
 
-@router.post(
-    "/accounts",
-    response_model=BankAccountResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create bank account",
-)
+@router.get("/accounts", response_model=List[BankAccountResponse])
+async def list_bank_accounts(
+    is_active: Optional[bool] = Query(True, description="Filter by active status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Get all bank accounts for the current entity."""
+    service = get_bank_reconciliation_service(db)
+    accounts = await service.get_bank_accounts(
+        entity_id=entity_id,
+        is_active=is_active,
+    )
+    return accounts
+
+
+@router.post("/accounts", response_model=BankAccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_bank_account(
-    request: BankAccountCreate,
+    account_data: BankAccountCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
@@ -196,74 +98,26 @@ async def create_bank_account(
     
     account = await service.create_bank_account(
         entity_id=entity_id,
-        bank_name=request.bank_name,
-        account_name=request.account_name,
-        account_number=request.account_number,
-        account_type=request.account_type,
-        currency=request.currency,
-        opening_balance=Decimal(str(request.opening_balance)),
-        opening_balance_date=request.opening_balance_date,
-        gl_account_code=request.gl_account_code,
-        bank_code=request.bank_code,
-        notes=request.notes,
+        bank_name=account_data.bank_name,
+        account_name=account_data.account_name,
+        account_number=account_data.account_number,
+        account_type=account_data.account_type,
+        currency=account_data.currency,
+        opening_balance=account_data.opening_balance,
+        opening_balance_date=account_data.opening_balance_date,
+        gl_account_code=account_data.gl_account_code,
+        bank_code=account_data.bank_code,
+        sort_code=account_data.sort_code,
+        notes=account_data.notes,
         created_by_id=current_user.id,
+        mono_account_id=account_data.mono_account_id,
+        okra_account_id=account_data.okra_account_id,
+        stitch_account_id=account_data.stitch_account_id,
     )
-    
-    return BankAccountResponse(
-        id=str(account.id),
-        bank_name=account.bank_name,
-        account_name=account.account_name,
-        account_number=account.account_number,
-        account_type=account.account_type.value,
-        currency=account.currency,
-        opening_balance=float(account.opening_balance),
-        current_balance=float(account.current_balance),
-        last_reconciled_date=account.last_reconciled_date,
-        last_reconciled_balance=float(account.last_reconciled_balance) if account.last_reconciled_balance else None,
-        gl_account_code=account.gl_account_code,
-        is_active=account.is_active,
-    )
+    return account
 
 
-@router.get(
-    "/accounts",
-    response_model=List[BankAccountResponse],
-    summary="List bank accounts",
-)
-async def list_bank_accounts(
-    is_active: Optional[bool] = Query(True, description="Filter by active status"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    entity_id: uuid.UUID = Depends(get_current_entity_id),
-):
-    """List all bank accounts for the current entity."""
-    service = get_bank_reconciliation_service(db)
-    accounts = await service.get_bank_accounts(entity_id, is_active)
-    
-    return [
-        BankAccountResponse(
-            id=str(acc.id),
-            bank_name=acc.bank_name,
-            account_name=acc.account_name,
-            account_number=acc.account_number,
-            account_type=acc.account_type.value,
-            currency=acc.currency,
-            opening_balance=float(acc.opening_balance),
-            current_balance=float(acc.current_balance),
-            last_reconciled_date=acc.last_reconciled_date,
-            last_reconciled_balance=float(acc.last_reconciled_balance) if acc.last_reconciled_balance else None,
-            gl_account_code=acc.gl_account_code,
-            is_active=acc.is_active,
-        )
-        for acc in accounts
-    ]
-
-
-@router.get(
-    "/accounts/{account_id}",
-    response_model=BankAccountResponse,
-    summary="Get bank account details",
-)
+@router.get("/accounts/{account_id}", response_model=BankAccountResponse)
 async def get_bank_account(
     account_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -272,38 +126,19 @@ async def get_bank_account(
 ):
     """Get a specific bank account by ID."""
     service = get_bank_reconciliation_service(db)
-    account = await service.get_bank_account(account_id, entity_id)
-    
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bank account not found",
-        )
-    
-    return BankAccountResponse(
-        id=str(account.id),
-        bank_name=account.bank_name,
-        account_name=account.account_name,
-        account_number=account.account_number,
-        account_type=account.account_type.value,
-        currency=account.currency,
-        opening_balance=float(account.opening_balance),
-        current_balance=float(account.current_balance),
-        last_reconciled_date=account.last_reconciled_date,
-        last_reconciled_balance=float(account.last_reconciled_balance) if account.last_reconciled_balance else None,
-        gl_account_code=account.gl_account_code,
-        is_active=account.is_active,
+    account = await service.get_bank_account(
+        account_id=account_id,
+        entity_id=entity_id,
     )
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    return account
 
 
-@router.patch(
-    "/accounts/{account_id}",
-    response_model=BankAccountResponse,
-    summary="Update bank account",
-)
+@router.patch("/accounts/{account_id}", response_model=BankAccountResponse)
 async def update_bank_account(
     account_id: uuid.UUID,
-    request: BankAccountUpdate,
+    updates: BankAccountUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
@@ -312,215 +147,311 @@ async def update_bank_account(
     service = get_bank_reconciliation_service(db)
     
     # Verify account belongs to entity
-    existing = await service.get_bank_account(account_id, entity_id)
-    if not existing:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bank account not found",
-        )
+    account = await service.get_bank_account(account_id, entity_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
     
-    updates = request.model_dump(exclude_unset=True)
-    account = await service.update_bank_account(account_id, **updates)
-    
-    return BankAccountResponse(
-        id=str(account.id),
-        bank_name=account.bank_name,
-        account_name=account.account_name,
-        account_number=account.account_number,
-        account_type=account.account_type.value,
-        currency=account.currency,
-        opening_balance=float(account.opening_balance),
-        current_balance=float(account.current_balance),
-        last_reconciled_date=account.last_reconciled_date,
-        last_reconciled_balance=float(account.last_reconciled_balance) if account.last_reconciled_balance else None,
-        gl_account_code=account.gl_account_code,
-        is_active=account.is_active,
-    )
+    update_dict = updates.model_dump(exclude_unset=True)
+    updated = await service.update_bank_account(account_id, **update_dict)
+    return updated
 
 
-# ===========================================
-# STATEMENT IMPORT ENDPOINTS
-# ===========================================
+# =============================================================================
+# BANK INTEGRATION ENDPOINTS (Mono, Okra, Stitch)
+# =============================================================================
 
-@router.post(
-    "/accounts/{account_id}/statements",
-    status_code=status.HTTP_201_CREATED,
-    summary="Import bank statement",
-)
-async def import_statement(
+@router.post("/accounts/{account_id}/connect/mono")
+async def connect_mono_account(
     account_id: uuid.UUID,
-    request: StatementImportRequest,
+    connect_data: MonoConnectRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
 ):
-    """Import a bank statement with transactions."""
+    """
+    Connect a Mono account using the authorization code.
+    
+    Flow:
+    1. Frontend uses Mono Connect widget to get auth code
+    2. Pass auth code here to exchange for account ID
+    3. Account is linked for automatic statement fetching
+    """
     service = get_bank_reconciliation_service(db)
     
     # Verify account belongs to entity
     account = await service.get_bank_account(account_id, entity_id)
     if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    
+    try:
+        integration = BankIntegrationService(db)
+        mono_account = await integration.mono_exchange_token(connect_data.code)
+        
+        # Update bank account with Mono ID
+        await service.update_bank_account(
+            account_id,
+            mono_account_id=mono_account["id"],
+            mono_connected_at=datetime.utcnow(),
+        )
+        
+        return {
+            "success": True,
+            "message": "Mono account connected successfully",
+            "mono_account_id": mono_account["id"],
+        }
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bank account not found",
+            status_code=400,
+            detail=f"Failed to connect Mono account: {str(e)}"
         )
-    
-    transactions = [t.model_dump() for t in request.transactions]
-    
-    statement = await service.import_statement(
-        bank_account_id=account_id,
-        statement_date=request.statement_date,
-        period_start=request.period_start,
-        period_end=request.period_end,
-        opening_balance=Decimal(str(request.opening_balance)),
-        closing_balance=Decimal(str(request.closing_balance)),
-        transactions=transactions,
-        source=BankStatementSource.MANUAL_ENTRY,
-        imported_by_id=current_user.id,
-    )
-    
-    return {
-        "id": str(statement.id),
-        "statement_date": statement.statement_date.isoformat(),
-        "period_start": statement.period_start.isoformat(),
-        "period_end": statement.period_end.isoformat(),
-        "opening_balance": float(statement.opening_balance),
-        "closing_balance": float(statement.closing_balance),
-        "total_transactions": statement.total_transactions,
-        "matched_transactions": statement.matched_transactions,
-        "unmatched_transactions": statement.unmatched_transactions,
-    }
 
 
-@router.get(
-    "/statements/{statement_id}/transactions",
-    response_model=List[StatementTransactionResponse],
-    summary="Get statement transactions",
-)
-async def get_statement_transactions(
-    statement_id: uuid.UUID,
-    match_status: Optional[MatchStatus] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get transactions for a bank statement."""
-    service = get_bank_reconciliation_service(db)
-    transactions = await service.get_statement_transactions(statement_id, match_status)
-    
-    return [
-        StatementTransactionResponse(
-            id=str(txn.id),
-            transaction_date=txn.transaction_date,
-            description=txn.description,
-            debit_amount=float(txn.debit_amount),
-            credit_amount=float(txn.credit_amount),
-            balance=float(txn.balance),
-            reference=txn.reference,
-            match_status=txn.match_status.value,
-            matched_transaction_id=str(txn.matched_transaction_id) if txn.matched_transaction_id else None,
-            match_confidence=float(txn.match_confidence) if txn.match_confidence else None,
-        )
-        for txn in transactions
-    ]
-
-
-# ===========================================
-# MATCHING ENDPOINTS
-# ===========================================
-
-@router.post(
-    "/statements/{statement_id}/auto-match",
-    response_model=AutoMatchResponse,
-    summary="Auto-match statement transactions",
-)
-async def auto_match_transactions(
-    statement_id: uuid.UUID,
-    min_confidence: float = Query(80.0, ge=0, le=100, description="Minimum match confidence"),
+@router.post("/accounts/{account_id}/connect/okra")
+async def connect_okra_account(
+    account_id: uuid.UUID,
+    connect_data: OkraConnectRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
 ):
     """
-    Automatically match statement transactions with book transactions.
-    
-    Uses fuzzy matching on amount, date, and description.
+    Connect an Okra account using the record ID from Okra widget.
     """
     service = get_bank_reconciliation_service(db)
     
-    result = await service.auto_match_transactions(
-        statement_id=statement_id,
-        entity_id=entity_id,
-        min_confidence=min_confidence,
-    )
-    
-    return AutoMatchResponse(**result)
-
-
-@router.post(
-    "/match",
-    summary="Manually match transactions",
-)
-async def match_transaction(
-    request: MatchTransactionRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Manually match a statement transaction with a book transaction."""
-    service = get_bank_reconciliation_service(db)
+    account = await service.get_bank_account(account_id, entity_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
     
     try:
-        stmt_txn = await service.match_transactions(
-            statement_transaction_id=uuid.UUID(request.statement_transaction_id),
-            book_transaction_id=uuid.UUID(request.book_transaction_id),
-            matched_by_id=current_user.id,
+        await service.update_bank_account(
+            account_id,
+            okra_account_id=connect_data.record_id,
+            okra_connected_at=datetime.utcnow(),
         )
+        
         return {
             "success": True,
-            "message": "Transaction matched successfully",
-            "match_status": stmt_txn.match_status.value,
+            "message": "Okra account connected successfully",
+            "okra_account_id": connect_data.record_id,
         }
-    except ValueError as e:
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            status_code=400,
+            detail=f"Failed to connect Okra account: {str(e)}"
         )
 
 
-@router.post(
-    "/unmatch/{statement_transaction_id}",
-    summary="Unmatch a transaction",
-)
-async def unmatch_transaction(
-    statement_transaction_id: uuid.UUID,
+@router.post("/accounts/{account_id}/sync", response_model=BankSyncResponse)
+async def sync_bank_transactions(
+    account_id: uuid.UUID,
+    sync_request: BankSyncRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
 ):
-    """Unmatch a previously matched transaction."""
+    """
+    Sync transactions from connected bank API (Mono/Okra).
+    
+    Fetches new transactions and imports them with Nigerian charge detection.
+    """
     service = get_bank_reconciliation_service(db)
     
+    account = await service.get_bank_account(account_id, entity_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    
+    # Determine which API to use
+    integration = BankIntegrationService(db)
+    
     try:
-        await service.unmatch_transaction(statement_transaction_id)
-        return {"success": True, "message": "Transaction unmatched"}
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+        if account.mono_account_id:
+            result = await integration.mono_sync_bank_account(
+                account_id=account_id,
+                mono_account_id=account.mono_account_id,
+                start_date=sync_request.start_date,
+                end_date=sync_request.end_date,
+                reconciliation_id=sync_request.reconciliation_id,
+            )
+        elif account.okra_account_id:
+            result = await integration.okra_sync_bank_account(
+                account_id=account_id,
+                okra_account_id=account.okra_account_id,
+                start_date=sync_request.start_date,
+                end_date=sync_request.end_date,
+                reconciliation_id=sync_request.reconciliation_id,
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="No bank API connected. Please connect Mono or Okra first."
+            )
+        
+        return BankSyncResponse(
+            success=True,
+            imported_count=result.get("imported", 0),
+            duplicate_count=result.get("duplicates_skipped", 0),
+            charges_detected=result.get("charges_detected", 0),
+            message="Sync completed successfully",
         )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Sync failed: {str(e)}")
 
 
-# ===========================================
-# RECONCILIATION ENDPOINTS
-# ===========================================
+# =============================================================================
+# STATEMENT IMPORT ENDPOINTS
+# =============================================================================
 
-@router.post(
-    "/accounts/{account_id}/reconciliations",
-    response_model=ReconciliationResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create reconciliation",
-)
-async def create_reconciliation(
+@router.post("/accounts/{account_id}/import/csv")
+async def import_csv_statement(
     account_id: uuid.UUID,
-    request: ReconciliationCreate,
+    file: UploadFile = File(...),
+    reconciliation_id: Optional[uuid.UUID] = Query(None),
+    date_column: str = Query("Date", description="CSV column name for date"),
+    description_column: str = Query("Description", description="CSV column name for description"),
+    debit_column: str = Query("Debit", description="CSV column name for debit amount"),
+    credit_column: str = Query("Credit", description="CSV column name for credit amount"),
+    balance_column: Optional[str] = Query(None, description="CSV column name for balance"),
+    reference_column: Optional[str] = Query(None, description="CSV column name for reference"),
+    date_format: str = Query("%Y-%m-%d", description="Date format string"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Import bank statement from CSV file.
+    
+    Supports various Nigerian bank statement formats with configurable column mapping.
+    Auto-detects Nigerian bank charges (EMTL, Stamp Duty, VAT, etc.).
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    account = await service.get_bank_account(account_id, entity_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    
+    # Read CSV file
+    try:
+        content = await file.read()
+        content_str = content.decode("utf-8-sig")  # Handle BOM
+        
+        integration = BankIntegrationService(db)
+        
+        # Create import record
+        import_record = await service.create_statement_import(
+            bank_account_id=account_id,
+            source=BankStatementSource.CSV_IMPORT,
+            period_start=date.today(),  # Will be updated after parsing
+            period_end=date.today(),
+            imported_by_id=current_user.id,
+            file_name=file.filename,
+            file_size=len(content),
+        )
+        
+        # Parse and import
+        column_mapping = {
+            "date": date_column,
+            "description": description_column,
+            "debit": debit_column,
+            "credit": credit_column,
+            "balance": balance_column,
+            "reference": reference_column,
+        }
+        
+        transactions = integration.import_csv_statement(
+            csv_content=content_str,
+            column_mapping=column_mapping,
+            date_format=date_format,
+        )
+        
+        # Import transactions
+        result = await service.import_statement_transactions(
+            bank_account_id=account_id,
+            reconciliation_id=reconciliation_id,
+            transactions=transactions,
+            source=BankStatementSource.CSV_IMPORT,
+            import_id=import_record.id,
+            auto_detect_charges=True,
+        )
+        
+        return {
+            "success": True,
+            "import_id": str(import_record.id),
+            "file_name": file.filename,
+            **result,
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"CSV import failed: {str(e)}")
+
+
+@router.post("/accounts/{account_id}/transactions/manual")
+async def add_manual_transaction(
+    account_id: uuid.UUID,
+    transaction_date: date = Body(...),
+    description: str = Body(...),
+    debit_amount: Decimal = Body(Decimal("0")),
+    credit_amount: Decimal = Body(Decimal("0")),
+    reference: Optional[str] = Body(None),
+    reconciliation_id: Optional[uuid.UUID] = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Add a manual bank transaction entry."""
+    service = get_bank_reconciliation_service(db)
+    
+    account = await service.get_bank_account(account_id, entity_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    
+    result = await service.import_statement_transactions(
+        bank_account_id=account_id,
+        reconciliation_id=reconciliation_id,
+        transactions=[{
+            "transaction_date": transaction_date,
+            "description": description,
+            "debit_amount": debit_amount,
+            "credit_amount": credit_amount,
+            "reference": reference,
+        }],
+        source=BankStatementSource.MANUAL_ENTRY,
+        auto_detect_charges=True,
+    )
+    
+    return {"success": True, **result}
+
+
+# =============================================================================
+# RECONCILIATION ENDPOINTS
+# =============================================================================
+
+@router.get("/reconciliations", response_model=List[BankReconciliationResponse])
+async def list_reconciliations(
+    account_id: Optional[uuid.UUID] = Query(None, description="Filter by bank account"),
+    status_filter: Optional[ReconciliationStatus] = Query(None, alias="status"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Get reconciliations with optional filtering."""
+    service = get_bank_reconciliation_service(db)
+    
+    reconciliations = await service.get_reconciliations(
+        bank_account_id=account_id,
+        entity_id=entity_id,
+        status=status_filter,
+        limit=limit,
+        offset=offset,
+    )
+    return reconciliations
+
+
+@router.post("/reconciliations", response_model=BankReconciliationResponse, status_code=status.HTTP_201_CREATED)
+async def create_reconciliation(
+    recon_data: BankReconciliationCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
@@ -528,118 +459,420 @@ async def create_reconciliation(
     """Create a new bank reconciliation."""
     service = get_bank_reconciliation_service(db)
     
-    # Verify account belongs to entity
-    account = await service.get_bank_account(account_id, entity_id)
+    # Verify bank account belongs to entity
+    account = await service.get_bank_account(recon_data.bank_account_id, entity_id)
     if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bank account not found",
-        )
+        raise HTTPException(status_code=404, detail="Bank account not found")
     
-    recon = await service.create_reconciliation(
-        bank_account_id=account_id,
-        reconciliation_date=request.reconciliation_date,
-        period_start=request.period_start,
-        period_end=request.period_end,
-        statement_opening_balance=Decimal(str(request.statement_opening_balance)),
-        statement_closing_balance=Decimal(str(request.statement_closing_balance)),
-        book_opening_balance=Decimal(str(request.book_opening_balance)),
-        book_closing_balance=Decimal(str(request.book_closing_balance)),
+    reconciliation = await service.create_reconciliation(
+        bank_account_id=recon_data.bank_account_id,
+        reconciliation_date=recon_data.reconciliation_date,
+        period_start=recon_data.period_start,
+        period_end=recon_data.period_end,
+        statement_opening_balance=recon_data.statement_opening_balance,
+        statement_closing_balance=recon_data.statement_closing_balance,
+        book_opening_balance=recon_data.book_opening_balance,
+        book_closing_balance=recon_data.book_closing_balance,
+        reference=recon_data.reference,
         created_by_id=current_user.id,
     )
-    
-    return ReconciliationResponse(
-        id=str(recon.id),
-        bank_account_id=str(recon.bank_account_id),
-        reconciliation_date=recon.reconciliation_date,
-        period_start=recon.period_start,
-        period_end=recon.period_end,
-        statement_opening_balance=float(recon.statement_opening_balance),
-        statement_closing_balance=float(recon.statement_closing_balance),
-        book_opening_balance=float(recon.book_opening_balance),
-        book_closing_balance=float(recon.book_closing_balance),
-        deposits_in_transit=float(recon.deposits_in_transit),
-        outstanding_checks=float(recon.outstanding_checks),
-        bank_charges=float(recon.bank_charges),
-        interest_earned=float(recon.interest_earned),
-        other_adjustments=float(recon.other_adjustments),
-        adjusted_bank_balance=float(recon.adjusted_bank_balance),
-        adjusted_book_balance=float(recon.adjusted_book_balance),
-        difference=float(recon.difference),
-        status=recon.status.value,
-        is_balanced=recon.is_balanced,
-        completed_at=recon.completed_at,
-        approved_at=recon.approved_at,
-    )
+    return reconciliation
 
 
-@router.patch(
-    "/reconciliations/{reconciliation_id}/adjustments",
-    response_model=ReconciliationResponse,
-    summary="Update reconciliation adjustments",
-)
-async def update_reconciliation_adjustments(
+@router.get("/reconciliations/{reconciliation_id}", response_model=BankReconciliationDetailResponse)
+async def get_reconciliation(
     reconciliation_id: uuid.UUID,
-    request: ReconciliationAdjustments,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update reconciliation adjustments and recalculate difference."""
+    """Get a specific reconciliation with full details."""
+    service = get_bank_reconciliation_service(db)
+    
+    reconciliation = await service.get_reconciliation(reconciliation_id)
+    if not reconciliation:
+        raise HTTPException(status_code=404, detail="Reconciliation not found")
+    
+    # Get related data
+    adjustments = await service.get_adjustments(reconciliation_id)
+    transactions = await service.get_statement_transactions(
+        reconciliation_id=reconciliation_id,
+        limit=100,
+    )
+    unmatched = await service.get_unmatched_items(reconciliation_id)
+    
+    return BankReconciliationDetailResponse(
+        **reconciliation.__dict__,
+        adjustments=adjustments,
+        transactions=transactions,
+        unmatched_items=unmatched,
+    )
+
+
+# =============================================================================
+# MATCHING ENDPOINTS
+# =============================================================================
+
+@router.post("/reconciliations/{reconciliation_id}/auto-match", response_model=AutoMatchResult)
+async def auto_match_transactions(
+    reconciliation_id: uuid.UUID,
+    config: Optional[AutoMatchConfig] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Run auto-matching on unmatched transactions.
+    
+    Uses intelligent matching algorithms:
+    - Exact matching (amount + date)
+    - Fuzzy matching (configurable tolerance)
+    - Rule-based matching (user-defined rules)
+    - One-to-many matching
+    - Many-to-one matching
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    reconciliation = await service.get_reconciliation(reconciliation_id)
+    if not reconciliation:
+        raise HTTPException(status_code=404, detail="Reconciliation not found")
+    
+    # Get entity ID from bank account
+    account = await service.get_bank_account(reconciliation.bank_account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    
+    # Build matching config
+    matching_config = None
+    if config:
+        matching_config = MatchingConfig(
+            date_tolerance_days=config.date_tolerance_days or 3,
+            amount_tolerance_percent=config.amount_tolerance_percent or Decimal("0.01"),
+            min_confidence=config.min_confidence or 70.0,
+            enable_fuzzy=config.enable_fuzzy if config.enable_fuzzy is not None else True,
+            enable_one_to_many=config.enable_one_to_many if config.enable_one_to_many is not None else True,
+            enable_many_to_one=config.enable_many_to_one if config.enable_many_to_one is not None else True,
+        )
+    
+    result = await service.auto_match_transactions(
+        reconciliation_id=reconciliation_id,
+        entity_id=account.entity_id,
+        config=matching_config,
+    )
+    
+    return AutoMatchResult(**result)
+
+
+@router.post("/reconciliations/{reconciliation_id}/manual-match")
+async def manual_match_transactions(
+    reconciliation_id: uuid.UUID,
+    match_request: ManualMatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Manually match statement transaction(s) with book transaction(s).
+    
+    Supports:
+    - One-to-one: Single statement txn to single book txn
+    - One-to-many: Single statement txn to multiple book txns
+    - Many-to-one: Multiple statement txns to single book txn
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    reconciliation = await service.get_reconciliation(reconciliation_id)
+    if not reconciliation:
+        raise HTTPException(status_code=404, detail="Reconciliation not found")
+    
+    if len(match_request.statement_transaction_ids) == 1:
+        # One-to-one or one-to-many
+        result = await service.match_transactions(
+            statement_transaction_id=match_request.statement_transaction_ids[0],
+            book_transaction_ids=match_request.book_transaction_ids,
+            matched_by_id=current_user.id,
+            notes=match_request.notes,
+        )
+        return {"success": True, "matched_count": 1}
+    else:
+        # Many-to-one
+        if len(match_request.book_transaction_ids) != 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Many-to-one matching requires exactly one book transaction"
+            )
+        
+        results = await service.match_many_to_one(
+            statement_transaction_ids=match_request.statement_transaction_ids,
+            book_transaction_id=match_request.book_transaction_ids[0],
+            matched_by_id=current_user.id,
+            notes=match_request.notes,
+        )
+        return {"success": True, "matched_count": len(results)}
+
+
+@router.post("/transactions/{transaction_id}/unmatch")
+async def unmatch_transaction(
+    transaction_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Unmatch a previously matched transaction."""
     service = get_bank_reconciliation_service(db)
     
     try:
-        adjustments = {}
-        if request.deposits_in_transit is not None:
-            adjustments["deposits_in_transit"] = Decimal(str(request.deposits_in_transit))
-        if request.outstanding_checks is not None:
-            adjustments["outstanding_checks"] = Decimal(str(request.outstanding_checks))
-        if request.bank_charges is not None:
-            adjustments["bank_charges"] = Decimal(str(request.bank_charges))
-        if request.interest_earned is not None:
-            adjustments["interest_earned"] = Decimal(str(request.interest_earned))
-        if request.other_adjustments is not None:
-            adjustments["other_adjustments"] = Decimal(str(request.other_adjustments))
-        
-        recon = await service.update_reconciliation_adjustments(
-            reconciliation_id=reconciliation_id,
-            **adjustments,
-        )
-        
-        return ReconciliationResponse(
-            id=str(recon.id),
-            bank_account_id=str(recon.bank_account_id),
-            reconciliation_date=recon.reconciliation_date,
-            period_start=recon.period_start,
-            period_end=recon.period_end,
-            statement_opening_balance=float(recon.statement_opening_balance),
-            statement_closing_balance=float(recon.statement_closing_balance),
-            book_opening_balance=float(recon.book_opening_balance),
-            book_closing_balance=float(recon.book_closing_balance),
-            deposits_in_transit=float(recon.deposits_in_transit),
-            outstanding_checks=float(recon.outstanding_checks),
-            bank_charges=float(recon.bank_charges),
-            interest_earned=float(recon.interest_earned),
-            other_adjustments=float(recon.other_adjustments),
-            adjusted_bank_balance=float(recon.adjusted_bank_balance),
-            adjusted_book_balance=float(recon.adjusted_book_balance),
-            difference=float(recon.difference),
-            status=recon.status.value,
-            is_balanced=recon.is_balanced,
-            completed_at=recon.completed_at,
-            approved_at=recon.approved_at,
-        )
+        await service.unmatch_transaction(transaction_id)
+        return {"success": True, "message": "Transaction unmatched"}
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# =============================================================================
+# TRANSACTION ENDPOINTS
+# =============================================================================
+
+@router.get("/reconciliations/{reconciliation_id}/transactions", response_model=List[BankStatementTransactionResponse])
+async def get_reconciliation_transactions(
+    reconciliation_id: uuid.UUID,
+    match_status: Optional[MatchStatus] = Query(None),
+    is_bank_charge: Optional[bool] = Query(None),
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get transactions for a reconciliation with filtering."""
+    service = get_bank_reconciliation_service(db)
+    
+    transactions = await service.get_statement_transactions(
+        reconciliation_id=reconciliation_id,
+        match_status=match_status,
+        is_bank_charge=is_bank_charge,
+        limit=limit,
+        offset=offset,
+    )
+    return transactions
+
+
+# =============================================================================
+# ADJUSTMENT ENDPOINTS
+# =============================================================================
+
+@router.get("/reconciliations/{reconciliation_id}/adjustments", response_model=List[ReconciliationAdjustmentResponse])
+async def get_reconciliation_adjustments(
+    reconciliation_id: uuid.UUID,
+    adjustment_type: Optional[AdjustmentType] = Query(None),
+    is_posted: Optional[bool] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get adjustments for a reconciliation."""
+    service = get_bank_reconciliation_service(db)
+    
+    adjustments = await service.get_adjustments(
+        reconciliation_id=reconciliation_id,
+        adjustment_type=adjustment_type,
+        is_posted=is_posted,
+    )
+    return adjustments
+
+
+@router.post("/reconciliations/{reconciliation_id}/adjustments", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_201_CREATED)
+async def add_adjustment(
+    reconciliation_id: uuid.UUID,
+    adjustment_data: ReconciliationAdjustmentCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add an adjustment to a reconciliation."""
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        adjustment = await service.add_adjustment(
+            reconciliation_id=reconciliation_id,
+            adjustment_type=adjustment_data.adjustment_type,
+            amount=adjustment_data.amount,
+            description=adjustment_data.description,
+            reference=adjustment_data.reference,
+            affects_bank=adjustment_data.affects_bank,
+            affects_book=adjustment_data.affects_book,
+            statement_transaction_id=adjustment_data.statement_transaction_id,
+            gl_account_code=adjustment_data.gl_account_code,
+            created_by_id=current_user.id,
         )
+        return adjustment
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post(
-    "/reconciliations/{reconciliation_id}/complete",
-    response_model=ReconciliationResponse,
-    summary="Complete reconciliation",
-)
+@router.delete("/adjustments/{adjustment_id}")
+async def delete_adjustment(
+    adjustment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete an adjustment."""
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        success = await service.delete_adjustment(adjustment_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Adjustment not found")
+        return {"success": True, "message": "Adjustment deleted"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/reconciliations/{reconciliation_id}/adjustments/auto-create-charges")
+async def auto_create_charge_adjustments(
+    reconciliation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Automatically create adjustments for detected bank charges.
+    
+    Creates adjustments for:
+    - EMTL (Electronic Money Transfer Levy)
+    - Stamp Duty
+    - Bank charges
+    - SMS fees
+    - Maintenance fees
+    - VAT/WHT
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    adjustments = await service.auto_create_charge_adjustments(
+        reconciliation_id=reconciliation_id,
+        created_by_id=current_user.id,
+    )
+    
+    return {
+        "success": True,
+        "adjustments_created": len(adjustments),
+        "adjustment_ids": [str(a.id) for a in adjustments],
+    }
+
+
+@router.post("/reconciliations/{reconciliation_id}/adjustments/post")
+async def post_adjustments(
+    reconciliation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Post all unposted adjustments to the general ledger."""
+    service = get_bank_reconciliation_service(db)
+    
+    result = await service.post_adjustments(
+        reconciliation_id=reconciliation_id,
+        posted_by_id=current_user.id,
+    )
+    
+    return result
+
+
+# =============================================================================
+# WORKFLOW ENDPOINTS
+# =============================================================================
+
+@router.post("/reconciliations/{reconciliation_id}/submit")
+async def submit_for_review(
+    reconciliation_id: uuid.UUID,
+    notes: Optional[str] = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Submit a reconciliation for review."""
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        reconciliation = await service.submit_for_review(
+            reconciliation_id=reconciliation_id,
+            submitted_by_id=current_user.id,
+            notes=notes,
+        )
+        return {
+            "success": True,
+            "status": reconciliation.status.value,
+            "message": "Reconciliation submitted for review",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/reconciliations/{reconciliation_id}/approve")
+async def approve_reconciliation(
+    reconciliation_id: uuid.UUID,
+    notes: Optional[str] = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Approve a reconciliation."""
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        reconciliation = await service.approve_reconciliation(
+            reconciliation_id=reconciliation_id,
+            approved_by_id=current_user.id,
+            notes=notes,
+        )
+        return {
+            "success": True,
+            "status": reconciliation.status.value,
+            "message": "Reconciliation approved",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/reconciliations/{reconciliation_id}/reject")
+async def reject_reconciliation(
+    reconciliation_id: uuid.UUID,
+    reason: str = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reject a reconciliation back to draft."""
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        reconciliation = await service.reject_reconciliation(
+            reconciliation_id=reconciliation_id,
+            rejected_by_id=current_user.id,
+            reason=reason,
+        )
+        return {
+            "success": True,
+            "status": reconciliation.status.value,
+            "message": "Reconciliation rejected",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/reconciliations/{reconciliation_id}/reopen")
+async def reopen_reconciliation(
+    reconciliation_id: uuid.UUID,
+    reason: Optional[str] = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reopen a rejected reconciliation for corrections."""
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        reconciliation = await service.reopen_reconciliation(
+            reconciliation_id=reconciliation_id,
+            reopened_by_id=current_user.id,
+            reason=reason,
+        )
+        return {
+            "success": True,
+            "status": reconciliation.status.value,
+            "message": "Reconciliation reopened",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/reconciliations/{reconciliation_id}/complete")
 async def complete_reconciliation(
     reconciliation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -649,147 +882,173 @@ async def complete_reconciliation(
     service = get_bank_reconciliation_service(db)
     
     try:
-        recon = await service.complete_reconciliation(
+        reconciliation = await service.complete_reconciliation(
             reconciliation_id=reconciliation_id,
             completed_by_id=current_user.id,
         )
-        
-        return ReconciliationResponse(
-            id=str(recon.id),
-            bank_account_id=str(recon.bank_account_id),
-            reconciliation_date=recon.reconciliation_date,
-            period_start=recon.period_start,
-            period_end=recon.period_end,
-            statement_opening_balance=float(recon.statement_opening_balance),
-            statement_closing_balance=float(recon.statement_closing_balance),
-            book_opening_balance=float(recon.book_opening_balance),
-            book_closing_balance=float(recon.book_closing_balance),
-            deposits_in_transit=float(recon.deposits_in_transit),
-            outstanding_checks=float(recon.outstanding_checks),
-            bank_charges=float(recon.bank_charges),
-            interest_earned=float(recon.interest_earned),
-            other_adjustments=float(recon.other_adjustments),
-            adjusted_bank_balance=float(recon.adjusted_bank_balance),
-            adjusted_book_balance=float(recon.adjusted_book_balance),
-            difference=float(recon.difference),
-            status=recon.status.value,
-            is_balanced=recon.is_balanced,
-            completed_at=recon.completed_at,
-            approved_at=recon.approved_at,
-        )
+        return {
+            "success": True,
+            "status": reconciliation.status.value,
+            "message": "Reconciliation completed",
+        }
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post(
-    "/reconciliations/{reconciliation_id}/approve",
-    response_model=ReconciliationResponse,
-    summary="Approve reconciliation",
-)
-async def approve_reconciliation(
+# =============================================================================
+# UNMATCHED ITEMS ENDPOINTS
+# =============================================================================
+
+@router.get("/reconciliations/{reconciliation_id}/unmatched-items", response_model=List[UnmatchedItemResponse])
+async def get_unmatched_items(
+    reconciliation_id: uuid.UUID,
+    item_type: Optional[UnmatchedItemType] = Query(None),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get unmatched items for a reconciliation."""
+    service = get_bank_reconciliation_service(db)
+    
+    items = await service.get_unmatched_items(
+        reconciliation_id=reconciliation_id,
+        item_type=item_type,
+        status=status_filter,
+    )
+    return items
+
+
+@router.post("/reconciliations/{reconciliation_id}/unmatched-items/auto-create")
+async def auto_create_unmatched_items(
     reconciliation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Approve a completed reconciliation."""
+    """Automatically create unmatched item records from unmatched transactions."""
+    service = get_bank_reconciliation_service(db)
+    
+    items = await service.auto_create_unmatched_items(
+        reconciliation_id=reconciliation_id,
+        created_by_id=current_user.id,
+    )
+    
+    return {
+        "success": True,
+        "items_created": len(items),
+        "item_ids": [str(item.id) for item in items],
+    }
+
+
+@router.post("/unmatched-items/{item_id}/resolve")
+async def resolve_unmatched_item(
+    item_id: uuid.UUID,
+    resolution: str = Body(...),
+    notes: Optional[str] = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark an unmatched item as resolved."""
     service = get_bank_reconciliation_service(db)
     
     try:
-        recon = await service.approve_reconciliation(
-            reconciliation_id=reconciliation_id,
-            approved_by_id=current_user.id,
+        item = await service.resolve_unmatched_item(
+            item_id=item_id,
+            resolution=resolution,
+            resolved_by_id=current_user.id,
+            notes=notes,
         )
-        
-        return ReconciliationResponse(
-            id=str(recon.id),
-            bank_account_id=str(recon.bank_account_id),
-            reconciliation_date=recon.reconciliation_date,
-            period_start=recon.period_start,
-            period_end=recon.period_end,
-            statement_opening_balance=float(recon.statement_opening_balance),
-            statement_closing_balance=float(recon.statement_closing_balance),
-            book_opening_balance=float(recon.book_opening_balance),
-            book_closing_balance=float(recon.book_closing_balance),
-            deposits_in_transit=float(recon.deposits_in_transit),
-            outstanding_checks=float(recon.outstanding_checks),
-            bank_charges=float(recon.bank_charges),
-            interest_earned=float(recon.interest_earned),
-            other_adjustments=float(recon.other_adjustments),
-            adjusted_bank_balance=float(recon.adjusted_bank_balance),
-            adjusted_book_balance=float(recon.adjusted_book_balance),
-            difference=float(recon.difference),
-            status=recon.status.value,
-            is_balanced=recon.is_balanced,
-            completed_at=recon.completed_at,
-            approved_at=recon.approved_at,
-        )
+        return {"success": True, "item": item}
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get(
-    "/accounts/{account_id}/reconciliations",
-    response_model=List[ReconciliationResponse],
-    summary="List reconciliations for account",
-)
-async def list_reconciliations(
-    account_id: uuid.UUID,
-    status_filter: Optional[ReconciliationStatus] = Query(None, alias="status"),
+# =============================================================================
+# RULES MANAGEMENT ENDPOINTS
+# =============================================================================
+
+@router.get("/charge-rules", response_model=List[BankChargeRuleResponse])
+async def get_charge_rules(
+    is_active: bool = Query(True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
 ):
-    """List all reconciliations for a bank account."""
+    """Get charge detection rules for the entity."""
+    service = get_bank_reconciliation_service(db)
+    rules = await service.get_charge_rules(entity_id, is_active)
+    return rules
+
+
+@router.post("/charge-rules", response_model=BankChargeRuleResponse, status_code=status.HTTP_201_CREATED)
+async def create_charge_rule(
+    rule_data: BankChargeRuleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Create a new charge detection rule."""
     service = get_bank_reconciliation_service(db)
     
-    # Verify account belongs to entity
-    account = await service.get_bank_account(account_id, entity_id)
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bank account not found",
-        )
-    
-    reconciliations = await service.get_reconciliations(account_id, status_filter)
-    
-    return [
-        ReconciliationResponse(
-            id=str(r.id),
-            bank_account_id=str(r.bank_account_id),
-            reconciliation_date=r.reconciliation_date,
-            period_start=r.period_start,
-            period_end=r.period_end,
-            statement_opening_balance=float(r.statement_opening_balance),
-            statement_closing_balance=float(r.statement_closing_balance),
-            book_opening_balance=float(r.book_opening_balance),
-            book_closing_balance=float(r.book_closing_balance),
-            deposits_in_transit=float(r.deposits_in_transit),
-            outstanding_checks=float(r.outstanding_checks),
-            bank_charges=float(r.bank_charges),
-            interest_earned=float(r.interest_earned),
-            other_adjustments=float(r.other_adjustments),
-            adjusted_bank_balance=float(r.adjusted_bank_balance),
-            adjusted_book_balance=float(r.adjusted_book_balance),
-            difference=float(r.difference),
-            status=r.status.value,
-            is_balanced=r.is_balanced,
-            completed_at=r.completed_at,
-            approved_at=r.approved_at,
-        )
-        for r in reconciliations
-    ]
+    rule = await service.create_charge_rule(
+        entity_id=entity_id,
+        name=rule_data.name,
+        description=rule_data.description,
+        pattern=rule_data.pattern,
+        charge_type=rule_data.charge_type,
+        fixed_amount=rule_data.fixed_amount,
+        percentage=rule_data.percentage,
+        min_amount=rule_data.min_amount,
+        max_amount=rule_data.max_amount,
+        gl_account_code=rule_data.gl_account_code,
+        priority=rule_data.priority,
+        created_by_id=current_user.id,
+    )
+    return rule
 
 
-@router.get(
-    "/summary",
-    summary="Get reconciliation summary",
-)
+@router.get("/matching-rules", response_model=List[MatchingRuleResponse])
+async def get_matching_rules(
+    is_active: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Get matching rules for the entity."""
+    service = get_bank_reconciliation_service(db)
+    rules = await service.get_matching_rules(entity_id, is_active)
+    return rules
+
+
+@router.post("/matching-rules", response_model=MatchingRuleResponse, status_code=status.HTTP_201_CREATED)
+async def create_matching_rule(
+    rule_data: MatchingRuleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Create a new matching rule."""
+    service = get_bank_reconciliation_service(db)
+    
+    rule = await service.create_matching_rule(
+        entity_id=entity_id,
+        name=rule_data.name,
+        description=rule_data.description,
+        bank_pattern=rule_data.bank_pattern,
+        book_pattern=rule_data.book_pattern,
+        match_type=rule_data.match_type,
+        date_tolerance_days=rule_data.date_tolerance_days,
+        amount_tolerance_percent=rule_data.amount_tolerance_percent,
+        priority=rule_data.priority,
+        created_by_id=current_user.id,
+    )
+    return rule
+
+
+# =============================================================================
+# REPORTING ENDPOINTS
+# =============================================================================
+
+@router.get("/summary", response_model=ReconciliationSummaryReport)
 async def get_reconciliation_summary(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -799,3 +1058,19 @@ async def get_reconciliation_summary(
     service = get_bank_reconciliation_service(db)
     summary = await service.get_reconciliation_summary(entity_id)
     return summary
+
+
+@router.get("/reconciliations/{reconciliation_id}/report")
+async def get_reconciliation_report(
+    reconciliation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a comprehensive reconciliation report for audit purposes."""
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        report = await service.generate_reconciliation_report(reconciliation_id)
+        return report
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

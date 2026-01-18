@@ -90,6 +90,26 @@ from app.models.payroll import (
     # Settings
     PayrollSettings,
 )
+from app.models.bank_reconciliation import (
+    BankAccount,
+    BankStatement,
+    BankStatementTransaction,
+    BankReconciliation,
+    ReconciliationAdjustment,
+    UnmatchedItem,
+    BankChargeRule,
+    MatchingRule,
+    BankStatementImport,
+    # Enums
+    BankAccountCurrency,
+    BankStatementSource,
+    ReconciliationStatus,
+    MatchType,
+    MatchConfidenceLevel,
+    AdjustmentType,
+    UnmatchedItemType,
+    ChargeDetectionMethod,
+)
 from app.models.advanced_accounting import (
     AccountingDimension,
     TransactionDimension,
@@ -242,4 +262,22 @@ __all__ = [
     "WHTCreditStatus",
     "ApprovalStatus",
     "BudgetPeriodType",
+    # Bank Reconciliation
+    "BankAccount",
+    "BankStatement",
+    "BankStatementTransaction",
+    "BankReconciliation",
+    "ReconciliationAdjustment",
+    "UnmatchedItem",
+    "BankChargeRule",
+    "MatchingRule",
+    "BankStatementImport",
+    "BankAccountCurrency",
+    "BankStatementSource",
+    "ReconciliationStatus",
+    "MatchType",
+    "MatchConfidenceLevel",
+    "AdjustmentType",
+    "UnmatchedItemType",
+    "ChargeDetectionMethod",
 ]

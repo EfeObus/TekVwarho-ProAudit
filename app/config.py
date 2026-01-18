@@ -81,6 +81,63 @@ class Settings(BaseSettings):
     azure_form_recognizer_key: str = ""
     
     # ===========================================
+    # BANK AGGREGATION APIs (Nigerian Open Banking)
+    # ===========================================
+    
+    # Mono API (https://mono.co) - Nigerian Bank Data Aggregation
+    # Used for: Bank statement fetching, account linking, transaction data
+    mono_secret_key: str = ""
+    mono_public_key: str = ""
+    mono_webhook_secret: str = ""
+    mono_sandbox_mode: bool = True
+    mono_base_url: str = "https://api.withmono.com"
+    mono_sandbox_url: str = "https://api.withmono.com"  # Same URL, different keys
+    
+    @property
+    def mono_active_key(self) -> str:
+        """Get the active Mono API secret key."""
+        return self.mono_secret_key
+    
+    @property
+    def mono_active_url(self) -> str:
+        """Get the active Mono API URL."""
+        return self.mono_sandbox_url if self.mono_sandbox_mode else self.mono_base_url
+    
+    # Okra API (https://okra.ng) - Nigerian Open Banking
+    # Used for: Bank verification, statements, income, identity
+    okra_secret_key: str = ""
+    okra_client_token: str = ""
+    okra_public_key: str = ""
+    okra_webhook_secret: str = ""
+    okra_sandbox_mode: bool = True
+    okra_base_url: str = "https://api.okra.ng/v2"
+    okra_sandbox_url: str = "https://api.okra.ng/v2/sandbox"
+    
+    @property
+    def okra_active_key(self) -> str:
+        """Get the active Okra API secret key."""
+        return self.okra_secret_key
+    
+    @property
+    def okra_active_url(self) -> str:
+        """Get the active Okra API URL."""
+        return self.okra_sandbox_url if self.okra_sandbox_mode else self.okra_base_url
+    
+    # Stitch API (https://stitch.money) - Payment Integration
+    # Used for: Payment initiation, account linking, transactions
+    stitch_client_id: str = ""
+    stitch_client_secret: str = ""
+    stitch_webhook_secret: str = ""
+    stitch_sandbox_mode: bool = True
+    stitch_base_url: str = "https://api.stitch.money"
+    stitch_sandbox_url: str = "https://api.stitch.money"  # Same URL, sandbox in credentials
+    
+    @property
+    def stitch_active_url(self) -> str:
+        """Get the active Stitch API URL."""
+        return self.stitch_sandbox_url if self.stitch_sandbox_mode else self.stitch_base_url
+    
+    # ===========================================
     # FILE STORAGE
     # ===========================================
     storage_backend: str = "local"

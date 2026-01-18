@@ -2,335 +2,796 @@
 
 {% block title %}Bank Reconciliation - TekVwarho ProAudit{% endblock %}
 
+{% block head %}
+<style>
+    [x-cloak] { display: none !important; }
+    .match-line { 
+        background: linear-gradient(90deg, #dcfce7 0%, #dcfce7 100%);
+    }
+    .unmatched-line {
+        background: linear-gradient(90deg, #fef9c3 0%, #fef9c3 100%);
+    }
+    .charge-line {
+        background: linear-gradient(90deg, #fee2e2 0%, #fee2e2 100%);
+    }
+    .confidence-high { color: #16a34a; }
+    .confidence-medium { color: #ca8a04; }
+    .confidence-low { color: #dc2626; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div x-data="bankReconciliationPage()" x-init="init()">
+<div x-data="bankReconciliationApp()" x-init="init()" x-cloak>
     <!-- Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Bank Reconciliation</h1>
-            <p class="text-gray-600">Match bank statements with book transactions</p>
+            <p class="text-gray-600">Nigerian-compliant bank reconciliation with auto-charge detection</p>
         </div>
-        <div class="mt-4 sm:mt-0 flex space-x-3">
-            <button @click="showImportModal = true" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <div class="mt-4 lg:mt-0 flex flex-wrap gap-3">
+            <button @click="showImportModal = true" 
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                 </svg>
-                Import Statement
+                Import CSV
             </button>
-            <button @click="showAccountModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+            <button @click="syncFromBank()" :disabled="!selectedAccount || syncing"
+                    class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="w-5 h-5 mr-2" :class="{ 'animate-spin': syncing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span x-text="syncing ? 'Syncing...' : 'Sync Bank'"></span>
+            </button>
+            <button @click="showNewReconciliationModal = true" 
+                    class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                 </svg>
-                Add Bank Account
+                New Reconciliation
+            </button>
+            <button @click="showAccountModal = true" 
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg hover:bg-gray-50 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                </svg>
+                Add Account
             </button>
         </div>
     </div>
-    
+
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div class="flex items-center">
-                <div class="p-3 rounded-full bg-blue-100">
+                <div class="p-2 rounded-lg bg-blue-100">
                     <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
                     </svg>
                 </div>
-                <div class="ml-4">
-                    <p class="text-sm text-gray-500">Bank Accounts</p>
-                    <p class="text-2xl font-bold text-gray-900" x-text="accounts.length"></p>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500">Bank Accounts</p>
+                    <p class="text-xl font-bold text-gray-900" x-text="summary.total_accounts || 0"></p>
                 </div>
             </div>
         </div>
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div class="flex items-center">
-                <div class="p-3 rounded-full bg-green-100">
+                <div class="p-2 rounded-lg bg-green-100">
                     <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
-                <div class="ml-4">
-                    <p class="text-sm text-gray-500">Matched</p>
-                    <p class="text-2xl font-bold text-green-600" x-text="summary.matched_count || 0"></p>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500">Matched</p>
+                    <p class="text-xl font-bold text-green-600" x-text="currentRecon?.matched_transactions || 0"></p>
                 </div>
             </div>
         </div>
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div class="flex items-center">
-                <div class="p-3 rounded-full bg-amber-100">
+                <div class="p-2 rounded-lg bg-amber-100">
                     <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
-                <div class="ml-4">
-                    <p class="text-sm text-gray-500">Unmatched</p>
-                    <p class="text-2xl font-bold text-amber-600" x-text="summary.unmatched_count || 0"></p>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500">Unmatched</p>
+                    <p class="text-xl font-bold text-amber-600" x-text="currentRecon?.unmatched_transactions || 0"></p>
                 </div>
             </div>
         </div>
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div class="flex items-center">
-                <div class="p-3 rounded-full bg-purple-100">
-                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="p-2 rounded-lg bg-red-100">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
-                <div class="ml-4">
-                    <p class="text-sm text-gray-500">Total Balance</p>
-                    <p class="text-2xl font-bold text-purple-600" x-text="formatCurrency(summary.total_balance || 0)"></p>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500">Bank Charges</p>
+                    <p class="text-xl font-bold text-red-600" x-text="formatCurrency(currentRecon?.bank_charges || 0)"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center">
+                <div class="p-2 rounded-lg" :class="(currentRecon?.difference || 0) == 0 ? 'bg-green-100' : 'bg-red-100'">
+                    <svg class="w-6 h-6" :class="(currentRecon?.difference || 0) == 0 ? 'text-green-600' : 'text-red-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-xs text-gray-500">Difference</p>
+                    <p class="text-xl font-bold" :class="(currentRecon?.difference || 0) == 0 ? 'text-green-600' : 'text-red-600'" x-text="formatCurrency(currentRecon?.difference || 0)"></p>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Bank Accounts List -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">Bank Accounts</h2>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Reconciled</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    <template x-if="loading">
-                        <tr>
-                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
-                                <svg class="animate-spin h-8 w-8 mx-auto text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <p class="mt-2">Loading bank accounts...</p>
-                            </td>
-                        </tr>
-                    </template>
-                    <template x-if="!loading && accounts.length === 0">
-                        <tr>
-                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
-                                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                                </svg>
-                                <p>No bank accounts found</p>
-                                <button @click="showAccountModal = true" class="mt-3 text-green-600 hover:text-green-700 font-medium">Add your first bank account</button>
-                            </td>
-                        </tr>
-                    </template>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Left Panel: Bank Accounts & Reconciliations -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Bank Accounts List -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Bank Accounts</h2>
+                </div>
+                <div class="divide-y divide-gray-200 max-h-64 overflow-y-auto">
                     <template x-for="account in accounts" :key="account.id">
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900" x-text="account.bank_name"></div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900" x-text="account.account_name"></div>
-                                <div class="text-xs text-gray-500" x-text="'**** ' + account.account_number.slice(-4)"></div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800" x-text="account.account_type"></span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right">
-                                <span class="text-sm font-medium" :class="account.current_balance >= 0 ? 'text-green-600' : 'text-red-600'" x-text="formatCurrency(account.current_balance)"></span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="account.last_reconciled_date ? formatDate(account.last_reconciled_date) : 'Never'"></td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span x-show="account.is_active" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span>
-                                <span x-show="!account.is_active" class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">Inactive</span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button @click="selectAccount(account)" class="text-blue-600 hover:text-blue-900 mr-3">Reconcile</button>
-                                <button @click="editAccount(account)" class="text-gray-600 hover:text-gray-900">Edit</button>
-                            </td>
-                        </tr>
+                        <div @click="selectAccount(account)" 
+                             class="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                             :class="{ 'bg-blue-50 border-l-4 border-blue-500': selectedAccount?.id === account.id }">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-medium text-gray-900" x-text="account.bank_name"></p>
+                                    <p class="text-sm text-gray-500" x-text="'***' + account.account_number.slice(-4)"></p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-semibold text-gray-900" x-text="formatCurrency(account.current_balance)"></p>
+                                    <span x-show="account.has_api_integration" class="inline-flex items-center text-xs text-green-600">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        API Linked
+                                    </span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Last reconciled: <span x-text="account.last_reconciled_date ? formatDate(account.last_reconciled_date) : 'Never'"></span>
+                            </p>
+                        </div>
                     </template>
-                </tbody>
-            </table>
+                    <div x-show="accounts.length === 0" class="px-4 py-8 text-center text-gray-500">
+                        <p>No bank accounts yet</p>
+                        <button @click="showAccountModal = true" class="mt-2 text-blue-600 hover:underline">Add your first account</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reconciliations List -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200" x-show="selectedAccount">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Reconciliations</h2>
+                </div>
+                <div class="divide-y divide-gray-200 max-h-72 overflow-y-auto">
+                    <template x-for="recon in reconciliations" :key="recon.id">
+                        <div @click="selectReconciliation(recon)" 
+                             class="px-4 py-3 cursor-pointer hover:bg-gray-50"
+                             :class="{ 'bg-blue-50 border-l-4 border-blue-500': currentRecon?.id === recon.id }">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-medium text-gray-900" x-text="formatDate(recon.reconciliation_date)"></p>
+                                    <p class="text-xs text-gray-500" x-text="recon.reference || 'No ref'"></p>
+                                </div>
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                      :class="{
+                                          'bg-gray-100 text-gray-800': recon.status === 'draft',
+                                          'bg-blue-100 text-blue-800': recon.status === 'in_progress',
+                                          'bg-amber-100 text-amber-800': recon.status === 'in_review',
+                                          'bg-green-100 text-green-800': recon.status === 'approved' || recon.status === 'completed',
+                                          'bg-red-100 text-red-800': recon.status === 'rejected'
+                                      }" x-text="recon.status.replace('_', ' ')"></span>
+                            </div>
+                            <div class="flex justify-between mt-1 text-xs text-gray-500">
+                                <span x-text="'Diff: ' + formatCurrency(recon.difference)"></span>
+                                <span :class="recon.difference == 0 ? 'text-green-600' : 'text-red-600'" x-text="recon.difference == 0 ? 'Balanced' : 'Unbalanced'"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="reconciliations.length === 0" class="px-4 py-6 text-center text-gray-500 text-sm">
+                        No reconciliations for this account
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Transaction Matching -->
+        <div class="lg:col-span-3">
+            <!-- Reconciliation Actions Bar -->
+            <div x-show="currentRecon" class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <span class="text-sm font-medium text-gray-700">
+                            Period: <span x-text="formatDate(currentRecon?.period_start) + ' - ' + formatDate(currentRecon?.period_end)"></span>
+                        </span>
+                        <span class="text-sm text-gray-500">|</span>
+                        <span class="text-sm">
+                            Status: <span class="font-medium" :class="{
+                                'text-gray-600': currentRecon?.status === 'draft',
+                                'text-blue-600': currentRecon?.status === 'in_progress',
+                                'text-amber-600': currentRecon?.status === 'in_review',
+                                'text-green-600': currentRecon?.status === 'approved' || currentRecon?.status === 'completed',
+                                'text-red-600': currentRecon?.status === 'rejected'
+                            }" x-text="currentRecon?.status?.replace('_', ' ') || ''"></span>
+                        </span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button @click="runAutoMatch()" :disabled="autoMatching"
+                                class="inline-flex items-center px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                            <svg class="w-4 h-4 mr-1" :class="{ 'animate-spin': autoMatching }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Auto Match
+                        </button>
+                        <button @click="autoCreateChargeAdjustments()" 
+                                class="inline-flex items-center px-3 py-1.5 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Auto-Detect Charges
+                        </button>
+                        <button @click="showAdjustmentModal = true" 
+                                class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Add Adjustment
+                        </button>
+                        <template x-if="currentRecon?.status === 'draft' || currentRecon?.status === 'in_progress'">
+                            <button @click="submitForReview()" :disabled="currentRecon?.difference != 0"
+                                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Submit for Review
+                            </button>
+                        </template>
+                        <template x-if="currentRecon?.status === 'in_review'">
+                            <div class="flex gap-2">
+                                <button @click="approveReconciliation()" 
+                                        class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
+                                    Approve
+                                </button>
+                                <button @click="showRejectModal = true" 
+                                        class="inline-flex items-center px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700">
+                                    Reject
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs for Transactions, Adjustments, Unmatched -->
+            <div x-show="currentRecon" class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="border-b border-gray-200">
+                    <nav class="flex -mb-px">
+                        <button @click="activeTab = 'transactions'" 
+                                class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+                                :class="activeTab === 'transactions' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                            Transactions
+                            <span class="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs" x-text="transactions.length"></span>
+                        </button>
+                        <button @click="activeTab = 'adjustments'" 
+                                class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+                                :class="activeTab === 'adjustments' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                            Adjustments
+                            <span class="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs" x-text="adjustments.length"></span>
+                        </button>
+                        <button @click="activeTab = 'unmatched'" 
+                                class="px-6 py-3 text-sm font-medium border-b-2 transition-colors"
+                                :class="activeTab === 'unmatched' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                            Unmatched Items
+                            <span class="ml-2 px-2 py-0.5 bg-amber-100 text-amber-600 rounded-full text-xs" x-text="unmatchedItems.length"></span>
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Transactions Tab -->
+                <div x-show="activeTab === 'transactions'" class="p-4">
+                    <!-- Filter Bar -->
+                    <div class="flex flex-wrap gap-3 mb-4">
+                        <select x-model="txnFilter" class="text-sm border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            <option value="all">All Transactions</option>
+                            <option value="unmatched">Unmatched Only</option>
+                            <option value="matched">Matched Only</option>
+                            <option value="charges">Bank Charges</option>
+                        </select>
+                        <div class="flex-1"></div>
+                        <span class="text-sm text-gray-500" x-text="filteredTransactions.length + ' transactions'"></span>
+                    </div>
+
+                    <!-- Transactions Table -->
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Confidence</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="txn in filteredTransactions" :key="txn.id">
+                                    <tr :class="{
+                                        'match-line': txn.match_status === 'auto_matched' || txn.match_status === 'manual_matched',
+                                        'unmatched-line': txn.match_status === 'unmatched',
+                                        'charge-line': txn.is_bank_charge
+                                    }">
+                                        <td class="px-4 py-3 text-sm text-gray-900" x-text="formatDate(txn.transaction_date)"></td>
+                                        <td class="px-4 py-3">
+                                            <div class="text-sm text-gray-900" x-text="txn.description"></div>
+                                            <div class="flex gap-1 mt-1">
+                                                <span x-show="txn.is_emtl" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">EMTL</span>
+                                                <span x-show="txn.is_stamp_duty" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">Stamp Duty</span>
+                                                <span x-show="txn.is_vat" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">VAT</span>
+                                                <span x-show="txn.is_wht" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">WHT</span>
+                                                <span x-show="txn.is_bank_charge && !txn.is_emtl && !txn.is_stamp_duty" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">Charge</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-right text-red-600 font-medium" x-text="txn.debit_amount > 0 ? formatCurrency(txn.debit_amount) : '-'"></td>
+                                        <td class="px-4 py-3 text-sm text-right text-green-600 font-medium" x-text="txn.credit_amount > 0 ? formatCurrency(txn.credit_amount) : '-'"></td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                                  :class="{
+                                                      'bg-green-100 text-green-800': txn.match_status === 'auto_matched' || txn.match_status === 'manual_matched',
+                                                      'bg-amber-100 text-amber-800': txn.match_status === 'unmatched',
+                                                      'bg-blue-100 text-blue-800': txn.match_status === 'reconciled'
+                                                  }" x-text="txn.match_status?.replace('_', ' ') || 'unmatched'"></span>
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span x-show="txn.match_confidence" 
+                                                  class="text-sm font-medium"
+                                                  :class="{
+                                                      'confidence-high': txn.match_confidence >= 90,
+                                                      'confidence-medium': txn.match_confidence >= 70 && txn.match_confidence < 90,
+                                                      'confidence-low': txn.match_confidence < 70
+                                                  }" x-text="txn.match_confidence + '%'"></span>
+                                            <span x-show="!txn.match_confidence" class="text-gray-400">-</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                <button x-show="txn.match_status === 'unmatched'" 
+                                                        @click="showManualMatchModal(txn)"
+                                                        class="text-blue-600 hover:text-blue-800 text-sm">Match</button>
+                                                <button x-show="txn.match_status === 'auto_matched' || txn.match_status === 'manual_matched'" 
+                                                        @click="unmatchTransaction(txn)"
+                                                        class="text-red-600 hover:text-red-800 text-sm">Unmatch</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div x-show="filteredTransactions.length === 0" class="py-8 text-center text-gray-500">
+                        <p>No transactions found</p>
+                    </div>
+                </div>
+
+                <!-- Adjustments Tab -->
+                <div x-show="activeTab === 'adjustments'" class="p-4">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Affects</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Posted</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="adj in adjustments" :key="adj.id">
+                                    <tr>
+                                        <td class="px-4 py-3">
+                                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
+                                                  :class="{
+                                                      'bg-blue-100 text-blue-800': adj.adjustment_type === 'deposit_in_transit',
+                                                      'bg-purple-100 text-purple-800': adj.adjustment_type === 'outstanding_check',
+                                                      'bg-red-100 text-red-800': ['bank_charges', 'emtl', 'stamp_duty'].includes(adj.adjustment_type),
+                                                      'bg-green-100 text-green-800': adj.adjustment_type === 'interest_earned',
+                                                      'bg-gray-100 text-gray-800': !['deposit_in_transit', 'outstanding_check', 'bank_charges', 'emtl', 'stamp_duty', 'interest_earned'].includes(adj.adjustment_type)
+                                                  }" x-text="adj.adjustment_type?.replace(/_/g, ' ') || 'other'"></span>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-900" x-text="adj.description"></td>
+                                        <td class="px-4 py-3 text-sm text-right font-medium" x-text="formatCurrency(adj.amount)"></td>
+                                        <td class="px-4 py-3 text-center text-xs">
+                                            <span x-show="adj.affects_bank" class="text-blue-600 mr-1">Bank</span>
+                                            <span x-show="adj.affects_book" class="text-purple-600">Book</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span x-show="adj.is_posted" class="text-green-600">Yes</span>
+                                            <span x-show="!adj.is_posted" class="text-gray-400">No</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-right">
+                                            <button @click="deleteAdjustment(adj)" x-show="!adj.is_posted"
+                                                    class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div x-show="adjustments.length === 0" class="py-8 text-center text-gray-500">
+                        <p>No adjustments yet</p>
+                    </div>
+                    <div x-show="adjustments.length > 0 && adjustments.some(a => !a.is_posted)" class="mt-4 flex justify-end">
+                        <button @click="postAdjustments()" 
+                                class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            Post Adjustments to GL
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Unmatched Items Tab -->
+                <div x-show="activeTab === 'unmatched'" class="p-4">
+                    <div x-show="unmatchedItems.length > 0" class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="item in unmatchedItems" :key="item.id">
+                                    <tr>
+                                        <td class="px-4 py-3">
+                                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-800"
+                                                  x-text="item.item_type?.replace(/_/g, ' ') || 'unknown'"></span>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-900" x-text="formatDate(item.transaction_date)"></td>
+                                        <td class="px-4 py-3 text-sm text-gray-900" x-text="item.description"></td>
+                                        <td class="px-4 py-3 text-sm text-right font-medium" x-text="formatCurrency(item.amount)"></td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span :class="item.status === 'resolved' ? 'text-green-600' : 'text-amber-600'" x-text="item.status"></span>
+                                        </td>
+                                        <td class="px-4 py-3 text-right">
+                                            <button @click="resolveUnmatchedItem(item)" x-show="item.status !== 'resolved'"
+                                                    class="text-blue-600 hover:text-blue-800 text-sm">Resolve</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div x-show="unmatchedItems.length === 0" class="py-8 text-center text-gray-500">
+                        <p>No unmatched items</p>
+                        <button @click="autoCreateUnmatchedItems()" class="mt-2 text-blue-600 hover:underline">
+                            Auto-create from unmatched transactions
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State when no reconciliation selected -->
+            <div x-show="!currentRecon" class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                <svg class="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">No Reconciliation Selected</h3>
+                <p class="mt-2 text-gray-500">Select a bank account and reconciliation to start matching transactions.</p>
+            </div>
         </div>
     </div>
-    
-    <!-- Selected Account Reconciliation -->
-    <template x-if="selectedAccount">
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900" x-text="selectedAccount.bank_name + ' - ' + selectedAccount.account_name"></h2>
-                    <p class="text-sm text-gray-500">Import statements and match transactions</p>
-                </div>
-                <div class="flex space-x-3">
-                    <button @click="autoMatch()" :disabled="autoMatching" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors">
-                        <svg x-show="autoMatching" class="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <svg x-show="!autoMatching" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Auto-Match
-                    </button>
-                    <button @click="showReconcileModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        Complete Reconciliation
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Statement Transactions -->
-            <div class="p-6">
-                <h3 class="text-md font-semibold text-gray-800 mb-4">Statement Transactions</h3>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <template x-if="statementTransactions.length === 0">
-                                <tr>
-                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">
-                                        <p>No statement transactions. Import a bank statement to begin reconciliation.</p>
-                                    </td>
-                                </tr>
-                            </template>
-                            <template x-for="txn in statementTransactions" :key="txn.id">
-                                <tr class="hover:bg-gray-50" :class="{'bg-green-50': txn.match_status === 'reconciled' || txn.match_status === 'auto_matched'}">
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900" x-text="formatDate(txn.transaction_date)"></td>
-                                    <td class="px-4 py-3 text-sm text-gray-900" x-text="txn.description"></td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-red-600" x-text="txn.debit_amount > 0 ? formatCurrency(txn.debit_amount) : '-'"></td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-green-600" x-text="txn.credit_amount > 0 ? formatCurrency(txn.credit_amount) : '-'"></td>
-                                    <td class="px-4 py-3 whitespace-nowrap">
-                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
-                                              :class="{
-                                                  'bg-green-100 text-green-800': txn.match_status === 'reconciled' || txn.match_status === 'auto_matched',
-                                                  'bg-amber-100 text-amber-800': txn.match_status === 'unmatched',
-                                                  'bg-blue-100 text-blue-800': txn.match_status === 'manual_matched'
-                                              }"
-                                              x-text="txn.match_status.replace('_', ' ')"></span>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right">
-                                        <button x-show="txn.match_status === 'unmatched'" @click="showMatchModal(txn)" class="text-blue-600 hover:text-blue-900 text-sm">Match</button>
-                                        <button x-show="txn.match_status !== 'unmatched'" @click="unmatch(txn)" class="text-red-600 hover:text-red-900 text-sm">Unmatch</button>
-                                    </td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </template>
-    
+
+    <!-- Modals -->
     <!-- Add Bank Account Modal -->
-    <div x-show="showAccountModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
-        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="showAccountModal = false"></div>
-            <div class="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
-                <h3 class="text-lg font-medium text-gray-900 mb-4" x-text="editingAccount ? 'Edit Bank Account' : 'Add Bank Account'"></h3>
-                <form @submit.prevent="saveAccount()">
+    <div x-show="showAccountModal" x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto" 
+         @keydown.escape.window="showAccountModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showAccountModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Add Bank Account</h3>
+                <form @submit.prevent="createAccount()">
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Bank Name</label>
-                            <input type="text" x-model="accountForm.bank_name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                                <input type="text" x-model="accountForm.bank_name" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                                <input type="text" x-model="accountForm.account_number" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Account Name</label>
-                            <input type="text" x-model="accountForm.account_name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+                            <input type="text" x-model="accountForm.account_name" required
+                                   class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
+                                <select x-model="accountForm.account_type"
+                                        class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="current">Current</option>
+                                    <option value="savings">Savings</option>
+                                    <option value="domiciliary">Domiciliary</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                                <select x-model="accountForm.currency"
+                                        class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="NGN">NGN - Naira</option>
+                                    <option value="USD">USD - Dollar</option>
+                                    <option value="GBP">GBP - Pound</option>
+                                    <option value="EUR">EUR - Euro</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Opening Balance</label>
+                                <input type="number" step="0.01" x-model="accountForm.opening_balance"
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Opening Balance Date</label>
+                                <input type="date" x-model="accountForm.opening_balance_date"
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Account Number</label>
-                            <input type="text" x-model="accountForm.account_number" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Account Type</label>
-                            <select x-model="accountForm.account_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
-                                <option value="current">Current</option>
-                                <option value="savings">Savings</option>
-                                <option value="domiciliary">Domiciliary</option>
-                                <option value="fixed_deposit">Fixed Deposit</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Opening Balance</label>
-                            <input type="number" x-model="accountForm.opening_balance" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">GL Account Code (Optional)</label>
-                            <input type="text" x-model="accountForm.gl_account_code" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">GL Account Code (Optional)</label>
+                            <input type="text" x-model="accountForm.gl_account_code"
+                                   class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                         </div>
                     </div>
-                    <div class="mt-6 flex justify-end space-x-3">
-                        <button type="button" @click="showAccountModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                        <button type="submit" :disabled="savingAccount" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
-                            <span x-show="savingAccount">Saving...</span>
-                            <span x-show="!savingAccount" x-text="editingAccount ? 'Update Account' : 'Add Account'"></span>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showAccountModal = false"
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="savingAccount"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                            <span x-text="savingAccount ? 'Creating...' : 'Create Account'"></span>
                         </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-    
-    <!-- Import Statement Modal -->
-    <div x-show="showImportModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
-        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="showImportModal = false"></div>
-            <div class="inline-block w-full max-w-lg p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Import Bank Statement</h3>
-                <form @submit.prevent="importStatement()">
+
+    <!-- New Reconciliation Modal -->
+    <div x-show="showNewReconciliationModal" x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="showNewReconciliationModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showNewReconciliationModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">New Reconciliation</h3>
+                <form @submit.prevent="createReconciliation()">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Bank Account</label>
-                            <select x-model="importForm.account_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
+                            <select x-model="reconForm.bank_account_id" required
+                                    class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                                 <option value="">Select account...</option>
-                                <template x-for="account in accounts" :key="account.id">
-                                    <option :value="account.id" x-text="account.bank_name + ' - ' + account.account_name"></option>
+                                <template x-for="acc in accounts" :key="acc.id">
+                                    <option :value="acc.id" x-text="acc.bank_name + ' - ' + acc.account_number"></option>
                                 </template>
                             </select>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Period Start</label>
-                                <input type="date" x-model="importForm.period_start" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Period Start</label>
+                                <input type="date" x-model="reconForm.period_start" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Period End</label>
-                                <input type="date" x-model="importForm.period_end" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Period End</label>
+                                <input type="date" x-model="reconForm.period_end" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reconciliation Date</label>
+                            <input type="date" x-model="reconForm.reconciliation_date" required
+                                   class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Statement Opening Balance</label>
+                                <input type="number" step="0.01" x-model="reconForm.statement_opening_balance" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Statement Closing Balance</label>
+                                <input type="number" step="0.01" x-model="reconForm.statement_closing_balance" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Opening Balance</label>
-                                <input type="number" x-model="importForm.opening_balance" step="0.01" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Book Opening Balance</label>
+                                <input type="number" step="0.01" x-model="reconForm.book_opening_balance" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Closing Balance</label>
-                                <input type="number" x-model="importForm.closing_balance" step="0.01" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Book Closing Balance</label>
+                                <input type="number" step="0.01" x-model="reconForm.book_closing_balance" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Statement Transactions (JSON)</label>
-                            <textarea x-model="importForm.transactions_json" rows="6" placeholder='[{"transaction_date": "2026-01-15", "description": "Payment received", "debit_amount": 0, "credit_amount": 50000, "balance": 550000}]' class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 font-mono text-sm"></textarea>
-                            <p class="mt-1 text-xs text-gray-500">Enter transactions as JSON array</p>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reference (Optional)</label>
+                            <input type="text" x-model="reconForm.reference" placeholder="e.g., RECON-2026-01"
+                                   class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                         </div>
                     </div>
-                    <div class="mt-6 flex justify-end space-x-3">
-                        <button type="button" @click="showImportModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                        <button type="submit" :disabled="importing" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                            <span x-show="importing">Importing...</span>
-                            <span x-show="!importing">Import Statement</span>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showNewReconciliationModal = false"
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="creatingRecon"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                            <span x-text="creatingRecon ? 'Creating...' : 'Create Reconciliation'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import CSV Modal -->
+    <div x-show="showImportModal" x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="showImportModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showImportModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Import Bank Statement (CSV)</h3>
+                <form @submit.prevent="importCSV()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
+                            <select x-model="importForm.account_id" required
+                                    class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">Select account...</option>
+                                <template x-for="acc in accounts" :key="acc.id">
+                                    <option :value="acc.id" x-text="acc.bank_name + ' - ' + acc.account_number"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">CSV File</label>
+                            <input type="file" @change="handleFileSelect" accept=".csv"
+                                   class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Date Column</label>
+                                <input type="text" x-model="importForm.date_column" value="Date"
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Description Column</label>
+                                <input type="text" x-model="importForm.description_column" value="Description"
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Debit Column</label>
+                                <input type="text" x-model="importForm.debit_column" value="Debit"
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Credit Column</label>
+                                <input type="text" x-model="importForm.credit_column" value="Credit"
+                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Date Format</label>
+                            <select x-model="importForm.date_format"
+                                    class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="%Y-%m-%d">YYYY-MM-DD</option>
+                                <option value="%d/%m/%Y">DD/MM/YYYY</option>
+                                <option value="%d-%m-%Y">DD-MM-YYYY</option>
+                                <option value="%m/%d/%Y">MM/DD/YYYY</option>
+                            </select>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p class="text-sm text-blue-800">
+                                <strong>Auto-Detection:</strong> Nigerian bank charges (EMTL, Stamp Duty, VAT, WHT) will be automatically detected from transaction descriptions.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showImportModal = false"
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="importing"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                            <span x-text="importing ? 'Importing...' : 'Import'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Adjustment Modal -->
+    <div x-show="showAdjustmentModal" x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="showAdjustmentModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showAdjustmentModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Add Adjustment</h3>
+                <form @submit.prevent="addAdjustment()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Adjustment Type</label>
+                            <select x-model="adjustmentForm.adjustment_type" required
+                                    class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">Select type...</option>
+                                <option value="deposit_in_transit">Deposit in Transit</option>
+                                <option value="outstanding_check">Outstanding Check</option>
+                                <option value="bank_charges">Bank Charges</option>
+                                <option value="emtl">EMTL (Electronic Money Transfer Levy)</option>
+                                <option value="stamp_duty">Stamp Duty</option>
+                                <option value="vat">VAT</option>
+                                <option value="wht">WHT (Withholding Tax)</option>
+                                <option value="interest_earned">Interest Earned</option>
+                                <option value="sms_fee">SMS Alert Fee</option>
+                                <option value="maintenance_fee">Account Maintenance Fee</option>
+                                <option value="bank_error">Bank Error</option>
+                                <option value="book_error">Book Error</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                            <input type="number" step="0.01" x-model="adjustmentForm.amount" required
+                                   class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea x-model="adjustmentForm.description" required rows="2"
+                                      class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        </div>
+                        <div class="flex gap-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="adjustmentForm.affects_bank"
+                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">Affects Bank Balance</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="adjustmentForm.affects_book"
+                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">Affects Book Balance</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showAdjustmentModal = false"
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="addingAdjustment"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                            <span x-text="addingAdjustment ? 'Adding...' : 'Add Adjustment'"></span>
                         </button>
                     </div>
                 </form>
@@ -340,27 +801,37 @@
 </div>
 
 <script>
-function bankReconciliationPage() {
+function bankReconciliationApp() {
     return {
-        // State
+        // Data
         accounts: [],
-        statementTransactions: [],
+        reconciliations: [],
+        transactions: [],
+        adjustments: [],
+        unmatchedItems: [],
         summary: {},
-        loading: true,
-        savingAccount: false,
-        importing: false,
-        autoMatching: false,
         
-        // Selected account
+        // Selection
         selectedAccount: null,
+        currentRecon: null,
+        
+        // UI State
+        loading: true,
+        syncing: false,
+        autoMatching: false,
+        importing: false,
+        savingAccount: false,
+        creatingRecon: false,
+        addingAdjustment: false,
+        activeTab: 'transactions',
+        txnFilter: 'all',
         
         // Modals
         showAccountModal: false,
+        showNewReconciliationModal: false,
         showImportModal: false,
-        showReconcileModal: false,
-        
-        // Editing
-        editingAccount: null,
+        showAdjustmentModal: false,
+        showRejectModal: false,
         
         // Forms
         accountForm: {
@@ -370,220 +841,474 @@ function bankReconciliationPage() {
             account_type: 'current',
             currency: 'NGN',
             opening_balance: 0,
+            opening_balance_date: new Date().toISOString().split('T')[0],
             gl_account_code: ''
+        },
+        reconForm: {
+            bank_account_id: '',
+            period_start: '',
+            period_end: '',
+            reconciliation_date: new Date().toISOString().split('T')[0],
+            statement_opening_balance: 0,
+            statement_closing_balance: 0,
+            book_opening_balance: 0,
+            book_closing_balance: 0,
+            reference: ''
         },
         importForm: {
             account_id: '',
-            period_start: '',
-            period_end: '',
-            opening_balance: 0,
-            closing_balance: 0,
-            transactions_json: ''
+            file: null,
+            date_column: 'Date',
+            description_column: 'Description',
+            debit_column: 'Debit',
+            credit_column: 'Credit',
+            date_format: '%d/%m/%Y'
+        },
+        adjustmentForm: {
+            adjustment_type: '',
+            amount: 0,
+            description: '',
+            affects_bank: true,
+            affects_book: false
         },
         
+        // Computed
+        get filteredTransactions() {
+            if (this.txnFilter === 'all') return this.transactions;
+            if (this.txnFilter === 'unmatched') return this.transactions.filter(t => t.match_status === 'unmatched');
+            if (this.txnFilter === 'matched') return this.transactions.filter(t => ['auto_matched', 'manual_matched'].includes(t.match_status));
+            if (this.txnFilter === 'charges') return this.transactions.filter(t => t.is_bank_charge);
+            return this.transactions;
+        },
+        
+        // Methods
         async init() {
+            await this.loadSummary();
             await this.loadAccounts();
+            this.loading = false;
         },
         
-        getEntityId() {
-            const fromStorage = localStorage.getItem('currentEntityId');
-            if (fromStorage && fromStorage !== 'null' && fromStorage !== 'undefined') {
-                return fromStorage;
-            }
-            const cookie = document.cookie.split('; ').find(row => row.startsWith('entity_id='));
-            return cookie ? cookie.split('=')[1] : null;
+        async loadSummary() {
+            try {
+                const res = await fetch('/api/v1/entities/bank-reconciliation/summary', { credentials: 'include' });
+                if (res.ok) this.summary = await res.json();
+            } catch (e) { console.error('Error loading summary:', e); }
         },
         
         async loadAccounts() {
-            this.loading = true;
             try {
-                const response = await fetch('/api/v1/entities/bank-reconciliation/accounts', { credentials: 'include' });
-                if (response.ok) {
-                    this.accounts = await response.json();
-                    this.calculateSummary();
-                }
-            } catch (error) {
-                console.error('Error loading accounts:', error);
-            } finally {
-                this.loading = false;
-            }
+                const res = await fetch('/api/v1/entities/bank-reconciliation/accounts', { credentials: 'include' });
+                if (res.ok) this.accounts = await res.json();
+            } catch (e) { console.error('Error loading accounts:', e); }
         },
         
-        calculateSummary() {
-            let totalBalance = 0;
-            this.accounts.forEach(acc => {
-                totalBalance += parseFloat(acc.current_balance) || 0;
-            });
-            this.summary = {
-                total_balance: totalBalance,
-                matched_count: 0,
-                unmatched_count: this.statementTransactions.filter(t => t.match_status === 'unmatched').length
-            };
-        },
-        
-        selectAccount(account) {
+        async selectAccount(account) {
             this.selectedAccount = account;
-            this.loadStatementTransactions(account.id);
+            this.currentRecon = null;
+            this.transactions = [];
+            this.adjustments = [];
+            this.unmatchedItems = [];
+            await this.loadReconciliations();
         },
         
-        async loadStatementTransactions(accountId) {
+        async loadReconciliations() {
+            if (!this.selectedAccount) return;
             try {
-                // This would load transactions for the selected account
-                // For now, initialize empty
-                this.statementTransactions = [];
-            } catch (error) {
-                console.error('Error loading transactions:', error);
-            }
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations?account_id=${this.selectedAccount.id}`, { credentials: 'include' });
+                if (res.ok) this.reconciliations = await res.json();
+            } catch (e) { console.error('Error loading reconciliations:', e); }
         },
         
-        editAccount(account) {
-            this.editingAccount = account;
-            this.accountForm = {
-                bank_name: account.bank_name,
-                account_name: account.account_name,
-                account_number: account.account_number,
-                account_type: account.account_type,
-                currency: account.currency || 'NGN',
-                opening_balance: account.opening_balance,
-                gl_account_code: account.gl_account_code || ''
-            };
-            this.showAccountModal = true;
+        async selectReconciliation(recon) {
+            this.currentRecon = recon;
+            await Promise.all([
+                this.loadTransactions(),
+                this.loadAdjustments(),
+                this.loadUnmatchedItems()
+            ]);
         },
         
-        async saveAccount() {
+        async loadTransactions() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/transactions`, { credentials: 'include' });
+                if (res.ok) this.transactions = await res.json();
+            } catch (e) { console.error('Error loading transactions:', e); }
+        },
+        
+        async loadAdjustments() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/adjustments`, { credentials: 'include' });
+                if (res.ok) this.adjustments = await res.json();
+            } catch (e) { console.error('Error loading adjustments:', e); }
+        },
+        
+        async loadUnmatchedItems() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/unmatched-items`, { credentials: 'include' });
+                if (res.ok) this.unmatchedItems = await res.json();
+            } catch (e) { console.error('Error loading unmatched items:', e); }
+        },
+        
+        async createAccount() {
             this.savingAccount = true;
             try {
-                let url = '/api/v1/entities/bank-reconciliation/accounts';
-                let method = 'POST';
-                
-                if (this.editingAccount) {
-                    url = `/api/v1/entities/bank-reconciliation/accounts/${this.editingAccount.id}`;
-                    method = 'PATCH';
-                }
-                
-                const response = await fetch(url, {
-                    method,
+                const res = await fetch('/api/v1/entities/bank-reconciliation/accounts', {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify(this.accountForm)
                 });
-                
-                if (response.ok) {
+                if (res.ok) {
                     this.showAccountModal = false;
-                    this.resetAccountForm();
                     await this.loadAccounts();
+                    this.resetAccountForm();
+                    alert('Bank account created successfully');
                 } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Failed to save account');
+                    const err = await res.json();
+                    alert(err.detail || 'Failed to create account');
                 }
-            } catch (error) {
-                console.error('Error saving account:', error);
-                alert('An error occurred while saving the account');
+            } catch (e) {
+                alert('Error creating account');
             } finally {
                 this.savingAccount = false;
             }
         },
         
-        resetAccountForm() {
-            this.editingAccount = null;
-            this.accountForm = {
-                bank_name: '',
-                account_name: '',
-                account_number: '',
-                account_type: 'current',
-                currency: 'NGN',
-                opening_balance: 0,
-                gl_account_code: ''
-            };
-        },
-        
-        async importStatement() {
-            this.importing = true;
+        async createReconciliation() {
+            this.creatingRecon = true;
             try {
-                let transactions = [];
-                try {
-                    transactions = JSON.parse(this.importForm.transactions_json || '[]');
-                } catch (e) {
-                    alert('Invalid JSON format for transactions');
-                    this.importing = false;
-                    return;
-                }
-                
-                const payload = {
-                    statement_date: this.importForm.period_end,
-                    period_start: this.importForm.period_start,
-                    period_end: this.importForm.period_end,
-                    opening_balance: parseFloat(this.importForm.opening_balance),
-                    closing_balance: parseFloat(this.importForm.closing_balance),
-                    transactions: transactions
-                };
-                
-                const response = await fetch(`/api/v1/entities/bank-reconciliation/accounts/${this.importForm.account_id}/statements`, {
+                const res = await fetch('/api/v1/entities/bank-reconciliation/reconciliations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(this.reconForm)
                 });
-                
-                if (response.ok) {
-                    this.showImportModal = false;
-                    this.resetImportForm();
-                    alert('Statement imported successfully');
-                    // If this account is selected, reload its transactions
-                    if (this.selectedAccount && this.selectedAccount.id === this.importForm.account_id) {
-                        await this.loadStatementTransactions(this.selectedAccount.id);
+                if (res.ok) {
+                    const recon = await res.json();
+                    this.showNewReconciliationModal = false;
+                    
+                    // Select the account if different
+                    const account = this.accounts.find(a => a.id === this.reconForm.bank_account_id);
+                    if (account && this.selectedAccount?.id !== account.id) {
+                        await this.selectAccount(account);
+                    } else {
+                        await this.loadReconciliations();
                     }
+                    
+                    // Select the new reconciliation
+                    await this.selectReconciliation(recon);
+                    this.resetReconForm();
+                    alert('Reconciliation created successfully');
                 } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Failed to import statement');
+                    const err = await res.json();
+                    alert(err.detail || 'Failed to create reconciliation');
                 }
-            } catch (error) {
-                console.error('Error importing statement:', error);
-                alert('An error occurred while importing the statement');
+            } catch (e) {
+                alert('Error creating reconciliation');
+            } finally {
+                this.creatingRecon = false;
+            }
+        },
+        
+        async syncFromBank() {
+            if (!this.selectedAccount) return;
+            this.syncing = true;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/accounts/${this.selectedAccount.id}/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        start_date: this.currentRecon?.period_start,
+                        end_date: this.currentRecon?.period_end,
+                        reconciliation_id: this.currentRecon?.id
+                    })
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    alert(`Synced ${result.imported_count} transactions. ${result.charges_detected} charges detected.`);
+                    if (this.currentRecon) await this.loadTransactions();
+                } else {
+                    alert(result.detail || 'Sync failed');
+                }
+            } catch (e) {
+                alert('Error syncing from bank');
+            } finally {
+                this.syncing = false;
+            }
+        },
+        
+        handleFileSelect(e) {
+            this.importForm.file = e.target.files[0];
+        },
+        
+        async importCSV() {
+            if (!this.importForm.file || !this.importForm.account_id) return;
+            this.importing = true;
+            try {
+                const formData = new FormData();
+                formData.append('file', this.importForm.file);
+                
+                const url = new URL(`/api/v1/entities/bank-reconciliation/accounts/${this.importForm.account_id}/import/csv`, window.location.origin);
+                url.searchParams.set('date_column', this.importForm.date_column);
+                url.searchParams.set('description_column', this.importForm.description_column);
+                url.searchParams.set('debit_column', this.importForm.debit_column);
+                url.searchParams.set('credit_column', this.importForm.credit_column);
+                url.searchParams.set('date_format', this.importForm.date_format);
+                if (this.currentRecon) url.searchParams.set('reconciliation_id', this.currentRecon.id);
+                
+                const res = await fetch(url, {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    this.showImportModal = false;
+                    alert(`Imported ${result.imported} transactions. ${result.charges_detected} charges detected.`);
+                    if (this.currentRecon) await this.loadTransactions();
+                } else {
+                    alert(result.detail || 'Import failed');
+                }
+            } catch (e) {
+                alert('Error importing CSV');
             } finally {
                 this.importing = false;
             }
         },
         
-        resetImportForm() {
-            this.importForm = {
-                account_id: '',
-                period_start: '',
-                period_end: '',
-                opening_balance: 0,
-                closing_balance: 0,
-                transactions_json: ''
-            };
-        },
-        
-        async autoMatch() {
-            if (!this.selectedAccount) return;
-            
+        async runAutoMatch() {
+            if (!this.currentRecon) return;
             this.autoMatching = true;
             try {
-                // This would call the auto-match endpoint
-                alert('Auto-matching feature will match statement transactions with book transactions based on amount, date, and description similarity.');
-            } catch (error) {
-                console.error('Error auto-matching:', error);
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/auto-match`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({})
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    alert(`Auto-matched ${result.auto_matched} of ${result.total_unmatched} transactions.`);
+                    await this.loadTransactions();
+                    await this.refreshCurrentRecon();
+                } else {
+                    alert(result.detail || 'Auto-match failed');
+                }
+            } catch (e) {
+                alert('Error running auto-match');
             } finally {
                 this.autoMatching = false;
             }
         },
         
-        showMatchModal(txn) {
-            alert(`Manual matching for transaction: ${txn.description}`);
+        async autoCreateChargeAdjustments() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/adjustments/auto-create-charges`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    alert(`Created ${result.adjustments_created} charge adjustments.`);
+                    await this.loadAdjustments();
+                    await this.refreshCurrentRecon();
+                } else {
+                    alert(result.detail || 'Failed to auto-create adjustments');
+                }
+            } catch (e) {
+                alert('Error auto-creating adjustments');
+            }
         },
         
-        async unmatch(txn) {
-            if (!confirm('Are you sure you want to unmatch this transaction?')) return;
-            // Implement unmatch logic
+        async addAdjustment() {
+            if (!this.currentRecon) return;
+            this.addingAdjustment = true;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/adjustments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.adjustmentForm)
+                });
+                if (res.ok) {
+                    this.showAdjustmentModal = false;
+                    await this.loadAdjustments();
+                    await this.refreshCurrentRecon();
+                    this.resetAdjustmentForm();
+                } else {
+                    const err = await res.json();
+                    alert(err.detail || 'Failed to add adjustment');
+                }
+            } catch (e) {
+                alert('Error adding adjustment');
+            } finally {
+                this.addingAdjustment = false;
+            }
         },
         
+        async deleteAdjustment(adj) {
+            if (!confirm('Delete this adjustment?')) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/adjustments/${adj.id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    await this.loadAdjustments();
+                    await this.refreshCurrentRecon();
+                }
+            } catch (e) {
+                alert('Error deleting adjustment');
+            }
+        },
+        
+        async postAdjustments() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/adjustments/post`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    alert(`Posted ${result.posted} adjustments to GL.`);
+                    await this.loadAdjustments();
+                }
+            } catch (e) {
+                alert('Error posting adjustments');
+            }
+        },
+        
+        async unmatchTransaction(txn) {
+            if (!confirm('Unmatch this transaction?')) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/transactions/${txn.id}/unmatch`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    await this.loadTransactions();
+                    await this.refreshCurrentRecon();
+                }
+            } catch (e) {
+                alert('Error unmatching transaction');
+            }
+        },
+        
+        showManualMatchModal(txn) {
+            // Simplified - would need a proper modal for selecting book transactions
+            alert('Manual matching: Select book transactions to match with this statement transaction.');
+        },
+        
+        async submitForReview() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/submit`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    alert('Submitted for review');
+                    await this.refreshCurrentRecon();
+                }
+            } catch (e) {
+                alert('Error submitting for review');
+            }
+        },
+        
+        async approveReconciliation() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/approve`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    alert('Reconciliation approved');
+                    await this.refreshCurrentRecon();
+                }
+            } catch (e) {
+                alert('Error approving reconciliation');
+            }
+        },
+        
+        async autoCreateUnmatchedItems() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/unmatched-items/auto-create`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    alert(`Created ${result.items_created} unmatched items.`);
+                    await this.loadUnmatchedItems();
+                }
+            } catch (e) {
+                alert('Error creating unmatched items');
+            }
+        },
+        
+        async resolveUnmatchedItem(item) {
+            const resolution = prompt('Enter resolution:');
+            if (!resolution) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/unmatched-items/${item.id}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ resolution })
+                });
+                if (res.ok) {
+                    await this.loadUnmatchedItems();
+                }
+            } catch (e) {
+                alert('Error resolving item');
+            }
+        },
+        
+        async refreshCurrentRecon() {
+            if (!this.currentRecon) return;
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}`, { credentials: 'include' });
+                if (res.ok) this.currentRecon = await res.json();
+            } catch (e) { console.error(e); }
+        },
+        
+        // Form resets
+        resetAccountForm() {
+            this.accountForm = {
+                bank_name: '', account_name: '', account_number: '',
+                account_type: 'current', currency: 'NGN',
+                opening_balance: 0, opening_balance_date: new Date().toISOString().split('T')[0],
+                gl_account_code: ''
+            };
+        },
+        resetReconForm() {
+            this.reconForm = {
+                bank_account_id: '', period_start: '', period_end: '',
+                reconciliation_date: new Date().toISOString().split('T')[0],
+                statement_opening_balance: 0, statement_closing_balance: 0,
+                book_opening_balance: 0, book_closing_balance: 0, reference: ''
+            };
+        },
+        resetAdjustmentForm() {
+            this.adjustmentForm = {
+                adjustment_type: '', amount: 0, description: '',
+                affects_bank: true, affects_book: false
+            };
+        },
+        
+        // Formatters
         formatCurrency(value) {
             const num = parseFloat(value) || 0;
             return '₦' + num.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         },
-        
         formatDate(dateStr) {
             if (!dateStr) return '';
             return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -591,8 +1316,4 @@ function bankReconciliationPage() {
     };
 }
 </script>
-
-<style>
-[x-cloak] { display: none !important; }
-</style>
 {% endblock %}
