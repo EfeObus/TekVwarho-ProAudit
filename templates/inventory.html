@@ -306,8 +306,22 @@ function inventoryPage() {
         },
         
         async init() {
-            // Validate entity_id before loading
-            const entityId = localStorage.getItem('currentEntityId');
+            // Get entity_id from localStorage or cookie
+            let entityId = localStorage.getItem('currentEntityId');
+            
+            // Fallback to cookie if localStorage is empty
+            if (!entityId || entityId === 'null' || entityId === 'undefined') {
+                const cookies = document.cookie.split(';');
+                for (let cookie of cookies) {
+                    const [name, value] = cookie.trim().split('=');
+                    if (name === 'entity_id' && value) {
+                        entityId = value;
+                        localStorage.setItem('currentEntityId', value);
+                        break;
+                    }
+                }
+            }
+            
             if (!entityId || entityId === 'null' || entityId === 'undefined') {
                 window.location.href = '/select-entity?next=/inventory';
                 return;
@@ -321,7 +335,8 @@ function inventoryPage() {
                 const token = localStorage.getItem('token');
                 
                 const response = await fetch(`/api/v1/entities/${entityId}/inventory`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include'
                 });
                 
                 if (response.ok) {
@@ -414,6 +429,7 @@ function inventoryPage() {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
+                    credentials: 'include',
                     body: JSON.stringify(this.form),
                 });
                 
@@ -464,6 +480,7 @@ function inventoryPage() {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
+                    credentials: 'include',
                     body: JSON.stringify(body),
                 });
                 

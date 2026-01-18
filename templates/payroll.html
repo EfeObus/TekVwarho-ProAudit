@@ -4,6 +4,58 @@
 
 {% block content %}
 <div x-data="payrollPage()" x-init="init()">
+    <!-- Toast Notification -->
+    <div x-show="toast.show" 
+         x-transition:enter="transform ease-out duration-300 transition"
+         x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+         x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
+         x-transition:leave="transition ease-in duration-100"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed top-4 right-4 z-50"
+         @click="toast.show = false">
+        <div :class="{
+            'bg-green-50 border-green-400 text-green-800': toast.type === 'success',
+            'bg-red-50 border-red-400 text-red-800': toast.type === 'error',
+            'bg-yellow-50 border-yellow-400 text-yellow-800': toast.type === 'warning',
+            'bg-blue-50 border-blue-400 text-blue-800': toast.type === 'info'
+        }" class="flex items-center p-4 rounded-lg shadow-lg border min-w-[320px] max-w-md">
+            <!-- Success Icon -->
+            <template x-if="toast.type === 'success'">
+                <svg class="w-6 h-6 mr-3 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </template>
+            <!-- Error Icon -->
+            <template x-if="toast.type === 'error'">
+                <svg class="w-6 h-6 mr-3 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </template>
+            <!-- Warning Icon -->
+            <template x-if="toast.type === 'warning'">
+                <svg class="w-6 h-6 mr-3 text-yellow-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </template>
+            <!-- Info Icon -->
+            <template x-if="toast.type === 'info'">
+                <svg class="w-6 h-6 mr-3 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </template>
+            <div class="flex-1">
+                <p class="font-medium" x-text="toast.title"></p>
+                <p x-show="toast.message" class="text-sm mt-1 opacity-90" x-text="toast.message"></p>
+            </div>
+            <button @click.stop="toast.show = false" class="ml-4 text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
@@ -33,10 +85,10 @@
             <button @click="activeTab = 'dashboard'" :class="activeTab === 'dashboard' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
                 Dashboard
             </button>
-            <button @click="activeTab = 'employees'" :class="activeTab === 'employees' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
+            <button @click="activeTab = 'employees'; loadEmployees()" :class="activeTab === 'employees' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
                 Employees
             </button>
-            <button @click="activeTab = 'payroll-runs'" :class="activeTab === 'payroll-runs' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
+            <button @click="activeTab = 'payroll-runs'; loadPayrollRuns()" :class="activeTab === 'payroll-runs' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
                 Payroll Runs
             </button>
             <button @click="activeTab = 'remittances'" :class="activeTab === 'remittances' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'" class="whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm">
@@ -803,12 +855,90 @@
                 <h2 class="text-lg font-semibold text-gray-900">Payroll Impact Preview</h2>
                 <p class="text-sm text-gray-500 mt-1">Compare current vs. previous payroll runs with variance analysis</p>
             </div>
-            <button @click="refreshImpactPreview()" :disabled="impactLoading" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
-                <svg :class="impactLoading ? 'animate-spin' : ''" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-                Refresh
-            </button>
+            <div class="flex items-center gap-3">
+                <select x-model="impactPreviewYear" @change="loadImpactPreviewHistory()" class="rounded-lg border-gray-300 text-sm">
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                    <option value="2022">2022</option>
+                    <option value="2021">2021</option>
+                    <option value="2020">2020</option>
+                    <option value="2019">2019</option>
+                    <option value="2018">2018</option>
+                    <option value="2017">2017</option>
+                    <option value="2016">2016</option>
+                    <option value="2015">2015</option>
+                </select>
+                <button @click="refreshImpactPreview()" :disabled="impactLoading" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    <svg :class="impactLoading ? 'animate-spin' : ''" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Impact Preview History (Yearly) -->
+        <div x-show="impactPreviewHistory.length > 0" class="mb-6">
+            <div class="bg-white rounded-lg border shadow-sm">
+                <div class="px-4 py-3 border-b bg-gray-50">
+                    <h3 class="font-semibold text-gray-900">Impact Review History - <span x-text="impactPreviewYear"></span></h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Payroll</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Payroll</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">PAYE Tax</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Variance</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Employees</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="preview in impactPreviewHistory" :key="preview.id">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900" x-text="preview.payroll_run_name || preview.period_name || formatDate(preview.generated_at)"></td>
+                                    <td class="px-4 py-3 text-sm text-right text-gray-900">₦<span x-text="formatNumber(preview.current_gross || 0)"></span></td>
+                                    <td class="px-4 py-3 text-sm text-right text-gray-900">₦<span x-text="formatNumber(preview.current_net || 0)"></span></td>
+                                    <td class="px-4 py-3 text-sm text-right text-gray-600">₦<span x-text="formatNumber(preview.current_paye || 0)"></span></td>
+                                    <td class="px-4 py-3 text-sm text-right">
+                                        <span :class="(preview.gross_variance || 0) >= 0 ? 'text-red-600' : 'text-green-600'">
+                                            <span x-text="(preview.gross_variance || 0) >= 0 ? '+' : ''"></span>₦<span x-text="formatNumber(Math.abs(preview.gross_variance || 0))"></span>
+                                            (<span x-text="((preview.gross_variance_percent || 0) >= 0 ? '+' : '') + (preview.gross_variance_percent || 0).toFixed(1)"></span>%)
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-center text-gray-600" x-text="preview.current_employee_count || 0"></td>
+                                    <td class="px-4 py-3 text-center">
+                                        <button @click="viewImpactPreviewDetails(preview)" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="View Details">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        <!-- Yearly Totals Row -->
+                        <tfoot class="bg-gray-100">
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-bold text-gray-900">Year Total (<span x-text="impactPreviewHistory.length"></span> payrolls)</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">₦<span x-text="formatNumber(impactPreviewHistory.reduce((sum, p) => sum + (p.current_gross || 0), 0))"></span></td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">₦<span x-text="formatNumber(impactPreviewHistory.reduce((sum, p) => sum + (p.current_net || 0), 0))"></span></td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-gray-600">₦<span x-text="formatNumber(impactPreviewHistory.reduce((sum, p) => sum + (p.current_paye || 0), 0))"></span></td>
+                                <td class="px-4 py-3 text-sm text-right font-bold">
+                                    <span :class="impactPreviewHistory.reduce((sum, p) => sum + (p.gross_variance || 0), 0) >= 0 ? 'text-red-600' : 'text-green-600'">
+                                        ₦<span x-text="formatNumber(Math.abs(impactPreviewHistory.reduce((sum, p) => sum + (p.gross_variance || 0), 0)))"></span>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-center font-bold text-gray-600">-</td>
+                                <td class="px-4 py-3"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- Impact Preview Content -->
@@ -1051,20 +1181,28 @@
             </div>
         </div>
 
-        <!-- No Preview State -->
-        <div x-show="impactPreview && impactPreview.has_preview === false" class="bg-white rounded-lg border shadow-sm p-8 text-center">
+        <!-- No Preview State - Show when no latest preview but check for history -->
+        <div x-show="(!impactPreview || impactPreview.has_preview === false) && impactPreviewHistory.length === 0 && !impactLoading" class="bg-white rounded-lg border shadow-sm p-8 text-center">
             <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
             </svg>
-            <h3 class="text-lg font-medium text-gray-900 mb-2">No Impact Preview Available</h3>
-            <p class="text-gray-500 mb-4">Run a payroll first to generate impact analysis comparing current vs. previous periods.</p>
-            <button @click="activeTab = 'payroll-runs'" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                Go to Payroll Runs
-            </button>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No Impact Preview for <span x-text="impactPreviewYear"></span></h3>
+            <p class="text-gray-500 mb-4">Run a payroll first to generate impact analysis comparing current vs. previous periods, or select a different year.</p>
+            <div class="flex justify-center gap-3">
+                <button @click="activeTab = 'payroll-runs'" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    Go to Payroll Runs
+                </button>
+                <button @click="showRunPayrollModal = true; initPayrollDates()" class="inline-flex items-center px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Create Payroll Run
+                </button>
+            </div>
         </div>
 
         <!-- Loading State -->
-        <div x-show="!impactPreview && impactLoading" class="bg-white rounded-lg shadow-sm border p-8 text-center">
+        <div x-show="impactLoading" class="bg-white rounded-lg shadow-sm border p-8 text-center">
             <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p class="text-gray-500">Loading impact preview...</p>
         </div>
@@ -1535,6 +1673,157 @@
         </div>
     </div>
 
+    <!-- Decision Log Detail Modal -->
+    <div x-show="showLogDetailModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showLogDetailModal = false"></div>
+            <div class="relative bg-white rounded-lg max-w-2xl w-full z-10 shadow-xl">
+                <!-- Header -->
+                <div class="flex items-center justify-between px-6 py-4 border-b bg-gray-50 rounded-t-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-lg" :class="{
+                            'bg-green-100 text-green-600': selectedLog?.decision_type === 'approval',
+                            'bg-amber-100 text-amber-600': selectedLog?.decision_type === 'adjustment',
+                            'bg-red-100 text-red-600': selectedLog?.decision_type === 'exception_override',
+                            'bg-blue-100 text-blue-600': selectedLog?.decision_type === 'note'
+                        }">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Decision Log Details</h3>
+                            <p class="text-sm text-gray-500" x-text="selectedLog?.decision_type?.replace('_', ' ').toUpperCase() + ' - ' + selectedLog?.category?.toUpperCase()"></p>
+                        </div>
+                    </div>
+                    <button @click="showLogDetailModal = false" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Body -->
+                <div class="px-6 py-4 space-y-4">
+                    <!-- Title -->
+                    <div>
+                        <h4 class="text-xl font-semibold text-gray-900" x-text="selectedLog?.title"></h4>
+                        <div class="flex items-center gap-3 mt-2">
+                            <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                :class="{
+                                    'bg-green-100 text-green-800': selectedLog?.decision_type === 'approval',
+                                    'bg-amber-100 text-amber-800': selectedLog?.decision_type === 'adjustment',
+                                    'bg-red-100 text-red-800': selectedLog?.decision_type === 'exception_override',
+                                    'bg-blue-100 text-blue-800': selectedLog?.decision_type === 'note'
+                                }"
+                                x-text="selectedLog?.decision_type?.replace('_', ' ')">
+                            </span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700" x-text="selectedLog?.category"></span>
+                            <span x-show="selectedLog?.is_locked" class="px-2 py-1 text-xs font-medium rounded-full bg-gray-800 text-white flex items-center">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                Locked
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-medium text-gray-500 mb-2">Description</p>
+                        <p class="text-gray-700 whitespace-pre-wrap" x-text="selectedLog?.description"></p>
+                    </div>
+
+                    <!-- Metadata -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-blue-50 rounded-lg p-3">
+                            <p class="text-xs font-medium text-blue-600 mb-1">Created By</p>
+                            <p class="text-sm font-medium text-gray-900" x-text="selectedLog?.created_by_name"></p>
+                            <p class="text-xs text-gray-500" x-text="selectedLog?.created_by_role"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-xs font-medium text-gray-600 mb-1">Created At</p>
+                            <p class="text-sm font-medium text-gray-900" x-text="formatDateTime(selectedLog?.created_at)"></p>
+                        </div>
+                    </div>
+
+                    <!-- Context Data (if any) -->
+                    <div x-show="selectedLog?.context_data && Object.keys(selectedLog.context_data).length > 0" class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-medium text-gray-500 mb-2">Context Data</p>
+                        <pre class="text-xs text-gray-600 overflow-auto max-h-40 bg-white rounded p-2 border" x-text="JSON.stringify(selectedLog?.context_data, null, 2)"></pre>
+                    </div>
+
+                    <!-- Hash Verification -->
+                    <div class="bg-gradient-to-r from-gray-50 to-green-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-700">Integrity Hash</p>
+                                <p class="text-xs font-mono text-gray-500 mt-1" x-text="selectedLog?.content_hash ? selectedLog.content_hash.substring(0, 32) + '...' : 'No hash'"></p>
+                            </div>
+                            <button @click="verifyLogIntegrity(selectedLog?.id)" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 inline-flex items-center">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                Verify
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t bg-gray-50 rounded-b-lg flex justify-end">
+                    <button @click="showLogDetailModal = false" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Integrity Verification Result Modal -->
+    <div x-show="showIntegrityModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showIntegrityModal = false"></div>
+            <div class="relative bg-white rounded-lg max-w-md w-full z-10 shadow-xl">
+                <!-- Header -->
+                <div class="px-6 py-4 border-b" :class="integrityResult?.has_hash ? 'bg-green-50' : 'bg-amber-50'">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-full" :class="integrityResult?.has_hash ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
+                            <svg x-show="integrityResult?.has_hash" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                            </svg>
+                            <svg x-show="!integrityResult?.has_hash" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold" :class="integrityResult?.has_hash ? 'text-green-800' : 'text-amber-800'" x-text="integrityResult?.has_hash ? 'Integrity Verified' : 'Verification Warning'"></h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Body -->
+                <div class="px-6 py-4 space-y-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-gray-600">Hash Status</span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full" :class="integrityResult?.has_hash ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="integrityResult?.has_hash ? 'Valid' : 'Not Found'"></span>
+                        </div>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-gray-600">Lock Status</span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full" :class="integrityResult?.is_locked ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600'" x-text="integrityResult?.is_locked ? 'Locked' : 'Unlocked'"></span>
+                        </div>
+                        <div x-show="integrityResult?.content_hash" class="mt-3 pt-3 border-t">
+                            <p class="text-xs font-medium text-gray-500 mb-1">Content Hash</p>
+                            <p class="text-xs font-mono text-gray-600 break-all bg-white p-2 rounded border" x-text="integrityResult?.content_hash"></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <p class="text-sm text-blue-700" x-text="integrityResult?.verification_note || 'No additional notes'"></p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t bg-gray-50 rounded-b-lg flex justify-end">
+                    <button @click="showIntegrityModal = false" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- YTD Ledger Tab -->
     <div x-show="activeTab === 'ytd-ledger'" x-transition>
         <div class="flex justify-between items-center mb-6">
@@ -1781,6 +2070,194 @@
         </div>
     </div>
 
+    <!-- Salary Calculator Modal -->
+    <div x-show="showCalculatorModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4 py-6">
+            <div class="fixed inset-0 bg-black/50" @click="showCalculatorModal = false"></div>
+            <div class="relative bg-white rounded-xl max-w-4xl w-full p-6 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-bold text-gray-900">Nigerian Salary Calculator</h3>
+                    <button @click="showCalculatorModal = false" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Input Form -->
+                    <div class="space-y-4">
+                        <h4 class="font-semibold text-gray-800 border-b pb-2">Salary Components</h4>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Basic Salary (Monthly) *</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">₦</span>
+                                <input type="number" x-model.number="calcForm.basic_salary" min="1" required 
+                                    class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    placeholder="e.g., 500000">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Housing Allowance</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">₦</span>
+                                    <input type="number" x-model.number="calcForm.housing_allowance" min="0"
+                                        class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Transport Allowance</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">₦</span>
+                                    <input type="number" x-model.number="calcForm.transport_allowance" min="0"
+                                        class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Meal Allowance</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">₦</span>
+                                    <input type="number" x-model.number="calcForm.meal_allowance" min="0"
+                                        class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Utility Allowance</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">₦</span>
+                                    <input type="number" x-model.number="calcForm.utility_allowance" min="0"
+                                        class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h4 class="font-semibold text-gray-800 border-b pb-2 mt-6">Statutory Options</h4>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Pension Contribution %</label>
+                                <input type="number" x-model.number="calcForm.pension_percentage" min="0" max="20" step="0.5"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    placeholder="8">
+                            </div>
+                            <div class="flex flex-col justify-end">
+                                <label class="flex items-center space-x-2 cursor-pointer">
+                                    <input type="checkbox" x-model="calcForm.is_pension_exempt" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                    <span class="text-sm text-gray-700">Pension Exempt</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4">
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" x-model="calcForm.is_nhf_exempt" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                <span class="text-sm text-gray-700">NHF Exempt</span>
+                            </label>
+                        </div>
+                        
+                        <button @click="calculateSalary()" :disabled="!calcForm.basic_salary || calcForm.basic_salary <= 0"
+                            class="w-full mt-4 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors">
+                            <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                            </svg>
+                            Calculate Breakdown
+                        </button>
+                    </div>
+                    
+                    <!-- Results Display -->
+                    <div>
+                        <template x-if="!calcResult">
+                            <div class="h-full flex items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8">
+                                <div class="text-center">
+                                    <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <p class="text-gray-500">Enter salary details and click Calculate to see the breakdown</p>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <template x-if="calcResult">
+                            <div class="space-y-4">
+                                <!-- Net Pay Highlight -->
+                                <div class="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4 text-center">
+                                    <p class="text-sm opacity-90">Monthly Net Pay</p>
+                                    <p class="text-3xl font-bold">₦<span x-text="formatNumber(calcResult.monthly_net_pay)"></span></p>
+                                    <p class="text-xs opacity-75 mt-1">Annual: ₦<span x-text="formatNumber(calcResult.annual_net_pay)"></span></p>
+                                </div>
+                                
+                                <!-- Earnings -->
+                                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                                    <h5 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                        Earnings (Monthly)
+                                    </h5>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between"><span class="text-gray-600">Basic Salary</span><span class="font-medium">₦<span x-text="formatNumber(calcResult.basic_salary)"></span></span></div>
+                                        <div class="flex justify-between" x-show="calcResult.housing_allowance > 0"><span class="text-gray-600">Housing</span><span>₦<span x-text="formatNumber(calcResult.housing_allowance)"></span></span></div>
+                                        <div class="flex justify-between" x-show="calcResult.transport_allowance > 0"><span class="text-gray-600">Transport</span><span>₦<span x-text="formatNumber(calcResult.transport_allowance)"></span></span></div>
+                                        <div class="flex justify-between" x-show="calcResult.meal_allowance > 0"><span class="text-gray-600">Meal</span><span>₦<span x-text="formatNumber(calcResult.meal_allowance)"></span></span></div>
+                                        <div class="flex justify-between" x-show="calcResult.utility_allowance > 0"><span class="text-gray-600">Utility</span><span>₦<span x-text="formatNumber(calcResult.utility_allowance)"></span></span></div>
+                                        <div class="flex justify-between font-semibold border-t pt-2"><span>Gross Pay</span><span class="text-green-600">₦<span x-text="formatNumber(calcResult.monthly_gross)"></span></span></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Deductions -->
+                                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                                    <h5 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                                        Deductions (Monthly)
+                                    </h5>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between"><span class="text-gray-600">PAYE Tax</span><span class="text-red-600">-₦<span x-text="formatNumber(calcResult.monthly_paye)"></span></span></div>
+                                        <div class="flex justify-between" x-show="calcResult.pension_employee > 0"><span class="text-gray-600">Pension (Employee)</span><span class="text-red-600">-₦<span x-text="formatNumber(calcResult.pension_employee)"></span></span></div>
+                                        <div class="flex justify-between" x-show="calcResult.nhf > 0"><span class="text-gray-600">NHF</span><span class="text-red-600">-₦<span x-text="formatNumber(calcResult.nhf)"></span></span></div>
+                                        <div class="flex justify-between font-semibold border-t pt-2"><span>Total Deductions</span><span class="text-red-600">-₦<span x-text="formatNumber(calcResult.total_monthly_deductions)"></span></span></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tax Info -->
+                                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h5 class="font-semibold text-blue-800 mb-2">Tax Summary</h5>
+                                    <div class="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <p class="text-blue-600">Effective Tax Rate</p>
+                                            <p class="font-semibold text-blue-900"><span x-text="calcResult.effective_tax_rate?.toFixed(2) || 0"></span>%</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-blue-600">Annual PAYE</p>
+                                            <p class="font-semibold text-blue-900">₦<span x-text="formatNumber(calcResult.annual_paye)"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Employer Cost -->
+                                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                    <h5 class="font-semibold text-purple-800 mb-2">Employer Contributions (Monthly)</h5>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between" x-show="calcResult.pension_employer > 0"><span class="text-purple-600">Pension (Employer)</span><span>₦<span x-text="formatNumber(calcResult.pension_employer)"></span></span></div>
+                                        <div class="flex justify-between" x-show="calcResult.nsitf > 0"><span class="text-purple-600">NSITF</span><span>₦<span x-text="formatNumber(calcResult.nsitf)"></span></span></div>
+                                        <div class="flex justify-between font-semibold border-t pt-2"><span>Total Employer Cost</span><span class="text-purple-900">₦<span x-text="formatNumber(calcResult.total_employer_cost)"></span></span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Ghost Worker Detection Tab -->
     <div x-show="activeTab === 'ghost-detection'" x-transition>
         <div class="flex justify-between items-center mb-6">
@@ -1879,12 +2356,21 @@
     {% include "partials/payroll/run_payroll_modal.html" %}
     {% include "partials/payroll/salary_calculator_modal.html" %}
     {% include "partials/payroll/payslip_modal.html" %}
+    {% include "partials/payroll/loan_modal.html" %}
 </div>
 
 <script>
 function payrollPage() {
     return {
         activeTab: 'dashboard',
+        
+        // Toast Notification
+        toast: {
+            show: false,
+            type: 'success',
+            title: '',
+            message: ''
+        },
         
         // Dashboard
         stats: {},
@@ -1927,6 +2413,25 @@ function payrollPage() {
         exceptionSeverityFilter: '',
         exceptionAcknowledgedFilter: '',
         selectedExceptions: [],
+        
+        // Loans & Advances
+        showLoanModal: false,
+        showEmployeeLoansModal: false,
+        employeeLoans: [],
+        employeeLoansLoading: false,
+        selectedLoanEmployee: null,
+        loanSaving: false,
+        loanForm: {
+            id: null,
+            employee_id: '',
+            loan_type: 'loan',
+            principal_amount: '',
+            interest_rate: '0',
+            tenure_months: '',
+            start_date: '',
+            description: '',
+            notes: '',
+        },
         
         // Decision Logs
         decisionLogs: [],
@@ -1977,31 +2482,85 @@ function payrollPage() {
         ghostScanResult: null,
         ghostLoading: false,
         
+        // Decision Log Detail Modal
+        showLogDetailModal: false,
+        selectedLog: null,
+        showIntegrityModal: false,
+        integrityResult: null,
+        
+        // Impact Preview
+        impactPreviewYear: new Date().getFullYear(),
+        impactPreviewHistory: [],
+        
         // Modals
         showEmployeeModal: false,
         showRunPayrollModal: false,
         showCalculatorModal: false,
         showLoanModal: false,
         showPayslipModal: false,
+        selectedPayslip: null,
         
         // Forms
         employeeForm: {},
-        payrollForm: {},
+        payrollForm: {
+            name: '',
+            payroll_type: 'monthly',
+            period_month: new Date().getMonth() + 1,
+            period_year: new Date().getFullYear(),
+            period_start: '',
+            period_end: '',
+            payment_date: '',
+            department: '',
+            include_all_employees: true
+        },
         editingEmployee: null,
         
         // Calculator
         calcResult: null,
+        calcForm: {
+            basic_salary: 0,
+            housing_allowance: 0,
+            transport_allowance: 0,
+            meal_allowance: 0,
+            utility_allowance: 0,
+            other_allowances: {},
+            pension_percentage: 8,
+            is_pension_exempt: false,
+            is_nhf_exempt: false
+        },
         
         async init() {
             await this.loadDashboard();
             await this.loadDepartments();
+            await this.loadEmployees();
+            await this.loadPayrollRuns();
+        },
+        
+        showToast(type, title, message = '', duration = 4000) {
+            this.toast = { show: true, type, title, message };
+            if (duration > 0) {
+                setTimeout(() => { this.toast.show = false; }, duration);
+            }
+        },
+        
+        initPayrollDates() {
+            const year = this.payrollForm.period_year;
+            const month = this.payrollForm.period_month;
+            const lastDay = new Date(year, month, 0).getDate();
+            this.payrollForm.period_start = `${year}-${String(month).padStart(2, '0')}-01`;
+            this.payrollForm.period_end = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+            this.payrollForm.payment_date = this.payrollForm.period_end;
+            this.payrollForm.name = `Payroll - ${['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][month]} ${year}`;
         },
         
         async loadDashboard() {
             try {
-                const response = await fetch('/api/v1/payroll/dashboard');
+                const response = await authFetch('/api/v1/payroll/dashboard', { credentials: 'include' });
                 if (response.ok) {
                     this.stats = await response.json();
+                } else {
+                    const error = await response.json();
+                    console.error('Dashboard API error:', response.status, error);
                 }
             } catch (error) {
                 console.error('Error loading dashboard:', error);
@@ -2010,7 +2569,7 @@ function payrollPage() {
         
         async loadDepartments() {
             try {
-                const response = await fetch('/api/v1/payroll/employees/departments');
+                const response = await authFetch('/api/v1/payroll/employees/departments', { credentials: 'include' });
                 if (response.ok) {
                     this.departments = await response.json();
                 }
@@ -2028,7 +2587,7 @@ function payrollPage() {
                 if (this.employeeSearch) params.append('search', this.employeeSearch);
                 if (this.departmentFilter) params.append('department', this.departmentFilter);
                 
-                const response = await fetch(`/api/v1/payroll/employees?${params}`);
+                const response = await authFetch(`/api/v1/payroll/employees?${params}`, { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
                     this.employees = data.items;
@@ -2050,10 +2609,10 @@ function payrollPage() {
                 const params = new URLSearchParams({ year: this.payrollYear });
                 if (this.payrollStatusFilter) params.append('status', this.payrollStatusFilter);
                 
-                const response = await fetch(`/api/v1/payroll/payroll-runs?${params}`);
+                const response = await authFetch(`/api/v1/payroll/payroll-runs?${params}`, { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
-                    this.payrollRuns = data.items;
+                    this.payrollRuns = data.items || [];
                 }
             } catch (error) {
                 console.error('Error loading payroll runs:', error);
@@ -2066,7 +2625,7 @@ function payrollPage() {
                 if (this.remittanceType) params.append('remittance_type', this.remittanceType);
                 if (this.remittancePaid) params.append('is_paid', this.remittancePaid);
                 
-                const response = await fetch(`/api/v1/payroll/remittances?${params}`);
+                const response = await authFetch(`/api/v1/payroll/remittances?${params}`, { credentials: 'include' });
                 if (response.ok) {
                     this.remittances = await response.json();
                 }
@@ -2089,6 +2648,8 @@ function payrollPage() {
                 basic_salary: 0,
                 housing_allowance: 0,
                 transport_allowance: 0,
+                meal_allowance: 0,
+                utility_allowance: 0,
                 employment_type: 'full_time',
                 tin: '',
                 pension_pin: '',
@@ -2113,8 +2674,9 @@ function payrollPage() {
                     : '/api/v1/payroll/employees';
                 const method = this.editingEmployee ? 'PATCH' : 'POST';
                 
-                const response = await fetch(url, {
+                const response = await authFetch(url, {
                     method,
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.employeeForm)
                 });
@@ -2135,7 +2697,7 @@ function payrollPage() {
         async approvePayroll(id) {
             if (!confirm('Approve this payroll run?')) return;
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${id}/approve`, { method: 'POST' });
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${id}/approve`, { method: 'POST', credentials: 'include' });
                 if (response.ok) this.loadPayrollRuns();
             } catch (error) {
                 console.error('Error approving payroll:', error);
@@ -2145,7 +2707,7 @@ function payrollPage() {
         async processPayroll(id) {
             if (!confirm('Process this payroll? This will create statutory remittance records.')) return;
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${id}/process`, { method: 'POST' });
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${id}/process`, { method: 'POST', credentials: 'include' });
                 if (response.ok) {
                     this.loadPayrollRuns();
                     this.loadRemittances();
@@ -2158,7 +2720,7 @@ function payrollPage() {
         async markPayrollPaid(id) {
             if (!confirm('Mark this payroll as paid?')) return;
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${id}/mark-paid`, { method: 'POST' });
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${id}/mark-paid`, { method: 'POST', credentials: 'include' });
                 if (response.ok) this.loadPayrollRuns();
             } catch (error) {
                 console.error('Error marking payroll paid:', error);
@@ -2167,16 +2729,17 @@ function payrollPage() {
         
         async createPayrollRun() {
             try {
-                const form = document.querySelector('[x-data*="payrollForm"]')?.__x?.$data?.payrollForm;
-                if (!form) {
-                    alert('Please fill in the payroll details');
+                // Validate required fields
+                if (!this.payrollForm.name || !this.payrollForm.period_start || !this.payrollForm.period_end || !this.payrollForm.payment_date) {
+                    alert('Please fill in all required payroll details');
                     return;
                 }
                 
-                const response = await fetch('/api/v1/payroll/payroll-runs', {
+                const response = await authFetch('/api/v1/payroll/payroll-runs', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(form)
+                    body: JSON.stringify(this.payrollForm)
                 });
                 
                 if (response.ok) {
@@ -2197,20 +2760,35 @@ function payrollPage() {
         
         async calculateSalary() {
             try {
-                const response = await fetch('/api/v1/payroll/calculate-salary', {
+                // Ensure basic_salary is a valid number greater than 0
+                if (!this.calcForm.basic_salary || this.calcForm.basic_salary <= 0) {
+                    this.showToast('warning', 'Invalid Input', 'Basic salary must be greater than 0');
+                    return;
+                }
+                
+                const response = await authFetch('/api/v1/payroll/calculate-salary', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.calcForm)
                 });
                 if (response.ok) {
                     this.calcResult = await response.json();
+                } else {
+                    const error = await response.json();
+                    this.showToast('error', 'Calculation Error', error.detail || 'Failed to calculate salary breakdown');
                 }
             } catch (error) {
                 console.error('Error calculating salary:', error);
+                this.showToast('error', 'Error', 'An unexpected error occurred');
             }
         },
         
         formatCurrency(value) {
+            return new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2 }).format(value || 0);
+        },
+        
+        formatNumber(value) {
             return new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2 }).format(value || 0);
         },
         
@@ -2236,7 +2814,164 @@ function payrollPage() {
         },
         
         viewLoans(empId) {
-            // Navigate or show modal
+            // Find the employee
+            const emp = this.employees.find(e => e.id === empId);
+            this.selectedLoanEmployee = emp;
+            this.loanForm.employee_id = empId;
+            this.showEmployeeLoansModal = true;
+            this.loadEmployeeLoans(empId);
+        },
+        
+        async loadEmployeeLoans(empId) {
+            this.employeeLoansLoading = true;
+            try {
+                const response = await authFetch(`/api/v1/payroll/employees/${empId}/loans`, { credentials: 'include' });
+                if (response.ok) {
+                    this.employeeLoans = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading loans:', error);
+            } finally {
+                this.employeeLoansLoading = false;
+            }
+        },
+        
+        openNewLoanForEmployee() {
+            this.resetLoanForm();
+            this.loanForm.employee_id = this.selectedLoanEmployee?.id || '';
+            this.showLoanModal = true;
+        },
+        
+        resetLoanForm() {
+            this.loanForm = {
+                id: null,
+                employee_id: '',
+                loan_type: 'loan',
+                principal_amount: '',
+                interest_rate: '0',
+                tenure_months: '',
+                start_date: new Date().toISOString().split('T')[0],
+                description: '',
+                notes: '',
+            };
+        },
+        
+        calculateLoanInterest() {
+            const principal = parseFloat(this.loanForm.principal_amount) || 0;
+            const rate = parseFloat(this.loanForm.interest_rate) || 0;
+            const months = parseInt(this.loanForm.tenure_months) || 0;
+            return Math.round((principal * rate * months) / (100 * 12));
+        },
+        
+        calculateLoanTotal() {
+            const principal = parseFloat(this.loanForm.principal_amount) || 0;
+            return principal + this.calculateLoanInterest();
+        },
+        
+        calculateMonthlyDeduction() {
+            const total = this.calculateLoanTotal();
+            const months = parseInt(this.loanForm.tenure_months) || 1;
+            return Math.round(total / months);
+        },
+        
+        formatLoanType(type) {
+            const types = {
+                'loan': 'Loan',
+                'salary_advance': 'Salary Advance',
+                'cooperative': 'Cooperative Loan',
+                'equipment': 'Equipment Loan',
+                'educational': 'Educational Loan',
+                'emergency': 'Emergency Loan',
+                'other': 'Other'
+            };
+            return types[type] || type;
+        },
+        
+        async saveLoan() {
+            if (!this.loanForm.employee_id || !this.loanForm.principal_amount || !this.loanForm.tenure_months) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            this.loanSaving = true;
+            try {
+                const payload = {
+                    employee_id: this.loanForm.employee_id,
+                    loan_type: this.loanForm.loan_type,
+                    principal_amount: parseFloat(this.loanForm.principal_amount),
+                    interest_rate: parseFloat(this.loanForm.interest_rate) || 0,
+                    tenure_months: parseInt(this.loanForm.tenure_months),
+                    start_date: this.loanForm.start_date,
+                    description: this.loanForm.description || null,
+                    notes: this.loanForm.notes || null,
+                };
+                
+                const response = await authFetch('/api/v1/payroll/loans', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                
+                if (response.ok) {
+                    this.showLoanModal = false;
+                    if (this.selectedLoanEmployee) {
+                        await this.loadEmployeeLoans(this.selectedLoanEmployee.id);
+                        this.showEmployeeLoansModal = true;
+                    }
+                    this.resetLoanForm();
+                } else {
+                    const error = await response.json();
+                    alert('Error creating loan: ' + (error.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving loan:', error);
+                alert('Error saving loan');
+            } finally {
+                this.loanSaving = false;
+            }
+        },
+        
+        async approveLoan(loanId) {
+            if (!confirm('Approve this loan?')) return;
+            
+            try {
+                const response = await authFetch(`/api/v1/payroll/loans/${loanId}/approve`, {
+                    method: 'POST',
+                    credentials: 'include',
+                });
+                
+                if (response.ok) {
+                    if (this.selectedLoanEmployee) {
+                        await this.loadEmployeeLoans(this.selectedLoanEmployee.id);
+                    }
+                } else {
+                    alert('Error approving loan');
+                }
+            } catch (error) {
+                console.error('Error approving loan:', error);
+            }
+        },
+        
+        async cancelLoan(loanId) {
+            if (!confirm('Are you sure you want to cancel this loan?')) return;
+            
+            try {
+                const response = await authFetch(`/api/v1/payroll/loans/${loanId}/cancel`, {
+                    method: 'POST',
+                    credentials: 'include',
+                });
+                
+                if (response.ok) {
+                    if (this.selectedLoanEmployee) {
+                        await this.loadEmployeeLoans(this.selectedLoanEmployee.id);
+                    }
+                } else {
+                    alert('Error cancelling loan');
+                }
+            } catch (error) {
+                console.error('Error cancelling loan:', error);
+            }
         },
         
         viewPayrollDetails(id) {
@@ -2249,8 +2984,9 @@ function payrollPage() {
             if (!paymentRef) return;
             
             const today = new Date().toISOString().split('T')[0];
-            fetch(`/api/v1/payroll/remittances/${rem.id}/mark-paid?payment_date=${today}&payment_reference=${paymentRef}`, {
-                method: 'POST'
+            authFetch(`/api/v1/payroll/remittances/${rem.id}/mark-paid?payment_date=${today}&payment_reference=${paymentRef}`, {
+                method: 'POST',
+                credentials: 'include'
             }).then(res => {
                 if (res.ok) this.loadRemittances();
             });
@@ -2262,7 +2998,9 @@ function payrollPage() {
         
         async loadComplianceStatus() {
             try {
-                const response = await fetch('/api/v1/payroll/advanced/compliance/current');
+                const response = await authFetch('/api/v1/payroll/advanced/compliance/current', {
+                    credentials: 'include'
+                });
                 if (response.ok) {
                     this.complianceData = await response.json();
                     // Also load calendar
@@ -2277,7 +3015,9 @@ function payrollPage() {
         
         async loadComplianceCalendar() {
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/compliance/calendar/${this.complianceYear}`);
+                const response = await authFetch(`/api/v1/payroll/advanced/compliance/calendar/${this.complianceYear}`, {
+                    credentials: 'include'
+                });
                 if (response.ok) {
                     this.complianceCalendar = await response.json();
                 }
@@ -2289,8 +3029,9 @@ function payrollPage() {
         async refreshComplianceSnapshot() {
             try {
                 const today = new Date();
-                const response = await fetch('/api/v1/payroll/advanced/compliance/snapshots', {
+                const response = await authFetch('/api/v1/payroll/advanced/compliance/snapshots', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         period_month: today.getMonth() + 1,
@@ -2299,19 +3040,22 @@ function payrollPage() {
                 });
                 if (response.ok) {
                     await this.loadComplianceStatus();
-                    alert('Compliance snapshot refreshed successfully!');
+                    this.showToast('success', 'Compliance Snapshot Refreshed', 'The compliance status has been successfully updated.');
                 } else {
                     const error = await response.json();
-                    alert(error.detail || 'Failed to refresh compliance snapshot');
+                    this.showToast('error', 'Refresh Failed', error.detail || 'Failed to refresh compliance snapshot');
                 }
             } catch (error) {
                 console.error('Error refreshing compliance:', error);
+                this.showToast('error', 'Error', 'An unexpected error occurred while refreshing compliance.');
             }
         },
         
         async viewComplianceMonth(month) {
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/compliance/snapshots/${month}/${this.complianceYear}`);
+                const response = await authFetch(`/api/v1/payroll/advanced/compliance/snapshots/${month}/${this.complianceYear}`, {
+                    credentials: 'include'
+                });
                 if (response.ok) {
                     const snapshot = await response.json();
                     // Show details in modal or update current view
@@ -2319,8 +3063,9 @@ function payrollPage() {
                 } else if (response.status === 404) {
                     // Generate snapshot for this month
                     if (confirm(`No snapshot exists for ${this.getMonthName(month)} ${this.complianceYear}. Generate now?`)) {
-                        const genResponse = await fetch('/api/v1/payroll/advanced/compliance/snapshots', {
+                        const genResponse = await authFetch('/api/v1/payroll/advanced/compliance/snapshots', {
                             method: 'POST',
+                            credentials: 'include',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 period_month: month,
@@ -2344,12 +3089,16 @@ function payrollPage() {
         async loadImpactPreview() {
             this.impactLoading = true;
             try {
-                const response = await fetch('/api/v1/payroll/advanced/impact-preview/latest');
+                // Load latest preview
+                const response = await authFetch('/api/v1/payroll/advanced/impact-preview/latest', { credentials: 'include' });
                 if (response.ok) {
                     this.impactPreview = await response.json();
                 } else {
                     this.impactPreview = { has_preview: false };
                 }
+                
+                // Also load history for the selected year
+                await this.loadImpactPreviewHistory();
             } catch (error) {
                 console.error('Error loading impact preview:', error);
                 this.impactPreview = { has_preview: false };
@@ -2358,29 +3107,52 @@ function payrollPage() {
             }
         },
         
+        async loadImpactPreviewHistory() {
+            try {
+                const response = await authFetch(`/api/v1/payroll/advanced/impact-preview/history?year=${this.impactPreviewYear}&per_page=50`, { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.impactPreviewHistory = data.items || [];
+                } else {
+                    this.impactPreviewHistory = [];
+                }
+            } catch (error) {
+                console.error('Error loading impact preview history:', error);
+                this.impactPreviewHistory = [];
+            }
+        },
+        
+        viewImpactPreviewDetails(preview) {
+            this.impactPreview = preview;
+            this.impactPreview.has_preview = true;
+        },
+        
         async refreshImpactPreview() {
             if (!this.impactPreview?.payroll_run_id) {
-                alert('No payroll run available to refresh. Please run payroll first.');
+                this.showToast('warning', 'No Payroll Run', 'Select a payroll run or create one first to generate impact preview.');
                 return;
             }
             
             this.impactLoading = true;
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/impact-preview/${this.impactPreview.payroll_run_id}`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/impact-preview/${this.impactPreview.payroll_run_id}`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 
                 if (response.ok) {
                     this.impactPreview = await response.json();
-                    alert('Impact preview refreshed successfully!');
+                    this.impactPreview.has_preview = true;
+                    await this.loadImpactPreviewHistory();
+                    this.showToast('success', 'Impact Preview Refreshed', 'The impact preview has been successfully regenerated.');
                 } else {
                     const error = await response.json();
-                    alert(error.detail || 'Failed to refresh impact preview');
+                    this.showToast('error', 'Refresh Failed', error.detail || 'Failed to refresh impact preview');
                 }
             } catch (error) {
                 console.error('Error refreshing impact preview:', error);
-                alert('Failed to refresh impact preview');
+                this.showToast('error', 'Error', 'An unexpected error occurred.');
             } finally {
                 this.impactLoading = false;
             }
@@ -2389,8 +3161,9 @@ function payrollPage() {
         async generateImpactPreviewForRun(payrollRunId) {
             this.impactLoading = true;
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/impact-preview/${payrollRunId}`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/impact-preview/${payrollRunId}`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 
@@ -2447,7 +3220,7 @@ function payrollPage() {
             
             try {
                 // Load summary
-                const summaryResponse = await fetch(`/api/v1/payroll/advanced/exceptions/${this.exceptionPayrollRunId}/summary`);
+                const summaryResponse = await authFetch(`/api/v1/payroll/advanced/exceptions/${this.exceptionPayrollRunId}/summary`, { credentials: 'include' });
                 if (summaryResponse.ok) {
                     this.exceptionSummary = await summaryResponse.json();
                     this.exceptions = this.exceptionSummary.exceptions || [];
@@ -2481,8 +3254,9 @@ function payrollPage() {
             this.exceptionsLoading = true;
             
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/exceptions/${this.exceptionPayrollRunId}/validate`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/exceptions/${this.exceptionPayrollRunId}/validate`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 
@@ -2504,8 +3278,9 @@ function payrollPage() {
         
         async acknowledgeException(exceptionId, note = null) {
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/exceptions/${exceptionId}/acknowledge`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/exceptions/${exceptionId}/acknowledge`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ acknowledgement_note: note })
                 });
@@ -2527,8 +3302,9 @@ function payrollPage() {
             const note = prompt('Enter acknowledgement note (optional):');
             
             try {
-                const response = await fetch('/api/v1/payroll/advanced/exceptions/bulk-acknowledge', {
+                const response = await authFetch('/api/v1/payroll/advanced/exceptions/bulk-acknowledge', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         exception_ids: this.selectedExceptions,
@@ -2552,8 +3328,9 @@ function payrollPage() {
         
         async resolveException(exceptionId) {
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/exceptions/${exceptionId}/resolve`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/exceptions/${exceptionId}/resolve`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 
@@ -2570,9 +3347,13 @@ function payrollPage() {
         
         formatPayrollRunLabel(run) {
             if (!run) return '';
-            const startDate = run.pay_period_start ? new Date(run.pay_period_start).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' }) : '';
-            const endDate = run.pay_period_end ? new Date(run.pay_period_end).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-            return `${startDate} - ${endDate} (${run.status || 'Draft'})`;
+            // Use name if available, otherwise format period
+            if (run.name) {
+                return `${run.name} (${(run.status || 'Draft').replace('_', ' ')})`;
+            }
+            const startDate = run.period_start ? new Date(run.period_start).toLocaleDateString('en-NG', { month: 'short', year: 'numeric' }) : '';
+            const status = (run.status || 'Draft').replace('_', ' ');
+            return `${startDate} Payroll (${status})`;
         },
         
         // ========================================
@@ -2599,7 +3380,7 @@ function payrollPage() {
                 if (this.logCategoryFilter) params.append('category', this.logCategoryFilter);
                 
                 // Load logs
-                const logsResponse = await fetch(`/api/v1/payroll/advanced/decision-logs?${params}`);
+                const logsResponse = await authFetch(`/api/v1/payroll/advanced/decision-logs?${params}`, { credentials: 'include' });
                 if (logsResponse.ok) {
                     const data = await logsResponse.json();
                     this.decisionLogs = data.logs || [];
@@ -2609,7 +3390,7 @@ function payrollPage() {
                 
                 // Load summary
                 const summaryParams = this.logPayrollRunFilter ? `?payroll_run_id=${this.logPayrollRunFilter}` : '';
-                const summaryResponse = await fetch(`/api/v1/payroll/advanced/decision-logs/summary${summaryParams}`);
+                const summaryResponse = await authFetch(`/api/v1/payroll/advanced/decision-logs/summary${summaryParams}`, { credentials: 'include' });
                 if (summaryResponse.ok) {
                     this.decisionLogSummary = await summaryResponse.json();
                 }
@@ -2630,13 +3411,14 @@ function payrollPage() {
         
         async createDecisionLog() {
             if (!this.newLog.decision_type || !this.newLog.category || !this.newLog.title || !this.newLog.description) {
-                alert('Please fill in all required fields.');
+                this.showToast('warning', 'Missing Fields', 'Please fill in all required fields.');
                 return;
             }
             
             try {
-                const response = await fetch('/api/v1/payroll/advanced/decision-logs', {
+                const response = await authFetch('/api/v1/payroll/advanced/decision-logs', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         decision_type: this.newLog.decision_type,
@@ -2651,40 +3433,35 @@ function payrollPage() {
                     this.showNewLogModal = false;
                     this.newLog = { decision_type: '', category: '', title: '', description: '', payroll_run_id: '' };
                     await this.loadDecisionLogs();
-                    alert('Decision log created successfully!');
+                    this.showToast('success', 'Log Created', 'Decision log has been created successfully.');
                 } else {
                     const error = await response.json();
-                    alert(error.detail || 'Failed to create decision log');
+                    this.showToast('error', 'Error', error.detail || 'Failed to create decision log');
                 }
             } catch (error) {
                 console.error('Error creating decision log:', error);
-                alert('Failed to create decision log');
+                this.showToast('error', 'Error', 'Failed to create decision log');
             }
         },
         
         viewLogDetails(log) {
-            const contextStr = log.context_data && Object.keys(log.context_data).length > 0
-                ? `\n\nContext Data:\n${JSON.stringify(log.context_data, null, 2)}`
-                : '';
-            
-            alert(`${log.title}\n\nType: ${log.decision_type}\nCategory: ${log.category}\n\n${log.description}\n\nCreated by: ${log.created_by_name} (${log.created_by_role})\nCreated at: ${this.formatDateTime(log.created_at)}\n\nHash: ${log.content_hash?.substring(0, 16)}...${contextStr}`);
+            this.selectedLog = log;
+            this.showLogDetailModal = true;
         },
         
         async verifyLogIntegrity(logId) {
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/decision-logs/${logId}/verify`);
+                const response = await authFetch(`/api/v1/payroll/advanced/decision-logs/${logId}/verify`, { credentials: 'include' });
                 if (response.ok) {
                     const result = await response.json();
-                    if (result.has_hash) {
-                        alert(`✅ Log Integrity Verified\n\nHash: ${result.content_hash?.substring(0, 32)}...\nLocked: ${result.is_locked ? 'Yes' : 'No'}\n\n${result.verification_note}`);
-                    } else {
-                        alert('⚠️ Log integrity could not be verified: No hash found');
-                    }
+                    this.integrityResult = result;
+                    this.showIntegrityModal = true;
                 } else {
-                    alert('Failed to verify log integrity');
+                    this.showToast('error', 'Verification Failed', 'Failed to verify log integrity');
                 }
             } catch (error) {
                 console.error('Error verifying log:', error);
+                this.showToast('error', 'Error', 'An error occurred while verifying integrity');
             }
         },
         
@@ -2696,13 +3473,13 @@ function payrollPage() {
             this.ytdLoading = true;
             try {
                 // Load summary
-                const summaryResponse = await fetch(`/api/v1/payroll/advanced/ytd-ledger/summary?tax_year=${this.ytdYear}`);
+                const summaryResponse = await authFetch(`/api/v1/payroll/advanced/ytd-ledger/summary?tax_year=${this.ytdYear}`, { credentials: 'include' });
                 if (summaryResponse.ok) {
                     this.ytdSummary = await summaryResponse.json();
                 }
                 
                 // Load ledgers
-                const response = await fetch(`/api/v1/payroll/advanced/ytd-ledger?tax_year=${this.ytdYear}`);
+                const response = await authFetch(`/api/v1/payroll/advanced/ytd-ledger?tax_year=${this.ytdYear}`, { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
                     this.ytdLedgers = data.items || [];
@@ -2726,13 +3503,13 @@ function payrollPage() {
                 const year = now.getFullYear();
                 
                 // Load current snapshot
-                const snapshotResponse = await fetch(`/api/v1/payroll/advanced/ctc/snapshots/${month}/${year}`);
+                const snapshotResponse = await authFetch(`/api/v1/payroll/advanced/ctc/snapshots/${month}/${year}`, { credentials: 'include' });
                 if (snapshotResponse.ok) {
                     this.ctcSnapshot = await snapshotResponse.json();
                 }
                 
                 // Load trend
-                const trendResponse = await fetch('/api/v1/payroll/advanced/ctc/trend?months=12');
+                const trendResponse = await authFetch('/api/v1/payroll/advanced/ctc/trend?months=12', { credentials: 'include' });
                 if (trendResponse.ok) {
                     const data = await trendResponse.json();
                     this.ctcTrend = data.periods || [];
@@ -2750,8 +3527,9 @@ function payrollPage() {
             const year = now.getFullYear();
             
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/ctc/snapshots?month=${month}&year=${year}`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/ctc/snapshots?month=${month}&year=${year}`, {
                     method: 'POST',
+                    credentials: 'include',
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -2771,7 +3549,7 @@ function payrollPage() {
         async loadSimulations() {
             this.simulationsLoading = true;
             try {
-                const response = await fetch('/api/v1/payroll/advanced/simulations');
+                const response = await authFetch('/api/v1/payroll/advanced/simulations', { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
                     this.simulations = data.items || [];
@@ -2785,8 +3563,9 @@ function payrollPage() {
         
         async runSalarySimulation() {
             try {
-                const response = await fetch('/api/v1/payroll/advanced/simulations/salary-increase', {
+                const response = await authFetch('/api/v1/payroll/advanced/simulations/salary-increase', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         simulation_name: this.newSimulation.name,
@@ -2822,8 +3601,9 @@ function payrollPage() {
             if (!confirm('Delete this simulation?')) return;
             
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/simulations/${simId}`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/simulations/${simId}`, {
                     method: 'DELETE',
+                    credentials: 'include',
                 });
                 if (response.ok) {
                     await this.loadSimulations();
@@ -2840,7 +3620,7 @@ function payrollPage() {
         async loadGhostDetections() {
             this.ghostLoading = true;
             try {
-                const response = await fetch('/api/v1/payroll/advanced/ghost-worker/detections');
+                const response = await authFetch('/api/v1/payroll/advanced/ghost-worker/detections', { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
                     this.ghostDetections = data.items || [];
@@ -2855,8 +3635,9 @@ function payrollPage() {
         async runGhostScan() {
             this.ghostLoading = true;
             try {
-                const response = await fetch('/api/v1/payroll/advanced/ghost-worker/scan', {
+                const response = await authFetch('/api/v1/payroll/advanced/ghost-worker/scan', {
                     method: 'POST',
+                    credentials: 'include',
                 });
                 if (response.ok) {
                     this.ghostScanResult = await response.json();
@@ -2883,8 +3664,9 @@ function payrollPage() {
             }
             
             try {
-                const response = await fetch(`/api/v1/payroll/advanced/ghost-worker/detections/${detectionId}/resolve`, {
+                const response = await authFetch(`/api/v1/payroll/advanced/ghost-worker/detections/${detectionId}/resolve`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ resolution_note: note }),
                 });

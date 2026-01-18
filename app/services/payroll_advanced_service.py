@@ -1083,9 +1083,10 @@ class PayrollAdvancedService:
     def format_impact_preview_response(
         self,
         preview: PayrollImpactPreview,
+        payroll_run: Optional[PayrollRun] = None,
     ) -> Dict[str, Any]:
         """Format impact preview for API response."""
-        return {
+        response = {
             "id": str(preview.id),
             "payroll_run_id": str(preview.payroll_run_id),
             "previous_payroll_id": str(preview.previous_payroll_id) if preview.previous_payroll_id else None,
@@ -1112,6 +1113,15 @@ class PayrollAdvancedService:
             "impact_summary": preview.impact_summary,
             "generated_at": preview.generated_at.isoformat() if preview.generated_at else None,
         }
+        
+        # Include payroll run details if provided
+        if payroll_run:
+            response["payroll_run_name"] = payroll_run.name
+            response["period_start"] = payroll_run.period_start.isoformat() if payroll_run.period_start else None
+            response["period_end"] = payroll_run.period_end.isoformat() if payroll_run.period_end else None
+            response["payroll_status"] = payroll_run.status.value if payroll_run.status else None
+        
+        return response
 
     async def get_latest_impact_preview(
         self,
@@ -1143,7 +1153,7 @@ class PayrollAdvancedService:
         year: Optional[int] = None,
         page: int = 1,
         per_page: int = 12,
-    ) -> Tuple[List[PayrollImpactPreview], int]:
+    ) -> Tuple[List[Tuple[PayrollImpactPreview, PayrollRun]], int]:
         """
         List impact previews with pagination.
         
@@ -1154,11 +1164,11 @@ class PayrollAdvancedService:
             per_page: Items per page
             
         Returns:
-            Tuple of (list of previews, total count)
+            Tuple of (list of (preview, payroll_run) tuples, total count)
         """
-        # Base query
+        # Base query - select both preview and payroll run
         base_query = (
-            select(PayrollImpactPreview)
+            select(PayrollImpactPreview, PayrollRun)
             .join(PayrollRun, PayrollImpactPreview.payroll_run_id == PayrollRun.id)
             .where(PayrollRun.entity_id == entity_id)
         )
@@ -1166,11 +1176,19 @@ class PayrollAdvancedService:
         # Filter by year if specified
         if year:
             base_query = base_query.where(
-                func.extract('year', PayrollRun.pay_period_start) == year
+                func.extract('year', PayrollRun.period_start) == year
             )
         
-        # Count query
-        count_query = select(func.count()).select_from(base_query.subquery())
+        # Count query - count only previews
+        count_query = (
+            select(func.count(PayrollImpactPreview.id))
+            .join(PayrollRun, PayrollImpactPreview.payroll_run_id == PayrollRun.id)
+            .where(PayrollRun.entity_id == entity_id)
+        )
+        if year:
+            count_query = count_query.where(
+                func.extract('year', PayrollRun.period_start) == year
+            )
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
         
@@ -1178,15 +1196,15 @@ class PayrollAdvancedService:
         offset = (page - 1) * per_page
         query = (
             base_query
-            .order_by(PayrollImpactPreview.generated_at.desc())
+            .order_by(PayrollRun.period_start.desc())
             .offset(offset)
             .limit(per_page)
         )
         
         result = await self.db.execute(query)
-        previews = result.scalars().all()
+        rows = result.all()
         
-        return list(previews), total
+        return list(rows), total
 
     # ===========================================
     # PAYROLL EXCEPTION MANAGEMENT
@@ -1882,6 +1900,9 @@ class PayrollAdvancedService:
         log: PayrollDecisionLog,
     ) -> Dict[str, Any]:
         """Format decision log for API response."""
+        # Extract commonly used fields from context_data for frontend convenience
+        context = log.context_data or {}
+        
         return {
             "id": str(log.id),
             "entity_id": str(log.entity_id),
@@ -1892,13 +1913,19 @@ class PayrollAdvancedService:
             "category": log.category,
             "title": log.title,
             "description": log.description,
-            "context_data": log.context_data or {},
+            "context_data": context,
             "created_by_id": str(log.created_by_id),
             "created_by_name": log.created_by_name,
             "created_by_role": log.created_by_role,
             "created_at": log.created_at.isoformat() if log.created_at else None,
             "is_locked": log.is_locked,
             "content_hash": log.content_hash,
+            # Frontend-expected fields extracted from context_data
+            "employee_name": context.get("employee_name"),
+            "original_value": context.get("original_value"),
+            "new_value": context.get("new_value"),
+            "justification": context.get("justification"),
+            "impact_preview": context.get("impact_preview"),
         }
 
     # ===========================================
@@ -1930,10 +1957,15 @@ class PayrollAdvancedService:
         page: int = 1,
         per_page: int = 20,
         search: Optional[str] = None,
-    ) -> Tuple[List[YTDPayrollLedger], int]:
-        """List YTD ledgers for all employees with pagination."""
-        query = (
-            select(YTDPayrollLedger)
+    ) -> Tuple[List[Tuple[YTDPayrollLedger, Optional[str]]], int]:
+        """List YTD ledgers for all employees with pagination.
+        
+        Returns a list of tuples containing (ledger, employee_name).
+        """
+        # Base query with join to Employee for names
+        base_query = (
+            select(YTDPayrollLedger, Employee.first_name, Employee.middle_name, Employee.last_name)
+            .outerjoin(Employee, YTDPayrollLedger.employee_id == Employee.id)
             .where(
                 and_(
                     YTDPayrollLedger.entity_id == entity_id,
@@ -1943,17 +1975,46 @@ class PayrollAdvancedService:
         )
         
         # Count total
-        count_result = await self.db.execute(
-            select(func.count()).select_from(query.subquery())
+        count_query = (
+            select(func.count(YTDPayrollLedger.id))
+            .where(
+                and_(
+                    YTDPayrollLedger.entity_id == entity_id,
+                    YTDPayrollLedger.tax_year == tax_year,
+                )
+            )
         )
+        count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
         
         # Apply ordering and pagination
-        query = query.order_by(YTDPayrollLedger.ytd_gross.desc())
+        query = base_query.order_by(YTDPayrollLedger.ytd_gross.desc())
         query = query.offset((page - 1) * per_page).limit(per_page)
         
         result = await self.db.execute(query)
-        return list(result.scalars().all()), total
+        rows = result.all()
+        
+        # Build list of (ledger, full_name) tuples
+        ledgers_with_names = []
+        for row in rows:
+            ledger = row[0]
+            first_name = row[1]
+            middle_name = row[2]
+            last_name = row[3]
+            
+            # Build full name
+            if first_name and last_name:
+                name_parts = [first_name]
+                if middle_name:
+                    name_parts.append(middle_name)
+                name_parts.append(last_name)
+                full_name = " ".join(name_parts)
+            else:
+                full_name = None
+            
+            ledgers_with_names.append((ledger, full_name))
+        
+        return ledgers_with_names, total
 
     async def get_ytd_ledger_summary(
         self,

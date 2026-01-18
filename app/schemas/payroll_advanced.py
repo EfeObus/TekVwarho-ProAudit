@@ -243,6 +243,13 @@ class DecisionLogResponse(BaseModel):
     
     is_locked: bool
     content_hash: str
+    
+    # Frontend convenience fields (extracted from context_data)
+    employee_name: Optional[str] = None
+    original_value: Optional[float] = None
+    new_value: Optional[float] = None
+    justification: Optional[str] = None
+    impact_preview: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True

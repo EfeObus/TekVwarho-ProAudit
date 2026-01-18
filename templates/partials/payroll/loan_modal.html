@@ -1,0 +1,298 @@
+<!-- Loan Modal -->
+<div x-show="showLoanModal" 
+     x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto"
+     aria-labelledby="loan-modal-title"
+     role="dialog"
+     aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Backdrop -->
+        <div x-show="showLoanModal"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             @click="showLoanModal = false"
+             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+        <!-- Modal Panel -->
+        <div x-show="showLoanModal"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            
+            <!-- Header -->
+            <div class="bg-green-600 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-white" id="loan-modal-title" x-text="loanForm.id ? 'Edit Loan' : 'New Loan / Salary Advance'"></h3>
+                    <button @click="showLoanModal = false" class="text-white hover:text-green-200">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Form -->
+            <form @submit.prevent="saveLoan" class="px-6 py-4 max-h-[70vh] overflow-y-auto">
+                <!-- Employee Selection -->
+                <div class="mb-4" x-show="!loanForm.employee_id">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Employee *</label>
+                    <select x-model="loanForm.employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="">Select Employee</option>
+                        <template x-for="emp in employees" :key="emp.id">
+                            <option :value="emp.id" x-text="emp.full_name + ' (' + emp.employee_id + ')'"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Selected Employee Info -->
+                <div x-show="loanForm.employee_id && selectedLoanEmployee" class="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <p class="text-sm font-medium text-gray-900" x-text="selectedLoanEmployee?.full_name"></p>
+                    <p class="text-xs text-gray-500" x-text="selectedLoanEmployee?.employee_id + ' • ' + selectedLoanEmployee?.department"></p>
+                </div>
+
+                <!-- Loan Type -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Loan Type *</label>
+                    <select x-model="loanForm.loan_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="loan">Loan</option>
+                        <option value="salary_advance">Salary Advance</option>
+                        <option value="cooperative">Cooperative Loan</option>
+                        <option value="equipment">Equipment Loan</option>
+                        <option value="educational">Educational Loan</option>
+                        <option value="emergency">Emergency Loan</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <!-- Principal Amount -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Principal Amount (₦) *</label>
+                    <input type="number" x-model="loanForm.principal_amount" required min="1000" step="0.01"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                           placeholder="Enter loan amount">
+                </div>
+
+                <!-- Interest Rate -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Annual Interest Rate (%)</label>
+                    <input type="number" x-model="loanForm.interest_rate" min="0" max="100" step="0.01"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                           placeholder="0 for interest-free">
+                </div>
+
+                <!-- Tenure -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tenure (Months) *</label>
+                    <input type="number" x-model="loanForm.tenure_months" required min="1" max="60"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                           placeholder="Number of months for repayment">
+                </div>
+
+                <!-- Start Date -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+                    <input type="date" x-model="loanForm.start_date" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+
+                <!-- Description -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea x-model="loanForm.description" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              placeholder="Purpose of the loan"></textarea>
+                </div>
+
+                <!-- Notes -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                    <textarea x-model="loanForm.notes" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              placeholder="Additional notes"></textarea>
+                </div>
+
+                <!-- Loan Calculation Preview -->
+                <div x-show="loanForm.principal_amount && loanForm.tenure_months" class="mb-4 p-4 bg-blue-50 rounded-lg">
+                    <h4 class="text-sm font-semibold text-blue-900 mb-2">Loan Preview</h4>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <span class="text-gray-600">Principal:</span>
+                        <span class="text-right font-medium" x-text="'₦' + Number(loanForm.principal_amount || 0).toLocaleString()"></span>
+                        <span class="text-gray-600">Total Interest:</span>
+                        <span class="text-right font-medium" x-text="'₦' + calculateLoanInterest().toLocaleString()"></span>
+                        <span class="text-gray-600">Total Amount:</span>
+                        <span class="text-right font-medium text-blue-700" x-text="'₦' + calculateLoanTotal().toLocaleString()"></span>
+                        <span class="text-gray-600">Monthly Deduction:</span>
+                        <span class="text-right font-medium text-green-700" x-text="'₦' + calculateMonthlyDeduction().toLocaleString()"></span>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Footer -->
+            <div class="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+                <button @click="showLoanModal = false" type="button"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">
+                    Cancel
+                </button>
+                <button @click="saveLoan" type="button"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                        :disabled="loanSaving">
+                    <span x-show="!loanSaving" x-text="loanForm.id ? 'Update Loan' : 'Create Loan'"></span>
+                    <span x-show="loanSaving">Saving...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Employee Loans View Modal -->
+<div x-show="showEmployeeLoansModal" 
+     x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto"
+     aria-labelledby="employee-loans-modal-title"
+     role="dialog"
+     aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Backdrop -->
+        <div x-show="showEmployeeLoansModal"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             @click="showEmployeeLoansModal = false"
+             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+        <!-- Modal Panel -->
+        <div x-show="showEmployeeLoansModal"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+            
+            <!-- Header -->
+            <div class="bg-green-600 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-white" id="employee-loans-modal-title">Loans & Advances</h3>
+                        <p class="text-green-100 text-sm" x-text="selectedLoanEmployee?.full_name"></p>
+                    </div>
+                    <button @click="showEmployeeLoansModal = false" class="text-white hover:text-green-200">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="px-6 py-4 max-h-[60vh] overflow-y-auto">
+                <!-- Loading -->
+                <div x-show="employeeLoansLoading" class="text-center py-8">
+                    <svg class="animate-spin h-8 w-8 mx-auto text-green-600" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2 text-gray-500">Loading loans...</p>
+                </div>
+
+                <!-- Empty State -->
+                <div x-show="!employeeLoansLoading && employeeLoans.length === 0" class="text-center py-8">
+                    <svg class="w-12 h-12 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <p class="mt-2 text-gray-500">No loans or advances found for this employee.</p>
+                    <button @click="showEmployeeLoansModal = false; openNewLoanForEmployee()" 
+                            class="mt-4 inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Create New Loan
+                    </button>
+                </div>
+
+                <!-- Loans List -->
+                <div x-show="!employeeLoansLoading && employeeLoans.length > 0" class="space-y-4">
+                    <template x-for="loan in employeeLoans" :key="loan.id">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <p class="font-medium text-gray-900" x-text="loan.loan_reference"></p>
+                                    <p class="text-sm text-gray-500" x-text="formatLoanType(loan.loan_type)"></p>
+                                </div>
+                                <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                      :class="{
+                                          'bg-yellow-100 text-yellow-800': loan.status === 'pending',
+                                          'bg-green-100 text-green-800': loan.status === 'active',
+                                          'bg-blue-100 text-blue-800': loan.status === 'approved',
+                                          'bg-gray-100 text-gray-800': loan.status === 'completed',
+                                          'bg-red-100 text-red-800': loan.status === 'cancelled' || loan.status === 'defaulted'
+                                      }"
+                                      x-text="loan.status.charAt(0).toUpperCase() + loan.status.slice(1)">
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4 text-sm">
+                                <div>
+                                    <p class="text-gray-500">Principal</p>
+                                    <p class="font-medium" x-text="'₦' + Number(loan.principal_amount).toLocaleString()"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">Balance</p>
+                                    <p class="font-medium text-red-600" x-text="'₦' + Number(loan.balance).toLocaleString()"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">Monthly</p>
+                                    <p class="font-medium" x-text="'₦' + Number(loan.monthly_deduction).toLocaleString()"></p>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-xs text-gray-500">
+                                <span x-text="loan.start_date + ' - ' + loan.end_date"></span>
+                                <span class="mx-2">•</span>
+                                <span x-text="loan.tenure_months + ' months'"></span>
+                            </div>
+                            <!-- Actions -->
+                            <div x-show="loan.status === 'pending'" class="mt-3 flex space-x-2">
+                                <button @click="approveLoan(loan.id)" class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700">
+                                    Approve
+                                </button>
+                                <button @click="cancelLoan(loan.id)" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-gray-50 px-6 py-4 flex justify-between">
+                <button @click="showEmployeeLoansModal = false; openNewLoanForEmployee()" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    New Loan
+                </button>
+                <button @click="showEmployeeLoansModal = false" type="button"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

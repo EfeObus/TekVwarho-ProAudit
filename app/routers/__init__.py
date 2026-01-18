@@ -71,6 +71,10 @@ from app.routers import (
     forensic_audit,
     advanced_audit,
     audit_system,
+    nrs,
+    bank_reconciliation,
+    expense_claims,
+    ml_ai,
 )
 
 __all__ = [
@@ -107,4 +111,8 @@ __all__ = [
     "forensic_audit",
     "advanced_audit",
     "audit_system",
+    "nrs",
+    "bank_reconciliation",
+    "expense_claims",
+    "ml_ai",
 ]

@@ -507,7 +507,8 @@ function auditDashboard() {
             try {
                 // Load audit summary
                 const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/audit-summary/${this.auditYear}`, {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -525,7 +526,8 @@ function auditDashboard() {
         async loadRecentLogs() {
             try {
                 const response = await fetch(`/api/v1/entities/${this.entityId}/audit/logs?limit=10`, {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -544,7 +546,8 @@ function auditDashboard() {
                     headers: { 
                         'Authorization': `Bearer ${this.getToken()}`,
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.integrity = {
@@ -565,7 +568,8 @@ function auditDashboard() {
             this.loading.benfords = true;
             try {
                 const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/benfords-law?fiscal_year=${this.auditYear}&analysis_type=${type}`, {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.benfords = {
@@ -589,7 +593,8 @@ function auditDashboard() {
                     url += `&group_by=${groupBy}`;
                 }
                 const response = await fetch(url, {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.zScore = {
@@ -614,7 +619,8 @@ function auditDashboard() {
             this.loading.nrsGap = true;
             try {
                 const response = await fetch(`/api/v1/entities/${this.entityId}/forensic-audit/nrs-gap-analysis/${this.auditYear}`, {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.nrsGap = {
@@ -641,6 +647,7 @@ function auditDashboard() {
                         'Authorization': `Bearer ${this.getToken()}`,
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include',
                     body: JSON.stringify({ fiscal_year: parseInt(this.auditYear) })
                 });
                 const data = await response.json();

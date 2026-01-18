@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_entity_id
 from app.models.user import User
 
 from app.services.audit_explainability_service import AuditExplainabilityService
@@ -46,7 +46,7 @@ from app.services.behavioral_analytics_service import (
 )
 
 
-router = APIRouter(prefix="/advanced-audit", tags=["Advanced Audit"])
+router = APIRouter(prefix="/{entity_id}/advanced-audit", tags=["Advanced Audit"])
 
 # Initialize services
 explainability_service = AuditExplainabilityService()
@@ -172,6 +172,7 @@ class BehavioralAnalysisRequest(BaseModel):
 @router.post("/explainability/paye")
 async def explain_paye_calculation(
     request: PAYEExplainabilityRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -184,7 +185,7 @@ async def explain_paye_calculation(
     - Effective tax rate computation
     """
     explanation = explainability_service.explain_paye(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         gross_annual_income=request.gross_annual_income,
         basic_salary=request.basic_salary,
         pension_percentage=request.pension_percentage,
@@ -198,6 +199,7 @@ async def explain_paye_calculation(
 @router.post("/explainability/vat")
 async def explain_vat_calculation(
     request: VATExplainabilityRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -209,7 +211,7 @@ async def explain_vat_calculation(
     - Net VAT payable/refundable determination
     """
     explanation = explainability_service.explain_vat(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         output_vat_base=request.output_vat_base,
         input_vat_base=request.input_vat_base,
         wren_compliant_input=request.wren_compliant_input,
@@ -225,13 +227,14 @@ async def explain_vat_calculation(
 @router.post("/explainability/wht")
 async def explain_wht_calculation(
     request: WHTExplainabilityRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
     Generate detailed WHT calculation explanation with legal references.
     """
     explanation = explainability_service.explain_wht(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         payment_amount=request.payment_amount,
         payment_type=request.payment_type,
         recipient_name=request.recipient_name,
@@ -244,13 +247,14 @@ async def explain_wht_calculation(
 @router.post("/explainability/cit")
 async def explain_cit_calculation(
     request: CITExplainabilityRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
     Generate detailed CIT calculation explanation with legal references.
     """
     explanation = explainability_service.explain_cit(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         gross_turnover=request.gross_turnover,
         assessable_profit=request.assessable_profit,
         capital_allowances=request.capital_allowances,
@@ -281,6 +285,7 @@ async def get_legal_references(
 @router.post("/replay/calculate")
 async def replay_calculation(
     request: ReplayRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -293,14 +298,14 @@ async def replay_calculation(
     
     if request.calculation_type.lower() == "paye":
         result = replay_engine.replay_paye_calculation(
-            entity_id=current_user.entity_id,
+            entity_id=entity_id,
             gross_annual_income=request.inputs.get("gross_annual_income", 0),
             calculation_date=calc_date,
             pension_percentage=request.inputs.get("pension_percentage", 8.0),
         )
     elif request.calculation_type.lower() == "vat":
         result = replay_engine.replay_vat_calculation(
-            entity_id=current_user.entity_id,
+            entity_id=entity_id,
             sales_amount=request.inputs.get("sales_amount", 0),
             purchases_amount=request.inputs.get("purchases_amount", 0),
             calculation_date=calc_date,
@@ -318,6 +323,7 @@ async def replay_calculation(
 @router.post("/replay/compare")
 async def compare_calculations(
     request: ComparisonRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -329,7 +335,7 @@ async def compare_calculations(
     date_2 = date.fromisoformat(request.date_2)
     
     result = replay_engine.compare_calculations(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         calculation_type=request.calculation_type,
         date_1=date_1,
         date_2=date_2,
@@ -412,6 +418,7 @@ async def verify_snapshot_integrity(
 @router.post("/confidence/scorecard")
 async def generate_compliance_scorecard(
     request: ComplianceMetricsRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -424,7 +431,7 @@ async def generate_compliance_scorecard(
     scorer = RegulatoryConfidenceScorer(db)
     
     scorecard = await scorer.generate_full_scorecard(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         period_start=date.fromisoformat(request.period_start),
         period_end=date.fromisoformat(request.period_end),
         vat_metrics=request.vat_metrics,
@@ -440,6 +447,7 @@ async def generate_compliance_scorecard(
 async def get_compliance_summary(
     period_start: str = Query(..., description="Period start YYYY-MM-DD"),
     period_end: str = Query(..., description="Period end YYYY-MM-DD"),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -451,7 +459,7 @@ async def get_compliance_summary(
     
     return {
         "status": "success",
-        "entity_id": str(current_user.entity_id),
+        "entity_id": str(entity_id),
         "period": {"start": period_start, "end": period_end},
         "message": "Use POST /confidence/scorecard for full assessment with metrics",
     }
@@ -492,6 +500,7 @@ async def register_attestor(
 @router.post("/attestation/workflow/create")
 async def create_attestation_workflow(
     request: WorkflowCreateRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -509,7 +518,7 @@ async def create_attestation_workflow(
     )
     
     workflow = attestation_service.create_workflow(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         document_type=request.document_type,
         document_id=request.document_id,
         document_title=request.document_title,
@@ -555,18 +564,20 @@ async def get_attestation_certificate(
 @router.get("/attestation/workflows")
 async def list_workflows(
     status_filter: Optional[str] = None,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
     List all attestation workflows for the entity.
     """
-    workflows = attestation_service.list_workflows(entity_id=current_user.entity_id)
+    workflows = attestation_service.list_workflows(entity_id=entity_id)
     return {"status": "success", "workflows": workflows}
 
 
 @router.post("/attestation/auditor-access/grant")
 async def grant_auditor_access(
     request: AuditorAccessRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -588,7 +599,7 @@ async def grant_auditor_access(
     
     try:
         grant = attestation_service.grant_auditor_access(
-            entity_id=current_user.entity_id,
+            entity_id=entity_id,
             auditor=auditor,
             granted_by=grantor,
             scope=request.scope,
@@ -602,13 +613,14 @@ async def grant_auditor_access(
 @router.get("/attestation/auditor-access")
 async def list_auditor_access_grants(
     active_only: bool = True,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
     List all auditor access grants for the entity.
     """
     grants = attestation_service.list_access_grants(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         active_only=active_only,
     )
     return {"status": "success", "access_grants": grants}
@@ -625,6 +637,7 @@ async def export_nrs_audit_package(
     invoices: List[Dict[str, Any]] = Body(default=[]),
     transactions: List[Dict[str, Any]] = Body(default=[]),
     vat_returns: List[Dict[str, Any]] = Body(default=[]),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -633,9 +646,9 @@ async def export_nrs_audit_package(
     Includes all invoices with IRN validation status.
     """
     package = export_service.generate_nrs_audit_package(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         entity_name=current_user.full_name or "Entity",
-        entity_tin=str(current_user.entity_id)[:10],  # Placeholder
+        entity_tin=str(entity_id)[:10],  # Placeholder
         period_start=date.fromisoformat(period_start),
         period_end=date.fromisoformat(period_end),
         invoices=invoices,
@@ -654,15 +667,16 @@ async def export_firs_desk_audit_package(
     paye_data: Dict[str, Any] = Body(default={}),
     wht_data: Dict[str, Any] = Body(default={}),
     cit_data: Dict[str, Any] = Body(default={}),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
     Generate FIRS desk audit package with all tax types.
     """
     package = export_service.generate_firs_desk_audit_package(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         entity_name=current_user.full_name or "Entity",
-        entity_tin=str(current_user.entity_id)[:10],
+        entity_tin=str(entity_id)[:10],
         period_start=date.fromisoformat(period_start),
         period_end=date.fromisoformat(period_end),
         vat_data=vat_data,
@@ -682,15 +696,16 @@ async def export_court_dispute_package(
     evidence_items: List[Dict[str, Any]] = Body(default=[]),
     supporting_documents: List[Dict[str, Any]] = Body(default=[]),
     calculation_explanations: List[Dict[str, Any]] = Body(default=[]),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
     Generate legally admissible evidence package for tax disputes.
     """
     package = export_service.generate_court_dispute_package(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         entity_name=current_user.full_name or "Entity",
-        entity_tin=str(current_user.entity_id)[:10],
+        entity_tin=str(entity_id)[:10],
         dispute_reference=dispute_reference,
         period_start=date.fromisoformat(period_start),
         period_end=date.fromisoformat(period_end),
@@ -705,6 +720,7 @@ async def export_court_dispute_package(
 @router.get("/export/history")
 async def get_export_history(
     purpose: Optional[str] = None,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -718,7 +734,7 @@ async def get_export_history(
             pass
     
     history = export_service.get_export_history(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         purpose=purpose_enum,
     )
     
@@ -745,6 +761,7 @@ async def verify_export_integrity(
 @router.post("/behavioral/analyze")
 async def run_behavioral_analysis(
     request: BehavioralAnalysisRequest,
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -753,7 +770,7 @@ async def run_behavioral_analysis(
     Detects timing anomalies, volume spikes, and suspicious patterns.
     """
     report = await behavioral_service.run_full_analysis(
-        entity_id=current_user.entity_id,
+        entity_id=entity_id,
         period_start=date.fromisoformat(request.period_start),
         period_end=date.fromisoformat(request.period_end),
         transactions=request.transactions,
@@ -768,12 +785,13 @@ async def run_behavioral_analysis(
 
 @router.get("/behavioral/risk-summary")
 async def get_risk_summary(
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     current_user: User = Depends(get_current_user),
 ):
     """
     Get quick risk summary based on latest behavioral analysis.
     """
-    summary = behavioral_service.get_risk_summary(current_user.entity_id)
+    summary = behavioral_service.get_risk_summary(entity_id)
     return {"status": "success", "risk_summary": summary}
 
 

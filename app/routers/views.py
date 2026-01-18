@@ -142,8 +142,11 @@ def get_auth_context(user: Optional[User], entity_id: Optional[uuid.UUID]) -> di
 # ===========================================
 
 @router.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """Home/landing page."""
+async def home(request: Request, db: AsyncSession = Depends(get_async_session)):
+    """Home/landing page. Redirect to dashboard if logged in."""
+    user = await get_user_from_token(request, db)
+    if user:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
     return templates.TemplateResponse("index.html", {"request": request})
 
 
@@ -412,6 +415,60 @@ async def fixed_assets_page(
     return response
 
 
+@router.get("/bank-reconciliation", response_class=HTMLResponse)
+async def bank_reconciliation_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Bank Reconciliation page - Match transactions with bank statements."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("bank_reconciliation.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/expense-claims", response_class=HTMLResponse)
+async def expense_claims_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Expense Claims page - Submit and manage expense reimbursements."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("expense_claims.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/intelligence-dashboard", response_class=HTMLResponse)
+async def intelligence_dashboard_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """AI & Intelligence Dashboard - ML-powered insights and predictions."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("business_insights.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(
     request: Request,
@@ -554,19 +611,51 @@ async def verify_email_page(request: Request, token: str = None):
 # ===========================================
 
 @router.get("/audit", response_class=HTMLResponse)
-async def audit_dashboard_page(
+async def audit_unified_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    World-Class Audit Dashboard.
+    Unified Audit Center - Comprehensive audit tools.
     
     Provides access to:
-    - Benford's Law Analysis
-    - Z-Score Anomaly Detection
-    - NRS Gap Analysis
-    - Hash Chain Verification
-    - Full Forensic Audit
+    - Audit Dashboard with integrity verification
+    - Audit Logs with filtering and export
+    - Forensic Analysis (Benford's Law, Z-Score Anomalies)
+    - Audit Runs management
+    - Findings and Evidence tracking
+    - Tax Explainability (PAYE, VAT)
+    - Audit Vault with NTAA 2025 compliance
+    - Payroll Decisions audit trail
+    """
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("audit_unified.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/audit-dashboard", response_class=HTMLResponse)
+async def audit_dashboard_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Legacy audit dashboard - redirects to unified audit."""
+    return RedirectResponse(url="/audit", status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/audit-old", response_class=HTMLResponse)
+async def audit_old_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Legacy Audit Dashboard for backwards compatibility.
     """
     user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
@@ -654,6 +743,37 @@ async def worm_storage_page(
         return redirect
     
     response = templates.TemplateResponse("worm_storage.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+# ===========================================
+# MACHINE LEARNING & AI PAGES
+# ===========================================
+
+@router.get("/business-insights", response_class=HTMLResponse)
+async def business_insights_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Business Insights Dashboard.
+    
+    AI-powered analytics providing:
+    - Cash Flow Forecasting (ARIMA, Holt-Winters, LSTM)
+    - Growth Prediction (Linear, Polynomial, Neural Network)
+    - NLP Analysis (Sentiment, Entities, Keywords, Classification)
+    - OCR Document Processing (Azure, Tesseract, Internal)
+    - Custom Model Training (Neural Networks, LSTM)
+    """
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("business_insights.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })

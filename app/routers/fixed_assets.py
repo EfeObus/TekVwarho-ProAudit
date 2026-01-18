@@ -219,7 +219,9 @@ class FixedAssetResponse(BaseModel):
     is_fully_depreciated: bool
     
     location: Optional[str]
-    is_insured: bool
+    is_insured: bool  # Derived from insured_value
+    insured_value: Optional[Decimal]
+    insurance_policy_number: Optional[str]
     
     created_at: str
     updated_at: Optional[str]
@@ -304,7 +306,7 @@ async def get_entity_assets(
     """Get all fixed assets for a specific entity."""
     service = FixedAssetService(db)
     
-    assets = await service.get_assets_for_entity(
+    assets, total = await service.get_assets_for_entity(
         entity_id=entity_id,
         status=status,
         category=category,
@@ -859,7 +861,9 @@ def _asset_to_response(asset) -> FixedAssetResponse:
         net_book_value=asset.net_book_value,
         is_fully_depreciated=asset.is_fully_depreciated,
         location=asset.location,
-        is_insured=asset.is_insured,
+        is_insured=asset.insured_value is not None and asset.insured_value > 0,
+        insured_value=asset.insured_value,
+        insurance_policy_number=asset.insurance_policy_number,
         created_at=asset.created_at.isoformat() if asset.created_at else "",
         updated_at=asset.updated_at.isoformat() if asset.updated_at else None,
     )

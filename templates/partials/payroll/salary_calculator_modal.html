@@ -9,6 +9,8 @@
                      basic_salary: 0,
                      housing_allowance: 0,
                      transport_allowance: 0,
+                     meal_allowance: 0,
+                     utility_allowance: 0,
                      other_allowances: 0,
                      annual_rent_paid: 0,
                      has_life_insurance: false,
@@ -18,7 +20,7 @@
                  result: null,
                  loading: false,
                  grossMonthly() {
-                     return (this.calcForm.basic_salary || 0) + (this.calcForm.housing_allowance || 0) + (this.calcForm.transport_allowance || 0) + (this.calcForm.other_allowances || 0);
+                     return (this.calcForm.basic_salary || 0) + (this.calcForm.housing_allowance || 0) + (this.calcForm.transport_allowance || 0) + (this.calcForm.meal_allowance || 0) + (this.calcForm.utility_allowance || 0) + (this.calcForm.other_allowances || 0);
                  },
                  async calculate() {
                      this.loading = true;
@@ -30,6 +32,8 @@
                                  basic_salary: this.calcForm.basic_salary * 12,
                                  housing_allowance: this.calcForm.housing_allowance * 12,
                                  transport_allowance: this.calcForm.transport_allowance * 12,
+                                 meal_allowance: this.calcForm.meal_allowance * 12,
+                                 utility_allowance: this.calcForm.utility_allowance * 12,
                                  other_allowances: this.calcForm.other_allowances * 12,
                                  annual_rent_paid: this.calcForm.annual_rent_paid,
                                  has_life_insurance: this.calcForm.has_life_insurance,
@@ -95,6 +99,22 @@
                             <div class="relative">
                                 <span class="absolute left-3 top-2.5 text-gray-500">₦</span>
                                 <input type="number" x-model.number="calcForm.transport_allowance" min="0" step="1000" class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Meal Allowance</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-gray-500">₦</span>
+                                <input type="number" x-model.number="calcForm.meal_allowance" min="0" step="1000" class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Utility Allowance</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-gray-500">₦</span>
+                                <input type="number" x-model.number="calcForm.utility_allowance" min="0" step="1000" class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                             </div>
                         </div>
                         

@@ -21,9 +21,10 @@ from enum import Enum
 import hashlib
 import json
 import io
+import uuid
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_entity_id
 from app.models import (
     User, BusinessEntity, UserRole,
     AuditRun, AuditRunStatus, AuditRunType,
@@ -361,6 +362,7 @@ async def get_session_actions(
 async def create_audit_run(
     run_data: AuditRunCreate,
     current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -383,7 +385,7 @@ async def create_audit_run(
     run_type = run_type_map.get(run_data.run_type.lower(), AuditRunType.CUSTOM)
     
     audit_run = await service.create_audit_run(
-        entity_id=current_user.selected_entity_id,
+        entity_id=entity_id,
         run_type=run_type,
         title=run_data.title,
         description=run_data.description,
@@ -463,6 +465,7 @@ async def list_audit_runs(
     run_type: Optional[str] = None,
     limit: int = 50,
     current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -471,7 +474,7 @@ async def list_audit_runs(
     require_audit_permission(current_user)
     
     query = select(AuditRun).where(
-        AuditRun.entity_id == current_user.selected_entity_id
+        AuditRun.entity_id == entity_id
     )
     
     if status_filter:
@@ -726,6 +729,7 @@ async def get_finding_human_readable(
 async def create_evidence(
     evidence_data: EvidenceCreate,
     current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -747,7 +751,7 @@ async def create_evidence(
     }
     
     evidence = await service.create_evidence(
-        entity_id=current_user.selected_entity_id,
+        entity_id=entity_id,
         evidence_type=type_map.get(evidence_data.evidence_type.lower(), EvidenceType.DOCUMENT),
         title=evidence_data.title,
         description=evidence_data.description,
@@ -777,6 +781,7 @@ async def upload_evidence_file(
     title: Optional[str] = None,
     description: Optional[str] = None,
     current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -794,7 +799,7 @@ async def upload_evidence_file(
     service = AdvancedAuditSystemService(db)
     
     evidence = await service.create_evidence(
-        entity_id=current_user.selected_entity_id,
+        entity_id=entity_id,
         evidence_type=EvidenceType.DOCUMENT,
         title=title or file.filename,
         description=description,
@@ -1009,14 +1014,13 @@ async def export_finding_to_pdf(
 @router.get("/dashboard/stats")
 async def get_audit_dashboard_stats(
     current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get audit system dashboard statistics.
     """
     require_audit_permission(current_user)
-    
-    entity_id = current_user.selected_entity_id
     
     # Total runs
     runs_result = await db.execute(
@@ -1030,7 +1034,7 @@ async def get_audit_dashboard_stats(
         select(func.count(AuditRun.id))
         .where(and_(
             AuditRun.entity_id == entity_id,
-            AuditRun.status == AuditRunStatus.IN_PROGRESS
+            AuditRun.status == AuditRunStatus.RUNNING
         ))
     )
     active_runs = active_result.scalar() or 0

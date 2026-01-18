@@ -92,7 +92,7 @@
                 <p class="text-xs text-gray-600 mt-1">PAYE Tax</p>
             </div>
             <div class="text-center p-4 bg-blue-50 rounded-lg">
-                <p class="text-2xl font-bold text-blue-600">₦<span x-text="formatCompact(run.total_pension || 0)"></span></p>
+                <p class="text-2xl font-bold text-blue-600">₦<span x-text="formatCompact(run.total_pension_employee || 0)"></span></p>
                 <p class="text-xs text-gray-600 mt-1">Pension (Employee)</p>
             </div>
             <div class="text-center p-4 bg-green-50 rounded-lg">
@@ -100,7 +100,7 @@
                 <p class="text-xs text-gray-600 mt-1">NHF</p>
             </div>
             <div class="text-center p-4 bg-purple-50 rounded-lg">
-                <p class="text-2xl font-bold text-purple-600">₦<span x-text="formatCompact(run.employer_pension || 0)"></span></p>
+                <p class="text-2xl font-bold text-purple-600">₦<span x-text="formatCompact(run.total_pension_employer || 0)"></span></p>
                 <p class="text-xs text-gray-600 mt-1">Pension (Employer)</p>
             </div>
             <div class="text-center p-4 bg-indigo-50 rounded-lg">
@@ -136,15 +136,15 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
-                                        <span class="text-green-600 font-semibold text-sm" x-text="slip.employee?.first_name?.charAt(0) || 'E'"></span>
+                                        <span class="text-green-600 font-semibold text-sm" x-text="(slip.employee_name || 'E').charAt(0)"></span>
                                     </div>
                                     <div>
-                                        <div class="text-sm font-medium text-gray-900" x-text="slip.employee?.full_name || 'Unknown'"></div>
-                                        <div class="text-xs text-gray-500" x-text="slip.employee?.employee_id"></div>
+                                        <div class="text-sm font-medium text-gray-900" x-text="slip.employee_name || 'Unknown'"></div>
+                                        <div class="text-xs text-gray-500" x-text="slip.employee_staff_id || slip.employee_id"></div>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="slip.employee?.department || '-'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">-</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">₦<span x-text="formatCurrency(slip.gross_pay)"></span></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">₦<span x-text="formatCurrency(slip.paye_tax)"></span></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">₦<span x-text="formatCurrency(slip.employee_pension)"></span></td>
@@ -190,8 +190,8 @@
                         </div>
                         
                         <div class="border-b pb-4 mb-4">
-                            <h3 class="font-semibold text-gray-900" x-text="selectedPayslip.employee?.full_name"></h3>
-                            <p class="text-sm text-gray-500" x-text="(selectedPayslip.employee?.employee_id || '') + ' • ' + (selectedPayslip.employee?.department || '')"></p>
+                            <h3 class="font-semibold text-gray-900" x-text="selectedPayslip.employee_name || 'Unknown'"></h3>
+                            <p class="text-sm text-gray-500" x-text="selectedPayslip.employee_staff_id || selectedPayslip.payslip_number"></p>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-6">
@@ -201,6 +201,8 @@
                                     <div class="flex justify-between"><span>Basic Salary</span><span>₦<span x-text="formatCurrency(selectedPayslip.basic_salary)"></span></span></div>
                                     <div class="flex justify-between"><span>Housing Allowance</span><span>₦<span x-text="formatCurrency(selectedPayslip.housing_allowance)"></span></span></div>
                                     <div class="flex justify-between"><span>Transport Allowance</span><span>₦<span x-text="formatCurrency(selectedPayslip.transport_allowance)"></span></span></div>
+                                    <div class="flex justify-between"><span>Meal Allowance</span><span>₦<span x-text="formatCurrency(selectedPayslip.meal_allowance)"></span></span></div>
+                                    <div class="flex justify-between"><span>Utility Allowance</span><span>₦<span x-text="formatCurrency(selectedPayslip.utility_allowance)"></span></span></div>
                                     <div class="flex justify-between font-semibold border-t pt-1"><span>Gross Pay</span><span>₦<span x-text="formatCurrency(selectedPayslip.gross_pay)"></span></span></div>
                                 </div>
                             </div>
@@ -231,7 +233,7 @@
 <script>
 function payrollRunDetails() {
     return {
-        runId: {{ run_id }},
+        runId: '{{ run_id }}',
         run: {},
         payslips: [],
         filteredPayslips: [],
@@ -246,9 +248,11 @@ function payrollRunDetails() {
         
         async loadRun() {
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}`);
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${this.runId}`, { credentials: 'include' });
                 if (response.ok) {
                     this.run = await response.json();
+                } else {
+                    console.error('Failed to load payroll run:', response.status);
                 }
             } catch (error) {
                 console.error('Error loading payroll run:', error);
@@ -257,10 +261,12 @@ function payrollRunDetails() {
         
         async loadPayslips() {
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/payslips`);
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${this.runId}/payslips`, { credentials: 'include' });
                 if (response.ok) {
                     this.payslips = await response.json();
                     this.filteredPayslips = this.payslips;
+                } else {
+                    console.error('Failed to load payslips:', response.status);
                 }
             } catch (error) {
                 console.error('Error loading payslips:', error);
@@ -270,9 +276,9 @@ function payrollRunDetails() {
         filterPayslips() {
             const query = this.searchQuery.toLowerCase();
             this.filteredPayslips = this.payslips.filter(slip => 
-                (slip.employee?.full_name || '').toLowerCase().includes(query) ||
-                (slip.employee?.employee_id || '').toLowerCase().includes(query) ||
-                (slip.employee?.department || '').toLowerCase().includes(query)
+                (slip.employee_name || '').toLowerCase().includes(query) ||
+                (slip.employee_staff_id || '').toLowerCase().includes(query) ||
+                (slip.payslip_number || '').toLowerCase().includes(query)
             );
         },
         
@@ -284,7 +290,7 @@ function payrollRunDetails() {
         async approveRun() {
             if (!confirm('Approve this payroll run?')) return;
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/approve`, { method: 'POST' });
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${this.runId}/approve`, { method: 'POST', credentials: 'include' });
                 if (response.ok) {
                     await this.loadRun();
                 }
@@ -296,7 +302,7 @@ function payrollRunDetails() {
         async processRun() {
             if (!confirm('Process this payroll? This will generate payslips and remittances.')) return;
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/process`, { method: 'POST' });
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${this.runId}/process`, { method: 'POST', credentials: 'include' });
                 if (response.ok) {
                     await this.loadRun();
                     await this.loadPayslips();
@@ -309,7 +315,7 @@ function payrollRunDetails() {
         async markPaid() {
             if (!confirm('Mark this payroll as paid?')) return;
             try {
-                const response = await fetch(`/api/v1/payroll/payroll-runs/${this.runId}/mark-paid`, { method: 'POST' });
+                const response = await authFetch(`/api/v1/payroll/payroll-runs/${this.runId}/mark-paid`, { method: 'POST', credentials: 'include' });
                 if (response.ok) {
                     await this.loadRun();
                 }

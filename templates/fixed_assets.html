@@ -556,8 +556,21 @@ function fixedAssetsPage() {
         disposingAsset: null,
         viewingAsset: null,
         
-        // Forms
-        form: this.getDefaultForm(),
+        // Forms - Initialize directly instead of calling this.getDefaultForm()
+        form: {
+            name: '',
+            description: '',
+            category: '',
+            acquisition_date: new Date().toISOString().split('T')[0],
+            acquisition_cost: '',
+            residual_value: 0,
+            depreciation_method: 'reducing_balance',
+            useful_life_years: null,
+            vendor_name: '',
+            vendor_irn: '',
+            serial_number: '',
+            location: ''
+        },
         disposeForm: {
             disposal_type: 'sale',
             disposal_date: new Date().toISOString().split('T')[0],
@@ -602,7 +615,7 @@ function fixedAssetsPage() {
                 if (this.categoryFilter) url += `&category=${this.categoryFilter}`;
                 if (this.statusFilter) url += `&status=${this.statusFilter}`;
                 
-                const response = await fetch(url);
+                const response = await fetch(url, { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
                     this.assets = Array.isArray(data) ? data : (data.items || []);
@@ -621,7 +634,7 @@ function fixedAssetsPage() {
                 const entityId = this.getEntityId();
                 if (!entityId) return;
                 
-                const response = await fetch(`/api/v1/fixed-assets/entity/${entityId}/summary`);
+                const response = await fetch(`/api/v1/fixed-assets/entity/${entityId}/summary`, { credentials: 'include' });
                 if (response.ok) {
                     this.summary = await response.json();
                 }

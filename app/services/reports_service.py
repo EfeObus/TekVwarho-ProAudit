@@ -94,9 +94,11 @@ class ReportsService:
         expense_categories = {}
         for row in expense_result:
             cat_name = row.category or "Uncategorized"
+            # wren_status is a boolean (True=tax deductible), not an enum
+            wren_status = row.wren_status if row.wren_status is not None else False
             expense_categories[cat_name] = {
                 "total": float(row.total),
-                "wren_status": row.wren_status.value if row.wren_status else None,
+                "wren_status": "deductible" if wren_status else "non-deductible",
             }
         total_expenses = sum(exp["total"] for exp in expense_categories.values())
         

@@ -39,7 +39,7 @@ from sqlalchemy.orm import selectinload
 from app.models.payroll import (
     Employee, EmployeeBankAccount, PayrollRun, Payslip, PayslipItem,
     StatutoryRemittance, EmploymentStatus, PayrollStatus, PayrollFrequency,
-    PayItemType, PayItemCategory
+    PayItemType, PayItemCategory, EmployeeLoan, LoanStatus, LoanType
 )
 from app.services.tax_calculators.paye_service import PAYECalculator
 
@@ -266,7 +266,7 @@ class PayrollService:
             .where(
                 and_(
                     Employee.entity_id == entity_id,
-                    Employee.employment_status == EmploymentStatus.ACTIVE,
+                    Employee.employment_status == EmploymentStatus.ACTIVE.value,
                     Employee.is_active == True
                 )
             )
@@ -296,6 +296,8 @@ class PayrollService:
         basic_salary: Decimal,
         housing_allowance: Decimal = Decimal("0"),
         transport_allowance: Decimal = Decimal("0"),
+        meal_allowance: Decimal = Decimal("0"),
+        utility_allowance: Decimal = Decimal("0"),
         other_allowances: Optional[Dict[str, float]] = None,
         pension_percentage: Decimal = PENSION_EMPLOYEE_RATE,
         is_pension_exempt: bool = False,
@@ -315,8 +317,8 @@ class PayrollService:
                 other_allowances_decimal[key] = amount
                 total_other += amount
         
-        # Monthly gross
-        monthly_gross = basic_salary + housing_allowance + transport_allowance + total_other
+        # Monthly gross (includes meal and utility allowances)
+        monthly_gross = basic_salary + housing_allowance + transport_allowance + meal_allowance + utility_allowance + total_other
         annual_gross = monthly_gross * 12
         
         # Pensionable earnings (Basic + Housing + Transport per PenCom)
@@ -400,6 +402,8 @@ class PayrollService:
             "basic_salary": basic_salary,
             "housing_allowance": housing_allowance,
             "transport_allowance": transport_allowance,
+            "meal_allowance": meal_allowance,
+            "utility_allowance": utility_allowance,
             "other_allowances": other_allowances_decimal,
             "monthly_gross": monthly_gross,
             "annual_gross": annual_gross,
@@ -726,7 +730,7 @@ class PayrollService:
             },
             
             # Bank details
-            bank_name=primary_bank.bank_name.value if primary_bank else None,
+            bank_name=primary_bank.bank_name if primary_bank else None,
             account_number=primary_bank.account_number if primary_bank else None,
             account_name=primary_bank.account_name if primary_bank else None,
         )
@@ -1067,6 +1071,7 @@ class PayrollService:
         query = (
             select(Payslip)
             .join(PayrollRun)
+            .options(selectinload(Payslip.employee))
             .where(
                 and_(
                     Payslip.employee_id == employee_id,
@@ -1198,6 +1203,10 @@ class PayrollService:
         entity_id: uuid.UUID,
     ) -> Dict[str, Any]:
         """Get payroll dashboard statistics."""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Dashboard: Starting for entity_id={entity_id}")
+        
         # Employee counts
         total_employees = await self.db.execute(
             select(func.count()).select_from(Employee).where(
@@ -1205,15 +1214,17 @@ class PayrollService:
             )
         )
         total_employees = total_employees.scalar() or 0
+        logger.info(f"Dashboard: total_employees={total_employees}")
         
         active_employees = await self.get_active_employees_count(entity_id)
+        logger.info(f"Dashboard: active_employees={active_employees}")
         
         # Get active employees for salary calculations
         result = await self.db.execute(
             select(Employee).where(
                 and_(
                     Employee.entity_id == entity_id,
-                    Employee.employment_status == EmploymentStatus.ACTIVE,
+                    Employee.employment_status == EmploymentStatus.ACTIVE.value,
                     Employee.is_active == True
                 )
             )
@@ -1232,7 +1243,7 @@ class PayrollService:
                     PayrollRun.entity_id == entity_id,
                     extract('month', PayrollRun.period_start) == current_date.month,
                     extract('year', PayrollRun.period_start) == current_date.year,
-                    PayrollRun.status != PayrollStatus.CANCELLED
+                    PayrollRun.status != PayrollStatus.CANCELLED.value
                 )
             )
         )
@@ -1257,7 +1268,7 @@ class PayrollService:
             .where(
                 and_(
                     Employee.entity_id == entity_id,
-                    Employee.employment_status == EmploymentStatus.ACTIVE
+                    Employee.employment_status == EmploymentStatus.ACTIVE.value
                 )
             )
             .group_by(Employee.department)
@@ -1292,3 +1303,481 @@ class PayrollService:
             "recent_payroll_runs": recent_runs,
             "pending_remittances": pending,
         }
+
+    # ===========================================
+    # PAYSLIP PDF GENERATION
+    # ===========================================
+    
+    async def generate_payslip_pdf(
+        self,
+        entity_id: uuid.UUID,
+        payslip_id: uuid.UUID,
+    ) -> Optional[bytes]:
+        """Generate PDF for a payslip."""
+        from io import BytesIO
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        
+        # Get payslip with related data
+        payslip = await self.get_payslip(entity_id, payslip_id)
+        if not payslip:
+            return None
+        
+        # Get the payroll run for period info
+        payroll_run = await self.get_payroll_run(entity_id, payslip.payroll_run_id)
+        
+        # Get entity info
+        from app.models.entity import BusinessEntity
+        entity_result = await self.db.execute(
+            select(BusinessEntity).where(BusinessEntity.id == entity_id)
+        )
+        entity = entity_result.scalar_one_or_none()
+        
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            spaceAfter=6,
+            textColor=colors.HexColor('#166534'),
+        )
+        
+        header_style = ParagraphStyle(
+            'Header',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#374151'),
+        )
+        
+        elements = []
+        
+        # Company header
+        company_name = entity.name if entity else "Company"
+        elements.append(Paragraph(company_name, title_style))
+        if entity:
+            elements.append(Paragraph(f"{entity.address_line1 or ''}, {entity.city or ''}, {entity.state or ''}", header_style))
+        elements.append(Spacer(1, 15))
+        
+        # Payslip title
+        elements.append(Paragraph("<b>PAYSLIP</b>", ParagraphStyle('PayslipTitle', parent=styles['Heading2'], fontSize=14, alignment=1)))
+        elements.append(Spacer(1, 10))
+        
+        # Employee and period info
+        employee = payslip.employee
+        period_start = payroll_run.period_start.strftime('%d %b %Y') if payroll_run else ''
+        period_end = payroll_run.period_end.strftime('%d %b %Y') if payroll_run else ''
+        
+        info_data = [
+            ["Employee Name:", f"{employee.first_name} {employee.last_name}" if employee else "N/A", "Payslip No:", payslip.payslip_number],
+            ["Employee ID:", employee.employee_id if employee else "N/A", "Pay Period:", f"{period_start} - {period_end}"],
+            ["Department:", employee.department if employee else "N/A", "Payment Date:", payroll_run.payment_date.strftime('%d %b %Y') if payroll_run else ""],
+            ["TIN:", employee.tin if employee else "N/A", "Pension PIN:", employee.pension_pin if employee else "N/A"],
+        ]
+        
+        info_table = Table(info_data, colWidths=[80, 150, 80, 150])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.grey),
+            ('TEXTCOLOR', (2, 0), (2, -1), colors.grey),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 15))
+        
+        # Earnings section
+        elements.append(Paragraph("<b>EARNINGS</b>", styles['Heading3']))
+        earnings_data = [
+            ["Description", "Amount (₦)"],
+            ["Basic Salary", f"{float(payslip.basic_salary):,.2f}"],
+            ["Housing Allowance", f"{float(payslip.housing_allowance):,.2f}"],
+            ["Transport Allowance", f"{float(payslip.transport_allowance):,.2f}"],
+        ]
+        if payslip.other_earnings and float(payslip.other_earnings) > 0:
+            earnings_data.append(["Other Earnings", f"{float(payslip.other_earnings):,.2f}"])
+        earnings_data.append(["<b>Gross Pay</b>", f"<b>{float(payslip.gross_pay):,.2f}</b>"])
+        
+        earnings_table = Table([[Paragraph(str(cell), styles['Normal']) for cell in row] for row in earnings_data], colWidths=[300, 160])
+        earnings_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f0fdf4')),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.HexColor('#166534')),
+        ]))
+        elements.append(earnings_table)
+        elements.append(Spacer(1, 15))
+        
+        # Deductions section
+        elements.append(Paragraph("<b>DEDUCTIONS</b>", styles['Heading3']))
+        deductions_data = [
+            ["Description", "Amount (₦)"],
+            ["PAYE Tax", f"{float(payslip.paye_tax):,.2f}"],
+            ["Pension (Employee)", f"{float(payslip.pension_employee):,.2f}"],
+            ["NHF", f"{float(payslip.nhf):,.2f}"],
+        ]
+        if payslip.other_deductions and float(payslip.other_deductions) > 0:
+            deductions_data.append(["Other Deductions", f"{float(payslip.other_deductions):,.2f}"])
+        deductions_data.append(["<b>Total Deductions</b>", f"<b>{float(payslip.total_deductions):,.2f}</b>"])
+        
+        deductions_table = Table([[Paragraph(str(cell), styles['Normal']) for cell in row] for row in deductions_data], colWidths=[300, 160])
+        deductions_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#fef2f2')),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.HexColor('#dc2626')),
+        ]))
+        elements.append(deductions_table)
+        elements.append(Spacer(1, 15))
+        
+        # Net Pay
+        net_pay_data = [
+            ["<b>NET PAY</b>", f"<b>₦{float(payslip.net_pay):,.2f}</b>"],
+        ]
+        net_pay_table = Table([[Paragraph(str(cell), styles['Normal']) for cell in row] for row in net_pay_data], colWidths=[300, 160])
+        net_pay_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#166534')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        elements.append(net_pay_table)
+        elements.append(Spacer(1, 20))
+        
+        # Bank details
+        if payslip.bank_name and payslip.account_number:
+            elements.append(Paragraph("<b>Payment Details</b>", styles['Heading3']))
+            bank_data = [
+                ["Bank:", payslip.bank_name, "Account:", payslip.account_number],
+            ]
+            if payslip.account_name:
+                bank_data.append(["Account Name:", payslip.account_name, "", ""])
+            bank_table = Table(bank_data, colWidths=[60, 180, 60, 160])
+            bank_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TEXTCOLOR', (0, 0), (0, -1), colors.grey),
+                ('TEXTCOLOR', (2, 0), (2, -1), colors.grey),
+            ]))
+            elements.append(bank_table)
+            elements.append(Spacer(1, 15))
+        
+        # Employer contributions (for info)
+        if payslip.pension_employer and float(payslip.pension_employer) > 0:
+            elements.append(Paragraph("<b>Employer Contributions</b>", styles['Heading3']))
+            employer_data = [
+                ["Pension (Employer)", f"₦{float(payslip.pension_employer):,.2f}"],
+            ]
+            if payslip.nsitf and float(payslip.nsitf) > 0:
+                employer_data.append(["NSITF", f"₦{float(payslip.nsitf):,.2f}"])
+            if payslip.itf and float(payslip.itf) > 0:
+                employer_data.append(["ITF", f"₦{float(payslip.itf):,.2f}"])
+            
+            employer_table = Table(employer_data, colWidths=[300, 160])
+            employer_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.grey),
+                ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ]))
+            elements.append(employer_table)
+        
+        # Footer
+        elements.append(Spacer(1, 30))
+        elements.append(Paragraph(
+            "This is a computer-generated payslip and does not require a signature.",
+            ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey, alignment=1)
+        ))
+        elements.append(Paragraph(
+            "TekVwarho ProAudit - Nigeria's Premier Tax Compliance Platform",
+            ParagraphStyle('Footer2', parent=styles['Normal'], fontSize=7, textColor=colors.grey, alignment=1)
+        ))
+        
+        doc.build(elements)
+        return buffer.getvalue()
+
+    # ===========================================
+    # LOAN METHODS
+    # ===========================================
+
+    async def get_loans(
+        self,
+        entity_id: uuid.UUID,
+        employee_id: Optional[uuid.UUID] = None,
+        status: Optional[str] = None,
+        loan_type: Optional[str] = None,
+    ) -> List[EmployeeLoan]:
+        """Get all loans for an entity with optional filters."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        query = select(EmployeeLoan).options(
+            selectinload(EmployeeLoan.employee)
+        ).where(EmployeeLoan.entity_id == entity_id)
+        
+        if employee_id:
+            query = query.where(EmployeeLoan.employee_id == employee_id)
+        if status:
+            query = query.where(EmployeeLoan.status == status)
+        if loan_type:
+            query = query.where(EmployeeLoan.loan_type == loan_type)
+        
+        query = query.order_by(EmployeeLoan.created_at.desc())
+        
+        result = await self.db.execute(query)
+        loans = result.scalars().all()
+        
+        # Add employee info to response
+        for loan in loans:
+            if loan.employee:
+                loan.employee_name = loan.employee.full_name
+                loan.employee_id_code = loan.employee.employee_id
+        
+        return loans
+
+    async def get_loan_by_id(
+        self,
+        entity_id: uuid.UUID,
+        loan_id: uuid.UUID,
+    ) -> Optional[EmployeeLoan]:
+        """Get a specific loan by ID."""
+        result = await self.db.execute(
+            select(EmployeeLoan)
+            .options(selectinload(EmployeeLoan.employee))
+            .where(
+                and_(
+                    EmployeeLoan.id == loan_id,
+                    EmployeeLoan.entity_id == entity_id,
+                )
+            )
+        )
+        loan = result.scalar_one_or_none()
+        
+        if loan and loan.employee:
+            loan.employee_name = loan.employee.full_name
+            loan.employee_id_code = loan.employee.employee_id
+        
+        return loan
+
+    async def get_loan_summary(self, entity_id: uuid.UUID) -> Dict[str, Any]:
+        """Get loan summary statistics."""
+        # Total loans count
+        total_result = await self.db.execute(
+            select(func.count()).select_from(EmployeeLoan).where(
+                EmployeeLoan.entity_id == entity_id
+            )
+        )
+        total_loans = total_result.scalar() or 0
+        
+        # Active loans count
+        active_result = await self.db.execute(
+            select(func.count()).select_from(EmployeeLoan).where(
+                and_(
+                    EmployeeLoan.entity_id == entity_id,
+                    EmployeeLoan.status == LoanStatus.ACTIVE.value,
+                )
+            )
+        )
+        active_loans = active_result.scalar() or 0
+        
+        # Financial totals
+        totals_result = await self.db.execute(
+            select(
+                func.coalesce(func.sum(EmployeeLoan.principal_amount), 0).label('total_disbursed'),
+                func.coalesce(func.sum(EmployeeLoan.balance), 0).label('total_outstanding'),
+                func.coalesce(func.sum(EmployeeLoan.total_paid), 0).label('total_collected'),
+            ).where(EmployeeLoan.entity_id == entity_id)
+        )
+        totals = totals_result.one()
+        
+        return {
+            "total_loans": total_loans,
+            "active_loans": active_loans,
+            "total_disbursed": Decimal(str(totals.total_disbursed)),
+            "total_outstanding": Decimal(str(totals.total_outstanding)),
+            "total_collected": Decimal(str(totals.total_collected)),
+        }
+
+    async def create_loan(
+        self,
+        entity_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        loan_data: Any,
+        created_by_id: uuid.UUID,
+    ) -> EmployeeLoan:
+        """Create a new loan."""
+        from dateutil.relativedelta import relativedelta
+        
+        # Verify employee exists
+        emp_result = await self.db.execute(
+            select(Employee).where(
+                and_(
+                    Employee.id == employee_id,
+                    Employee.entity_id == entity_id,
+                )
+            )
+        )
+        employee = emp_result.scalar_one_or_none()
+        if not employee:
+            raise ValueError("Employee not found")
+        
+        # Generate loan reference
+        year = date.today().year
+        count_result = await self.db.execute(
+            select(func.count()).select_from(EmployeeLoan).where(
+                and_(
+                    EmployeeLoan.entity_id == entity_id,
+                    extract('year', EmployeeLoan.created_at) == year,
+                )
+            )
+        )
+        count = (count_result.scalar() or 0) + 1
+        loan_reference = f"LN-{year}-{count:04d}"
+        
+        # Calculate loan details
+        principal = Decimal(str(loan_data.principal_amount))
+        interest_rate = Decimal(str(loan_data.interest_rate or 0))
+        tenure_months = loan_data.tenure_months
+        
+        # Calculate total interest (simple interest for now)
+        total_interest = (principal * interest_rate * tenure_months) / (Decimal("100") * Decimal("12"))
+        total_amount = principal + total_interest
+        monthly_deduction = total_amount / Decimal(str(tenure_months))
+        monthly_deduction = monthly_deduction.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        
+        # Calculate end date
+        start_date = loan_data.start_date
+        end_date = start_date + relativedelta(months=tenure_months)
+        
+        loan = EmployeeLoan(
+            entity_id=entity_id,
+            employee_id=employee_id,
+            loan_type=loan_data.loan_type,
+            loan_reference=loan_reference,
+            description=loan_data.description,
+            principal_amount=principal,
+            interest_rate=interest_rate,
+            total_amount=total_amount,
+            monthly_deduction=monthly_deduction,
+            tenure_months=tenure_months,
+            total_paid=Decimal("0"),
+            balance=total_amount,
+            start_date=start_date,
+            end_date=end_date,
+            status=LoanStatus.PENDING.value,
+            is_active=True,
+            notes=loan_data.notes,
+            created_by_id=created_by_id,
+        )
+        
+        self.db.add(loan)
+        await self.db.commit()
+        await self.db.refresh(loan)
+        
+        loan.employee_name = employee.full_name
+        loan.employee_id_code = employee.employee_id
+        
+        return loan
+
+    async def update_loan(
+        self,
+        entity_id: uuid.UUID,
+        loan_id: uuid.UUID,
+        loan_data: Any,
+        updated_by_id: uuid.UUID,
+    ) -> Optional[EmployeeLoan]:
+        """Update a loan."""
+        loan = await self.get_loan_by_id(entity_id, loan_id)
+        if not loan:
+            return None
+        
+        if loan_data.description is not None:
+            loan.description = loan_data.description
+        if loan_data.status is not None:
+            loan.status = loan_data.status
+        if loan_data.notes is not None:
+            loan.notes = loan_data.notes
+        
+        loan.updated_by_id = updated_by_id
+        
+        await self.db.commit()
+        await self.db.refresh(loan)
+        
+        return loan
+
+    async def approve_loan(
+        self,
+        entity_id: uuid.UUID,
+        loan_id: uuid.UUID,
+        approved_by_id: uuid.UUID,
+    ) -> Optional[EmployeeLoan]:
+        """Approve a pending loan."""
+        loan = await self.get_loan_by_id(entity_id, loan_id)
+        if not loan:
+            return None
+        
+        if loan.status != LoanStatus.PENDING.value:
+            raise ValueError("Only pending loans can be approved")
+        
+        loan.status = LoanStatus.ACTIVE.value
+        loan.approved_by_id = approved_by_id
+        loan.approved_at = datetime.utcnow()
+        
+        await self.db.commit()
+        await self.db.refresh(loan)
+        
+        return loan
+
+    async def cancel_loan(
+        self,
+        entity_id: uuid.UUID,
+        loan_id: uuid.UUID,
+    ) -> Optional[EmployeeLoan]:
+        """Cancel a loan."""
+        loan = await self.get_loan_by_id(entity_id, loan_id)
+        if not loan:
+            return None
+        
+        if loan.status in [LoanStatus.COMPLETED.value, LoanStatus.CANCELLED.value]:
+            raise ValueError("Cannot cancel completed or already cancelled loans")
+        
+        loan.status = LoanStatus.CANCELLED.value
+        loan.is_active = False
+        
+        await self.db.commit()
+        await self.db.refresh(loan)
+        
+        return loan
+
+    async def delete_loan(
+        self,
+        entity_id: uuid.UUID,
+        loan_id: uuid.UUID,
+    ) -> bool:
+        """Delete a pending loan."""
+        loan = await self.get_loan_by_id(entity_id, loan_id)
+        if not loan:
+            return False
+        
+        if loan.status != LoanStatus.PENDING.value:
+            return False
+        
+        await self.db.delete(loan)
+        await self.db.commit()
+        
+        return True

@@ -38,6 +38,11 @@ from app.schemas.payroll import (
     # Remittance schemas
     StatutoryRemittanceResponse,
     StatutoryRemittanceUpdate,
+    # Loan schemas
+    LoanCreate,
+    LoanUpdate,
+    LoanResponse,
+    LoanSummary,
     # Other
     BankScheduleResponse,
     PayrollDashboardStats,
@@ -134,8 +139,10 @@ async def list_employees(
             "email": emp.email,
             "department": emp.department,
             "job_title": emp.job_title,
-            "employment_status": emp.employment_status.value,
+            "employment_status": emp.employment_status,
             "monthly_gross": float(emp.monthly_gross),
+            "basic_salary": float(emp.basic_salary),
+            "tin": emp.tin,
         })
     
     return {
@@ -314,6 +321,8 @@ async def calculate_salary_breakdown(
         basic_salary=data.basic_salary,
         housing_allowance=data.housing_allowance,
         transport_allowance=data.transport_allowance,
+        meal_allowance=data.meal_allowance,
+        utility_allowance=data.utility_allowance,
         other_allowances=data.other_allowances,
         pension_percentage=data.pension_percentage,
         is_pension_exempt=data.is_pension_exempt,
@@ -594,6 +603,51 @@ async def get_payslip(
     return response
 
 
+@router.get(
+    "/payslips/{payslip_id}/pdf",
+    summary="Download payslip PDF",
+    description="Generate and download payslip as PDF.",
+)
+async def download_payslip_pdf(
+    payslip_id: uuid.UUID = Path(...),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Download payslip as PDF."""
+    from fastapi.responses import Response
+    
+    service = PayrollService(db)
+    
+    # Get payslip first to get the payslip number for filename
+    payslip = await service.get_payslip(entity_id, payslip_id)
+    if not payslip:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payslip not found",
+        )
+    
+    # Generate PDF
+    pdf_bytes = await service.generate_payslip_pdf(entity_id, payslip_id)
+    if not pdf_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate PDF",
+        )
+    
+    # Create filename
+    filename = f"payslip_{payslip.payslip_number}.pdf"
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(pdf_bytes)),
+        }
+    )
+
+
 # ===========================================
 # REMITTANCE ENDPOINTS
 # ===========================================
@@ -672,26 +726,225 @@ async def get_payroll_dashboard(
     entity_id: uuid.UUID = Depends(get_current_entity_id),
 ):
     """Get payroll dashboard statistics."""
-    service = PayrollService(db)
-    stats = await service.get_payroll_dashboard(entity_id)
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Convert Decimal values to float for JSON serialization
-    return {
-        "total_employees": stats["total_employees"],
-        "active_employees": stats["active_employees"],
-        "total_monthly_payroll": float(stats["total_monthly_payroll"]),
-        "total_annual_payroll": float(stats["total_annual_payroll"]),
-        "average_salary": float(stats["average_salary"]),
-        "current_month_gross": float(stats["current_month_gross"]),
-        "current_month_net": float(stats["current_month_net"]),
-        "current_month_paye": float(stats["current_month_paye"]),
-        "current_month_pension": float(stats["current_month_pension"]),
-        "current_month_nhf": float(stats["current_month_nhf"]),
-        "department_breakdown": stats["department_breakdown"],
-        "recent_payroll_runs": [
-            PayrollRunSummary.model_validate(r) for r in stats["recent_payroll_runs"]
-        ],
-        "pending_remittances": [
-            StatutoryRemittanceResponse.model_validate(r) for r in stats["pending_remittances"]
-        ],
-    }
+    try:
+        service = PayrollService(db)
+        stats = await service.get_payroll_dashboard(entity_id)
+        
+        # Convert Decimal values to float for JSON serialization
+        result = {
+            "total_employees": stats["total_employees"],
+            "active_employees": stats["active_employees"],
+            "total_monthly_payroll": float(stats["total_monthly_payroll"]),
+            "total_annual_payroll": float(stats["total_annual_payroll"]),
+            "average_salary": float(stats["average_salary"]),
+            "current_month_gross": float(stats["current_month_gross"]),
+            "current_month_net": float(stats["current_month_net"]),
+            "current_month_paye": float(stats["current_month_paye"]),
+            "current_month_pension": float(stats["current_month_pension"]),
+            "current_month_nhf": float(stats["current_month_nhf"]),
+            "department_breakdown": stats["department_breakdown"],
+            "recent_payroll_runs": [],
+            "pending_remittances": [],
+        }
+        
+        # Safely convert payroll runs
+        for r in stats.get("recent_payroll_runs", []):
+            try:
+                result["recent_payroll_runs"].append({
+                    "id": str(r.id),
+                    "payroll_code": r.payroll_code,
+                    "name": r.name,
+                    "status": r.status.value if hasattr(r.status, 'value') else str(r.status),
+                    "period_start": r.period_start.isoformat(),
+                    "period_end": r.period_end.isoformat(),
+                    "payment_date": r.payment_date.isoformat(),
+                    "total_employees": r.total_employees,
+                    "total_gross_pay": float(r.total_gross_pay),
+                    "total_net_pay": float(r.total_net_pay),
+                    "total_deductions": float(r.total_deductions),
+                    "created_at": r.created_at.isoformat(),
+                })
+            except Exception as e:
+                logger.error(f"Error serializing payroll run: {e}")
+        
+        # Safely convert remittances
+        for r in stats.get("pending_remittances", []):
+            try:
+                result["pending_remittances"].append({
+                    "id": str(r.id),
+                    "remittance_type": r.remittance_type.value if hasattr(r.remittance_type, 'value') else str(r.remittance_type),
+                    "period_start": r.period_start.isoformat() if r.period_start else None,
+                    "period_end": r.period_end.isoformat() if r.period_end else None,
+                    "due_date": r.due_date.isoformat() if r.due_date else None,
+                    "amount": float(r.amount),
+                    "is_paid": r.is_paid,
+                })
+            except Exception as e:
+                logger.error(f"Error serializing remittance: {e}")
+        
+        return result
+    except Exception as e:
+        logger.error(f"Dashboard error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error loading dashboard: {str(e)}"
+        )
+
+
+# ===========================================
+# LOAN ENDPOINTS
+# ===========================================
+
+@router.get("/loans", response_model=List[LoanResponse], tags=["Loans"])
+async def list_loans(
+    employee_id: Optional[uuid.UUID] = Query(None, description="Filter by employee"),
+    status: Optional[str] = Query(None, description="Filter by loan status"),
+    loan_type: Optional[str] = Query(None, description="Filter by loan type"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """List all loans for the entity."""
+    service = PayrollService(db)
+    loans = await service.get_loans(
+        entity_id=entity_id,
+        employee_id=employee_id,
+        status=status,
+        loan_type=loan_type,
+    )
+    return loans
+
+
+@router.get("/loans/summary", response_model=LoanSummary, tags=["Loans"])
+async def get_loan_summary(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Get loan summary statistics."""
+    service = PayrollService(db)
+    return await service.get_loan_summary(entity_id=entity_id)
+
+
+@router.get("/employees/{employee_id}/loans", response_model=List[LoanResponse], tags=["Loans"])
+async def get_employee_loans(
+    employee_id: uuid.UUID = Path(..., description="Employee ID"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Get all loans for a specific employee."""
+    service = PayrollService(db)
+    loans = await service.get_loans(
+        entity_id=entity_id,
+        employee_id=employee_id,
+    )
+    return loans
+
+
+@router.post("/loans", response_model=LoanResponse, status_code=status.HTTP_201_CREATED, tags=["Loans"])
+async def create_loan(
+    loan_data: LoanCreate,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Create a new loan/salary advance for an employee."""
+    service = PayrollService(db)
+    loan = await service.create_loan(
+        entity_id=entity_id,
+        employee_id=loan_data.employee_id,
+        loan_data=loan_data,
+        created_by_id=current_user.id,
+    )
+    return loan
+
+
+@router.get("/loans/{loan_id}", response_model=LoanResponse, tags=["Loans"])
+async def get_loan(
+    loan_id: uuid.UUID = Path(..., description="Loan ID"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Get a specific loan by ID."""
+    service = PayrollService(db)
+    loan = await service.get_loan_by_id(entity_id=entity_id, loan_id=loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return loan
+
+
+@router.put("/loans/{loan_id}", response_model=LoanResponse, tags=["Loans"])
+async def update_loan(
+    loan_id: uuid.UUID,
+    loan_data: LoanUpdate,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Update a loan."""
+    service = PayrollService(db)
+    loan = await service.update_loan(
+        entity_id=entity_id,
+        loan_id=loan_id,
+        loan_data=loan_data,
+        updated_by_id=current_user.id,
+    )
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return loan
+
+
+@router.post("/loans/{loan_id}/approve", response_model=LoanResponse, tags=["Loans"])
+async def approve_loan(
+    loan_id: uuid.UUID = Path(..., description="Loan ID"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Approve a pending loan."""
+    service = PayrollService(db)
+    loan = await service.approve_loan(
+        entity_id=entity_id,
+        loan_id=loan_id,
+        approved_by_id=current_user.id,
+    )
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return loan
+
+
+@router.post("/loans/{loan_id}/cancel", response_model=LoanResponse, tags=["Loans"])
+async def cancel_loan(
+    loan_id: uuid.UUID = Path(..., description="Loan ID"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Cancel a loan."""
+    service = PayrollService(db)
+    loan = await service.cancel_loan(
+        entity_id=entity_id,
+        loan_id=loan_id,
+    )
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return loan
+
+
+@router.delete("/loans/{loan_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Loans"])
+async def delete_loan(
+    loan_id: uuid.UUID = Path(..., description="Loan ID"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """Delete a loan (only pending loans can be deleted)."""
+    service = PayrollService(db)
+    success = await service.delete_loan(entity_id=entity_id, loan_id=loan_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Loan not found or cannot be deleted")

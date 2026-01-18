@@ -954,23 +954,23 @@ class DashboardService:
         
         today = date.today()
         
-        # Outstanding invoices
+        # Outstanding invoices (DRAFT, PENDING, or SUBMITTED but not yet paid)
         outstanding_result = await self.db.execute(
             select(func.coalesce(func.sum(Invoice.total_amount), 0)).where(
                 and_(
                     Invoice.entity_id == entity_id,
-                    Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.SENT]),
+                    Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.PENDING, InvoiceStatus.SUBMITTED]),
                 )
             )
         )
         outstanding = float(outstanding_result.scalar() or 0)
         
-        # Overdue invoices
+        # Overdue invoices (PENDING or SUBMITTED and past due date)
         overdue_result = await self.db.execute(
             select(func.coalesce(func.sum(Invoice.total_amount), 0)).where(
                 and_(
                     Invoice.entity_id == entity_id,
-                    Invoice.status == InvoiceStatus.SENT,
+                    Invoice.status.in_([InvoiceStatus.PENDING, InvoiceStatus.SUBMITTED]),
                     Invoice.due_date < today,
                 )
             )

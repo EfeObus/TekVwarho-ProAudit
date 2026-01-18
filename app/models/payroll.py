@@ -43,41 +43,41 @@ if TYPE_CHECKING:
 
 class EmploymentType(str, Enum):
     """Employment type classification."""
-    FULL_TIME = "full_time"
-    PART_TIME = "part_time"
-    CONTRACT = "contract"
-    INTERN = "intern"
-    PROBATION = "probation"
-    CONSULTANT = "consultant"
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    CONTRACT = "CONTRACT"
+    INTERN = "INTERN"
+    PROBATION = "PROBATION"
+    CONSULTANT = "CONSULTANT"
 
 
 class EmploymentStatus(str, Enum):
     """Employment status."""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    TERMINATED = "terminated"
-    RESIGNED = "resigned"
-    RETIRED = "retired"
-    SUSPENDED = "suspended"
-    ON_LEAVE = "on_leave"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    TERMINATED = "TERMINATED"
+    RESIGNED = "RESIGNED"
+    RETIRED = "RETIRED"
+    SUSPENDED = "SUSPENDED"
+    ON_LEAVE = "ON_LEAVE"
 
 
 class PayrollStatus(str, Enum):
     """Payroll processing status."""
-    DRAFT = "draft"
-    PENDING_APPROVAL = "pending_approval"
-    APPROVED = "approved"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    PAID = "paid"
-    CANCELLED = "cancelled"
+    DRAFT = "DRAFT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    APPROVED = "APPROVED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    PAID = "PAID"
+    CANCELLED = "CANCELLED"
 
 
 class PayrollFrequency(str, Enum):
     """Payroll frequency."""
-    WEEKLY = "weekly"
-    BI_WEEKLY = "bi_weekly"
-    MONTHLY = "monthly"
+    WEEKLY = "WEEKLY"
+    BI_WEEKLY = "BI_WEEKLY"
+    MONTHLY = "MONTHLY"
 
 
 class PayItemType(str, Enum):
@@ -269,8 +269,8 @@ class Employee(BaseModel, AuditMixin):
         String(30), nullable=True,
         comment="RSA PIN (Retirement Savings Account Pin)",
     )
-    pfa: Mapped[Optional[PensionFundAdministrator]] = mapped_column(
-        SQLEnum(PensionFundAdministrator), nullable=True,
+    pfa: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True,
         comment="Pension Fund Administrator",
     )
     pfa_other: Mapped[Optional[str]] = mapped_column(
@@ -294,14 +294,14 @@ class Employee(BaseModel, AuditMixin):
     )
     
     # Employment Details
-    employment_type: Mapped[EmploymentType] = mapped_column(
-        SQLEnum(EmploymentType),
-        default=EmploymentType.FULL_TIME,
+    employment_type: Mapped[str] = mapped_column(
+        String(30),
+        default=EmploymentType.FULL_TIME.value,
         nullable=False,
     )
-    employment_status: Mapped[EmploymentStatus] = mapped_column(
-        SQLEnum(EmploymentStatus),
-        default=EmploymentStatus.ACTIVE,
+    employment_status: Mapped[str] = mapped_column(
+        String(30),
+        default=EmploymentStatus.ACTIVE.value,
         nullable=False,
     )
     department: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -313,9 +313,9 @@ class Employee(BaseModel, AuditMixin):
     termination_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Pay Structure
-    payroll_frequency: Mapped[PayrollFrequency] = mapped_column(
-        SQLEnum(PayrollFrequency),
-        default=PayrollFrequency.MONTHLY,
+    payroll_frequency: Mapped[str] = mapped_column(
+        String(30),
+        default=PayrollFrequency.MONTHLY.value,
         nullable=False,
     )
     currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
@@ -338,6 +338,18 @@ class Employee(BaseModel, AuditMixin):
         nullable=False,
         default=Decimal("0.00"),
         comment="Monthly transport allowance",
+    )
+    meal_allowance: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+        comment="Monthly meal allowance",
+    )
+    utility_allowance: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=False,
+        default=Decimal("0.00"),
+        comment="Monthly utility allowance",
     )
     
     # Optional Allowances (stored as JSON for flexibility)
@@ -476,8 +488,8 @@ class EmployeeBankAccount(BaseModel):
         index=True,
     )
     
-    bank_name: Mapped[BankName] = mapped_column(
-        SQLEnum(BankName),
+    bank_name: Mapped[str] = mapped_column(
+        String(100),
         nullable=False,
     )
     bank_name_other: Mapped[Optional[str]] = mapped_column(
@@ -543,9 +555,9 @@ class PayrollRun(BaseModel, AuditMixin):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Pay Period
-    frequency: Mapped[PayrollFrequency] = mapped_column(
-        SQLEnum(PayrollFrequency),
-        default=PayrollFrequency.MONTHLY,
+    frequency: Mapped[str] = mapped_column(
+        String(30),
+        default=PayrollFrequency.MONTHLY.value,
         nullable=False,
     )
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
@@ -556,9 +568,9 @@ class PayrollRun(BaseModel, AuditMixin):
     )
     
     # Status
-    status: Mapped[PayrollStatus] = mapped_column(
-        SQLEnum(PayrollStatus),
-        default=PayrollStatus.DRAFT,
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=PayrollStatus.DRAFT.value,
         nullable=False,
     )
     
@@ -855,12 +867,12 @@ class PayslipItem(BaseModel):
         index=True,
     )
     
-    item_type: Mapped[PayItemType] = mapped_column(
-        SQLEnum(PayItemType),
+    item_type: Mapped[str] = mapped_column(
+        String(50),
         nullable=False,
     )
-    category: Mapped[PayItemCategory] = mapped_column(
-        SQLEnum(PayItemCategory),
+    category: Mapped[str] = mapped_column(
+        String(50),
         nullable=False,
     )
     
@@ -1052,9 +1064,9 @@ class EmployeeLoan(BaseModel, AuditMixin):
         index=True,
     )
     
-    loan_type: Mapped[LoanType] = mapped_column(
-        SQLEnum(LoanType),
-        default=LoanType.LOAN,
+    loan_type: Mapped[str] = mapped_column(
+        String(30),
+        default=LoanType.LOAN.value,
         nullable=False,
     )
     
@@ -1108,9 +1120,9 @@ class EmployeeLoan(BaseModel, AuditMixin):
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     
     # Status
-    status: Mapped[LoanStatus] = mapped_column(
-        SQLEnum(LoanStatus),
-        default=LoanStatus.PENDING,
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=LoanStatus.PENDING.value,
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -1225,8 +1237,8 @@ class EmployeeLeave(BaseModel):
         index=True,
     )
     
-    leave_type: Mapped[LeaveType] = mapped_column(
-        SQLEnum(LeaveType),
+    leave_type: Mapped[str] = mapped_column(
+        String(30),
         nullable=False,
     )
     
@@ -1243,9 +1255,9 @@ class EmployeeLeave(BaseModel):
     
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    status: Mapped[LeaveStatus] = mapped_column(
-        SQLEnum(LeaveStatus),
-        default=LeaveStatus.PENDING,
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=LeaveStatus.PENDING.value,
         nullable=False,
     )
     

@@ -4,7 +4,7 @@ TekVwarho ProAudit - Authentication Router
 API endpoints for user authentication.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -147,6 +147,7 @@ async def register(
 )
 async def login(
     request: UserLoginRequest,
+    response: Response,
     fastapi_request: Request = None,
     db: AsyncSession = Depends(get_async_session),
 ):
@@ -208,6 +209,18 @@ async def login(
     
     # Create tokens
     tokens = auth_service.create_tokens(user)
+    
+    # Set access token as HTTP-only cookie for server-side authentication
+    # This is more reliable than client-side JavaScript cookie setting
+    response.set_cookie(
+        key="access_token",
+        value=tokens["access_token"],
+        max_age=60 * 60 * 24 * 7,  # 7 days
+        path="/",
+        httponly=False,  # Allow JS access for now (needed for some client-side operations)
+        samesite="lax",
+        secure=False,  # Set to True in production with HTTPS
+    )
     
     return UserWithTokenResponse(
         user=UserResponse(

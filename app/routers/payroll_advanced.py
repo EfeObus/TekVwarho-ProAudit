@@ -17,11 +17,13 @@ from datetime import date
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Path, Body
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
 from app.dependencies import get_current_user, get_current_active_user, get_current_entity_id
 from app.models.user import User
+from app.models.payroll import Employee
 from app.services.payroll_advanced_service import PayrollAdvancedService
 from app.schemas.payroll_advanced import (
     ComplianceSnapshotCreate,
@@ -243,6 +245,85 @@ async def get_compliance_calendar(
 # PAYROLL IMPACT PREVIEW ENDPOINTS
 # ===========================================
 
+# NOTE: Static routes (/latest, /history) MUST come BEFORE parameterized routes (/{payroll_run_id})
+# Otherwise FastAPI will try to parse "latest" or "history" as a UUID and return 422
+
+@router.get(
+    "/impact-preview/latest",
+    response_model=dict,
+    summary="Get latest impact preview",
+    description="Get the most recent impact preview for the entity.",
+)
+async def get_latest_impact_preview(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Get the most recent impact preview.
+    
+    Useful for dashboard widgets to show latest payroll comparison.
+    """
+    service = PayrollAdvancedService(db)
+    
+    preview = await service.get_latest_impact_preview(entity_id)
+    
+    if not preview:
+        return {
+            "message": "No impact previews found",
+            "has_preview": False,
+        }
+    
+    response = service.format_impact_preview_response(preview)
+    response["has_preview"] = True
+    return response
+
+
+@router.get(
+    "/impact-preview/history",
+    response_model=dict,
+    summary="List impact preview history",
+    description="Get paginated list of impact previews for the entity.",
+)
+async def list_impact_previews(
+    year: Optional[int] = Query(None, description="Filter by year"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(12, ge=1, le=50),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    List impact previews with pagination.
+    
+    Returns:
+    - List of impact preview summaries with payroll run details
+    - Total count and pagination info
+    """
+    service = PayrollAdvancedService(db)
+    
+    rows, total = await service.list_impact_previews(
+        entity_id=entity_id,
+        year=year,
+        page=page,
+        per_page=per_page,
+    )
+    
+    # Each row is a tuple of (PayrollImpactPreview, PayrollRun)
+    items = [
+        service.format_impact_preview_response(preview, payroll_run)
+        for preview, payroll_run in rows
+    ]
+    
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": (total + per_page - 1) // per_page if per_page > 0 else 0,
+    }
+
+
 @router.get(
     "/impact-preview/{payroll_run_id}",
     response_model=dict,
@@ -317,81 +398,6 @@ async def generate_impact_preview(
         )
     
     return service.format_impact_preview_response(preview)
-
-
-@router.get(
-    "/impact-preview/latest",
-    response_model=dict,
-    summary="Get latest impact preview",
-    description="Get the most recent impact preview for the entity.",
-)
-async def get_latest_impact_preview(
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_active_user),
-    entity_id: uuid.UUID = Depends(get_current_entity_id),
-):
-    """
-    Get the most recent impact preview.
-    
-    Useful for dashboard widgets to show latest payroll comparison.
-    """
-    service = PayrollAdvancedService(db)
-    
-    preview = await service.get_latest_impact_preview(entity_id)
-    
-    if not preview:
-        return {
-            "message": "No impact previews found",
-            "has_preview": False,
-        }
-    
-    response = service.format_impact_preview_response(preview)
-    response["has_preview"] = True
-    return response
-
-
-@router.get(
-    "/impact-preview/history",
-    response_model=dict,
-    summary="List impact preview history",
-    description="Get paginated list of impact previews for the entity.",
-)
-async def list_impact_previews(
-    year: Optional[int] = Query(None, description="Filter by year"),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(12, ge=1, le=50),
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_active_user),
-    entity_id: uuid.UUID = Depends(get_current_entity_id),
-):
-    """
-    List impact previews with pagination.
-    
-    Returns:
-    - List of impact preview summaries
-    - Total count and pagination info
-    """
-    service = PayrollAdvancedService(db)
-    
-    previews, total = await service.list_impact_previews(
-        entity_id=entity_id,
-        year=year,
-        page=page,
-        per_page=per_page,
-    )
-    
-    items = [
-        service.format_impact_preview_response(p)
-        for p in previews
-    ]
-    
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "pages": (total + per_page - 1) // per_page if per_page > 0 else 0,
-    }
 
 
 # ===========================================
@@ -911,7 +917,7 @@ async def list_ytd_ledgers(
     """List YTD ledgers with pagination."""
     service = PayrollAdvancedService(db)
     
-    ledgers, total = await service.list_ytd_ledgers(
+    ledgers_with_names, total = await service.list_ytd_ledgers(
         entity_id=entity_id,
         tax_year=tax_year,
         page=page,
@@ -919,7 +925,7 @@ async def list_ytd_ledgers(
     )
     
     return {
-        "items": [service.format_ytd_ledger_response(l) for l in ledgers],
+        "items": [service.format_ytd_ledger_response(ledger, employee_name=name) for ledger, name in ledgers_with_names],
         "total": total,
         "page": page,
         "per_page": per_page,
@@ -952,7 +958,22 @@ async def get_employee_ytd_ledger(
             detail=f"YTD ledger not found for employee {employee_id} in {tax_year}",
         )
     
-    return service.format_ytd_ledger_response(ledger)
+    # Fetch employee name
+    result = await db.execute(
+        select(Employee.first_name, Employee.middle_name, Employee.last_name)
+        .where(Employee.id == employee_id)
+    )
+    emp_row = result.first()
+    
+    employee_name = None
+    if emp_row:
+        name_parts = [emp_row.first_name]
+        if emp_row.middle_name:
+            name_parts.append(emp_row.middle_name)
+        name_parts.append(emp_row.last_name)
+        employee_name = " ".join(name_parts)
+    
+    return service.format_ytd_ledger_response(ledger, employee_name=employee_name)
 
 
 @router.post(

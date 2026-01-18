@@ -132,6 +132,20 @@
                                 </div>
                             </div>
                             <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Meal Allowance</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-2 text-gray-500">₦</span>
+                                    <input type="number" x-model.number="employeeForm.meal_allowance" min="0" step="0.01" class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Utility Allowance</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-2 text-gray-500">₦</span>
+                                    <input type="number" x-model.number="employeeForm.utility_allowance" min="0" step="0.01" class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                </div>
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Other Allowances</label>
                                 <div class="relative">
                                     <span class="absolute left-3 top-2 text-gray-500">₦</span>
@@ -142,7 +156,7 @@
                         <div class="mt-4 p-4 bg-green-50 rounded-lg">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-green-800">Calculated Monthly Gross</span>
-                                <span class="text-lg font-bold text-green-700">₦<span x-text="formatCurrency((employeeForm.basic_salary || 0) + (employeeForm.housing_allowance || 0) + (employeeForm.transport_allowance || 0) + (employeeForm.other_allowances || 0))"></span></span>
+                                <span class="text-lg font-bold text-green-700">₦<span x-text="formatCurrency((employeeForm.basic_salary || 0) + (employeeForm.housing_allowance || 0) + (employeeForm.transport_allowance || 0) + (employeeForm.meal_allowance || 0) + (employeeForm.utility_allowance || 0) + (employeeForm.other_allowances || 0))"></span></span>
                             </div>
                         </div>
                     </div>

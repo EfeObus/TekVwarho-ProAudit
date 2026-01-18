@@ -1,0 +1,598 @@
+{% extends "base.html" %}
+
+{% block title %}Bank Reconciliation - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="bankReconciliationPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Bank Reconciliation</h1>
+            <p class="text-gray-600">Match bank statements with book transactions</p>
+        </div>
+        <div class="mt-4 sm:mt-0 flex space-x-3">
+            <button @click="showImportModal = true" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                Import Statement
+            </button>
+            <button @click="showAccountModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Add Bank Account
+            </button>
+        </div>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Bank Accounts</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="accounts.length"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Matched</p>
+                    <p class="text-2xl font-bold text-green-600" x-text="summary.matched_count || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-amber-100">
+                    <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Unmatched</p>
+                    <p class="text-2xl font-bold text-amber-600" x-text="summary.unmatched_count || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-purple-100">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Total Balance</p>
+                    <p class="text-2xl font-bold text-purple-600" x-text="formatCurrency(summary.total_balance || 0)"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bank Accounts List -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Bank Accounts</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Reconciled</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-if="loading">
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                                <svg class="animate-spin h-8 w-8 mx-auto text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <p class="mt-2">Loading bank accounts...</p>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="!loading && accounts.length === 0">
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                </svg>
+                                <p>No bank accounts found</p>
+                                <button @click="showAccountModal = true" class="mt-3 text-green-600 hover:text-green-700 font-medium">Add your first bank account</button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-for="account in accounts" :key="account.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900" x-text="account.bank_name"></div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900" x-text="account.account_name"></div>
+                                <div class="text-xs text-gray-500" x-text="'**** ' + account.account_number.slice(-4)"></div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800" x-text="account.account_type"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                                <span class="text-sm font-medium" :class="account.current_balance >= 0 ? 'text-green-600' : 'text-red-600'" x-text="formatCurrency(account.current_balance)"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="account.last_reconciled_date ? formatDate(account.last_reconciled_date) : 'Never'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span x-show="account.is_active" class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span>
+                                <span x-show="!account.is_active" class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">Inactive</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button @click="selectAccount(account)" class="text-blue-600 hover:text-blue-900 mr-3">Reconcile</button>
+                                <button @click="editAccount(account)" class="text-gray-600 hover:text-gray-900">Edit</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Selected Account Reconciliation -->
+    <template x-if="selectedAccount">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900" x-text="selectedAccount.bank_name + ' - ' + selectedAccount.account_name"></h2>
+                    <p class="text-sm text-gray-500">Import statements and match transactions</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button @click="autoMatch()" :disabled="autoMatching" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                        <svg x-show="autoMatching" class="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <svg x-show="!autoMatching" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Auto-Match
+                    </button>
+                    <button @click="showReconcileModal = true" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Complete Reconciliation
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Statement Transactions -->
+            <div class="p-6">
+                <h3 class="text-md font-semibold text-gray-800 mb-4">Statement Transactions</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-if="statementTransactions.length === 0">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                                        <p>No statement transactions. Import a bank statement to begin reconciliation.</p>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-for="txn in statementTransactions" :key="txn.id">
+                                <tr class="hover:bg-gray-50" :class="{'bg-green-50': txn.match_status === 'reconciled' || txn.match_status === 'auto_matched'}">
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900" x-text="formatDate(txn.transaction_date)"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-900" x-text="txn.description"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-red-600" x-text="txn.debit_amount > 0 ? formatCurrency(txn.debit_amount) : '-'"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-green-600" x-text="txn.credit_amount > 0 ? formatCurrency(txn.credit_amount) : '-'"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="{
+                                                  'bg-green-100 text-green-800': txn.match_status === 'reconciled' || txn.match_status === 'auto_matched',
+                                                  'bg-amber-100 text-amber-800': txn.match_status === 'unmatched',
+                                                  'bg-blue-100 text-blue-800': txn.match_status === 'manual_matched'
+                                              }"
+                                              x-text="txn.match_status.replace('_', ' ')"></span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                                        <button x-show="txn.match_status === 'unmatched'" @click="showMatchModal(txn)" class="text-blue-600 hover:text-blue-900 text-sm">Match</button>
+                                        <button x-show="txn.match_status !== 'unmatched'" @click="unmatch(txn)" class="text-red-600 hover:text-red-900 text-sm">Unmatch</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </template>
+    
+    <!-- Add Bank Account Modal -->
+    <div x-show="showAccountModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="showAccountModal = false"></div>
+            <div class="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
+                <h3 class="text-lg font-medium text-gray-900 mb-4" x-text="editingAccount ? 'Edit Bank Account' : 'Add Bank Account'"></h3>
+                <form @submit.prevent="saveAccount()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Bank Name</label>
+                            <input type="text" x-model="accountForm.bank_name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Account Name</label>
+                            <input type="text" x-model="accountForm.account_name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Account Number</label>
+                            <input type="text" x-model="accountForm.account_number" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Account Type</label>
+                            <select x-model="accountForm.account_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="current">Current</option>
+                                <option value="savings">Savings</option>
+                                <option value="domiciliary">Domiciliary</option>
+                                <option value="fixed_deposit">Fixed Deposit</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Opening Balance</label>
+                            <input type="number" x-model="accountForm.opening_balance" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">GL Account Code (Optional)</label>
+                            <input type="text" x-model="accountForm.gl_account_code" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showAccountModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="savingAccount" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                            <span x-show="savingAccount">Saving...</span>
+                            <span x-show="!savingAccount" x-text="editingAccount ? 'Update Account' : 'Add Account'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Import Statement Modal -->
+    <div x-show="showImportModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="showImportModal = false"></div>
+            <div class="inline-block w-full max-w-lg p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Import Bank Statement</h3>
+                <form @submit.prevent="importStatement()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Bank Account</label>
+                            <select x-model="importForm.account_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="">Select account...</option>
+                                <template x-for="account in accounts" :key="account.id">
+                                    <option :value="account.id" x-text="account.bank_name + ' - ' + account.account_name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Period Start</label>
+                                <input type="date" x-model="importForm.period_start" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Period End</label>
+                                <input type="date" x-model="importForm.period_end" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Opening Balance</label>
+                                <input type="number" x-model="importForm.opening_balance" step="0.01" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Closing Balance</label>
+                                <input type="number" x-model="importForm.closing_balance" step="0.01" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Statement Transactions (JSON)</label>
+                            <textarea x-model="importForm.transactions_json" rows="6" placeholder='[{"transaction_date": "2026-01-15", "description": "Payment received", "debit_amount": 0, "credit_amount": 50000, "balance": 550000}]' class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 font-mono text-sm"></textarea>
+                            <p class="mt-1 text-xs text-gray-500">Enter transactions as JSON array</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showImportModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="importing" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                            <span x-show="importing">Importing...</span>
+                            <span x-show="!importing">Import Statement</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function bankReconciliationPage() {
+    return {
+        // State
+        accounts: [],
+        statementTransactions: [],
+        summary: {},
+        loading: true,
+        savingAccount: false,
+        importing: false,
+        autoMatching: false,
+        
+        // Selected account
+        selectedAccount: null,
+        
+        // Modals
+        showAccountModal: false,
+        showImportModal: false,
+        showReconcileModal: false,
+        
+        // Editing
+        editingAccount: null,
+        
+        // Forms
+        accountForm: {
+            bank_name: '',
+            account_name: '',
+            account_number: '',
+            account_type: 'current',
+            currency: 'NGN',
+            opening_balance: 0,
+            gl_account_code: ''
+        },
+        importForm: {
+            account_id: '',
+            period_start: '',
+            period_end: '',
+            opening_balance: 0,
+            closing_balance: 0,
+            transactions_json: ''
+        },
+        
+        async init() {
+            await this.loadAccounts();
+        },
+        
+        getEntityId() {
+            const fromStorage = localStorage.getItem('currentEntityId');
+            if (fromStorage && fromStorage !== 'null' && fromStorage !== 'undefined') {
+                return fromStorage;
+            }
+            const cookie = document.cookie.split('; ').find(row => row.startsWith('entity_id='));
+            return cookie ? cookie.split('=')[1] : null;
+        },
+        
+        async loadAccounts() {
+            this.loading = true;
+            try {
+                const response = await fetch('/api/v1/entities/bank-reconciliation/accounts', { credentials: 'include' });
+                if (response.ok) {
+                    this.accounts = await response.json();
+                    this.calculateSummary();
+                }
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        calculateSummary() {
+            let totalBalance = 0;
+            this.accounts.forEach(acc => {
+                totalBalance += parseFloat(acc.current_balance) || 0;
+            });
+            this.summary = {
+                total_balance: totalBalance,
+                matched_count: 0,
+                unmatched_count: this.statementTransactions.filter(t => t.match_status === 'unmatched').length
+            };
+        },
+        
+        selectAccount(account) {
+            this.selectedAccount = account;
+            this.loadStatementTransactions(account.id);
+        },
+        
+        async loadStatementTransactions(accountId) {
+            try {
+                // This would load transactions for the selected account
+                // For now, initialize empty
+                this.statementTransactions = [];
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+            }
+        },
+        
+        editAccount(account) {
+            this.editingAccount = account;
+            this.accountForm = {
+                bank_name: account.bank_name,
+                account_name: account.account_name,
+                account_number: account.account_number,
+                account_type: account.account_type,
+                currency: account.currency || 'NGN',
+                opening_balance: account.opening_balance,
+                gl_account_code: account.gl_account_code || ''
+            };
+            this.showAccountModal = true;
+        },
+        
+        async saveAccount() {
+            this.savingAccount = true;
+            try {
+                let url = '/api/v1/entities/bank-reconciliation/accounts';
+                let method = 'POST';
+                
+                if (this.editingAccount) {
+                    url = `/api/v1/entities/bank-reconciliation/accounts/${this.editingAccount.id}`;
+                    method = 'PATCH';
+                }
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.accountForm)
+                });
+                
+                if (response.ok) {
+                    this.showAccountModal = false;
+                    this.resetAccountForm();
+                    await this.loadAccounts();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to save account');
+                }
+            } catch (error) {
+                console.error('Error saving account:', error);
+                alert('An error occurred while saving the account');
+            } finally {
+                this.savingAccount = false;
+            }
+        },
+        
+        resetAccountForm() {
+            this.editingAccount = null;
+            this.accountForm = {
+                bank_name: '',
+                account_name: '',
+                account_number: '',
+                account_type: 'current',
+                currency: 'NGN',
+                opening_balance: 0,
+                gl_account_code: ''
+            };
+        },
+        
+        async importStatement() {
+            this.importing = true;
+            try {
+                let transactions = [];
+                try {
+                    transactions = JSON.parse(this.importForm.transactions_json || '[]');
+                } catch (e) {
+                    alert('Invalid JSON format for transactions');
+                    this.importing = false;
+                    return;
+                }
+                
+                const payload = {
+                    statement_date: this.importForm.period_end,
+                    period_start: this.importForm.period_start,
+                    period_end: this.importForm.period_end,
+                    opening_balance: parseFloat(this.importForm.opening_balance),
+                    closing_balance: parseFloat(this.importForm.closing_balance),
+                    transactions: transactions
+                };
+                
+                const response = await fetch(`/api/v1/entities/bank-reconciliation/accounts/${this.importForm.account_id}/statements`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(payload)
+                });
+                
+                if (response.ok) {
+                    this.showImportModal = false;
+                    this.resetImportForm();
+                    alert('Statement imported successfully');
+                    // If this account is selected, reload its transactions
+                    if (this.selectedAccount && this.selectedAccount.id === this.importForm.account_id) {
+                        await this.loadStatementTransactions(this.selectedAccount.id);
+                    }
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to import statement');
+                }
+            } catch (error) {
+                console.error('Error importing statement:', error);
+                alert('An error occurred while importing the statement');
+            } finally {
+                this.importing = false;
+            }
+        },
+        
+        resetImportForm() {
+            this.importForm = {
+                account_id: '',
+                period_start: '',
+                period_end: '',
+                opening_balance: 0,
+                closing_balance: 0,
+                transactions_json: ''
+            };
+        },
+        
+        async autoMatch() {
+            if (!this.selectedAccount) return;
+            
+            this.autoMatching = true;
+            try {
+                // This would call the auto-match endpoint
+                alert('Auto-matching feature will match statement transactions with book transactions based on amount, date, and description similarity.');
+            } catch (error) {
+                console.error('Error auto-matching:', error);
+            } finally {
+                this.autoMatching = false;
+            }
+        },
+        
+        showMatchModal(txn) {
+            alert(`Manual matching for transaction: ${txn.description}`);
+        },
+        
+        async unmatch(txn) {
+            if (!confirm('Are you sure you want to unmatch this transaction?')) return;
+            // Implement unmatch logic
+        },
+        
+        formatCurrency(value) {
+            const num = parseFloat(value) || 0;
+            return '₦' + num.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+    };
+}
+</script>
+
+<style>
+[x-cloak] { display: none !important; }
+</style>
+{% endblock %}

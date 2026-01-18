@@ -611,6 +611,23 @@ class CSPBuilder:
         self.add_trusted_source("script-src", "https://unpkg.com")
         return self
     
+    def add_tailwind_support(self) -> "CSPBuilder":
+        """Add Tailwind CSS CDN source."""
+        self.add_trusted_source("script-src", "https://cdn.tailwindcss.com")
+        self.add_trusted_source("style-src", "https://cdn.tailwindcss.com")
+        return self
+    
+    def add_alpinejs_support(self) -> "CSPBuilder":
+        """Add Alpine.js CDN source and required eval permissions.
+        
+        Alpine.js requires 'unsafe-eval' to evaluate x-data expressions
+        and 'unsafe-inline' for inline event handlers like @click.
+        """
+        self.add_trusted_source("script-src", "https://cdn.jsdelivr.net")
+        self.add_trusted_source("script-src", "'unsafe-inline'")
+        self.add_trusted_source("script-src", "'unsafe-eval'")
+        return self
+    
     def build(self) -> str:
         """Build the CSP header value."""
         parts = []

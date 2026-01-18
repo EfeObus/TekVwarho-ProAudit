@@ -404,6 +404,8 @@ from app.routers import (
     bank_reconciliation,
     # Expense Claims
     expense_claims,
+    # Machine Learning & AI (OCR, Forecasting, NLP, Neural Networks)
+    ml_ai,
 )
 
 # View Routes (HTML pages)
@@ -495,6 +497,9 @@ app.include_router(bank_reconciliation.router, prefix="/api/v1/entities", tags=[
 
 # Expense Claims
 app.include_router(expense_claims.router, prefix="/api/v1/entities", tags=["Expense Claims"])
+
+# Machine Learning & AI (OCR, Cash Flow Forecasting, Growth Prediction, NLP, Neural Networks)
+app.include_router(ml_ai.router, prefix="/api/v1/ml", tags=["Machine Learning & AI"])
 
 
 if __name__ == "__main__":

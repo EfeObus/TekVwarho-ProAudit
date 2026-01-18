@@ -33,7 +33,7 @@ from app.services.forensic_audit_service import (
 from app.services.three_way_matching import three_way_matching_service
 
 
-router = APIRouter(prefix="/forensic-audit", tags=["Forensic Audit"])
+router = APIRouter(prefix="/{entity_id}/forensic-audit", tags=["Forensic Audit"])
 
 
 # =============================================================================
@@ -120,7 +120,7 @@ async def get_forensic_audit_info():
 # BENFORD'S LAW ANALYSIS
 # =============================================================================
 
-@router.get("/{entity_id}/benfords-law")
+@router.get("/benfords-law")
 async def analyze_benfords_law(
     entity_id: uuid.UUID,
     fiscal_year: int = Query(..., ge=2020, le=2030, description="Fiscal year to analyze"),
@@ -183,7 +183,7 @@ async def analyze_benfords_law(
     }
 
 
-@router.post("/{entity_id}/benfords-law/custom")
+@router.post("/benfords-law/custom")
 async def analyze_benfords_law_custom(
     entity_id: uuid.UUID,
     request: BenfordsAnalysisRequest,
@@ -214,7 +214,7 @@ async def analyze_benfords_law_custom(
 # Z-SCORE ANOMALY DETECTION
 # =============================================================================
 
-@router.get("/{entity_id}/anomaly-detection")
+@router.get("/anomaly-detection")
 async def detect_anomalies(
     entity_id: uuid.UUID,
     fiscal_year: int = Query(..., ge=2020, le=2030),
@@ -287,7 +287,7 @@ async def detect_anomalies(
     )
 
 
-@router.post("/{entity_id}/anomaly-detection/custom")
+@router.post("/anomaly-detection/custom")
 async def detect_anomalies_custom(
     entity_id: uuid.UUID,
     request: AnomalyDetectionRequest,
@@ -312,7 +312,7 @@ async def detect_anomalies_custom(
 # NRS GAP ANALYSIS
 # =============================================================================
 
-@router.get("/{entity_id}/nrs-gap-analysis")
+@router.get("/nrs-gap-analysis")
 async def analyze_nrs_gaps(
     entity_id: uuid.UUID,
     start_date: date = Query(..., description="Analysis period start"),
@@ -342,7 +342,7 @@ async def analyze_nrs_gaps(
     )
 
 
-@router.get("/{entity_id}/nrs-gap-analysis/{fiscal_year}")
+@router.get("/nrs-gap-analysis/{fiscal_year}")
 async def analyze_nrs_gaps_by_year(
     entity_id: uuid.UUID,
     fiscal_year: int,
@@ -366,7 +366,7 @@ async def analyze_nrs_gaps_by_year(
 # DATA INTEGRITY VERIFICATION
 # =============================================================================
 
-@router.post("/{entity_id}/verify-integrity")
+@router.post("/verify-integrity")
 async def verify_data_integrity(
     entity_id: uuid.UUID,
     fiscal_year: Optional[int] = Query(None, description="Optional fiscal year filter"),
@@ -393,7 +393,7 @@ async def verify_data_integrity(
     return await service.verify_data_integrity(entity_id, fiscal_year)
 
 
-@router.get("/{entity_id}/ledger-integrity-report")
+@router.get("/ledger-integrity-report")
 async def get_ledger_integrity_report(
     entity_id: uuid.UUID,
     start_sequence: Optional[int] = Query(None, description="Start sequence number"),
@@ -439,7 +439,7 @@ async def get_ledger_integrity_report(
 # 3-WAY MATCHING SUMMARY
 # =============================================================================
 
-@router.get("/{entity_id}/three-way-matching/summary")
+@router.get("/three-way-matching/summary")
 async def get_three_way_matching_summary(
     entity_id: uuid.UUID,
     start_date: date = Query(...),
@@ -485,7 +485,7 @@ async def get_three_way_matching_summary(
     return summary
 
 
-@router.get("/{entity_id}/three-way-matching/exceptions")
+@router.get("/three-way-matching/exceptions")
 async def get_matching_exceptions(
     entity_id: uuid.UUID,
     status_filter: Optional[str] = Query(None, description="Filter by status: discrepancy, pending_review"),
@@ -553,7 +553,7 @@ async def get_matching_exceptions(
 # FULL FORENSIC AUDIT
 # =============================================================================
 
-@router.post("/{entity_id}/full-audit")
+@router.post("/full-audit")
 async def run_full_forensic_audit(
     entity_id: uuid.UUID,
     request: ForensicAuditRequest,
@@ -585,7 +585,7 @@ async def run_full_forensic_audit(
     )
 
 
-@router.get("/{entity_id}/audit-summary/{fiscal_year}")
+@router.get("/audit-summary/{fiscal_year}")
 async def get_audit_summary(
     entity_id: uuid.UUID,
     fiscal_year: int,
@@ -644,7 +644,7 @@ async def get_audit_summary(
 # WORM STORAGE (AUDIT VAULT)
 # =============================================================================
 
-@router.get("/{entity_id}/worm-storage/status")
+@router.get("/worm-storage/status")
 async def get_worm_storage_status(
     entity_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -683,7 +683,7 @@ async def get_worm_storage_status(
     }
 
 
-@router.post("/{entity_id}/worm-storage/verify/{document_type}/{document_id}")
+@router.post("/worm-storage/verify/{document_type}/{document_id}")
 async def verify_worm_document(
     entity_id: uuid.UUID,
     document_type: str,

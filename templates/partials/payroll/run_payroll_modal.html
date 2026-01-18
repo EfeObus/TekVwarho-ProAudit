@@ -24,35 +24,14 @@
                     </div>
                 </div>
 
-                <div class="px-6 py-6" x-data="{ 
-                    payrollForm: {
-                        name: '',
-                        payroll_type: 'monthly',
-                        period_month: new Date().getMonth() + 1,
-                        period_year: new Date().getFullYear(),
-                        period_start: '',
-                        period_end: '',
-                        payment_date: '',
-                        department: '',
-                        include_all_employees: true
-                    },
-                    initDates() {
-                        const year = this.payrollForm.period_year;
-                        const month = this.payrollForm.period_month;
-                        const lastDay = new Date(year, month, 0).getDate();
-                        this.payrollForm.period_start = `${year}-${String(month).padStart(2, '0')}-01`;
-                        this.payrollForm.period_end = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
-                        this.payrollForm.payment_date = this.payrollForm.period_end;
-                        this.payrollForm.name = `Payroll - ${['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][month]} ${year}`;
-                    }
-                }" x-init="initDates()">
+                <div class="px-6 py-6" x-init="initPayrollDates()">
                     
                     <!-- Pay Period -->
                     <div class="mb-6">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Pay Period</label>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <select x-model.number="payrollForm.period_month" @change="initDates()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <select x-model.number="payrollForm.period_month" @change="initPayrollDates()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                                     <option value="1">January</option>
                                     <option value="2">February</option>
                                     <option value="3">March</option>
@@ -68,7 +47,7 @@
                                 </select>
                             </div>
                             <div>
-                                <select x-model.number="payrollForm.period_year" @change="initDates()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <select x-model.number="payrollForm.period_year" @change="initPayrollDates()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                                     <option value="2026">2026</option>
                                     <option value="2025">2025</option>
                                 </select>

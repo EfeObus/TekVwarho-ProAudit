@@ -36,23 +36,37 @@ security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: AsyncSession = Depends(get_async_session),
 ) -> User:
     """
     Get the current authenticated user from JWT token.
     
+    Token can be provided via:
+    1. Authorization: Bearer <token> header
+    2. access_token cookie
+    
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    if not credentials:
+    token = None
+    
+    # Try Bearer header first
+    if credentials:
+        token = credentials.credentials
+    else:
+        # Fallback to cookie
+        token = request.cookies.get("access_token")
+        if token and token.startswith("Bearer "):
+            token = token[7:]
+    
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    token = credentials.credentials
     payload = verify_access_token(token)
     
     if not payload:

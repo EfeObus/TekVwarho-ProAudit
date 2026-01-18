@@ -541,21 +541,21 @@
          x-transition
          class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
          @click.self="showResultsModal = false">
-        <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-lg bg-white">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900" x-text="modalTitle"></h3>
-                <button @click="showResultsModal = false" class="text-gray-500 hover:text-gray-700">
+        <div class="relative top-10 mx-auto p-6 border w-11/12 max-w-4xl shadow-xl rounded-xl bg-white">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-900" x-text="modalTitle"></h3>
+                <button @click="showResultsModal = false" class="text-gray-400 hover:text-gray-600 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             </div>
-            <div class="max-h-96 overflow-y-auto">
-                <pre class="bg-gray-50 p-4 rounded-lg text-sm overflow-x-auto" x-text="JSON.stringify(modalContent, null, 2)"></pre>
+            <div class="max-h-[60vh] overflow-y-auto">
+                <pre class="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto font-mono leading-relaxed" x-text="JSON.stringify(modalContent, null, 2)"></pre>
             </div>
-            <div class="mt-4 flex justify-end">
+            <div class="mt-6 flex justify-end">
                 <button @click="showResultsModal = false"
-                        class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">
+                        class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 font-medium transition">
                     Close
                 </button>
             </div>
@@ -618,7 +618,8 @@ function advancedAudit() {
         async loadDashboardStats() {
             try {
                 const response = await fetch('/api/audit-system/dashboard/stats', {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -636,7 +637,8 @@ function advancedAudit() {
         async checkAuditorPermissions() {
             try {
                 const response = await fetch('/api/audit-system/role/check-permissions', {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.showResults('Auditor Permissions', data);
@@ -652,7 +654,8 @@ function advancedAudit() {
                 try {
                     const response = await fetch(`/api/audit-system/role/validate-action?action=${action}&resource_type=${resourceType}`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                        credentials: 'include'
                     });
                     const data = await response.json();
                     this.showResults('Action Validation Result', data);
@@ -672,7 +675,8 @@ function advancedAudit() {
             if (evidenceId) {
                 try {
                     const response = await fetch(`/api/audit-system/evidence/${evidenceId}/verify`, {
-                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                        credentials: 'include'
                     });
                     const data = await response.json();
                     this.showResults('Evidence Verification Result', data);
@@ -692,7 +696,8 @@ function advancedAudit() {
         async fetchEvidenceByRun(runId) {
             try {
                 const response = await fetch(`/api/audit-system/evidence/by-run/${runId}`, {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.showResults('Evidence for Audit Run', data);
@@ -717,6 +722,7 @@ function advancedAudit() {
                             'Authorization': `Bearer ${this.getToken()}`,
                             'Content-Type': 'application/json'
                         },
+                        credentials: 'include',
                         body: JSON.stringify({
                             title: title,
                             run_type: runType,
@@ -736,7 +742,8 @@ function advancedAudit() {
         async viewAuditRuns() {
             try {
                 const response = await fetch('/api/audit-system/runs/list', {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.showResults('All Audit Runs', data);
@@ -751,7 +758,8 @@ function advancedAudit() {
                 try {
                     const response = await fetch(`/api/audit-system/runs/${runId}/reproduce`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                        credentials: 'include'
                     });
                     const data = await response.json();
                     this.showResults('Reproduced Audit Run', data);
@@ -767,7 +775,8 @@ function advancedAudit() {
             if (runId) {
                 try {
                     const response = await fetch(`/api/audit-system/findings/by-run/${runId}`, {
-                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                        credentials: 'include'
                     });
                     const data = await response.json();
                     this.showResults('Audit Findings', data);
@@ -787,7 +796,8 @@ function advancedAudit() {
             if (runId) {
                 try {
                     const response = await fetch(`/api/audit-system/export/run/${runId}/pdf`, {
-                        headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                        headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                        credentials: 'include'
                     });
                     const data = await response.json();
                     this.showResults('PDF Export', data);
@@ -815,6 +825,7 @@ function advancedAudit() {
                             'Authorization': `Bearer ${this.getToken()}`,
                             'Content-Type': 'application/json'
                         },
+                        credentials: 'include',
                         body: JSON.stringify({ purpose: purpose })
                     });
                     const data = await response.json();
@@ -828,7 +839,8 @@ function advancedAudit() {
         async viewMySessions() {
             try {
                 const response = await fetch('/api/audit-system/sessions/my-sessions', {
-                    headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 this.showResults('My Auditor Sessions', data);
@@ -850,6 +862,7 @@ function advancedAudit() {
                         'Authorization': `Bearer ${this.getToken()}`,
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include',
                     body: JSON.stringify({
                         calculation_type: this.replay.type,
                         calculation_date: this.replay.date,
@@ -884,7 +897,33 @@ function advancedAudit() {
         },
         
         async runBehavioralAnalysis() {
-            alert('Behavioral analysis will detect unusual patterns in transaction data.');
+            try {
+                const response = await fetch(`/api/v1/entities/${this.entityId}/advanced-audit/behavioral/risk-summary`, {
+                    headers: { 'Authorization': `Bearer ${this.getToken()}` },
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showResults('Behavioral Analysis Results', data);
+                } else {
+                    const error = await response.json();
+                    this.showResults('Behavioral Analysis', {
+                        status: 'info',
+                        message: 'Behavioral analysis will detect unusual patterns in transaction data.',
+                        features: [
+                            'Round-number bias detection',
+                            'Velocity anomaly detection',
+                            'Odd-hour transaction flagging',
+                            'Weekend transaction patterns',
+                            'VAT refund spike detection'
+                        ],
+                        note: 'Run with actual transaction data to see anomalies'
+                    });
+                }
+            } catch (error) {
+                console.error('Error running behavioral analysis:', error);
+                alert('Behavioral analysis will detect unusual patterns in transaction data.');
+            }
         },
         
         exportData(format) {

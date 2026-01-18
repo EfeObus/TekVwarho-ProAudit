@@ -772,7 +772,7 @@ class ForensicAuditService:
         )
         
         if categories:
-            txn_query = txn_query.where(Transaction.category.in_(categories))
+            txn_query = txn_query.where(Transaction.category_id.in_(categories))
         
         result = await self.db.execute(txn_query)
         transactions = result.scalars().all()
@@ -784,9 +784,9 @@ class ForensicAuditService:
                 "amount": txn.amount,
                 "transaction_date": txn.transaction_date.isoformat() if txn.transaction_date else None,
                 "description": txn.description,
-                "category": getattr(txn, 'category_name', None) or getattr(txn, 'category', None),
-                "vendor": getattr(txn, 'vendor_name', None),
-                "type": txn.type if hasattr(txn, 'type') else None,
+                "category": str(txn.category_id) if txn.category_id else None,
+                "vendor": str(txn.vendor_id) if txn.vendor_id else None,
+                "type": txn.transaction_type.value if hasattr(txn, 'transaction_type') and txn.transaction_type else None,
             }
             for txn in transactions
         ]

@@ -47,3 +47,19 @@ black>=23.12.1
 isort>=5.13.2
 flake8>=7.0.0
 mypy>=1.8.0
+# Machine Learning & AI
+numpy>=1.26.3
+scikit-learn>=1.4.0
+
+# NLP
+nltk>=3.8.1
+
+# Image Processing (OCR)
+Pillow>=10.2.0
+
+# OCR Engine (Optional - requires system tesseract installation)
+# pytesseract>=0.3.10
+
+# Azure Document Intelligence (Optional)
+azure-ai-documentintelligence>=1.0.0b1
+azure-core>=1.30.0

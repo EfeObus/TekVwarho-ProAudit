@@ -79,7 +79,7 @@ async def payroll_page(
     if redirect:
         return redirect
     
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "payroll.html",
         {
             "request": request,
@@ -88,6 +88,18 @@ async def payroll_page(
             "page_title": "Payroll Management"
         }
     )
+    # Set entity_id cookie if not already set
+    if entity_id:
+        existing_entity = request.cookies.get("entity_id")
+        if not existing_entity or existing_entity != str(entity_id):
+            response.set_cookie(
+                key="entity_id",
+                value=str(entity_id),
+                max_age=86400 * 30,
+                httponly=False,
+                samesite="lax"
+            )
+    return response
 
 
 @router.get("/payroll/employees/{employee_id}/payslips", response_class=HTMLResponse)

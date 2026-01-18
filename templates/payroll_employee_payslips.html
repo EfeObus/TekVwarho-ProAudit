@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Payslips - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="employeePayslips()" x-init="init()">
+    <!-- Back Button & Header -->
+    <div class="mb-6">
+        <a href="/payroll" class="inline-flex items-center text-green-600 hover:text-green-700 mb-4">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to Payroll
+        </a>
+        
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Employee Payslips</h1>
+                <p class="text-gray-600" x-show="employee">
+                    <span x-text="employee?.full_name || 'Loading...'"></span>
+                    <span class="text-gray-400 mx-2">•</span>
+                    <span x-text="employee?.employee_id || ''"></span>
+                    <span class="text-gray-400 mx-2">•</span>
+                    <span x-text="employee?.department || ''"></span>
+                </p>
+            </div>
+            <div class="flex items-center space-x-3 mt-4 sm:mt-0">
+                <select x-model="selectedYear" @change="loadPayslips()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <option value="">All Years</option>
+                    <template x-for="year in availableYears" :key="year">
+                        <option :value="year" x-text="year"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="flex justify-center items-center py-12">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div x-show="!loading && payslips.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Payslips</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="payslips.length"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100 text-green-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Gross Earned</p>
+                    <p class="text-2xl font-bold text-gray-900">₦<span x-text="formatCurrency(totalGross)"></span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-red-100 text-red-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Deductions</p>
+                    <p class="text-2xl font-bold text-red-600">₦<span x-text="formatCurrency(totalDeductions)"></span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-emerald-100 text-emerald-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Net Pay</p>
+                    <p class="text-2xl font-bold text-emerald-600">₦<span x-text="formatCurrency(totalNet)"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payslips Table -->
+    <div x-show="!loading" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Payslip History</h3>
+        </div>
+        
+        <div x-show="payslips.length === 0" class="py-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <p class="mt-2 text-gray-500">No payslips found for this employee.</p>
+        </div>
+        
+        <div x-show="payslips.length > 0" class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payslip #</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Pay</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Deductions</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="slip in payslips" :key="slip.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900" x-text="slip.payslip_number"></div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">₦<span x-text="formatCurrency(slip.gross_pay)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">₦<span x-text="formatCurrency(slip.total_deductions)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-green-600">₦<span x-text="formatCurrency(slip.net_pay)"></span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="px-2 py-1 text-xs rounded-full font-medium"
+                                      :class="slip.is_paid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'"
+                                      x-text="slip.is_paid ? 'Paid' : 'Pending'"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                <button @click="viewPayslipDetails(slip)" class="text-green-600 hover:text-green-900 mr-3" title="View Details">
+                                    <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                </button>
+                                <button @click="downloadPayslip(slip.id)" class="text-blue-600 hover:text-blue-900" title="Download PDF">
+                                    <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Payslip Detail Modal -->
+    <div x-show="showPayslipModal" x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="showPayslipModal = false"></div>
+            
+            <div class="inline-block w-full max-w-2xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Payslip Details</h3>
+                    <button @click="showPayslipModal = false" class="text-gray-400 hover:text-gray-500">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div x-show="selectedPayslip" class="space-y-4">
+                    <!-- Payslip Number -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm text-gray-500">Payslip Number</p>
+                        <p class="text-lg font-semibold text-gray-900" x-text="selectedPayslip?.payslip_number"></p>
+                    </div>
+                    
+                    <!-- Financial Summary -->
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="bg-green-50 rounded-lg p-4 text-center">
+                            <p class="text-sm text-gray-600">Gross Pay</p>
+                            <p class="text-xl font-bold text-gray-900">₦<span x-text="formatCurrency(selectedPayslip?.gross_pay || 0)"></span></p>
+                        </div>
+                        <div class="bg-red-50 rounded-lg p-4 text-center">
+                            <p class="text-sm text-gray-600">Deductions</p>
+                            <p class="text-xl font-bold text-red-600">₦<span x-text="formatCurrency(selectedPayslip?.total_deductions || 0)"></span></p>
+                        </div>
+                        <div class="bg-emerald-50 rounded-lg p-4 text-center">
+                            <p class="text-sm text-gray-600">Net Pay</p>
+                            <p class="text-xl font-bold text-emerald-600">₦<span x-text="formatCurrency(selectedPayslip?.net_pay || 0)"></span></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Status -->
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <span class="text-sm font-medium text-gray-700">Payment Status</span>
+                        <span class="px-3 py-1 text-sm rounded-full font-medium"
+                              :class="selectedPayslip?.is_paid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'"
+                              x-text="selectedPayslip?.is_paid ? 'Paid' : 'Pending'"></span>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button @click="downloadPayslip(selectedPayslip?.id)" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Download PDF
+                    </button>
+                    <button @click="showPayslipModal = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function employeePayslips() {
+    return {
+        employeeId: '{{ employee_id }}',
+        employee: null,
+        payslips: [],
+        loading: true,
+        selectedYear: '',
+        availableYears: [],
+        showPayslipModal: false,
+        selectedPayslip: null,
+        
+        get totalGross() {
+            return this.payslips.reduce((sum, p) => sum + parseFloat(p.gross_pay || 0), 0);
+        },
+        
+        get totalDeductions() {
+            return this.payslips.reduce((sum, p) => sum + parseFloat(p.total_deductions || 0), 0);
+        },
+        
+        get totalNet() {
+            return this.payslips.reduce((sum, p) => sum + parseFloat(p.net_pay || 0), 0);
+        },
+        
+        async init() {
+            // Generate available years (last 10 years)
+            const currentYear = new Date().getFullYear();
+            for (let y = currentYear; y >= currentYear - 10; y--) {
+                this.availableYears.push(y);
+            }
+            
+            await this.loadEmployee();
+            await this.loadPayslips();
+        },
+        
+        async loadEmployee() {
+            try {
+                const response = await fetch(`/api/v1/payroll/employees/${this.employeeId}`, { credentials: 'include' });
+                if (response.ok) {
+                    this.employee = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading employee:', error);
+            }
+        },
+        
+        async loadPayslips() {
+            this.loading = true;
+            try {
+                let url = `/api/v1/payroll/employees/${this.employeeId}/payslips`;
+                if (this.selectedYear) {
+                    url += `?year=${this.selectedYear}`;
+                }
+                
+                const response = await fetch(url, { credentials: 'include' });
+                if (response.ok) {
+                    this.payslips = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading payslips:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        viewPayslipDetails(slip) {
+            this.selectedPayslip = slip;
+            this.showPayslipModal = true;
+        },
+        
+        async downloadPayslip(payslipId) {
+            try {
+                const response = await fetch(`/api/v1/payroll/payslips/${payslipId}/pdf`, { credentials: 'include' });
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `payslip-${payslipId}.pdf`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to download payslip');
+                }
+            } catch (error) {
+                console.error('Error downloading payslip:', error);
+                alert('Failed to download payslip');
+            }
+        },
+        
+        formatCurrency(value) {
+            return new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2 }).format(value || 0);
+        }
+    };
+}
+</script>
+{% endblock %}

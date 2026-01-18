@@ -18,18 +18,18 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 # ===========================================
 
 EmploymentTypeEnum = Literal[
-    "full_time", "part_time", "contract", "intern", "probation", "consultant"
+    "FULL_TIME", "PART_TIME", "CONTRACT", "INTERN", "PROBATION", "CONSULTANT"
 ]
 
 EmploymentStatusEnum = Literal[
-    "active", "inactive", "terminated", "resigned", "retired", "suspended", "on_leave"
+    "ACTIVE", "INACTIVE", "TERMINATED", "RESIGNED", "RETIRED", "SUSPENDED", "ON_LEAVE"
 ]
 
 PayrollStatusEnum = Literal[
-    "draft", "pending_approval", "approved", "processing", "completed", "paid", "cancelled"
+    "DRAFT", "PENDING_APPROVAL", "APPROVED", "PROCESSING", "COMPLETED", "PAID", "CANCELLED"
 ]
 
-PayrollFrequencyEnum = Literal["weekly", "bi_weekly", "monthly"]
+PayrollFrequencyEnum = Literal["WEEKLY", "BI_WEEKLY", "MONTHLY"]
 
 GenderEnum = Literal["male", "female", "other"]
 MaritalStatusEnum = Literal["single", "married", "divorced", "widowed"]
@@ -127,8 +127,8 @@ class EmployeeBase(BaseModel):
     is_nhf_exempt: bool = False
     
     # Employment
-    employment_type: EmploymentTypeEnum = "full_time"
-    employment_status: EmploymentStatusEnum = "active"
+    employment_type: EmploymentTypeEnum = "FULL_TIME"
+    employment_status: EmploymentStatusEnum = "ACTIVE"
     department: Optional[str] = None
     job_title: Optional[str] = None
     job_grade: Optional[str] = None
@@ -136,11 +136,13 @@ class EmployeeBase(BaseModel):
     confirmation_date: Optional[date] = None
     
     # Pay structure
-    payroll_frequency: PayrollFrequencyEnum = "monthly"
+    payroll_frequency: PayrollFrequencyEnum = "MONTHLY"
     currency: str = "NGN"
     basic_salary: Decimal = Field(..., ge=0)
     housing_allowance: Decimal = Field(default=Decimal("0"), ge=0)
     transport_allowance: Decimal = Field(default=Decimal("0"), ge=0)
+    meal_allowance: Decimal = Field(default=Decimal("0"), ge=0)
+    utility_allowance: Decimal = Field(default=Decimal("0"), ge=0)
     other_allowances: Optional[Dict[str, float]] = None
     
     # Leave
@@ -204,6 +206,8 @@ class EmployeeUpdate(BaseModel):
     basic_salary: Optional[Decimal] = None
     housing_allowance: Optional[Decimal] = None
     transport_allowance: Optional[Decimal] = None
+    meal_allowance: Optional[Decimal] = None
+    utility_allowance: Optional[Decimal] = None
     other_allowances: Optional[Dict[str, float]] = None
     
     annual_leave_days: Optional[int] = None
@@ -262,7 +266,7 @@ class PayrollRunCreate(BaseModel):
     """Create payroll run request."""
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
-    frequency: PayrollFrequencyEnum = "monthly"
+    frequency: PayrollFrequencyEnum = "MONTHLY"
     period_start: date
     period_end: date
     payment_date: date
@@ -444,6 +448,8 @@ class SalaryBreakdownRequest(BaseModel):
     basic_salary: Decimal = Field(..., gt=0)
     housing_allowance: Decimal = Field(default=Decimal("0"), ge=0)
     transport_allowance: Decimal = Field(default=Decimal("0"), ge=0)
+    meal_allowance: Decimal = Field(default=Decimal("0"), ge=0)
+    utility_allowance: Decimal = Field(default=Decimal("0"), ge=0)
     other_allowances: Optional[Dict[str, float]] = None
     
     # Optional overrides
@@ -458,6 +464,8 @@ class SalaryBreakdownResponse(BaseModel):
     basic_salary: Decimal
     housing_allowance: Decimal
     transport_allowance: Decimal
+    meal_allowance: Decimal = Decimal("0")
+    utility_allowance: Decimal = Decimal("0")
     other_allowances: Dict[str, Decimal]
     monthly_gross: Decimal
     annual_gross: Decimal
@@ -637,3 +645,75 @@ class PaginatedResponse(BaseModel):
     page: int
     per_page: int
     pages: int
+
+
+# ===========================================
+# LOAN SCHEMAS
+# ===========================================
+
+LoanTypeEnum = Literal[
+    "loan", "salary_advance", "cooperative", "equipment", "educational", "emergency", "other"
+]
+
+LoanStatusEnum = Literal[
+    "pending", "approved", "active", "completed", "cancelled", "defaulted"
+]
+
+
+class LoanBase(BaseModel):
+    """Base loan schema."""
+    loan_type: LoanTypeEnum = "loan"
+    description: Optional[str] = None
+    principal_amount: Decimal = Field(..., gt=0)
+    interest_rate: Decimal = Field(default=Decimal("0.00"), ge=0)
+    tenure_months: int = Field(..., gt=0, le=60)
+    start_date: date
+    notes: Optional[str] = None
+
+
+class LoanCreate(LoanBase):
+    """Create loan request."""
+    employee_id: UUID
+
+
+class LoanUpdate(BaseModel):
+    """Update loan request."""
+    description: Optional[str] = None
+    status: Optional[LoanStatusEnum] = None
+    notes: Optional[str] = None
+
+
+class LoanResponse(LoanBase):
+    """Loan response schema."""
+    id: UUID
+    entity_id: UUID
+    employee_id: UUID
+    loan_reference: str
+    total_amount: Decimal
+    monthly_deduction: Decimal
+    total_paid: Decimal
+    balance: Decimal
+    end_date: date
+    status: str
+    is_active: bool
+    approved_by_id: Optional[UUID] = None
+    approved_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    # Employee info (optional, for list views)
+    employee_name: Optional[str] = None
+    employee_id_code: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class LoanSummary(BaseModel):
+    """Loan summary for dashboard."""
+    total_loans: int
+    active_loans: int
+    total_disbursed: Decimal
+    total_outstanding: Decimal
+    total_collected: Decimal
+

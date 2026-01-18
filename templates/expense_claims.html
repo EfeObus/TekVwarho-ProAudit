@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+
+{% block title %}Expense Claims - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="expenseClaimsPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Expense Claims</h1>
+            <p class="text-gray-600">Submit and manage expense reimbursements</p>
+        </div>
+        <button @click="showCreateModal = true" class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+            New Expense Claim
+        </button>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-gray-100">
+                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Draft</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="summary.draft || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-amber-100">
+                    <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Pending Approval</p>
+                    <p class="text-2xl font-bold text-amber-600" x-text="summary.submitted || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Approved</p>
+                    <p class="text-2xl font-bold text-green-600" x-text="summary.approved || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Total Claims</p>
+                    <p class="text-2xl font-bold text-blue-600" x-text="formatCurrency(summary.total_amount || 0)"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+                <input type="text" x-model="searchQuery" @input.debounce.300ms="loadClaims()" placeholder="Search claims..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+                <select x-model="statusFilter" @change="loadClaims()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <option value="">All Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="paid">Paid</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Claims Table -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Claim #</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-if="loading">
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                                <svg class="animate-spin h-8 w-8 mx-auto text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <p class="mt-2">Loading expense claims...</p>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="!loading && claims.length === 0">
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <p>No expense claims found</p>
+                                <button @click="showCreateModal = true" class="mt-3 text-green-600 hover:text-green-700 font-medium">Submit your first expense claim</button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-for="claim in claims" :key="claim.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-sm font-medium text-gray-900" x-text="claim.claim_number"></span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm font-medium text-gray-900" x-text="claim.title"></div>
+                                <div class="text-xs text-gray-500" x-text="claim.description || '-'"></div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <span x-text="formatDate(claim.expense_date_from)"></span> - <span x-text="formatDate(claim.expense_date_to)"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                                <span class="text-sm font-medium text-gray-900" x-text="formatCurrency(claim.total_amount)"></span>
+                                <template x-if="claim.approved_amount && claim.approved_amount !== claim.total_amount">
+                                    <div class="text-xs text-green-600" x-text="'Approved: ' + formatCurrency(claim.approved_amount)"></div>
+                                </template>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                      :class="{
+                                          'bg-gray-100 text-gray-800': claim.status === 'draft',
+                                          'bg-amber-100 text-amber-800': claim.status === 'submitted',
+                                          'bg-green-100 text-green-800': claim.status === 'approved',
+                                          'bg-red-100 text-red-800': claim.status === 'rejected',
+                                          'bg-blue-100 text-blue-800': claim.status === 'paid'
+                                      }"
+                                      x-text="claim.status"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="claim.submitted_at ? formatDateTime(claim.submitted_at) : '-'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button @click="viewClaim(claim)" class="text-blue-600 hover:text-blue-900 mr-2">View</button>
+                                <template x-if="claim.status === 'draft'">
+                                    <button @click="editClaim(claim)" class="text-gray-600 hover:text-gray-900 mr-2">Edit</button>
+                                </template>
+                                <template x-if="claim.status === 'draft'">
+                                    <button @click="submitClaim(claim)" class="text-green-600 hover:text-green-900">Submit</button>
+                                </template>
+                                <template x-if="claim.status === 'submitted' && canApprove">
+                                    <button @click="approveClaim(claim)" class="text-green-600 hover:text-green-900 mr-2">Approve</button>
+                                </template>
+                                <template x-if="claim.status === 'submitted' && canApprove">
+                                    <button @click="rejectClaim(claim)" class="text-red-600 hover:text-red-900">Reject</button>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+            <div class="text-sm text-gray-500">
+                Showing <span x-text="((currentPage - 1) * pageSize) + 1"></span> to <span x-text="Math.min(currentPage * pageSize, totalItems)"></span> of <span x-text="totalItems"></span> claims
+            </div>
+            <div class="flex space-x-2">
+                <button @click="prevPage()" :disabled="currentPage === 1" class="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">Previous</button>
+                <button @click="nextPage()" :disabled="currentPage >= totalPages" class="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">Next</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create/Edit Claim Modal -->
+    <div x-show="showCreateModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="showCreateModal = false"></div>
+            <div class="inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
+                <h3 class="text-lg font-medium text-gray-900 mb-4" x-text="editingClaim ? 'Edit Expense Claim' : 'New Expense Claim'"></h3>
+                <form @submit.prevent="saveClaim()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Title</label>
+                            <input type="text" x-model="claimForm.title" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Description</label>
+                            <textarea x-model="claimForm.description" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"></textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Expense Period From</label>
+                                <input type="date" x-model="claimForm.expense_date_from" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Expense Period To</label>
+                                <input type="date" x-model="claimForm.expense_date_to" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Project Code (Optional)</label>
+                                <input type="text" x-model="claimForm.project_code" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Cost Center (Optional)</label>
+                                <input type="text" x-model="claimForm.cost_center" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                        </div>
+                        
+                        <!-- Line Items -->
+                        <div class="border-t pt-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-sm font-medium text-gray-700">Expense Items</h4>
+                                <button type="button" @click="addLineItem()" class="text-sm text-green-600 hover:text-green-700">+ Add Item</button>
+                            </div>
+                            <template x-for="(item, index) in lineItems" :key="index">
+                                <div class="bg-gray-50 p-4 rounded-lg mb-3">
+                                    <div class="grid grid-cols-2 gap-4 mb-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600">Category</label>
+                                            <select x-model="item.category" class="mt-1 block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                                <option value="transport">Transport</option>
+                                                <option value="accommodation">Accommodation</option>
+                                                <option value="meals">Meals & Entertainment</option>
+                                                <option value="office_supplies">Office Supplies</option>
+                                                <option value="communications">Communications</option>
+                                                <option value="travel">Travel</option>
+                                                <option value="training">Training</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600">Date</label>
+                                            <input type="date" x-model="item.expense_date" class="mt-1 block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="block text-xs font-medium text-gray-600">Description</label>
+                                        <input type="text" x-model="item.description" class="mt-1 block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600">Amount</label>
+                                            <input type="number" x-model="item.amount" step="0.01" class="mt-1 block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600">VAT</label>
+                                            <input type="number" x-model="item.vat_amount" step="0.01" class="mt-1 block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600">Vendor</label>
+                                            <input type="text" x-model="item.vendor_name" class="mt-1 block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 flex justify-end">
+                                        <button type="button" @click="removeLineItem(index)" class="text-sm text-red-600 hover:text-red-700">Remove</button>
+                                    </div>
+                                </div>
+                            </template>
+                            <div class="text-right text-sm text-gray-600">
+                                Total: <strong x-text="formatCurrency(calculateTotal())"></strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showCreateModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="saving" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                            <span x-show="saving">Saving...</span>
+                            <span x-show="!saving" x-text="editingClaim ? 'Update Claim' : 'Create Claim'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View Claim Modal -->
+    <div x-show="showViewModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="showViewModal = false"></div>
+            <div class="inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900" x-text="viewingClaim?.claim_number"></h3>
+                    <span class="px-3 py-1 text-sm font-medium rounded-full"
+                          :class="{
+                              'bg-gray-100 text-gray-800': viewingClaim?.status === 'draft',
+                              'bg-amber-100 text-amber-800': viewingClaim?.status === 'submitted',
+                              'bg-green-100 text-green-800': viewingClaim?.status === 'approved',
+                              'bg-red-100 text-red-800': viewingClaim?.status === 'rejected',
+                              'bg-blue-100 text-blue-800': viewingClaim?.status === 'paid'
+                          }"
+                          x-text="viewingClaim?.status"></span>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm text-gray-500">Title</p>
+                        <p class="font-medium" x-text="viewingClaim?.title"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Description</p>
+                        <p x-text="viewingClaim?.description || '-'"></p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Period</p>
+                            <p x-text="formatDate(viewingClaim?.expense_date_from) + ' - ' + formatDate(viewingClaim?.expense_date_to)"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Total Amount</p>
+                            <p class="font-medium text-lg" x-text="formatCurrency(viewingClaim?.total_amount)"></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Line Items -->
+                    <div class="border-t pt-4">
+                        <h4 class="text-sm font-medium text-gray-700 mb-3">Expense Items</h4>
+                        <div class="space-y-2">
+                            <template x-for="item in viewingClaim?.line_items || []" :key="item.id">
+                                <div class="flex justify-between items-center bg-gray-50 p-3 rounded">
+                                    <div>
+                                        <p class="text-sm font-medium" x-text="item.description"></p>
+                                        <p class="text-xs text-gray-500" x-text="item.category + ' - ' + formatDate(item.expense_date)"></p>
+                                    </div>
+                                    <p class="font-medium" x-text="formatCurrency(item.amount)"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button @click="showViewModal = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function expenseClaimsPage() {
+    return {
+        // State
+        claims: [],
+        summary: {},
+        loading: true,
+        saving: false,
+        canApprove: true, // Should be based on user role
+        
+        // Filters
+        searchQuery: '',
+        statusFilter: '',
+        
+        // Pagination
+        currentPage: 1,
+        pageSize: 20,
+        totalItems: 0,
+        totalPages: 1,
+        
+        // Modals
+        showCreateModal: false,
+        showViewModal: false,
+        
+        // Editing
+        editingClaim: null,
+        viewingClaim: null,
+        
+        // Forms
+        claimForm: {
+            title: '',
+            description: '',
+            expense_date_from: new Date().toISOString().split('T')[0],
+            expense_date_to: new Date().toISOString().split('T')[0],
+            project_code: '',
+            cost_center: '',
+            department: ''
+        },
+        lineItems: [],
+        
+        async init() {
+            await this.loadClaims();
+            this.addLineItem(); // Start with one empty line item
+        },
+        
+        getEntityId() {
+            const fromStorage = localStorage.getItem('currentEntityId');
+            if (fromStorage && fromStorage !== 'null' && fromStorage !== 'undefined') {
+                return fromStorage;
+            }
+            const cookie = document.cookie.split('; ').find(row => row.startsWith('entity_id='));
+            return cookie ? cookie.split('=')[1] : null;
+        },
+        
+        async loadClaims() {
+            this.loading = true;
+            try {
+                let url = `/api/v1/entities/expense-claims?page=${this.currentPage}&per_page=${this.pageSize}`;
+                if (this.statusFilter) url += `&status=${this.statusFilter}`;
+                
+                const response = await fetch(url, { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.claims = Array.isArray(data) ? data : (data.items || data);
+                    this.totalItems = data.total || this.claims.length;
+                    this.totalPages = Math.ceil(this.totalItems / this.pageSize);
+                    this.calculateSummary();
+                }
+            } catch (error) {
+                console.error('Error loading claims:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        calculateSummary() {
+            let draft = 0, submitted = 0, approved = 0, totalAmount = 0;
+            this.claims.forEach(claim => {
+                if (claim.status === 'draft') draft++;
+                if (claim.status === 'submitted') submitted++;
+                if (claim.status === 'approved' || claim.status === 'paid') approved++;
+                totalAmount += parseFloat(claim.total_amount) || 0;
+            });
+            this.summary = { draft, submitted, approved, total_amount: totalAmount };
+        },
+        
+        addLineItem() {
+            this.lineItems.push({
+                expense_date: new Date().toISOString().split('T')[0],
+                category: 'other',
+                description: '',
+                amount: 0,
+                vat_amount: 0,
+                vendor_name: ''
+            });
+        },
+        
+        removeLineItem(index) {
+            this.lineItems.splice(index, 1);
+        },
+        
+        calculateTotal() {
+            return this.lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0) + (parseFloat(item.vat_amount) || 0), 0);
+        },
+        
+        async saveClaim() {
+            this.saving = true;
+            try {
+                const entityId = this.getEntityId();
+                // Note: The API expects employee_id, which would typically come from the logged-in user
+                const url = '/api/v1/entities/expense-claims';
+                
+                const response = await fetch(`${url}?employee_id=${entityId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.claimForm)
+                });
+                
+                if (response.ok) {
+                    const claim = await response.json();
+                    
+                    // Add line items to the claim
+                    for (const item of this.lineItems) {
+                        if (item.description && item.amount > 0) {
+                            await fetch(`/api/v1/entities/expense-claims/${claim.id}/items`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                                body: JSON.stringify(item)
+                            });
+                        }
+                    }
+                    
+                    this.showCreateModal = false;
+                    this.resetForm();
+                    await this.loadClaims();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to save claim');
+                }
+            } catch (error) {
+                console.error('Error saving claim:', error);
+                alert('An error occurred while saving the claim');
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        editClaim(claim) {
+            this.editingClaim = claim;
+            this.claimForm = {
+                title: claim.title,
+                description: claim.description || '',
+                expense_date_from: claim.expense_date_from,
+                expense_date_to: claim.expense_date_to,
+                project_code: claim.project_code || '',
+                cost_center: claim.cost_center || '',
+                department: claim.department || ''
+            };
+            this.lineItems = (claim.line_items || []).map(item => ({
+                expense_date: item.expense_date,
+                category: item.category,
+                description: item.description,
+                amount: item.amount,
+                vat_amount: item.vat_amount || 0,
+                vendor_name: item.vendor_name || ''
+            }));
+            if (this.lineItems.length === 0) this.addLineItem();
+            this.showCreateModal = true;
+        },
+        
+        viewClaim(claim) {
+            this.viewingClaim = claim;
+            this.showViewModal = true;
+        },
+        
+        async submitClaim(claim) {
+            if (!confirm('Submit this expense claim for approval?')) return;
+            try {
+                const response = await fetch(`/api/v1/entities/expense-claims/${claim.id}/submit`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    await this.loadClaims();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to submit claim');
+                }
+            } catch (error) {
+                console.error('Error submitting claim:', error);
+            }
+        },
+        
+        async approveClaim(claim) {
+            if (!confirm('Approve this expense claim?')) return;
+            try {
+                const response = await fetch(`/api/v1/entities/expense-claims/${claim.id}/approve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({})
+                });
+                if (response.ok) {
+                    await this.loadClaims();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to approve claim');
+                }
+            } catch (error) {
+                console.error('Error approving claim:', error);
+            }
+        },
+        
+        async rejectClaim(claim) {
+            const reason = prompt('Enter rejection reason:');
+            if (!reason) return;
+            try {
+                const response = await fetch(`/api/v1/entities/expense-claims/${claim.id}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ rejection_reason: reason })
+                });
+                if (response.ok) {
+                    await this.loadClaims();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to reject claim');
+                }
+            } catch (error) {
+                console.error('Error rejecting claim:', error);
+            }
+        },
+        
+        resetForm() {
+            this.editingClaim = null;
+            this.claimForm = {
+                title: '',
+                description: '',
+                expense_date_from: new Date().toISOString().split('T')[0],
+                expense_date_to: new Date().toISOString().split('T')[0],
+                project_code: '',
+                cost_center: '',
+                department: ''
+            };
+            this.lineItems = [];
+            this.addLineItem();
+        },
+        
+        prevPage() {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+                this.loadClaims();
+            }
+        },
+        
+        nextPage() {
+            if (this.currentPage < this.totalPages) {
+                this.currentPage++;
+                this.loadClaims();
+            }
+        },
+        
+        formatCurrency(value) {
+            const num = parseFloat(value) || 0;
+            return '₦' + num.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+        
+        formatDateTime(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleString('en-NG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+    };
+}
+</script>
+
+<style>
+[x-cloak] { display: none !important; }
+</style>
+{% endblock %}

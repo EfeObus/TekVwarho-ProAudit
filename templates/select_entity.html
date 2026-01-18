@@ -102,6 +102,9 @@ function entitySelector() {
         },
         
         async selectEntity(entityId) {
+            // Store entity ID in localStorage for client-side API calls
+            localStorage.setItem('currentEntityId', entityId);
+            
             // Post to set cookie and redirect
             const form = document.createElement('form');
             form.method = 'POST';

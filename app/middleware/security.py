@@ -350,8 +350,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         csp = CSPBuilder()
         csp.add_nrs_integration()
         csp.add_nibss_integration()
-        if development_mode:
-            csp.add_htmx_support()
+        csp.add_htmx_support()
+        csp.add_tailwind_support()
+        csp.add_alpinejs_support()
         self.csp_policy = csp_policy or csp.build()
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:

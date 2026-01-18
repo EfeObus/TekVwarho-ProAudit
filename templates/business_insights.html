@@ -1,0 +1,946 @@
+{% extends "base.html" %}
+
+{% block title %}Business Insights - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="mlDashboard()" x-init="init()" class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Business Insights</h1>
+            <p class="text-gray-600 mt-1">AI-powered analytics, forecasting, and document intelligence</p>
+        </div>
+        <div class="flex space-x-3">
+            <select x-model="selectedEntity" @change="loadDashboard()" class="rounded-lg border-gray-300">
+                <option value="">Select Entity</option>
+                <template x-for="entity in entities" :key="entity.id">
+                    <option :value="entity.id" x-text="entity.name"></option>
+                </template>
+            </select>
+            <button @click="refreshAll()" 
+                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                <span class="flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Refresh
+                </span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ML Capabilities Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Cash Flow Forecasting -->
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-blue-100 text-sm">Cash Flow Forecast</p>
+                    <p class="text-2xl font-bold mt-1" x-text="formatCurrency(dashboard.forecast?.forecasts?.[0]?.forecast || 0)"></p>
+                    <p class="text-blue-100 text-xs mt-1">Next Month Projection</p>
+                </div>
+                <div class="p-3 bg-blue-400 bg-opacity-30 rounded-lg">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <span class="text-xs px-2 py-1 bg-blue-400 bg-opacity-30 rounded-full" x-text="dashboard.forecast?.model_used || 'Not calculated'"></span>
+            </div>
+        </div>
+
+        <!-- Growth Prediction -->
+        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-green-100 text-sm">Growth Rate</p>
+                    <p class="text-2xl font-bold mt-1" x-text="(dashboard.growth_prediction?.growth_percentage || 0).toFixed(1) + '%'"></p>
+                    <p class="text-green-100 text-xs mt-1" x-text="dashboard.growth_prediction?.time_horizon || '12 months'"></p>
+                </div>
+                <div class="p-3 bg-green-400 bg-opacity-30 rounded-lg">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <span class="text-xs px-2 py-1 bg-green-400 bg-opacity-30 rounded-full">
+                    R² = <span x-text="(dashboard.growth_prediction?.model_accuracy * 100 || 0).toFixed(1)"></span>%
+                </span>
+            </div>
+        </div>
+
+        <!-- NLP Analysis -->
+        <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-purple-100 text-sm">NLP Engine</p>
+                    <p class="text-2xl font-bold mt-1">Active</p>
+                    <p class="text-purple-100 text-xs mt-1">Sentiment & Entity Detection</p>
+                </div>
+                <div class="p-3 bg-purple-400 bg-opacity-30 rounded-lg">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4 flex space-x-2">
+                <span class="text-xs px-2 py-1 bg-purple-400 bg-opacity-30 rounded-full">Sentiment</span>
+                <span class="text-xs px-2 py-1 bg-purple-400 bg-opacity-30 rounded-full">NER</span>
+            </div>
+        </div>
+
+        <!-- OCR Status -->
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-orange-100 text-sm">OCR Processing</p>
+                    <p class="text-2xl font-bold mt-1" x-text="ocrStatus.provider || 'Ready'"></p>
+                    <p class="text-orange-100 text-xs mt-1">Document Intelligence</p>
+                </div>
+                <div class="p-3 bg-orange-400 bg-opacity-30 rounded-lg">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <span class="text-xs px-2 py-1 bg-orange-400 bg-opacity-30 rounded-full" 
+                      x-text="ocrStatus.azure_configured ? 'Azure Connected' : 'Internal Engine'"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Tabs -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="border-b border-gray-200">
+            <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                <button @click="activeTab = 'forecast'" 
+                        :class="activeTab === 'forecast' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    📈 Cash Flow Forecast
+                </button>
+                <button @click="activeTab = 'growth'" 
+                        :class="activeTab === 'growth' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    📊 Growth Prediction
+                </button>
+                <button @click="activeTab = 'nlp'" 
+                        :class="activeTab === 'nlp' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    🧠 NLP Analysis
+                </button>
+                <button @click="activeTab = 'ocr'" 
+                        :class="activeTab === 'ocr' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    📄 OCR Processing
+                </button>
+                <button @click="activeTab = 'training'" 
+                        :class="activeTab === 'training' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    🔬 Model Training
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="p-6">
+            <!-- Cash Flow Forecast Tab -->
+            <div x-show="activeTab === 'forecast'" x-transition>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Forecast Settings -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Forecast Settings</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Forecast Method</label>
+                                <select x-model="forecastSettings.method" class="w-full rounded-lg border-gray-300">
+                                    <option value="exponential_smoothing">Exponential Smoothing (Holt-Winters)</option>
+                                    <option value="arima">ARIMA</option>
+                                    <option value="neural">LSTM Neural Network</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Periods to Forecast</label>
+                                <input type="number" x-model="forecastSettings.periods" min="1" max="36" 
+                                       class="w-full rounded-lg border-gray-300">
+                            </div>
+                            <button @click="runForecast()" 
+                                    :disabled="loading.forecast"
+                                    class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
+                                <span x-show="!loading.forecast">Generate Forecast</span>
+                                <span x-show="loading.forecast" class="flex items-center justify-center">
+                                    <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Processing...
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Forecast Results -->
+                    <div class="lg:col-span-2 bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Forecast Results</h3>
+                        <div x-show="forecastResults.forecasts?.length > 0">
+                            <!-- Chart placeholder -->
+                            <div class="h-64 bg-white rounded-lg border border-gray-200 flex items-center justify-center mb-4">
+                                <canvas id="forecastChart"></canvas>
+                            </div>
+                            <!-- Forecast Table -->
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-100">
+                                        <tr>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Forecast</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Lower 95%</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Upper 95%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200">
+                                        <template x-for="(row, index) in forecastResults.forecasts" :key="index">
+                                            <tr>
+                                                <td class="px-4 py-2 text-sm" x-text="'Month ' + row.period"></td>
+                                                <td class="px-4 py-2 text-sm text-right font-medium" x-text="formatCurrency(row.forecast)"></td>
+                                                <td class="px-4 py-2 text-sm text-right text-gray-500" x-text="formatCurrency(row.lower_95)"></td>
+                                                <td class="px-4 py-2 text-sm text-right text-gray-500" x-text="formatCurrency(row.upper_95)"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div x-show="!forecastResults.forecasts?.length" class="text-center py-12 text-gray-500">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                            <p>Select an entity and run forecast to see results</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Growth Prediction Tab -->
+            <div x-show="activeTab === 'growth'" x-transition>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Growth Settings -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Prediction Settings</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Metric</label>
+                                <select x-model="growthSettings.metric" class="w-full rounded-lg border-gray-300">
+                                    <option value="revenue">Revenue</option>
+                                    <option value="expense">Expenses</option>
+                                    <option value="profit">Net Profit</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">ML Model</label>
+                                <select x-model="growthSettings.model" class="w-full rounded-lg border-gray-300">
+                                    <option value="linear">Linear Regression</option>
+                                    <option value="polynomial">Polynomial Regression</option>
+                                    <option value="neural">Neural Network</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Periods Ahead</label>
+                                <input type="number" x-model="growthSettings.periods" min="1" max="24" 
+                                       class="w-full rounded-lg border-gray-300">
+                            </div>
+                            <button @click="runGrowthPrediction()" 
+                                    :disabled="loading.growth"
+                                    class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition">
+                                <span x-show="!loading.growth">Predict Growth</span>
+                                <span x-show="loading.growth">Processing...</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Growth Results -->
+                    <div class="lg:col-span-2 bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Prediction Results</h3>
+                        <div x-show="growthResults && growthResults.predicted_value">
+                            <div class="grid grid-cols-2 gap-4 mb-6">
+                                <div class="bg-white rounded-lg p-4 border">
+                                    <p class="text-sm text-gray-500">Current Value</p>
+                                    <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(growthResults.current_value || 0)"></p>
+                                </div>
+                                <div class="bg-white rounded-lg p-4 border">
+                                    <p class="text-sm text-gray-500">Predicted Value</p>
+                                    <p class="text-2xl font-bold text-green-600" x-text="formatCurrency(growthResults.predicted_value || 0)"></p>
+                                </div>
+                                <div class="bg-white rounded-lg p-4 border">
+                                    <p class="text-sm text-gray-500">Growth Rate</p>
+                                    <p class="text-2xl font-bold" 
+                                       :class="(growthResults.growth_percentage || 0) >= 0 ? 'text-green-600' : 'text-red-600'"
+                                       x-text="((growthResults.growth_percentage || 0).toFixed(1)) + '%'"></p>
+                                </div>
+                                <div class="bg-white rounded-lg p-4 border">
+                                    <p class="text-sm text-gray-500">Model Accuracy (R²)</p>
+                                    <p class="text-2xl font-bold text-blue-600" x-text="(((growthResults.model_accuracy || 0) * 100).toFixed(1)) + '%'"></p>
+                                </div>
+                            </div>
+
+                            <!-- Risk Factors -->
+                            <div class="bg-white rounded-lg p-4 border mb-4">
+                                <h4 class="font-medium text-gray-900 mb-2">⚠️ Risk Factors</h4>
+                                <ul class="space-y-1">
+                                    <template x-for="risk in (growthResults.risk_factors || [])" :key="risk">
+                                        <li class="text-sm text-gray-600 flex items-start">
+                                            <span class="text-red-500 mr-2">•</span>
+                                            <span x-text="risk"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+
+                            <!-- Opportunities -->
+                            <div class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">💡 Opportunities</h4>
+                                <ul class="space-y-1">
+                                    <template x-for="opp in (growthResults.opportunities || [])" :key="opp">
+                                        <li class="text-sm text-gray-600 flex items-start">
+                                            <span class="text-green-500 mr-2">•</span>
+                                            <span x-text="opp"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                        <div x-show="!growthResults || !growthResults.predicted_value" class="text-center py-12 text-gray-500">
+                            <p>Configure settings and run prediction to see results</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NLP Analysis Tab -->
+            <div x-show="activeTab === 'nlp'" x-transition>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- NLP Input -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Enter Text for Analysis</label>
+                            <textarea x-model="nlpInput" rows="6" 
+                                      placeholder="Enter transaction description, document text, or any content to analyze..."
+                                      class="w-full rounded-lg border-gray-300"></textarea>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" x-model="nlpSettings.sentiment" class="rounded border-gray-300">
+                                <span class="text-sm">Sentiment</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" x-model="nlpSettings.entities" class="rounded border-gray-300">
+                                <span class="text-sm">Entities</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" x-model="nlpSettings.keywords" class="rounded border-gray-300">
+                                <span class="text-sm">Keywords</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" x-model="nlpSettings.classification" class="rounded border-gray-300">
+                                <span class="text-sm">Classification</span>
+                            </label>
+                        </div>
+                        <button @click="runNLPAnalysis()" 
+                                :disabled="loading.nlp || !nlpInput"
+                                class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition">
+                            <span x-show="!loading.nlp">Analyze Text</span>
+                            <span x-show="loading.nlp">Analyzing...</span>
+                        </button>
+                    </div>
+
+                    <!-- NLP Results -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Analysis Results</h3>
+                        <div x-show="nlpResults.sentiment" class="space-y-4">
+                            <!-- Sentiment -->
+                            <div x-show="nlpResults.sentiment" class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">😊 Sentiment Analysis</h4>
+                                <div class="flex items-center space-x-4">
+                                    <span class="text-lg font-bold capitalize"
+                                          :class="{
+                                              'text-green-600': nlpResults.sentiment?.sentiment === 'positive',
+                                              'text-red-600': nlpResults.sentiment?.sentiment === 'negative',
+                                              'text-gray-600': nlpResults.sentiment?.sentiment === 'neutral'
+                                          }"
+                                          x-text="nlpResults.sentiment?.sentiment"></span>
+                                    <span class="text-sm text-gray-500">
+                                        Score: <span x-text="nlpResults.sentiment?.compound_score?.toFixed(2)"></span>
+                                    </span>
+                                    <span class="text-sm text-gray-500">
+                                        Confidence: <span x-text="(nlpResults.sentiment?.confidence * 100)?.toFixed(0) + '%'"></span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Entities -->
+                            <div x-show="nlpResults.entities?.length" class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">🏷️ Named Entities</h4>
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="entity in nlpResults.entities" :key="entity.start">
+                                        <span class="px-2 py-1 text-xs rounded-full"
+                                              :class="{
+                                                  'bg-blue-100 text-blue-800': entity.type?.includes('MONEY'),
+                                                  'bg-green-100 text-green-800': entity.type?.includes('DATE'),
+                                                  'bg-purple-100 text-purple-800': entity.type?.includes('NG_'),
+                                                  'bg-gray-100 text-gray-800': true
+                                              }">
+                                            <span x-text="entity.type + ': ' + entity.value"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Keywords -->
+                            <div x-show="nlpResults.keywords?.length" class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">🔑 Keywords</h4>
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="kw in nlpResults.keywords" :key="kw.keyword">
+                                        <span class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                                            <span x-text="kw.keyword"></span>
+                                            <span class="text-yellow-600 ml-1" x-text="'(' + kw.score.toFixed(2) + ')'"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Classification -->
+                            <div x-show="nlpResults.categories" class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">📂 Transaction Classification</h4>
+                                <div class="space-y-2">
+                                    <template x-for="(prob, cat) in Object.fromEntries(Object.entries(nlpResults.categories || {}).filter(([k,v]) => v > 0).sort((a,b) => b[1] - a[1]).slice(0, 5))" :key="cat">
+                                        <div class="flex items-center">
+                                            <span class="w-40 text-sm text-gray-700 truncate" x-text="cat"></span>
+                                            <div class="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+                                                <div class="h-full bg-purple-500 rounded-full" :style="'width: ' + (prob * 100) + '%'"></div>
+                                            </div>
+                                            <span class="w-12 text-right text-sm text-gray-500" x-text="(prob * 100).toFixed(0) + '%'"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="!nlpResults.sentiment" class="text-center py-12 text-gray-500">
+                            <p>Enter text and click Analyze to see NLP results</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OCR Processing Tab -->
+            <div x-show="activeTab === 'ocr'" x-transition>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- OCR Upload -->
+                    <div class="space-y-4">
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
+                             @dragover.prevent="dragOver = true"
+                             @dragleave="dragOver = false"
+                             @drop.prevent="handleFileDrop($event)"
+                             :class="{ 'border-purple-500 bg-purple-50': dragOver }">
+                            <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            <p class="text-gray-600 mb-2">Drag & drop a receipt or invoice</p>
+                            <p class="text-sm text-gray-400 mb-4">or</p>
+                            <label class="px-4 py-2 bg-purple-600 text-white rounded-lg cursor-pointer hover:bg-purple-700 transition">
+                                Browse Files
+                                <input type="file" @change="handleFileSelect($event)" accept="image/*,application/pdf" class="hidden">
+                            </label>
+                        </div>
+
+                        <div x-show="selectedFile" class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm font-medium text-gray-700">Selected: <span x-text="selectedFile?.name"></span></p>
+                            <p class="text-xs text-gray-500" x-text="formatBytes(selectedFile?.size)"></p>
+                        </div>
+
+                        <div class="flex items-center space-x-4">
+                            <select x-model="ocrSettings.documentType" class="flex-1 rounded-lg border-gray-300">
+                                <option value="receipt">Receipt</option>
+                                <option value="invoice">Invoice</option>
+                                <option value="bank_statement">Bank Statement</option>
+                                <option value="general">General Document</option>
+                            </select>
+                            <button @click="processOCR()" 
+                                    :disabled="loading.ocr || !selectedFile"
+                                    class="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition">
+                                <span x-show="!loading.ocr">Process</span>
+                                <span x-show="loading.ocr">Processing...</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- OCR Results -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Extracted Data</h3>
+                        <div x-show="ocrResults.document_id" class="space-y-4">
+                            <!-- Confidence Score -->
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-sm font-medium text-gray-700">Confidence Score</span>
+                                <span class="px-3 py-1 rounded-full text-sm font-medium"
+                                      :class="{
+                                          'bg-green-100 text-green-800': ocrResults.confidence_score >= 0.8,
+                                          'bg-yellow-100 text-yellow-800': ocrResults.confidence_score >= 0.6,
+                                          'bg-red-100 text-red-800': ocrResults.confidence_score < 0.6
+                                      }"
+                                      x-text="(ocrResults.confidence_score * 100).toFixed(0) + '%'"></span>
+                            </div>
+
+                            <!-- Vendor Info -->
+                            <div x-show="ocrResults.vendor" class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">Vendor Information</h4>
+                                <div class="space-y-1 text-sm">
+                                    <p><span class="text-gray-500">Name:</span> <span x-text="ocrResults.vendor?.name"></span></p>
+                                    <p x-show="ocrResults.vendor?.tin"><span class="text-gray-500">TIN:</span> <span x-text="ocrResults.vendor?.tin"></span></p>
+                                    <p x-show="ocrResults.vendor?.address"><span class="text-gray-500">Address:</span> <span x-text="ocrResults.vendor?.address"></span></p>
+                                </div>
+                            </div>
+
+                            <!-- Transaction Details -->
+                            <div class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">Transaction Details</h4>
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <p class="text-gray-500">Date</p>
+                                        <p class="font-medium" x-text="ocrResults.transaction_date || 'N/A'"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500">Receipt/Invoice #</p>
+                                        <p class="font-medium" x-text="ocrResults.receipt_number || ocrResults.invoice_number || 'N/A'"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500">Subtotal</p>
+                                        <p class="font-medium" x-text="formatCurrency(ocrResults.subtotal)"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500">VAT (<span x-text="ocrResults.vat_rate || 7.5"></span>%)</p>
+                                        <p class="font-medium" x-text="formatCurrency(ocrResults.vat_amount)"></p>
+                                    </div>
+                                    <div class="col-span-2">
+                                        <p class="text-gray-500">Total Amount</p>
+                                        <p class="text-xl font-bold text-green-600" x-text="formatCurrency(ocrResults.total_amount)"></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Line Items -->
+                            <div x-show="ocrResults.line_items?.length" class="bg-white rounded-lg p-4 border">
+                                <h4 class="font-medium text-gray-900 mb-2">Line Items</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full text-sm">
+                                        <thead>
+                                            <tr class="text-left text-gray-500">
+                                                <th class="pb-2">Description</th>
+                                                <th class="pb-2">Qty</th>
+                                                <th class="pb-2 text-right">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="(item, idx) in ocrResults.line_items" :key="idx">
+                                                <tr class="border-t">
+                                                    <td class="py-2" x-text="item.description"></td>
+                                                    <td class="py-2" x-text="item.quantity || 1"></td>
+                                                    <td class="py-2 text-right" x-text="formatCurrency(item.amount)"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Create Transaction Button -->
+                            <button class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                Create Transaction from OCR Data
+                            </button>
+                        </div>
+                        <div x-show="!ocrResults.document_id" class="text-center py-12 text-gray-500">
+                            <p>Upload a document to extract data</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Training Tab -->
+            <div x-show="activeTab === 'training'" x-transition>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Training Configuration -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Train Custom Model</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
+                                <input type="text" x-model="trainingConfig.modelName" 
+                                       placeholder="e.g., my_custom_classifier"
+                                       class="w-full rounded-lg border-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Model Type</label>
+                                <select x-model="trainingConfig.modelType" class="w-full rounded-lg border-gray-300">
+                                    <option value="neural_network">Neural Network (MLP)</option>
+                                    <option value="lstm">LSTM (Time Series)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Training Epochs</label>
+                                <input type="number" x-model="trainingConfig.epochs" min="100" max="5000"
+                                       class="w-full rounded-lg border-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Hidden Layers</label>
+                                <input type="text" x-model="trainingConfig.hiddenLayers" 
+                                       placeholder="e.g., 16,8,4"
+                                       class="w-full rounded-lg border-gray-300">
+                            </div>
+                            <div class="border-t pt-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Training Data (JSON)</label>
+                                <textarea x-model="trainingConfig.dataJson" rows="6"
+                                          placeholder='[{"feature1": 1, "feature2": 2, "target": 10}, ...]'
+                                          class="w-full rounded-lg border-gray-300 font-mono text-sm"></textarea>
+                            </div>
+                            <button @click="trainModel()" 
+                                    :disabled="loading.training"
+                                    class="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition">
+                                <span x-show="!loading.training">Start Training</span>
+                                <span x-show="loading.training" class="flex items-center justify-center">
+                                    <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Training...
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Model List -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Saved Models</h3>
+                        <div x-show="models.length" class="space-y-3">
+                            <template x-for="model in models" :key="model.name">
+                                <div class="bg-white rounded-lg p-4 border flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium text-gray-900" x-text="model.name"></p>
+                                        <p class="text-xs text-gray-500" x-text="formatBytes(model.size_bytes)"></p>
+                                        <p class="text-xs text-gray-400" x-text="'Created: ' + new Date(model.created_at).toLocaleDateString()"></p>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                                            Load
+                                        </button>
+                                        <button class="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200">
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div x-show="!models.length" class="text-center py-8 text-gray-500">
+                            <p>No saved models yet</p>
+                        </div>
+
+                        <!-- Training Results -->
+                        <div x-show="trainingResults.model_path" class="mt-6 bg-green-50 rounded-lg p-4 border border-green-200">
+                            <h4 class="font-medium text-green-800 mb-2">✅ Training Complete</h4>
+                            <div class="text-sm text-green-700 space-y-1">
+                                <p>Model: <span x-text="trainingResults.model_name"></span></p>
+                                <p>Samples: <span x-text="trainingResults.training_samples"></span></p>
+                                <p>Epochs: <span x-text="trainingResults.epochs_trained"></span></p>
+                                <p>Final Loss: <span x-text="trainingResults.final_loss?.toFixed(6)"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function mlDashboard() {
+    return {
+        // State
+        activeTab: 'forecast',
+        selectedEntity: '',
+        entities: [],
+        dashboard: {},
+        ocrStatus: {},
+        models: [],
+        dragOver: false,
+        selectedFile: null,
+
+        // Loading states
+        loading: {
+            forecast: false,
+            growth: false,
+            nlp: false,
+            ocr: false,
+            training: false
+        },
+
+        // Settings
+        forecastSettings: {
+            method: 'exponential_smoothing',
+            periods: 12
+        },
+        growthSettings: {
+            metric: 'revenue',
+            model: 'polynomial',
+            periods: 12
+        },
+        nlpSettings: {
+            sentiment: true,
+            entities: true,
+            keywords: true,
+            classification: true
+        },
+        ocrSettings: {
+            documentType: 'receipt',
+            preprocess: true
+        },
+        trainingConfig: {
+            modelName: '',
+            modelType: 'neural_network',
+            epochs: 500,
+            hiddenLayers: '16,8',
+            dataJson: ''
+        },
+
+        // Results
+        forecastResults: {},
+        growthResults: {},
+        nlpInput: '',
+        nlpResults: {},
+        ocrResults: {},
+        trainingResults: {},
+
+        async init() {
+            await this.loadEntities();
+            await this.loadOCRStatus();
+            await this.loadModels();
+        },
+
+        async loadEntities() {
+            try {
+                const response = await fetch('/api/v1/entities', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.entities = data.entities || data || [];
+                    if (this.entities.length > 0) {
+                        this.selectedEntity = this.entities[0].id;
+                        await this.loadDashboard();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load entities:', error);
+            }
+        },
+
+        async loadDashboard() {
+            if (!this.selectedEntity) return;
+            try {
+                const response = await fetch(`/api/v1/ml/dashboard/${this.selectedEntity}`, { credentials: 'include' });
+                if (response.ok) {
+                    this.dashboard = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+            }
+        },
+
+        async loadOCRStatus() {
+            try {
+                const response = await fetch('/api/v1/ml/ocr/status', { credentials: 'include' });
+                if (response.ok) {
+                    this.ocrStatus = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load OCR status:', error);
+            }
+        },
+
+        async loadModels() {
+            try {
+                const response = await fetch('/api/v1/ml/models', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.models = data.models || [];
+                }
+            } catch (error) {
+                console.error('Failed to load models:', error);
+            }
+        },
+
+        async runForecast() {
+            if (!this.selectedEntity) return;
+            this.loading.forecast = true;
+            try {
+                const response = await fetch('/api/v1/ml/forecast/cash-flow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        entity_id: this.selectedEntity,
+                        periods: parseInt(this.forecastSettings.periods),
+                        method: this.forecastSettings.method
+                    })
+                });
+                if (response.ok) {
+                    this.forecastResults = await response.json();
+                }
+            } catch (error) {
+                console.error('Forecast failed:', error);
+            } finally {
+                this.loading.forecast = false;
+            }
+        },
+
+        async runGrowthPrediction() {
+            if (!this.selectedEntity) return;
+            this.loading.growth = true;
+            try {
+                const response = await fetch('/api/v1/ml/predict/growth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        entity_id: this.selectedEntity,
+                        metric: this.growthSettings.metric,
+                        periods: parseInt(this.growthSettings.periods),
+                        model: this.growthSettings.model
+                    })
+                });
+                if (response.ok) {
+                    this.growthResults = await response.json();
+                }
+            } catch (error) {
+                console.error('Growth prediction failed:', error);
+            } finally {
+                this.loading.growth = false;
+            }
+        },
+
+        async runNLPAnalysis() {
+            if (!this.nlpInput) return;
+            this.loading.nlp = true;
+            try {
+                const response = await fetch('/api/v1/ml/nlp/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        text: this.nlpInput,
+                        include_sentiment: this.nlpSettings.sentiment,
+                        include_entities: this.nlpSettings.entities,
+                        include_keywords: this.nlpSettings.keywords,
+                        include_classification: this.nlpSettings.classification
+                    })
+                });
+                if (response.ok) {
+                    this.nlpResults = await response.json();
+                }
+            } catch (error) {
+                console.error('NLP analysis failed:', error);
+            } finally {
+                this.loading.nlp = false;
+            }
+        },
+
+        handleFileSelect(event) {
+            this.selectedFile = event.target.files[0];
+        },
+
+        handleFileDrop(event) {
+            this.dragOver = false;
+            this.selectedFile = event.dataTransfer.files[0];
+        },
+
+        async processOCR() {
+            if (!this.selectedFile) return;
+            this.loading.ocr = true;
+            try {
+                const formData = new FormData();
+                formData.append('file', this.selectedFile);
+                formData.append('document_type', this.ocrSettings.documentType);
+                formData.append('preprocess', 'true');
+
+                const response = await fetch('/api/v1/ml/ocr/process', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+                if (response.ok) {
+                    this.ocrResults = await response.json();
+                }
+            } catch (error) {
+                console.error('OCR processing failed:', error);
+            } finally {
+                this.loading.ocr = false;
+            }
+        },
+
+        async trainModel() {
+            this.loading.training = true;
+            try {
+                let trainingData;
+                try {
+                    trainingData = JSON.parse(this.trainingConfig.dataJson);
+                } catch {
+                    alert('Invalid JSON training data');
+                    return;
+                }
+
+                const response = await fetch('/api/v1/ml/train/neural-network', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        model_name: this.trainingConfig.modelName,
+                        model_type: this.trainingConfig.modelType,
+                        training_data: trainingData,
+                        target_field: 'target',
+                        feature_fields: Object.keys(trainingData[0]).filter(k => k !== 'target'),
+                        epochs: parseInt(this.trainingConfig.epochs),
+                        hidden_layers: this.trainingConfig.hiddenLayers.split(',').map(n => parseInt(n.trim()))
+                    })
+                });
+                if (response.ok) {
+                    this.trainingResults = await response.json();
+                    await this.loadModels();
+                }
+            } catch (error) {
+                console.error('Training failed:', error);
+            } finally {
+                this.loading.training = false;
+            }
+        },
+
+        async refreshAll() {
+            await this.loadDashboard();
+            await this.loadModels();
+        },
+
+        formatCurrency(value) {
+            if (!value && value !== 0) return 'N/A';
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        },
+
+        formatBytes(bytes) {
+            if (!bytes) return '0 B';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
+        }
+    };
+}
+</script>
+{% endblock %}

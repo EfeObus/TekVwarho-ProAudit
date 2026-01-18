@@ -8,16 +8,21 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Alpine.js x-cloak style (must be before Alpine.js) -->
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     
     <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
     
     <!-- Custom Styles -->
     <link rel="stylesheet" href="/static/css/main.css">
     
-    <!-- CSRF Token Script -->
+    <!-- CSRF Token Script and Auth Utilities -->
     <script>
         // Get CSRF token from cookie
         function getCsrfToken() {
@@ -33,10 +38,101 @@
             return '';
         }
         
+        // Sync entity_id from cookie to localStorage
+        function syncEntityId() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'entity_id' && value) {
+                    localStorage.setItem('currentEntityId', value);
+                    return;
+                }
+            }
+        }
+        syncEntityId();
+        
+        // Token refresh state
+        let isRefreshing = false;
+        let refreshPromise = null;
+        
+        // Refresh the access token using the refresh token
+        async function refreshAccessToken() {
+            const refreshToken = localStorage.getItem('refresh_token');
+            if (!refreshToken) {
+                console.log('No refresh token available');
+                return false;
+            }
+            
+            try {
+                const response = await fetch('/api/v1/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: refreshToken }),
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    // Update the access_token cookie (server should set it, but let's ensure)
+                    if (data.access_token) {
+                        document.cookie = `access_token=Bearer ${data.access_token}; path=/; max-age=${data.expires_in || 1800}`;
+                    }
+                    if (data.refresh_token) {
+                        localStorage.setItem('refresh_token', data.refresh_token);
+                    }
+                    console.log('Token refreshed successfully');
+                    return true;
+                } else {
+                    console.log('Token refresh failed:', response.status);
+                    // Refresh token is invalid, redirect to login
+                    localStorage.removeItem('refresh_token');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Token refresh error:', error);
+                return false;
+            }
+        }
+        
+        // Wrapper for fetch that handles 401 errors with token refresh
+        async function authFetch(url, options = {}) {
+            // Ensure credentials are included
+            options.credentials = options.credentials || 'include';
+            
+            let response = await fetch(url, options);
+            
+            // If unauthorized, try refreshing the token
+            if (response.status === 401) {
+                // Prevent multiple simultaneous refresh attempts
+                if (!isRefreshing) {
+                    isRefreshing = true;
+                    refreshPromise = refreshAccessToken();
+                }
+                
+                const refreshed = await refreshPromise;
+                isRefreshing = false;
+                refreshPromise = null;
+                
+                if (refreshed) {
+                    // Retry the original request
+                    response = await fetch(url, options);
+                } else {
+                    // Redirect to login if refresh failed
+                    console.log('Authentication failed, redirecting to login');
+                    window.location.href = '/login?session_expired=true';
+                    throw new Error('Session expired');
+                }
+            }
+            
+            return response;
+        }
+        
         // Configure HTMX to include CSRF token in all requests
         document.addEventListener('htmx:configRequest', function(event) {
             event.detail.headers['X-CSRF-Token'] = getCsrfToken();
         });
+        
+        // Log initialization
+        console.log('TekVwarho ProAudit initialized');
     </script>
     
     {% block head %}{% endblock %}
@@ -86,6 +182,16 @@
                                 <a href="/audit-logs" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Audit Logs</a>
                                 <a href="/advanced-audit" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Advanced Audit</a>
                                 <a href="/worm-storage" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">WORM Storage</a>
+                                <hr class="my-1 border-gray-100">
+                                <p class="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">AI & Intelligence</p>
+                                <a href="/intelligence-dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                    <span class="flex items-center">
+                                        <svg class="h-4 w-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                                        </svg>
+                                        Intelligence Dashboard
+                                    </span>
+                                </a>
                                 <hr class="my-1 border-gray-100">
                                 <a href="/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Settings</a>
                             </div>
@@ -245,10 +351,7 @@
             async fetchNotifications() {
                 this.loading = true;
                 try {
-                    const token = localStorage.getItem('token');
-                    const response = await fetch('/api/v1/notifications?limit=20', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+                    const response = await authFetch('/api/v1/notifications?limit=20');
                     if (response.ok) {
                         const data = await response.json();
                         this.notifications = data.notifications || data.items || [];
@@ -263,10 +366,7 @@
             
             async fetchUnreadCount() {
                 try {
-                    const token = localStorage.getItem('token');
-                    const response = await fetch('/api/v1/notifications/unread-count', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+                    const response = await authFetch('/api/v1/notifications/unread-count');
                     if (response.ok) {
                         const data = await response.json();
                         this.unreadCount = data.count || 0;
@@ -279,10 +379,8 @@
             async markRead(notif) {
                 if (notif.is_read) return;
                 try {
-                    const token = localStorage.getItem('token');
-                    await fetch(`/api/v1/notifications/${notif.id}/read`, {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                    await authFetch(`/api/v1/notifications/${notif.id}/read`, {
+                        method: 'PUT'
                     });
                     notif.is_read = true;
                     this.unreadCount = Math.max(0, this.unreadCount - 1);
@@ -293,10 +391,8 @@
             
             async markAllRead() {
                 try {
-                    const token = localStorage.getItem('token');
-                    await fetch('/api/v1/notifications/read-all', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                    await authFetch('/api/v1/notifications/read-all', {
+                        method: 'POST'
                     });
                     this.notifications.forEach(n => n.is_read = true);
                     this.unreadCount = 0;
@@ -307,10 +403,8 @@
             
             async deleteNotification(id) {
                 try {
-                    const token = localStorage.getItem('token');
-                    await fetch(`/api/v1/notifications/${id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                    await authFetch(`/api/v1/notifications/${id}`, {
+                        method: 'DELETE'
                     });
                     const notif = this.notifications.find(n => n.id === id);
                     if (notif && !notif.is_read) {
