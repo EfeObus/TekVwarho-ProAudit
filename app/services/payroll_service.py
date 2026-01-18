@@ -919,8 +919,20 @@ class PayrollService:
         self,
         entity_id: uuid.UUID,
         payroll_id: uuid.UUID,
+        post_to_gl: bool = True,
     ) -> PayrollRun:
-        """Process approved payroll (mark as ready for payment)."""
+        """
+        Process approved payroll (mark as ready for payment).
+        
+        When post_to_gl=True (default), creates GL journal entries:
+            Dr Salary Expense (5200)        - Gross salaries
+            Dr Employer Pension (5210)      - Employer pension contribution
+            Dr Employer NSITF (5220)        - NSITF contribution
+            Cr PAYE Payable (2150)          - Tax withheld
+            Cr Pension Payable (2160)       - Employee + Employer pension
+            Cr NHF Payable (2170)           - NHF deduction
+            Cr Salary Payable (2180)        - Net salary to be paid
+        """
         payroll = await self.get_payroll_run(entity_id, payroll_id)
         if not payroll:
             raise ValueError("Payroll run not found")
@@ -934,12 +946,193 @@ class PayrollService:
         # Create statutory remittance records
         await self._create_remittances(payroll)
         
+        # Post to General Ledger
+        if post_to_gl:
+            gl_result = await self._post_payroll_to_gl(payroll, entity_id)
+            if not gl_result.get("success"):
+                import logging
+                logging.warning(f"Payroll GL posting failed: {gl_result.get('message')}")
+        
         payroll.status = PayrollStatus.COMPLETED
         
         await self.db.commit()
         await self.db.refresh(payroll)
         
         return payroll
+    
+    async def _post_payroll_to_gl(
+        self,
+        payroll: PayrollRun,
+        entity_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Post payroll to General Ledger.
+        
+        Nigerian payroll journal structure:
+            DEBITS:
+            - Salary Expense (5200)         - Total gross salary
+            - Employer Pension (5210)       - Employer's 10% contribution
+            - Employer NSITF (5220)         - 1% NSITF
+            
+            CREDITS:
+            - PAYE Payable (2150)           - Tax deducted
+            - Pension Payable (2160)        - Employee 8% + Employer 10%
+            - NHF Payable (2170)            - 2.5% NHF
+            - Salary Payable (2180)         - Net pay (or Bank if paying immediately)
+        """
+        from app.services.accounting_service import AccountingService
+        from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
+        from app.models.accounting import ChartOfAccounts
+        
+        accounting_service = AccountingService(self.db)
+        
+        # GL Account Codes (Nigerian Standard)
+        GL_CODES = {
+            "SALARY_EXPENSE": "5200",
+            "EMPLOYER_PENSION": "5210",
+            "EMPLOYER_NSITF": "5220",
+            "PAYE_PAYABLE": "2150",
+            "PENSION_PAYABLE": "2160",
+            "NHF_PAYABLE": "2170",
+            "SALARY_PAYABLE": "2180",
+        }
+        
+        # Get GL account IDs
+        async def get_account_id(code: str) -> Optional[uuid.UUID]:
+            result = await self.db.execute(
+                select(ChartOfAccounts.id).where(
+                    and_(
+                        ChartOfAccounts.entity_id == entity_id,
+                        ChartOfAccounts.account_code == code,
+                        ChartOfAccounts.is_header == False,
+                    )
+                )
+            )
+            return result.scalar_one_or_none()
+        
+        salary_exp = await get_account_id(GL_CODES["SALARY_EXPENSE"])
+        employer_pension_exp = await get_account_id(GL_CODES["EMPLOYER_PENSION"])
+        employer_nsitf_exp = await get_account_id(GL_CODES["EMPLOYER_NSITF"])
+        paye_payable = await get_account_id(GL_CODES["PAYE_PAYABLE"])
+        pension_payable = await get_account_id(GL_CODES["PENSION_PAYABLE"])
+        nhf_payable = await get_account_id(GL_CODES["NHF_PAYABLE"])
+        salary_payable = await get_account_id(GL_CODES["SALARY_PAYABLE"])
+        
+        if not all([salary_exp, salary_payable]):
+            return {
+                "success": False,
+                "message": "Required GL accounts not found. Initialize Chart of Accounts with payroll accounts.",
+            }
+        
+        # Build journal entry lines
+        lines = []
+        
+        # DEBIT: Salary Expense (Gross Salary)
+        lines.append(JournalEntryLineCreate(
+            account_id=salary_exp,
+            description=f"Payroll - {payroll.run_name or payroll.period_start.strftime('%B %Y')}",
+            debit_amount=payroll.total_gross_pay,
+            credit_amount=Decimal("0.00"),
+        ))
+        
+        # DEBIT: Employer Pension Contribution
+        if payroll.total_pension_employer > 0 and employer_pension_exp:
+            lines.append(JournalEntryLineCreate(
+                account_id=employer_pension_exp,
+                description=f"Employer Pension - {payroll.period_start.strftime('%B %Y')}",
+                debit_amount=payroll.total_pension_employer,
+                credit_amount=Decimal("0.00"),
+            ))
+        
+        # DEBIT: Employer NSITF
+        if payroll.total_nsitf > 0 and employer_nsitf_exp:
+            lines.append(JournalEntryLineCreate(
+                account_id=employer_nsitf_exp,
+                description=f"NSITF Contribution - {payroll.period_start.strftime('%B %Y')}",
+                debit_amount=payroll.total_nsitf,
+                credit_amount=Decimal("0.00"),
+            ))
+        
+        # CREDIT: PAYE Payable
+        if payroll.total_paye > 0 and paye_payable:
+            lines.append(JournalEntryLineCreate(
+                account_id=paye_payable,
+                description=f"PAYE Withheld - {payroll.period_start.strftime('%B %Y')}",
+                debit_amount=Decimal("0.00"),
+                credit_amount=payroll.total_paye,
+            ))
+        
+        # CREDIT: Pension Payable (Employee + Employer)
+        total_pension = payroll.total_pension_employee + payroll.total_pension_employer
+        if total_pension > 0 and pension_payable:
+            lines.append(JournalEntryLineCreate(
+                account_id=pension_payable,
+                description=f"Pension Payable - {payroll.period_start.strftime('%B %Y')}",
+                debit_amount=Decimal("0.00"),
+                credit_amount=total_pension,
+            ))
+        
+        # CREDIT: NHF Payable
+        if payroll.total_nhf > 0 and nhf_payable:
+            lines.append(JournalEntryLineCreate(
+                account_id=nhf_payable,
+                description=f"NHF Payable - {payroll.period_start.strftime('%B %Y')}",
+                debit_amount=Decimal("0.00"),
+                credit_amount=payroll.total_nhf,
+            ))
+        
+        # CREDIT: Salary Payable (Net Pay)
+        lines.append(JournalEntryLineCreate(
+            account_id=salary_payable,
+            description=f"Net Salary Payable - {payroll.period_start.strftime('%B %Y')}",
+            debit_amount=Decimal("0.00"),
+            credit_amount=payroll.total_net_pay,
+        ))
+        
+        # Ensure balanced entry
+        total_debit = sum(l.debit_amount for l in lines)
+        total_credit = sum(l.credit_amount for l in lines)
+        
+        if total_debit != total_credit:
+            # Adjust salary expense if there's a rounding difference
+            diff = total_credit - total_debit
+            lines[0].debit_amount += diff
+        
+        # Create GL posting request
+        period_name = payroll.period_start.strftime('%B %Y')
+        gl_request = GLPostingRequest(
+            source_module="payroll",
+            source_document_type="payroll_run",
+            source_document_id=payroll.id,
+            source_reference=f"PR-{payroll.period_start.strftime('%Y%m')}",
+            entry_date=payroll.period_end,
+            description=f"Payroll - {period_name}",
+            lines=lines,
+            auto_post=True,
+        )
+        
+        # Find a user ID for posting (use first payslip's employee or system)
+        user_id = None
+        if payroll.payslips:
+            user_id = payroll.payslips[0].employee_id
+        if not user_id and payroll.approved_by_id:
+            user_id = payroll.approved_by_id
+        
+        if not user_id:
+            return {
+                "success": False,
+                "message": "No user context available for GL posting",
+            }
+        
+        # Post to GL
+        result = await accounting_service.post_to_gl(entity_id, gl_request, user_id)
+        
+        return {
+            "success": result.success,
+            "journal_entry_id": str(result.journal_entry_id) if result.journal_entry_id else None,
+            "entry_number": result.entry_number,
+            "message": result.message,
+        }
     
     async def _create_remittances(self, payroll: PayrollRun):
         """Create statutory remittance records for a payroll."""

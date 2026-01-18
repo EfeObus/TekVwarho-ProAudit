@@ -157,6 +157,70 @@ async def update_bank_account(
 
 
 # =============================================================================
+# GL LINKAGE ENDPOINTS
+# =============================================================================
+
+@router.get("/accounts/{account_id}/gl-linkage")
+async def validate_bank_gl_linkage(
+    account_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Validate the GL linkage for a specific bank account.
+    
+    Returns validation details including whether the bank account
+    is properly linked to a valid GL account.
+    """
+    service = get_bank_reconciliation_service(db)
+    return await service.validate_gl_linkage(account_id, entity_id)
+
+
+@router.get("/gl-linkage/validate-all")
+async def validate_all_gl_linkages(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Validate GL linkage for all bank accounts of the entity.
+    
+    Returns a summary of validation results including:
+    - Total accounts
+    - Linked accounts (valid)
+    - Unlinked accounts (need GL code)
+    - Invalid linkages (GL code doesn't exist)
+    - List of issues with recommendations
+    """
+    service = get_bank_reconciliation_service(db)
+    return await service.validate_all_bank_gl_linkages(entity_id)
+
+
+@router.post("/accounts/{account_id}/link-gl")
+async def link_bank_to_gl_account(
+    account_id: uuid.UUID,
+    gl_account_code: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Link a bank account to a GL account.
+    
+    The GL account must exist in the Chart of Accounts.
+    This enables proper accounting integration for bank reconciliation.
+    """
+    service = get_bank_reconciliation_service(db)
+    result = await service.link_bank_to_gl(account_id, gl_account_code, entity_id)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    
+    return result
+
+
+# =============================================================================
 # BANK INTEGRATION ENDPOINTS (Mono, Okra, Stitch)
 # =============================================================================
 
@@ -559,6 +623,127 @@ async def auto_match_transactions(
     )
     
     return AutoMatchResult(**result)
+
+
+@router.get("/reconciliations/{reconciliation_id}/gl-transactions")
+async def get_gl_transactions_for_reconciliation(
+    reconciliation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Get GL journal entry lines for the bank account in this reconciliation.
+    
+    Returns GL transactions that affect the linked bank GL account,
+    suitable for matching against bank statement transactions.
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    reconciliation = await service.get_reconciliation(reconciliation_id, entity_id)
+    if not reconciliation:
+        raise HTTPException(status_code=404, detail="Reconciliation not found")
+    
+    # Validate GL linkage
+    linkage = await service.validate_gl_linkage(reconciliation.bank_account_id, entity_id)
+    if not linkage.get("valid"):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Bank account not linked to GL: {linkage.get('error')}"
+        )
+    
+    gl_transactions = await service.get_gl_transactions_for_bank(
+        entity_id=entity_id,
+        bank_account_id=reconciliation.bank_account_id,
+        start_date=reconciliation.period_start,
+        end_date=reconciliation.period_end,
+    )
+    
+    return {
+        "reconciliation_id": str(reconciliation_id),
+        "gl_account_code": linkage.get("gl_account_code"),
+        "gl_account_name": linkage.get("gl_account_name"),
+        "period_start": reconciliation.period_start,
+        "period_end": reconciliation.period_end,
+        "transaction_count": len(gl_transactions),
+        "transactions": gl_transactions,
+    }
+
+
+@router.post("/reconciliations/{reconciliation_id}/match-to-gl")
+async def match_statement_to_gl_entry(
+    reconciliation_id: uuid.UUID,
+    statement_transaction_id: uuid.UUID,
+    journal_entry_line_id: uuid.UUID,
+    match_notes: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Match a bank statement transaction to a GL journal entry line.
+    
+    Creates a direct link between the statement transaction and the GL entry,
+    enabling full audit trail from bank to books.
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    result = await service.match_statement_to_gl(
+        reconciliation_id=reconciliation_id,
+        entity_id=entity_id,
+        statement_transaction_id=statement_transaction_id,
+        journal_entry_line_id=journal_entry_line_id,
+        match_notes=match_notes,
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    
+    return result
+
+
+@router.post("/reconciliations/{reconciliation_id}/auto-match-gl")
+async def auto_match_to_gl_entries(
+    reconciliation_id: uuid.UUID,
+    amount_tolerance: Optional[float] = 0.01,
+    date_tolerance_days: Optional[int] = 3,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Automatically match unmatched statement transactions to GL journal entries.
+    
+    Uses intelligent matching based on:
+    - Amount (with configurable tolerance)
+    - Date (with configurable tolerance in days)
+    - Reference matching
+    
+    This matches bank statement transactions directly to GL entries instead
+    of sub-ledger transactions, useful for reconciling bank GL account.
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    # Validate GL linkage first
+    reconciliation = await service.get_reconciliation(reconciliation_id, entity_id)
+    if not reconciliation:
+        raise HTTPException(status_code=404, detail="Reconciliation not found")
+    
+    linkage = await service.validate_gl_linkage(reconciliation.bank_account_id, entity_id)
+    if not linkage.get("valid"):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Bank account not linked to GL: {linkage.get('error')}. Link the bank account to a GL account before GL matching."
+        )
+    
+    result = await service.auto_match_to_gl(
+        reconciliation_id=reconciliation_id,
+        entity_id=entity_id,
+        amount_tolerance=Decimal(str(amount_tolerance)),
+        date_tolerance_days=date_tolerance_days,
+    )
+    
+    return result
 
 
 @router.post("/reconciliations/{reconciliation_id}/manual-match")

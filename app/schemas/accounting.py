@@ -458,6 +458,56 @@ class BalanceSheetReport(BaseModel):
     is_balanced: bool
 
 
+# =============================================================================
+# CASH FLOW STATEMENT SCHEMAS
+# =============================================================================
+
+class CashFlowCategory(str, Enum):
+    """Cash flow statement categories."""
+    OPERATING = "operating"
+    INVESTING = "investing"
+    FINANCING = "financing"
+
+
+class CashFlowItem(BaseModel):
+    """Single item in cash flow statement."""
+    description: str
+    amount: Decimal
+    category: CashFlowCategory
+
+
+class CashFlowSection(BaseModel):
+    """Section of cash flow statement."""
+    items: List[CashFlowItem]
+    total: Decimal
+
+
+class CashFlowStatementReport(BaseModel):
+    """Cash flow statement report (indirect method)."""
+    entity_id: UUID
+    start_date: date
+    end_date: date
+    
+    # Operating Activities
+    net_income: Decimal
+    depreciation: Decimal
+    changes_in_working_capital: List[CashFlowItem]
+    operating_activities_total: Decimal
+    
+    # Investing Activities
+    investing_items: List[CashFlowItem]
+    investing_activities_total: Decimal
+    
+    # Financing Activities  
+    financing_items: List[CashFlowItem]
+    financing_activities_total: Decimal
+    
+    # Summary
+    net_change_in_cash: Decimal
+    beginning_cash: Decimal
+    ending_cash: Decimal
+
+
 class AccountLedgerEntry(BaseModel):
     """Single entry in account ledger."""
     date: date

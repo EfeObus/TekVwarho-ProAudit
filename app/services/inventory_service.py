@@ -2,6 +2,11 @@
 TekVwarho ProAudit - Inventory Service
 
 Business logic for inventory management, stock tracking, and write-offs.
+
+GL Integration:
+- When inventory is sold, posts COGS: Dr COGS, Cr Inventory
+- When inventory is written off, posts: Dr Write-off Expense, Cr Inventory
+- When inventory is purchased/received, posts: Dr Inventory, Cr AP (via Transaction)
 """
 
 import uuid
@@ -20,6 +25,14 @@ from app.models.inventory import (
     StockWriteOff,
     WriteOffReason,
 )
+
+
+# Nigerian Standard COA Account Codes for Inventory
+GL_ACCOUNTS = {
+    "inventory": "1210",           # Inventory Asset
+    "cogs": "5000",                # Cost of Goods Sold
+    "writeoff_expense": "5400",    # Inventory Write-off Expense
+}
 
 
 class InventoryService:
@@ -299,8 +312,26 @@ class InventoryService:
         notes: Optional[str] = None,
         sale_date: Optional[date] = None,
         created_by: Optional[uuid.UUID] = None,
+        entity_id: Optional[uuid.UUID] = None,
+        post_to_gl: bool = True,
     ) -> InventoryItem:
-        """Record a sale (reduce stock)."""
+        """
+        Record a sale (reduce stock) and post COGS to GL.
+        
+        GL Journal Entry:
+        Dr Cost of Goods Sold (5000)   [quantity x unit_cost]
+        Cr Inventory (1210)            [quantity x unit_cost]
+        
+        Args:
+            item_id: Inventory item ID
+            quantity: Quantity sold
+            reference: Sale reference (invoice number, etc.)
+            notes: Additional notes
+            sale_date: Date of sale
+            created_by: User recording the sale
+            entity_id: Business entity ID (needed for GL posting)
+            post_to_gl: Whether to post COGS to GL (default True)
+        """
         item = await self.get_item_by_id(item_id)
         if not item:
             raise ValueError("Inventory item not found")
@@ -312,6 +343,9 @@ class InventoryService:
             raise ValueError(f"Insufficient stock. Available: {item.quantity_on_hand}")
         
         move_date = sale_date or date.today()
+        
+        # Calculate COGS value
+        cogs_value = Decimal(str(quantity)) * item.unit_cost
         
         # Create movement (negative quantity for outbound)
         await self._create_movement(
@@ -331,7 +365,177 @@ class InventoryService:
         await self.db.commit()
         await self.db.refresh(item)
         
+        # Post COGS to GL
+        if post_to_gl and created_by:
+            # Determine entity_id from item or parameter
+            posting_entity_id = entity_id or item.entity_id
+            if posting_entity_id:
+                try:
+                    await self._post_cogs_to_gl(
+                        entity_id=posting_entity_id,
+                        item=item,
+                        quantity=quantity,
+                        cogs_value=cogs_value,
+                        reference=reference or f"SALE-{str(item.id)[:8]}",
+                        sale_date=move_date,
+                        user_id=created_by,
+                    )
+                except Exception as e:
+                    import logging
+                    logging.error(f"GL posting failed for inventory sale {item.id}: {e}")
+        
         return item
+    
+    async def _get_gl_account_id(
+        self,
+        entity_id: uuid.UUID,
+        account_code: str,
+    ) -> Optional[uuid.UUID]:
+        """Get GL account ID by account code."""
+        from app.models.accounting import ChartOfAccounts
+        
+        result = await self.db.execute(
+            select(ChartOfAccounts.id)
+            .where(ChartOfAccounts.entity_id == entity_id)
+            .where(ChartOfAccounts.account_code == account_code)
+            .where(ChartOfAccounts.is_active == True)
+        )
+        account = result.scalar_one_or_none()
+        return account
+    
+    async def _post_cogs_to_gl(
+        self,
+        entity_id: uuid.UUID,
+        item: InventoryItem,
+        quantity: int,
+        cogs_value: Decimal,
+        reference: str,
+        sale_date: date,
+        user_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Post Cost of Goods Sold to General Ledger.
+        
+        Journal Entry:
+        Dr Cost of Goods Sold (5000)   [cogs_value]
+        Cr Inventory (1210)            [cogs_value]
+        """
+        from app.services.accounting_service import AccountingService
+        from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
+        
+        accounting_service = AccountingService(self.db)
+        
+        # Build journal lines
+        lines = []
+        
+        # Debit: COGS
+        cogs_account_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["cogs"])
+        if cogs_account_id:
+            lines.append(JournalEntryLineCreate(
+                account_id=cogs_account_id,
+                debit_amount=cogs_value,
+                credit_amount=Decimal("0"),
+                description=f"COGS: {quantity}x {item.name}",
+            ))
+        
+        # Credit: Inventory
+        inventory_account_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["inventory"])
+        if inventory_account_id:
+            lines.append(JournalEntryLineCreate(
+                account_id=inventory_account_id,
+                debit_amount=Decimal("0"),
+                credit_amount=cogs_value,
+                description=f"Inventory reduction: {quantity}x {item.name}",
+            ))
+        
+        if not lines:
+            return {"success": False, "error": "No GL accounts found for COGS posting"}
+        
+        # Create GL posting request
+        gl_request = GLPostingRequest(
+            entry_date=sale_date,
+            reference=reference,
+            description=f"COGS for {item.name} ({quantity} units)",
+            source_document_type="inventory_sale",
+            source_document_id=str(item.id),
+            lines=lines,
+        )
+        
+        # Post to GL
+        result = await accounting_service.post_to_gl(entity_id, gl_request, user_id)
+        
+        return {
+            "success": result.success,
+            "journal_entry_id": str(result.journal_entry_id) if result.journal_entry_id else None,
+            "message": result.message,
+        }
+    
+    async def _post_writeoff_to_gl(
+        self,
+        entity_id: uuid.UUID,
+        item: InventoryItem,
+        quantity: int,
+        writeoff_value: Decimal,
+        reference: str,
+        writeoff_date: date,
+        user_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Post inventory write-off to General Ledger.
+        
+        Journal Entry:
+        Dr Write-off Expense (5400)    [writeoff_value]
+        Cr Inventory (1210)            [writeoff_value]
+        """
+        from app.services.accounting_service import AccountingService
+        from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
+        
+        accounting_service = AccountingService(self.db)
+        
+        # Build journal lines
+        lines = []
+        
+        # Debit: Write-off Expense
+        writeoff_account_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["writeoff_expense"])
+        if writeoff_account_id:
+            lines.append(JournalEntryLineCreate(
+                account_id=writeoff_account_id,
+                debit_amount=writeoff_value,
+                credit_amount=Decimal("0"),
+                description=f"Inventory write-off: {quantity}x {item.name}",
+            ))
+        
+        # Credit: Inventory
+        inventory_account_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["inventory"])
+        if inventory_account_id:
+            lines.append(JournalEntryLineCreate(
+                account_id=inventory_account_id,
+                debit_amount=Decimal("0"),
+                credit_amount=writeoff_value,
+                description=f"Write-off: {quantity}x {item.name}",
+            ))
+        
+        if not lines:
+            return {"success": False, "error": "No GL accounts found for write-off posting"}
+        
+        # Create GL posting request
+        gl_request = GLPostingRequest(
+            entry_date=writeoff_date,
+            reference=reference,
+            description=f"Inventory write-off: {item.name} ({quantity} units)",
+            source_document_type="inventory_writeoff",
+            source_document_id=str(item.id),
+            lines=lines,
+        )
+        
+        # Post to GL
+        result = await accounting_service.post_to_gl(entity_id, gl_request, user_id)
+        
+        return {
+            "success": result.success,
+            "journal_entry_id": str(result.journal_entry_id) if result.journal_entry_id else None,
+            "message": result.message,
+        }
     
     async def adjust_stock(
         self,
@@ -408,8 +612,28 @@ class InventoryService:
         write_off_date: Optional[date] = None,
         is_tax_deductible: bool = True,
         created_by: Optional[uuid.UUID] = None,
+        entity_id: Optional[uuid.UUID] = None,
+        post_to_gl: bool = True,
     ) -> StockWriteOff:
-        """Create a stock write-off."""
+        """
+        Create a stock write-off and post to GL.
+        
+        GL Journal Entry:
+        Dr Write-off Expense (5400)    [total_value]
+        Cr Inventory (1210)            [total_value]
+        
+        Args:
+            item_id: Inventory item ID
+            quantity: Quantity to write off
+            reason: Write-off reason (damage, obsolete, etc.)
+            notes: Additional notes
+            documentation_url: Supporting documentation URL
+            write_off_date: Date of write-off
+            is_tax_deductible: Whether write-off is tax deductible
+            created_by: User creating the write-off
+            entity_id: Business entity ID (for GL posting)
+            post_to_gl: Whether to post to GL (default True)
+        """
         item = await self.get_item_by_id(item_id)
         if not item:
             raise ValueError("Inventory item not found")
@@ -462,6 +686,24 @@ class InventoryService:
         
         await self.db.commit()
         await self.db.refresh(write_off)
+        
+        # Post to GL
+        if post_to_gl and created_by:
+            posting_entity_id = entity_id or item.entity_id
+            if posting_entity_id:
+                try:
+                    await self._post_writeoff_to_gl(
+                        entity_id=posting_entity_id,
+                        item=item,
+                        quantity=quantity,
+                        writeoff_value=total_value,
+                        reference=f"WO-{str(write_off.id)[:8]}",
+                        writeoff_date=wo_date,
+                        user_id=created_by,
+                    )
+                except Exception as e:
+                    import logging
+                    logging.error(f"GL posting failed for write-off {write_off.id}: {e}")
         
         return write_off
     

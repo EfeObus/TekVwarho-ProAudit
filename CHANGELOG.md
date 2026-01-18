@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] - 2026-01-19
+
+### Complete GL Integration Release
+
+This release completes the integration between all sub-ledger modules and the General Ledger,
+ensuring "every naira in the bank is explained."
+
+### Added
+
+#### Sub-Ledger to GL Posting Integration
+All sub-ledger modules now automatically post to the General Ledger:
+
+- **Invoice GL Posting** (`app/services/invoice_service.py`)
+  - `finalize_invoice()` now posts: Dr AR, Cr Revenue, Cr VAT Payable
+  - `record_payment()` now posts: Dr Bank, Dr WHT Receivable, Cr AR
+  - New method: `_post_invoice_to_gl()`, `_post_payment_to_gl()`
+
+- **Vendor/Expense GL Posting** (`app/services/transaction_service.py`)
+  - `create_transaction()` now posts expenses: Dr Expense, Dr VAT Input, Cr AP
+  - New method: `record_vendor_payment()` with GL posting
+  - New method: `_post_expense_to_gl()`, `_post_income_to_gl()`
+
+- **Payroll GL Posting** (`app/services/payroll_service.py`)
+  - `process_payroll()` now posts full Nigerian payroll journal
+  - Journal includes: Salary, Pension (8%/10%), NHF (2.5%), NSITF (1%), PAYE
+  - New method: `_post_payroll_to_gl()`
+
+- **Fixed Asset GL Posting** (`app/services/fixed_asset_service.py`)
+  - `run_depreciation()` now posts: Dr Depreciation Expense, Cr Accumulated Depreciation
+  - `dispose_asset()` now posts disposal with gain/loss calculation
+  - New methods: `_post_depreciation_to_gl()`, `_post_disposal_to_gl()`
+
+- **Inventory GL Posting** (`app/services/inventory_service.py`)
+  - `record_sale()` now posts COGS: Dr COGS, Cr Inventory
+  - `create_write_off()` now posts: Dr Write-off Expense, Cr Inventory
+  - New methods: `_post_cogs_to_gl()`, `_post_writeoff_to_gl()`
+
+#### Cash Flow Statement Report
+- New endpoint: `GET /api/v1/entities/{entity_id}/accounting/reports/cash-flow-statement`
+- Implements indirect method with Operating, Investing, Financing activities
+- Service method: `accounting_service.get_cash_flow_statement()`
+- New schemas: `CashFlowStatementReport`, `CashFlowItem`, `CashFlowCategory`
+
+#### Bank-GL Integration
+- **GL Linkage Validation**
+  - `GET /accounts/{id}/gl-linkage` - Validate single bank account GL linkage
+  - `GET /gl-linkage/validate-all` - Validate all bank accounts
+  - `POST /accounts/{id}/link-gl` - Link bank account to GL account
+
+- **GL Transaction Matching**
+  - `GET /reconciliations/{id}/gl-transactions` - Get GL entries for bank account
+  - `POST /reconciliations/{id}/match-to-gl` - Match statement to GL entry
+  - `POST /reconciliations/{id}/auto-match-gl` - Auto-match to GL entries
+  - New service methods: `get_gl_transactions_for_bank()`, `match_statement_to_gl()`, `auto_match_to_gl()`
+
+### Changed
+
+- All GL posting methods include `post_to_gl: bool = True` parameter for optional bypass
+- Updated documentation in `docs/COMPLETE_ACCOUNTING_SYSTEM.md` with GL integration details
+- Added GL Account Codes Reference table to documentation
+
+### Technical Details
+
+- All GL posting uses `AccountingService.post_to_gl()` as the integration point
+- Nigerian Standard COA codes used consistently (1xxx Assets, 2xxx Liabilities, etc.)
+- GL postings respect fiscal period locks via `get_open_period_for_date()`
+- 433 tests passing (3 skipped)
+
+---
+
 ## [2.2.0] - 2026-01-07
 
 ### System Audit & Module Expansion Release

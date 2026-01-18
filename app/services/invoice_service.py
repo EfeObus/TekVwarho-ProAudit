@@ -2,13 +2,14 @@
 TekVwarho ProAudit - Invoice Service
 
 Business logic for invoice management with NRS e-invoicing support.
+Includes full GL integration for double-entry accounting.
 """
 
 import json
 import uuid
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,29 @@ from sqlalchemy.orm import selectinload
 from app.models.invoice import Invoice, InvoiceLineItem, InvoiceStatus, VATTreatment
 from app.models.customer import Customer
 from app.models.entity import BusinessEntity
+from app.models.accounting import ChartOfAccounts, AccountType
+
+if TYPE_CHECKING:
+    from app.services.accounting_service import AccountingService
+
+
+# ===========================================
+# GL ACCOUNT CODES (Nigerian Standard COA)
+# ===========================================
+GL_ACCOUNTS = {
+    # Assets
+    "ACCOUNTS_RECEIVABLE": "1130",
+    "BANK": "1120",
+    "WHT_RECEIVABLE": "1170",
+    "VAT_RECEIVABLE": "1160",
+    # Liabilities
+    "VAT_PAYABLE": "2130",
+    "WHT_PAYABLE": "2140",
+    # Revenue
+    "SALES_REVENUE": "4100",
+    "SERVICE_REVENUE": "4200",
+    "INTEREST_INCOME": "4300",
+}
 
 
 class InvoiceService:
@@ -424,8 +448,16 @@ class InvoiceService:
         invoice_id: uuid.UUID,
         entity_id: uuid.UUID,
         user_id: uuid.UUID,
+        post_to_gl: bool = True,
     ) -> Invoice:
-        """Finalize a draft invoice (move to PENDING status)."""
+        """
+        Finalize a draft invoice (move to PENDING status).
+        
+        When post_to_gl=True (default), creates GL journal entry:
+            Dr Accounts Receivable (1130)
+            Cr Sales Revenue (4100)
+            Cr VAT Payable (2130) - if applicable
+        """
         invoice = await self.get_invoice_by_id(invoice_id, entity_id)
         
         if not invoice:
@@ -440,7 +472,115 @@ class InvoiceService:
         await self.db.commit()
         await self.db.refresh(invoice)
         
+        # Post to General Ledger
+        if post_to_gl:
+            gl_result = await self._post_invoice_to_gl(invoice, entity_id, user_id)
+            if not gl_result.get("success"):
+                # Log warning but don't fail invoice finalization
+                import logging
+                logging.warning(f"Invoice {invoice.invoice_number} GL posting failed: {gl_result.get('message')}")
+        
         return invoice
+    
+    async def _post_invoice_to_gl(
+        self,
+        invoice: Invoice,
+        entity_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Post invoice to General Ledger.
+        
+        Creates double-entry journal:
+            Dr Accounts Receivable    (Total Amount)
+            Cr Sales Revenue          (Subtotal)
+            Cr VAT Payable            (VAT Amount) - if applicable
+        """
+        from app.services.accounting_service import AccountingService
+        from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
+        
+        accounting_service = AccountingService(self.db)
+        
+        # Get GL account IDs
+        ar_account = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["ACCOUNTS_RECEIVABLE"])
+        revenue_account = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["SALES_REVENUE"])
+        vat_account = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["VAT_PAYABLE"])
+        
+        if not ar_account or not revenue_account:
+            return {
+                "success": False,
+                "message": "Required GL accounts not found (AR or Revenue). Initialize Chart of Accounts first.",
+            }
+        
+        # Build journal entry lines
+        lines = []
+        
+        # Debit: Accounts Receivable (total amount)
+        lines.append(JournalEntryLineCreate(
+            account_id=ar_account,
+            description=f"Invoice {invoice.invoice_number} - {invoice.customer.name if invoice.customer else 'Customer'}",
+            debit_amount=invoice.total_amount,
+            credit_amount=Decimal("0.00"),
+            customer_id=invoice.customer_id,
+        ))
+        
+        # Credit: Sales Revenue (subtotal)
+        lines.append(JournalEntryLineCreate(
+            account_id=revenue_account,
+            description=f"Sales - Invoice {invoice.invoice_number}",
+            debit_amount=Decimal("0.00"),
+            credit_amount=invoice.subtotal,
+            customer_id=invoice.customer_id,
+        ))
+        
+        # Credit: VAT Payable (if applicable)
+        if invoice.vat_amount > 0 and vat_account:
+            lines.append(JournalEntryLineCreate(
+                account_id=vat_account,
+                description=f"VAT Output - Invoice {invoice.invoice_number}",
+                debit_amount=Decimal("0.00"),
+                credit_amount=invoice.vat_amount,
+            ))
+        
+        # Create GL posting request
+        gl_request = GLPostingRequest(
+            source_module="invoices",
+            source_document_type="invoice",
+            source_document_id=invoice.id,
+            source_reference=invoice.invoice_number,
+            entry_date=invoice.invoice_date,
+            description=f"Invoice {invoice.invoice_number} - {invoice.customer.name if invoice.customer else 'Customer'}",
+            lines=lines,
+            auto_post=True,
+        )
+        
+        # Post to GL
+        result = await accounting_service.post_to_gl(entity_id, gl_request, user_id)
+        
+        return {
+            "success": result.success,
+            "journal_entry_id": str(result.journal_entry_id) if result.journal_entry_id else None,
+            "entry_number": result.entry_number,
+            "message": result.message,
+        }
+    
+    async def _get_gl_account_id(
+        self,
+        entity_id: uuid.UUID,
+        account_code: str,
+    ) -> Optional[uuid.UUID]:
+        """Get GL account ID by account code."""
+        result = await self.db.execute(
+            select(ChartOfAccounts.id).where(
+                and_(
+                    ChartOfAccounts.entity_id == entity_id,
+                    ChartOfAccounts.account_code == account_code,
+                    ChartOfAccounts.is_header == False,
+                )
+            )
+        )
+        account = result.scalar_one_or_none()
+        return account
     
     async def cancel_invoice(
         self,
@@ -482,8 +622,21 @@ class InvoiceService:
         payment_method: str = "bank_transfer",
         reference: Optional[str] = None,
         notes: Optional[str] = None,
+        bank_account_id: Optional[uuid.UUID] = None,
+        wht_amount: float = 0,
+        post_to_gl: bool = True,
     ) -> Invoice:
-        """Record a payment against an invoice."""
+        """
+        Record a payment against an invoice.
+        
+        When post_to_gl=True (default), creates GL journal entry:
+            Dr Bank (1120)                - Cash received
+            Dr WHT Receivable (1170)      - If WHT deducted
+            Cr Accounts Receivable (1130) - Reduce AR
+        
+        Args:
+            wht_amount: Amount withheld by customer (WHT deduction)
+        """
         invoice = await self.get_invoice_by_id(invoice_id, entity_id)
         
         if not invoice:
@@ -496,7 +649,9 @@ class InvoiceService:
             raise ValueError("Cannot record payment on draft invoice")
         
         payment_amount = Decimal(str(amount))
-        new_amount_paid = invoice.amount_paid + payment_amount
+        wht_decimal = Decimal(str(wht_amount))
+        total_settled = payment_amount + wht_decimal
+        new_amount_paid = invoice.amount_paid + total_settled
         
         if new_amount_paid > invoice.total_amount:
             raise ValueError("Payment amount exceeds invoice balance")
@@ -510,7 +665,9 @@ class InvoiceService:
             invoice.status = InvoiceStatus.PARTIALLY_PAID
         
         # Add payment note
-        payment_note = f"Payment received: ₦{amount:,.2f} on {payment_date} via {payment_method}"
+        payment_note = f"Payment received: N{amount:,.2f} on {payment_date} via {payment_method}"
+        if wht_amount > 0:
+            payment_note += f" (WHT deducted: N{wht_amount:,.2f})"
         if reference:
             payment_note += f" (Ref: {reference})"
         invoice.notes = f"{invoice.notes or ''}\n\n{payment_note}".strip()
@@ -520,7 +677,107 @@ class InvoiceService:
         await self.db.commit()
         await self.db.refresh(invoice)
         
+        # Post to General Ledger
+        if post_to_gl:
+            gl_result = await self._post_payment_to_gl(
+                invoice, entity_id, user_id, payment_amount, wht_decimal,
+                payment_date, reference, bank_account_id
+            )
+            if not gl_result.get("success"):
+                import logging
+                logging.warning(f"Payment GL posting failed for invoice {invoice.invoice_number}: {gl_result.get('message')}")
+        
         return invoice
+    
+    async def _post_payment_to_gl(
+        self,
+        invoice: Invoice,
+        entity_id: uuid.UUID,
+        user_id: uuid.UUID,
+        cash_amount: Decimal,
+        wht_amount: Decimal,
+        payment_date: date,
+        reference: Optional[str],
+        bank_account_id: Optional[uuid.UUID],
+    ) -> Dict[str, Any]:
+        """
+        Post payment receipt to General Ledger.
+        
+        Creates double-entry journal:
+            Dr Bank                   (Cash Amount)
+            Dr WHT Receivable         (WHT Amount) - if applicable
+            Cr Accounts Receivable    (Total Settled)
+        """
+        from app.services.accounting_service import AccountingService
+        from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
+        
+        accounting_service = AccountingService(self.db)
+        
+        # Get GL account IDs
+        ar_account = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["ACCOUNTS_RECEIVABLE"])
+        bank_account = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["BANK"])
+        wht_account = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["WHT_RECEIVABLE"])
+        
+        if not ar_account or not bank_account:
+            return {
+                "success": False,
+                "message": "Required GL accounts not found (AR or Bank). Initialize Chart of Accounts first.",
+            }
+        
+        total_settled = cash_amount + wht_amount
+        
+        # Build journal entry lines
+        lines = []
+        
+        # Debit: Bank (cash received)
+        lines.append(JournalEntryLineCreate(
+            account_id=bank_account,
+            description=f"Receipt - Invoice {invoice.invoice_number}",
+            debit_amount=cash_amount,
+            credit_amount=Decimal("0.00"),
+            customer_id=invoice.customer_id,
+        ))
+        
+        # Debit: WHT Receivable (if WHT deducted)
+        if wht_amount > 0 and wht_account:
+            lines.append(JournalEntryLineCreate(
+                account_id=wht_account,
+                description=f"WHT Deducted - Invoice {invoice.invoice_number}",
+                debit_amount=wht_amount,
+                credit_amount=Decimal("0.00"),
+                customer_id=invoice.customer_id,
+            ))
+        
+        # Credit: Accounts Receivable (total settled)
+        lines.append(JournalEntryLineCreate(
+            account_id=ar_account,
+            description=f"Payment - Invoice {invoice.invoice_number}",
+            debit_amount=Decimal("0.00"),
+            credit_amount=total_settled,
+            customer_id=invoice.customer_id,
+        ))
+        
+        # Create GL posting request
+        gl_request = GLPostingRequest(
+            source_module="receipts",
+            source_document_type="payment",
+            source_document_id=invoice.id,
+            source_reference=reference or f"PMT-{invoice.invoice_number}",
+            entry_date=payment_date,
+            description=f"Payment Receipt - Invoice {invoice.invoice_number}",
+            lines=lines,
+            auto_post=True,
+        )
+        
+        # Post to GL
+        result = await accounting_service.post_to_gl(entity_id, gl_request, user_id)
+        
+        return {
+            "success": result.success,
+            "journal_entry_id": str(result.journal_entry_id) if result.journal_entry_id else None,
+            "entry_number": result.entry_number,
+            "message": result.message,
+        }
     
     # ===========================================
     # NRS E-INVOICING

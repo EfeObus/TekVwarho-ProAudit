@@ -32,6 +32,7 @@ from app.schemas.accounting import (
     TrialBalanceReport, TrialBalanceItem,
     IncomeStatementReport, IncomeStatementItem,
     BalanceSheetReport, BalanceSheetItem,
+    CashFlowStatementReport, CashFlowItem, CashFlowCategory,
     AccountLedgerReport, AccountLedgerEntry,
     GLPostingRequest, GLPostingResponse,
     PeriodCloseChecklist, PeriodCloseRequest, PeriodCloseResponse,
@@ -928,6 +929,134 @@ class AccountingService:
             total_liabilities=total_liabilities,
             total_equity=total_equity,
             is_balanced=total_assets == (total_liabilities + total_equity),
+        )
+    
+    async def get_cash_flow_statement(
+        self,
+        entity_id: uuid.UUID,
+        start_date: date,
+        end_date: date,
+    ) -> CashFlowStatementReport:
+        """
+        Generate cash flow statement (indirect method).
+        
+        Uses cash_flow_category on accounts to classify movements.
+        Categories: operating, investing, financing
+        """
+        # Get accounts with balances
+        accounts = await self.get_chart_of_accounts(entity_id, include_headers=False)
+        
+        # Calculate net income for the period
+        income_statement = await self.get_income_statement(entity_id, start_date, end_date)
+        net_income = income_statement.net_income
+        
+        # Track cash flow items
+        operating_items = []
+        investing_items = []
+        financing_items = []
+        
+        # Get depreciation (non-cash expense - add back)
+        depreciation_total = Decimal("0.00")
+        for account in accounts:
+            if account.account_sub_type and "DEPRECIATION" in str(account.account_sub_type).upper():
+                depreciation_total += abs(account.current_balance)
+        
+        # Get changes in working capital accounts
+        working_capital_changes = []
+        
+        for account in accounts:
+            cash_flow_cat = account.cash_flow_category or ""
+            
+            # Skip if no balance change
+            if account.current_balance == 0:
+                continue
+            
+            # Operating activities: AR, AP, Inventory changes
+            if account.account_sub_type:
+                sub_type_str = str(account.account_sub_type).upper()
+                
+                # AR increase = cash outflow; AR decrease = cash inflow
+                if "RECEIVABLE" in sub_type_str and account.account_type == AccountType.ASSET:
+                    # For indirect method, increase in AR is subtracted
+                    working_capital_changes.append(CashFlowItem(
+                        description=f"Change in {account.account_name}",
+                        amount=-account.current_balance,  # Negative if AR increased
+                        category=CashFlowCategory.OPERATING,
+                    ))
+                
+                # AP increase = cash inflow
+                elif "PAYABLE" in sub_type_str and account.account_type == AccountType.LIABILITY:
+                    working_capital_changes.append(CashFlowItem(
+                        description=f"Change in {account.account_name}",
+                        amount=account.current_balance,
+                        category=CashFlowCategory.OPERATING,
+                    ))
+                
+                # Inventory increase = cash outflow
+                elif "INVENTORY" in sub_type_str:
+                    working_capital_changes.append(CashFlowItem(
+                        description=f"Change in {account.account_name}",
+                        amount=-account.current_balance,
+                        category=CashFlowCategory.OPERATING,
+                    ))
+            
+            # Investing activities: Fixed assets
+            if cash_flow_cat.lower() == "investing" or (
+                account.account_sub_type and "ASSET" in str(account.account_sub_type).upper()
+                and account.account_type == AccountType.ASSET
+                and "FIXED" in account.account_name.upper()
+            ):
+                investing_items.append(CashFlowItem(
+                    description=account.account_name,
+                    amount=-account.current_balance,  # Purchases are outflows
+                    category=CashFlowCategory.INVESTING,
+                ))
+            
+            # Financing activities: Loans, equity
+            if cash_flow_cat.lower() == "financing" or (
+                account.account_type == AccountType.LIABILITY
+                and account.account_sub_type
+                and "LOAN" in str(account.account_sub_type).upper()
+            ):
+                financing_items.append(CashFlowItem(
+                    description=account.account_name,
+                    amount=account.current_balance,
+                    category=CashFlowCategory.FINANCING,
+                ))
+        
+        # Calculate totals
+        operating_total = net_income + depreciation_total + sum(
+            item.amount for item in working_capital_changes
+        )
+        investing_total = sum(item.amount for item in investing_items)
+        financing_total = sum(item.amount for item in financing_items)
+        
+        net_change = operating_total + investing_total + financing_total
+        
+        # Get beginning and ending cash
+        beginning_cash = Decimal("0.00")
+        ending_cash = Decimal("0.00")
+        
+        for account in accounts:
+            if account.account_sub_type and "CASH" in str(account.account_sub_type).upper():
+                ending_cash += account.current_balance
+                beginning_cash = ending_cash - net_change  # Derive beginning balance
+        
+        return CashFlowStatementReport(
+            entity_id=entity_id,
+            start_date=start_date,
+            end_date=end_date,
+            net_income=net_income,
+            depreciation=depreciation_total,
+            changes_in_working_capital=working_capital_changes,
+            operating_activities_total=operating_total,
+            investing_items=investing_items,
+            investing_activities_total=investing_total,
+            financing_items=financing_items,
+            financing_activities_total=financing_total,
+            net_change_in_cash=net_change,
+            beginning_cash=beginning_cash,
+            ending_cash=ending_cash,
         )
     
     # =========================================================================

@@ -781,11 +781,11 @@ POST   /api/v1/entities/{entity_id}/accounting/periods/{id}/close
 
 ### What Auditors Ask
 
-1. ✅ Are bank accounts reconciled?
-2. ✅ Are periods locked?
-3. ✅ Are reconciling items explained?
-4. ✅ Is there an audit trail for all changes?
-5. ✅ Can transactions be reproduced?
+1. Are bank accounts reconciled?
+2. Are periods locked?
+3. Are reconciling items explained?
+4. Is there an audit trail for all changes?
+5. Can transactions be reproduced?
 
 ### Evidence Provided
 
@@ -808,11 +808,207 @@ Bank reconciliation proves TRUTH
 
 ---
 
+## 11. Sub-Ledger to GL Integration
+
+This section documents how all sub-ledger modules post to the General Ledger,
+ensuring complete integration where "every naira in the bank is explained."
+
+### 11.1 Invoice GL Posting
+
+When an invoice is finalized (`finalize_invoice()`):
+
+```
+Dr Accounts Receivable (1130)    [Total Amount]
+Cr Sales Revenue (4100)          [Base Amount]
+Cr VAT Payable (2130)            [VAT Amount]
+```
+
+**Service:** `app/services/invoice_service.py`  
+**Method:** `_post_invoice_to_gl()`
+
+### 11.2 Payment Receipt GL Posting
+
+When a customer payment is recorded (`record_payment()`):
+
+```
+Dr Bank (linked GL account)      [Payment Amount]
+Dr WHT Receivable (1170)         [WHT Deducted by Customer]
+Cr Accounts Receivable (1130)    [Total Payment]
+```
+
+**Service:** `app/services/invoice_service.py`  
+**Method:** `_post_payment_to_gl()`
+
+### 11.3 Vendor Bill GL Posting (Expense Recording)
+
+When an expense transaction is created:
+
+```
+Dr Expense Account (5xxx)        [Base Amount]
+Dr VAT Input (1180)              [VAT if recoverable]
+Cr Accounts Payable (2110)       [Total - WHT]
+Cr WHT Payable (2140)            [WHT if applicable]
+```
+
+**Service:** `app/services/transaction_service.py`  
+**Method:** `_post_expense_to_gl()`
+
+### 11.4 Vendor Payment GL Posting
+
+When paying a vendor (`record_vendor_payment()`):
+
+```
+Dr Accounts Payable (2110)       [Payment + WHT]
+Cr Bank (linked GL account)      [Payment Amount]
+Cr WHT Payable (2140)            [WHT Withheld]
+```
+
+**Service:** `app/services/transaction_service.py`  
+**Method:** `record_vendor_payment()`
+
+### 11.5 Payroll GL Posting
+
+When payroll is processed (`process_payroll()`):
+
+```
+Dr Salary Expense (5200)         [Gross Salaries]
+Dr Employer Pension (5210)       [Employer 10%]
+Dr Employer NSITF (5220)         [Employer 1%]
+Cr PAYE Payable (2150)           [Employee PAYE]
+Cr Pension Payable (2160)        [Employee 8% + Employer 10%]
+Cr NHF Payable (2170)            [NHF 2.5%]
+Cr NSITF Payable (2180)          [Employer 1%]
+Cr Salaries Payable (2190)       [Net Pay]
+```
+
+**Service:** `app/services/payroll_service.py`  
+**Method:** `_post_payroll_to_gl()`
+
+### 11.6 Depreciation GL Posting
+
+When depreciation runs (`run_depreciation()`):
+
+```
+Dr Depreciation Expense (5300)       [Monthly Depreciation]
+Cr Accumulated Depreciation (1240)   [Monthly Depreciation]
+```
+
+**Service:** `app/services/fixed_asset_service.py`  
+**Method:** `_post_depreciation_to_gl()`
+
+### 11.7 Asset Disposal GL Posting
+
+When an asset is disposed (`dispose_asset()`):
+
+```
+# Remove Asset
+Dr Accumulated Depreciation (1240)   [Total Depreciation]
+Dr Bank/Receivable (proceeds)        [Disposal Proceeds]
+Cr Fixed Assets (1200)               [Original Cost]
+
+# Record Gain/Loss
+Dr/Cr Gain/Loss on Disposal (4200/5350)   [Net Gain or Loss]
+```
+
+**Service:** `app/services/fixed_asset_service.py`  
+**Method:** `_post_disposal_to_gl()`
+
+### 11.8 Inventory COGS GL Posting
+
+When inventory is sold (`record_sale()`):
+
+```
+Dr Cost of Goods Sold (5000)     [Quantity x Unit Cost]
+Cr Inventory (1210)              [Quantity x Unit Cost]
+```
+
+When inventory is written off (`create_write_off()`):
+
+```
+Dr Write-off Expense (5400)      [Write-off Value]
+Cr Inventory (1210)              [Write-off Value]
+```
+
+**Service:** `app/services/inventory_service.py`  
+**Methods:** `_post_cogs_to_gl()`, `_post_writeoff_to_gl()`
+
+### 11.9 Cash Flow Statement Report
+
+The system generates a Cash Flow Statement using the indirect method:
+
+**API Endpoint:** `GET /api/v1/entities/{entity_id}/accounting/reports/cash-flow-statement`
+
+**Sections:**
+1. **Operating Activities** - Net income adjusted for non-cash items and working capital
+2. **Investing Activities** - Asset purchases, disposals, investments
+3. **Financing Activities** - Debt, equity, dividends
+
+**Service:** `app/services/accounting_service.py`  
+**Method:** `get_cash_flow_statement()`
+
+---
+
+## 12. Bank-GL Integration
+
+### 12.1 Bank Account GL Linkage
+
+Every bank account must be linked to a GL account for proper reconciliation.
+
+**Validation Endpoint:** `GET /api/v1/entities/{entity_id}/bank/accounts/{account_id}/gl-linkage`
+
+**Bulk Validation:** `GET /api/v1/entities/{entity_id}/bank/gl-linkage/validate-all`
+
+**Link Bank to GL:** `POST /api/v1/entities/{entity_id}/bank/accounts/{account_id}/link-gl`
+
+### 12.2 GL Transaction Matching
+
+Bank reconciliation can match statement transactions directly to GL journal entries:
+
+**Get GL Transactions:** `GET /api/v1/entities/{entity_id}/bank/reconciliations/{id}/gl-transactions`
+
+**Manual Match:** `POST /api/v1/entities/{entity_id}/bank/reconciliations/{id}/match-to-gl`
+
+**Auto Match to GL:** `POST /api/v1/entities/{entity_id}/bank/reconciliations/{id}/auto-match-gl`
+
+This creates a complete audit trail from bank statement to GL entry.
+
+---
+
 ## Summary
 
 When the system is fully connected:
 
-✅ Every naira in the bank is explained  
-✅ Every difference is justified  
-✅ Every period is defensible  
-✅ The accounting system is trustworthy  
+Every naira in the bank is explained  
+Every difference is justified  
+Every period is defensible  
+The accounting system is trustworthy  
+
+### GL Account Codes Reference
+
+| Code | Account Name | Type |
+|------|-------------|------|
+| 1120 | Bank | Asset |
+| 1130 | Accounts Receivable | Asset |
+| 1170 | WHT Receivable | Asset |
+| 1180 | VAT Receivable (Input) | Asset |
+| 1200 | Fixed Assets | Asset |
+| 1210 | Inventory | Asset |
+| 1240 | Accumulated Depreciation | Contra Asset |
+| 2110 | Accounts Payable | Liability |
+| 2130 | VAT Payable (Output) | Liability |
+| 2140 | WHT Payable | Liability |
+| 2150 | PAYE Payable | Liability |
+| 2160 | Pension Payable | Liability |
+| 2170 | NHF Payable | Liability |
+| 2180 | NSITF Payable | Liability |
+| 2190 | Salaries Payable | Liability |
+| 4100 | Sales Revenue | Revenue |
+| 4200 | Gain on Asset Disposal | Revenue |
+| 5000 | Cost of Goods Sold | Expense |
+| 5100 | General Expense | Expense |
+| 5200 | Salary Expense | Expense |
+| 5210 | Employer Pension | Expense |
+| 5220 | Employer NSITF | Expense |
+| 5300 | Depreciation Expense | Expense |
+| 5350 | Loss on Asset Disposal | Expense |
+| 5400 | Inventory Write-off | Expense |

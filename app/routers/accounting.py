@@ -26,6 +26,7 @@ from app.schemas.accounting import (
     JournalEntryCreate, JournalEntryUpdate, JournalEntryResponse,
     JournalEntryListResponse,
     TrialBalanceReport, IncomeStatementReport, BalanceSheetReport,
+    CashFlowStatementReport,
     AccountLedgerReport,
     GLPostingRequest, GLPostingResponse,
     PeriodCloseChecklist, PeriodCloseRequest, PeriodCloseResponse,
@@ -479,6 +480,26 @@ async def get_balance_sheet(
     """Generate Balance Sheet report."""
     service = AccountingService(db)
     return await service.get_balance_sheet(entity_id, as_of_date)
+
+
+@router.get("/reports/cash-flow-statement", response_model=CashFlowStatementReport)
+async def get_cash_flow_statement(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    start_date: date = Query(..., description="Start date of reporting period"),
+    end_date: date = Query(..., description="End date of reporting period"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate Cash Flow Statement report using indirect method.
+    
+    This report shows:
+    - Operating Activities: Net income adjusted for non-cash items and working capital changes
+    - Investing Activities: Asset purchases, disposals, and investments
+    - Financing Activities: Debt, equity, and dividend transactions
+    """
+    service = AccountingService(db)
+    return await service.get_cash_flow_statement(entity_id, start_date, end_date)
 
 
 # ============================================================================

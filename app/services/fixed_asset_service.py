@@ -253,9 +253,14 @@ class FixedAssetService:
         period_year: int,
         period_month: Optional[int] = None,
         posted_by_id: Optional[uuid.UUID] = None,
+        post_to_gl: bool = True,
     ) -> Dict[str, Any]:
         """
         Run depreciation for all active assets in an entity.
+        
+        When post_to_gl=True (default), creates GL journal entries:
+            Dr Depreciation Expense (5300)
+            Cr Accumulated Depreciation (1240)
         
         Returns summary of depreciation posted.
         """
@@ -326,12 +331,119 @@ class FixedAssetService:
         
         await self.db.commit()
         
+        # Post to General Ledger
+        gl_result = None
+        if post_to_gl and total_depreciation > 0 and posted_by_id:
+            gl_result = await self._post_depreciation_to_gl(
+                entity_id, period_year, period_month, total_depreciation, posted_by_id
+            )
+        
         return {
             "period": f"{period_year}/{period_month}" if period_month else str(period_year),
             "entries_created": entries_created,
             "total_depreciation": float(total_depreciation),
             "skipped": skipped,
-            "message": f"Posted {entries_created} depreciation entries totaling ₦{total_depreciation:,.2f}",
+            "message": f"Posted {entries_created} depreciation entries totaling N{total_depreciation:,.2f}",
+            "gl_posted": gl_result.get("success") if gl_result else False,
+            "journal_entry_id": gl_result.get("journal_entry_id") if gl_result else None,
+        }
+    
+    async def _post_depreciation_to_gl(
+        self,
+        entity_id: uuid.UUID,
+        period_year: int,
+        period_month: Optional[int],
+        total_amount: Decimal,
+        user_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Post depreciation to General Ledger.
+        
+        Creates double-entry journal:
+            Dr Depreciation Expense (5300)
+            Cr Accumulated Depreciation (1240)
+        """
+        from app.services.accounting_service import AccountingService
+        from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
+        from app.models.accounting import ChartOfAccounts
+        
+        accounting_service = AccountingService(self.db)
+        
+        # GL Account Codes
+        DEPRECIATION_EXPENSE = "5300"
+        ACCUMULATED_DEPRECIATION = "1240"
+        
+        # Get GL account IDs
+        async def get_account_id(code: str) -> Optional[uuid.UUID]:
+            result = await self.db.execute(
+                select(ChartOfAccounts.id).where(
+                    and_(
+                        ChartOfAccounts.entity_id == entity_id,
+                        ChartOfAccounts.account_code == code,
+                        ChartOfAccounts.is_header == False,
+                    )
+                )
+            )
+            return result.scalar_one_or_none()
+        
+        dep_expense = await get_account_id(DEPRECIATION_EXPENSE)
+        accum_dep = await get_account_id(ACCUMULATED_DEPRECIATION)
+        
+        if not dep_expense or not accum_dep:
+            return {
+                "success": False,
+                "message": "Required GL accounts not found (Depreciation Expense or Accumulated Depreciation)",
+            }
+        
+        # Build period description
+        if period_month:
+            period_name = date(period_year, period_month, 1).strftime("%B %Y")
+        else:
+            period_name = str(period_year)
+        
+        # Build journal entry lines
+        lines = [
+            JournalEntryLineCreate(
+                account_id=dep_expense,
+                description=f"Depreciation Expense - {period_name}",
+                debit_amount=total_amount,
+                credit_amount=Decimal("0.00"),
+            ),
+            JournalEntryLineCreate(
+                account_id=accum_dep,
+                description=f"Accumulated Depreciation - {period_name}",
+                debit_amount=Decimal("0.00"),
+                credit_amount=total_amount,
+            ),
+        ]
+        
+        # Entry date is last day of period
+        if period_month:
+            from calendar import monthrange
+            last_day = monthrange(period_year, period_month)[1]
+            entry_date = date(period_year, period_month, last_day)
+        else:
+            entry_date = date(period_year, 12, 31)
+        
+        # Create GL posting request
+        gl_request = GLPostingRequest(
+            source_module="fixed_assets",
+            source_document_type="depreciation",
+            source_document_id=uuid.uuid4(),  # Generate unique ID for this batch
+            source_reference=f"DEP-{period_year}{period_month:02d}" if period_month else f"DEP-{period_year}",
+            entry_date=entry_date,
+            description=f"Depreciation - {period_name}",
+            lines=lines,
+            auto_post=True,
+        )
+        
+        result = await accounting_service.post_to_gl(entity_id, gl_request, user_id)
+        
+        return {
+            "success": result.success,
+            "journal_entry_id": str(result.journal_entry_id) if result.journal_entry_id else None,
+            "entry_number": result.entry_number,
+            "message": result.message,
         }
     
     async def _check_depreciation_exists(
@@ -365,9 +477,17 @@ class FixedAssetService:
         disposal_type: DisposalType,
         disposal_amount: Decimal,
         notes: Optional[str] = None,
+        user_id: Optional[uuid.UUID] = None,
+        post_to_gl: bool = True,
     ) -> Dict[str, Any]:
         """
         Dispose of an asset and calculate capital gain/loss.
+        
+        When post_to_gl=True (default), creates GL journal entries:
+            Dr Bank/Receivables (proceeds)
+            Dr Accumulated Depreciation
+            Cr Fixed Asset (cost)
+            Cr/Dr Gain/Loss on Disposal
         
         Under 2026 law, capital gains are taxed at CIT rate (30% for large companies).
         """
@@ -391,6 +511,13 @@ class FixedAssetService:
         
         await self.db.commit()
         
+        # Post to General Ledger
+        gl_result = None
+        if post_to_gl and user_id:
+            gl_result = await self._post_disposal_to_gl(
+                asset, disposal_date, disposal_amount, capital_gain, user_id
+            )
+        
         return {
             "asset_code": asset.asset_code,
             "asset_name": asset.name,
@@ -403,6 +530,136 @@ class FixedAssetService:
             "capital_gain_loss": float(capital_gain),
             "is_gain": capital_gain > 0,
             "tax_note": "Capital gains are now taxed at the flat CIT rate under 2026 law",
+            "gl_posted": gl_result.get("success") if gl_result else False,
+            "journal_entry_id": gl_result.get("journal_entry_id") if gl_result else None,
+        }
+    
+    async def _post_disposal_to_gl(
+        self,
+        asset: FixedAsset,
+        disposal_date: date,
+        disposal_proceeds: Decimal,
+        capital_gain: Decimal,
+        user_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Post asset disposal to General Ledger.
+        
+        Creates double-entry journal:
+            Dr Bank/Receivables           (Proceeds)
+            Dr Accumulated Depreciation   (Total accumulated)
+            Dr Loss on Disposal           (If loss)
+            Cr Fixed Asset                (Original cost)
+            Cr Gain on Disposal           (If gain)
+        """
+        from app.services.accounting_service import AccountingService
+        from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
+        from app.models.accounting import ChartOfAccounts
+        
+        accounting_service = AccountingService(self.db)
+        
+        # GL Account Codes
+        GL_CODES = {
+            "BANK": "1120",
+            "FIXED_ASSETS": "1200",
+            "ACCUMULATED_DEPRECIATION": "1240",
+            "GAIN_ON_DISPOSAL": "4400",
+            "LOSS_ON_DISPOSAL": "5400",
+        }
+        
+        entity_id = asset.entity_id
+        
+        # Get GL account IDs
+        async def get_account_id(code: str) -> Optional[uuid.UUID]:
+            result = await self.db.execute(
+                select(ChartOfAccounts.id).where(
+                    and_(
+                        ChartOfAccounts.entity_id == entity_id,
+                        ChartOfAccounts.account_code == code,
+                        ChartOfAccounts.is_header == False,
+                    )
+                )
+            )
+            return result.scalar_one_or_none()
+        
+        bank_account = await get_account_id(GL_CODES["BANK"])
+        asset_account = await get_account_id(GL_CODES["FIXED_ASSETS"])
+        accum_dep = await get_account_id(GL_CODES["ACCUMULATED_DEPRECIATION"])
+        gain_account = await get_account_id(GL_CODES["GAIN_ON_DISPOSAL"])
+        loss_account = await get_account_id(GL_CODES["LOSS_ON_DISPOSAL"])
+        
+        if not all([bank_account, asset_account]):
+            return {
+                "success": False,
+                "message": "Required GL accounts not found (Bank or Fixed Assets)",
+            }
+        
+        # Build journal entry lines
+        lines = []
+        
+        # Debit: Bank/Receivables (proceeds)
+        if disposal_proceeds > 0:
+            lines.append(JournalEntryLineCreate(
+                account_id=bank_account,
+                description=f"Disposal Proceeds - {asset.name}",
+                debit_amount=disposal_proceeds,
+                credit_amount=Decimal("0.00"),
+            ))
+        
+        # Debit: Accumulated Depreciation (remove from contra-asset)
+        if asset.accumulated_depreciation > 0 and accum_dep:
+            lines.append(JournalEntryLineCreate(
+                account_id=accum_dep,
+                description=f"Remove Accumulated Depreciation - {asset.name}",
+                debit_amount=asset.accumulated_depreciation,
+                credit_amount=Decimal("0.00"),
+            ))
+        
+        # Credit: Fixed Asset (remove original cost)
+        lines.append(JournalEntryLineCreate(
+            account_id=asset_account,
+            description=f"Dispose Asset - {asset.name}",
+            debit_amount=Decimal("0.00"),
+            credit_amount=asset.acquisition_cost,
+        ))
+        
+        # Gain or Loss on Disposal
+        if capital_gain > 0 and gain_account:
+            # Credit: Gain on Disposal
+            lines.append(JournalEntryLineCreate(
+                account_id=gain_account,
+                description=f"Gain on Disposal - {asset.name}",
+                debit_amount=Decimal("0.00"),
+                credit_amount=capital_gain,
+            ))
+        elif capital_gain < 0 and loss_account:
+            # Debit: Loss on Disposal
+            lines.append(JournalEntryLineCreate(
+                account_id=loss_account,
+                description=f"Loss on Disposal - {asset.name}",
+                debit_amount=abs(capital_gain),
+                credit_amount=Decimal("0.00"),
+            ))
+        
+        # Create GL posting request
+        gl_request = GLPostingRequest(
+            source_module="fixed_assets",
+            source_document_type="disposal",
+            source_document_id=asset.id,
+            source_reference=f"DISP-{asset.asset_code}",
+            entry_date=disposal_date,
+            description=f"Asset Disposal - {asset.name} ({asset.asset_code})",
+            lines=lines,
+            auto_post=True,
+        )
+        
+        result = await accounting_service.post_to_gl(entity_id, gl_request, user_id)
+        
+        return {
+            "success": result.success,
+            "journal_entry_id": str(result.journal_entry_id) if result.journal_entry_id else None,
+            "entry_number": result.entry_number,
+            "message": result.message,
         }
     
     # ===========================================

@@ -202,6 +202,200 @@ class BankReconciliationService:
         await self.db.refresh(account)
         return account
     
+    async def validate_gl_linkage(
+        self,
+        account_id: uuid.UUID,
+        entity_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Validate that a bank account is properly linked to a GL account.
+        
+        Returns validation result with details about GL linkage status.
+        """
+        from app.models.accounting import ChartOfAccounts
+        
+        account = await self.get_bank_account(account_id, entity_id)
+        if not account:
+            return {
+                "valid": False,
+                "error": "Bank account not found",
+                "has_gl_code": False,
+                "gl_account_exists": False,
+            }
+        
+        if not account.gl_account_code:
+            return {
+                "valid": False,
+                "error": "Bank account has no GL account linked",
+                "has_gl_code": False,
+                "gl_account_exists": False,
+                "bank_account_id": str(account_id),
+                "bank_account_name": account.account_name,
+                "recommendation": "Link this bank account to a GL account (typically under 1120 - Bank)",
+            }
+        
+        # Check if GL account exists
+        result = await self.db.execute(
+            select(ChartOfAccounts)
+            .where(ChartOfAccounts.entity_id == entity_id)
+            .where(ChartOfAccounts.account_code == account.gl_account_code)
+            .where(ChartOfAccounts.is_active == True)
+        )
+        gl_account = result.scalar_one_or_none()
+        
+        if not gl_account:
+            return {
+                "valid": False,
+                "error": f"GL account {account.gl_account_code} not found in Chart of Accounts",
+                "has_gl_code": True,
+                "gl_account_exists": False,
+                "bank_account_id": str(account_id),
+                "gl_account_code": account.gl_account_code,
+                "recommendation": f"Create GL account {account.gl_account_code} or update bank account with valid GL code",
+            }
+        
+        return {
+            "valid": True,
+            "has_gl_code": True,
+            "gl_account_exists": True,
+            "bank_account_id": str(account_id),
+            "bank_account_name": account.account_name,
+            "gl_account_id": str(gl_account.id),
+            "gl_account_code": gl_account.account_code,
+            "gl_account_name": gl_account.account_name,
+        }
+    
+    async def validate_all_bank_gl_linkages(
+        self,
+        entity_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Validate GL linkage for all bank accounts of an entity.
+        
+        Returns:
+            Summary of validation results with list of issues.
+        """
+        accounts = await self.get_bank_accounts(entity_id, is_active=True)
+        
+        results = {
+            "total_accounts": len(accounts),
+            "linked_accounts": 0,
+            "unlinked_accounts": 0,
+            "invalid_linkages": 0,
+            "accounts": [],
+            "issues": [],
+        }
+        
+        for account in accounts:
+            validation = await self.validate_gl_linkage(account.id, entity_id)
+            results["accounts"].append({
+                "bank_account_id": str(account.id),
+                "bank_name": account.bank_name,
+                "account_number": account.account_number,
+                "account_name": account.account_name,
+                "gl_account_code": account.gl_account_code,
+                "validation": validation,
+            })
+            
+            if validation.get("valid"):
+                results["linked_accounts"] += 1
+            elif not validation.get("has_gl_code"):
+                results["unlinked_accounts"] += 1
+                results["issues"].append({
+                    "type": "unlinked",
+                    "bank_account_id": str(account.id),
+                    "bank_account_name": account.account_name,
+                    "message": validation.get("error"),
+                    "recommendation": validation.get("recommendation"),
+                })
+            else:
+                results["invalid_linkages"] += 1
+                results["issues"].append({
+                    "type": "invalid_gl_code",
+                    "bank_account_id": str(account.id),
+                    "bank_account_name": account.account_name,
+                    "gl_account_code": account.gl_account_code,
+                    "message": validation.get("error"),
+                    "recommendation": validation.get("recommendation"),
+                })
+        
+        results["all_valid"] = results["unlinked_accounts"] == 0 and results["invalid_linkages"] == 0
+        
+        return results
+    
+    async def link_bank_to_gl(
+        self,
+        bank_account_id: uuid.UUID,
+        gl_account_code: str,
+        entity_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Link a bank account to a GL account.
+        
+        Validates the GL account exists before linking.
+        """
+        from app.models.accounting import ChartOfAccounts
+        
+        # Validate GL account exists
+        result = await self.db.execute(
+            select(ChartOfAccounts)
+            .where(ChartOfAccounts.entity_id == entity_id)
+            .where(ChartOfAccounts.account_code == gl_account_code)
+            .where(ChartOfAccounts.is_active == True)
+        )
+        gl_account = result.scalar_one_or_none()
+        
+        if not gl_account:
+            return {
+                "success": False,
+                "error": f"GL account {gl_account_code} not found in Chart of Accounts",
+            }
+        
+        # Update bank account
+        account = await self.update_bank_account(
+            bank_account_id,
+            gl_account_code=gl_account_code,
+            gl_account_name=gl_account.account_name,
+        )
+        
+        if not account:
+            return {
+                "success": False,
+                "error": "Bank account not found",
+            }
+        
+        return {
+            "success": True,
+            "bank_account_id": str(bank_account_id),
+            "gl_account_id": str(gl_account.id),
+            "gl_account_code": gl_account_code,
+            "gl_account_name": gl_account.account_name,
+        }
+    
+    async def get_gl_account_id_for_bank(
+        self,
+        bank_account_id: uuid.UUID,
+        entity_id: uuid.UUID,
+    ) -> Optional[uuid.UUID]:
+        """
+        Get the GL account ID linked to a bank account.
+        
+        Returns None if no valid linkage exists.
+        """
+        from app.models.accounting import ChartOfAccounts
+        
+        account = await self.get_bank_account(bank_account_id, entity_id)
+        if not account or not account.gl_account_code:
+            return None
+        
+        result = await self.db.execute(
+            select(ChartOfAccounts.id)
+            .where(ChartOfAccounts.entity_id == entity_id)
+            .where(ChartOfAccounts.account_code == account.gl_account_code)
+            .where(ChartOfAccounts.is_active == True)
+        )
+        return result.scalar_one_or_none()
+    
     # ===========================================
     # STATEMENT IMPORT
     # ===========================================
@@ -602,6 +796,305 @@ class BankReconciliationService:
         await self.db.commit()
         await self.db.refresh(rule)
         return rule
+    
+    # ===========================================
+    # GL TRANSACTION MATCHING
+    # ===========================================
+    
+    async def get_gl_transactions_for_bank(
+        self,
+        entity_id: uuid.UUID,
+        bank_account_id: uuid.UUID,
+        start_date: date,
+        end_date: date,
+        include_matched: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get GL journal entry lines for a bank account.
+        
+        Returns journal entry lines that affect the GL account linked to
+        the specified bank account, suitable for reconciliation matching.
+        
+        Args:
+            entity_id: Business entity ID
+            bank_account_id: Bank account ID
+            start_date: Period start date
+            end_date: Period end date
+            include_matched: Whether to include already matched entries
+            
+        Returns:
+            List of GL transaction dicts with entry details
+        """
+        from app.models.accounting import JournalEntry, JournalEntryLine
+        
+        # Get GL account ID for bank
+        gl_account_id = await self.get_gl_account_id_for_bank(bank_account_id, entity_id)
+        if not gl_account_id:
+            return []
+        
+        # Query journal entry lines for the bank GL account
+        query = (
+            select(JournalEntryLine, JournalEntry)
+            .join(JournalEntry, JournalEntryLine.journal_entry_id == JournalEntry.id)
+            .where(
+                JournalEntry.entity_id == entity_id,
+                JournalEntryLine.account_id == gl_account_id,
+                JournalEntry.entry_date >= start_date,
+                JournalEntry.entry_date <= end_date,
+                JournalEntry.status == "posted",  # Only posted entries
+            )
+            .order_by(JournalEntry.entry_date)
+        )
+        
+        result = await self.db.execute(query)
+        rows = result.all()
+        
+        gl_transactions = []
+        for line, entry in rows:
+            # Calculate net amount (debit is positive for bank, credit is negative)
+            amount = float(line.debit_amount or 0) - float(line.credit_amount or 0)
+            
+            gl_transactions.append({
+                "id": str(line.id),
+                "journal_entry_id": str(entry.id),
+                "entry_number": entry.entry_number,
+                "entry_date": entry.entry_date,
+                "reference": entry.reference,
+                "description": line.description or entry.description,
+                "debit_amount": float(line.debit_amount or 0),
+                "credit_amount": float(line.credit_amount or 0),
+                "net_amount": amount,
+                "source_document_type": entry.source_document_type,
+                "source_document_id": entry.source_document_id,
+            })
+        
+        return gl_transactions
+    
+    async def match_statement_to_gl(
+        self,
+        reconciliation_id: uuid.UUID,
+        entity_id: uuid.UUID,
+        statement_transaction_id: uuid.UUID,
+        journal_entry_line_id: uuid.UUID,
+        match_notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Match a bank statement transaction to a GL journal entry line.
+        
+        This creates a direct link between the statement transaction and
+        the GL entry, enabling full audit trail from bank to books.
+        
+        Args:
+            reconciliation_id: Reconciliation ID
+            entity_id: Business entity ID
+            statement_transaction_id: Bank statement transaction ID
+            journal_entry_line_id: GL journal entry line ID
+            match_notes: Optional notes for the match
+            
+        Returns:
+            Match result with details
+        """
+        from app.models.accounting import JournalEntry, JournalEntryLine
+        
+        # Get statement transaction
+        stmt_result = await self.db.execute(
+            select(BankStatementTransaction)
+            .where(BankStatementTransaction.id == statement_transaction_id)
+        )
+        stmt_txn = stmt_result.scalar_one_or_none()
+        
+        if not stmt_txn:
+            return {"success": False, "error": "Statement transaction not found"}
+        
+        # Get GL entry line
+        gl_result = await self.db.execute(
+            select(JournalEntryLine, JournalEntry)
+            .join(JournalEntry, JournalEntryLine.journal_entry_id == JournalEntry.id)
+            .where(JournalEntryLine.id == journal_entry_line_id)
+        )
+        gl_row = gl_result.one_or_none()
+        
+        if not gl_row:
+            return {"success": False, "error": "GL journal entry line not found"}
+        
+        gl_line, gl_entry = gl_row
+        
+        # Calculate amounts for comparison
+        gl_amount = float(gl_line.debit_amount or 0) - float(gl_line.credit_amount or 0)
+        stmt_amount = float(stmt_txn.amount)
+        
+        # Update statement transaction with GL match
+        stmt_txn.match_status = MatchStatus.MANUAL_MATCHED
+        stmt_txn.match_type = MatchType.MANUAL
+        stmt_txn.match_confidence = Decimal("100.0")
+        stmt_txn.matched_at = datetime.utcnow()
+        stmt_txn.match_notes = match_notes
+        
+        # Store GL reference in metadata or a dedicated field
+        if not hasattr(stmt_txn, 'matched_gl_entry_id'):
+            # Store in metadata if dedicated field not available
+            if stmt_txn.metadata is None:
+                stmt_txn.metadata = {}
+            stmt_txn.metadata["matched_gl_entry_id"] = str(journal_entry_line_id)
+            stmt_txn.metadata["matched_journal_entry_id"] = str(gl_entry.id)
+            stmt_txn.metadata["matched_entry_number"] = gl_entry.entry_number
+        
+        await self.db.commit()
+        
+        return {
+            "success": True,
+            "statement_transaction_id": str(statement_transaction_id),
+            "journal_entry_line_id": str(journal_entry_line_id),
+            "journal_entry_id": str(gl_entry.id),
+            "entry_number": gl_entry.entry_number,
+            "statement_amount": stmt_amount,
+            "gl_amount": gl_amount,
+            "amount_difference": abs(stmt_amount - gl_amount),
+            "match_notes": match_notes,
+        }
+    
+    async def auto_match_to_gl(
+        self,
+        reconciliation_id: uuid.UUID,
+        entity_id: uuid.UUID,
+        amount_tolerance: Decimal = Decimal("0.01"),
+        date_tolerance_days: int = 3,
+    ) -> Dict[str, Any]:
+        """
+        Automatically match unmatched statement transactions to GL entries.
+        
+        Uses exact and fuzzy matching based on:
+        - Amount (with tolerance)
+        - Date (with tolerance in days)
+        - Reference matching
+        
+        Args:
+            reconciliation_id: Reconciliation ID
+            entity_id: Business entity ID
+            amount_tolerance: Maximum amount difference for matching
+            date_tolerance_days: Maximum days difference for matching
+            
+        Returns:
+            Match results with statistics
+        """
+        # Get reconciliation
+        recon = await self.get_reconciliation(reconciliation_id, entity_id)
+        if not recon:
+            return {"success": False, "error": "Reconciliation not found"}
+        
+        # Get unmatched statement transactions
+        unmatched_result = await self.db.execute(
+            select(BankStatementTransaction)
+            .where(
+                BankStatementTransaction.reconciliation_id == reconciliation_id,
+                BankStatementTransaction.match_status == MatchStatus.UNMATCHED,
+            )
+        )
+        unmatched_stmt = list(unmatched_result.scalars().all())
+        
+        if not unmatched_stmt:
+            return {
+                "success": True,
+                "matched_count": 0,
+                "unmatched_remaining": 0,
+                "message": "No unmatched statement transactions found",
+            }
+        
+        # Get GL transactions for the bank account
+        gl_txns = await self.get_gl_transactions_for_bank(
+            entity_id=entity_id,
+            bank_account_id=recon.bank_account_id,
+            start_date=recon.period_start - timedelta(days=date_tolerance_days),
+            end_date=recon.period_end + timedelta(days=date_tolerance_days),
+        )
+        
+        if not gl_txns:
+            return {
+                "success": True,
+                "matched_count": 0,
+                "unmatched_remaining": len(unmatched_stmt),
+                "message": "No GL transactions found for matching",
+            }
+        
+        # Build index of GL transactions by amount for faster matching
+        gl_by_amount = {}
+        for gl_txn in gl_txns:
+            amt_key = round(abs(gl_txn["net_amount"]), 2)
+            if amt_key not in gl_by_amount:
+                gl_by_amount[amt_key] = []
+            gl_by_amount[amt_key].append(gl_txn)
+        
+        matched_count = 0
+        matches = []
+        
+        for stmt in unmatched_stmt:
+            stmt_amount = abs(float(stmt.amount))
+            stmt_date = stmt.transaction_date
+            
+            # Look for potential matches
+            best_match = None
+            best_score = 0
+            
+            # Check exact amount first
+            amt_key = round(stmt_amount, 2)
+            potential_matches = gl_by_amount.get(amt_key, [])
+            
+            # Also check within tolerance
+            for tol in [-float(amount_tolerance), float(amount_tolerance)]:
+                tol_key = round(stmt_amount + tol, 2)
+                if tol_key in gl_by_amount:
+                    potential_matches.extend(gl_by_amount[tol_key])
+            
+            for gl_txn in potential_matches:
+                # Check date tolerance
+                gl_date = gl_txn["entry_date"]
+                date_diff = abs((stmt_date - gl_date).days)
+                
+                if date_diff > date_tolerance_days:
+                    continue
+                
+                # Calculate match score
+                amount_diff = abs(stmt_amount - abs(gl_txn["net_amount"]))
+                score = 100 - (date_diff * 5) - (amount_diff * 10)
+                
+                # Boost score for reference matches
+                if stmt.reference and gl_txn.get("reference"):
+                    if stmt.reference.lower() in gl_txn["reference"].lower() or \
+                       gl_txn["reference"].lower() in stmt.reference.lower():
+                        score += 20
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = gl_txn
+            
+            if best_match and best_score >= 70:
+                # Apply match
+                match_result = await self.match_statement_to_gl(
+                    reconciliation_id=reconciliation_id,
+                    entity_id=entity_id,
+                    statement_transaction_id=stmt.id,
+                    journal_entry_line_id=uuid.UUID(best_match["id"]),
+                    match_notes=f"Auto-matched with score {best_score:.0f}",
+                )
+                
+                if match_result.get("success"):
+                    matched_count += 1
+                    matches.append({
+                        "statement_id": str(stmt.id),
+                        "gl_entry_id": best_match["id"],
+                        "score": best_score,
+                    })
+                    
+                    # Remove from pool to avoid double matching
+                    gl_by_amount.get(amt_key, []).remove(best_match) if best_match in gl_by_amount.get(amt_key, []) else None
+        
+        return {
+            "success": True,
+            "matched_count": matched_count,
+            "unmatched_remaining": len(unmatched_stmt) - matched_count,
+            "total_processed": len(unmatched_stmt),
+            "matches": matches,
+        }
     
     # ===========================================
     # AUTO-MATCHING (Enhanced with MatchingEngine)
