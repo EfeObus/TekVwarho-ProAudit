@@ -1,7 +1,7 @@
 # TekVwarho ProAudit - Complete Accounting System Documentation
 
-**Version:** 2.3.0  
-**Last Updated:** January 18, 2026  
+**Version:** 2.4.0  
+**Last Updated:** January 19, 2026  
 **Status:** Production-Ready  
 **Market:** Nigerian Business Context
 
@@ -1012,3 +1012,112 @@ The accounting system is trustworthy
 | 5300 | Depreciation Expense | Expense |
 | 5350 | Loss on Asset Disposal | Expense |
 | 5400 | Inventory Write-off | Expense |
+
+---
+
+## 13. Financial Reports UI (v2.4.0)
+
+### 13.1 Cash Flow Statement (Indirect Method)
+
+The Cash Flow Statement is now available in the accounting.html Financial Reports tab.
+
+**Location:** `templates/accounting.html` → Reports Tab → Report Type: "Cash Flow Statement (Indirect)"
+
+**API Endpoint:** `GET /api/v1/entities/{entity_id}/accounting/reports/cash-flow-statement`
+
+**Display Sections:**
+1. **Operating Activities** - Net income, adjustments for non-cash items, working capital changes
+2. **Investing Activities** - Asset purchases, disposals
+3. **Financing Activities** - Debt, equity, dividends
+4. **Summary** - Beginning cash, net change, ending cash
+
+### 13.2 AR/AP Aging Reports
+
+Aging reports with GL reconciliation are now accessible from the accounting module.
+
+**Location:** `templates/accounting.html` → Reports Tab → Report Type: "AR Aging Report" or "AP Aging Report"
+
+**API Endpoints:**
+- AR: `GET /api/v1/entities/{entity_id}/reports/aging?report_type=receivable`
+- AP: `GET /api/v1/entities/{entity_id}/reports/aging?report_type=payable`
+
+**Display Features:**
+- Summary cards: Total Outstanding, Total Overdue, Overdue %, GL Balance
+- Aging buckets table: Current, 1-30, 31-60, 61-90, Over 90 days
+- Color-coded severity indicators
+- Automated recommendations
+
+---
+
+## 14. Intercompany Transactions (v2.4.0)
+
+### 14.1 Overview
+
+Intercompany transactions track transfers between entities in the same group for consolidation purposes.
+
+**Model:** `app/models/advanced_accounting.py` → `IntercompanyTransaction`
+
+### 14.2 API Endpoints
+
+```
+POST /api/v1/advanced/intercompany              # Create intercompany transaction
+GET  /api/v1/advanced/intercompany              # List transactions with filters
+POST /api/v1/advanced/intercompany/eliminate    # Mark for consolidation elimination
+GET  /api/v1/advanced/intercompany/summary      # Balance summary by group
+```
+
+### 14.3 Transaction Types
+
+- `sale` - Intercompany sale of goods/services
+- `purchase` - Intercompany purchase
+- `loan` - Intercompany loan
+- `dividend` - Intercompany dividend
+- `management_fee` - Management fee allocation
+
+### 14.4 Elimination for Consolidation
+
+Intercompany transactions can be marked as "eliminated" during consolidated financial statement preparation.
+
+```json
+POST /api/v1/advanced/intercompany/eliminate
+{
+  "transaction_ids": ["uuid1", "uuid2"],
+  "elimination_date": "2026-01-31"
+}
+```
+
+---
+
+## 15. Period Lock Hard Enforcement (v2.4.0)
+
+### 15.1 Overview
+
+The system now enforces strict period controls with differentiated error messages.
+
+**Service:** `app/services/accounting_service.py`
+
+### 15.2 Period Status Validation
+
+When creating/posting/reversing journal entries, the system checks:
+
+| Period Status | Action | Result |
+|---------------|--------|--------|
+| OPEN | Create/Post/Reverse | ✅ Allowed |
+| CLOSED | Create/Post/Reverse | ❌ "Reopen the period or use a different date" |
+| LOCKED | Create/Post/Reverse | ❌ "Period has been permanently locked" |
+
+### 15.3 Error Messages
+
+```python
+# LOCKED Period
+ValueError: "Cannot post to locked period 'January 2026'. Period has been permanently locked and no further entries are allowed."
+
+# CLOSED Period  
+ValueError: "Cannot post to closed period 'January 2026'. Reopen the period or use a different date."
+```
+
+### 15.4 Affected Methods
+
+- `create_journal_entry()` - Validates before creating
+- `post_journal_entry()` - Validates before posting
+- `reverse_journal_entry()` - Validates reversal date period

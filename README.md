@@ -124,6 +124,65 @@ POST /api/v1/entities/{id}/advanced-audit/attestation/register
 - `/advanced-audit` - Enterprise audit tools (explainability, attestation)
 - `/worm-storage` - WORM vault management and verification
 
+---
+
+## Version 2.4.0 - Enhanced Financial Reporting & Period Controls
+
+### Overview
+This release adds comprehensive financial reporting UI, intercompany transaction management, and enhanced period lock enforcement.
+
+### Financial Reports UI
+New report types in the Accounting module (`/accounting` → Reports tab):
+- **Cash Flow Statement (Indirect Method)** - Operating, Investing, Financing activities
+- **AR Aging Report** - Accounts Receivable aging with GL reconciliation
+- **AP Aging Report** - Accounts Payable aging with GL reconciliation
+
+### Intercompany Transaction API
+```
+POST /api/v1/advanced/intercompany              # Create transaction
+GET  /api/v1/advanced/intercompany              # List with filters
+POST /api/v1/advanced/intercompany/eliminate    # Mark for elimination
+GET  /api/v1/advanced/intercompany/summary      # Balance summary
+```
+
+### Period Lock Hard Enforcement
+- LOCKED periods now return: "Period has been permanently locked"
+- CLOSED periods now return: "Reopen the period or use a different date"
+- Validation in `create_journal_entry()`, `post_journal_entry()`, `reverse_journal_entry()`
+
+---
+
+## Version 2.3.0 - Complete GL Integration
+
+### Overview
+All sub-ledger modules now post to the General Ledger automatically, ensuring "every naira in the bank is explained."
+
+### Sub-Ledger GL Posting
+| Module | Trigger | Journal Entry |
+|--------|---------|--------------|
+| **Invoices** | `finalize_invoice()` | Dr AR, Cr Revenue, Cr VAT |
+| **Payments** | `record_payment()` | Dr Bank, Dr WHT Recv, Cr AR |
+| **Expenses** | `create_transaction()` | Dr Expense, Dr VAT Input, Cr AP |
+| **Vendor Pay** | `record_vendor_payment()` | Dr AP, Cr Bank, Cr WHT |
+| **Payroll** | `process_payroll()` | Full Nigerian payroll journal |
+| **Depreciation** | `run_depreciation()` | Dr Depr Expense, Cr Accum Depr |
+| **Disposal** | `dispose_asset()` | Asset removal + Gain/Loss |
+| **Inventory** | `record_sale()` | Dr COGS, Cr Inventory |
+
+### New Cash Flow Statement Endpoint
+```
+GET /api/v1/entities/{id}/accounting/reports/cash-flow-statement
+```
+
+### Bank-GL Integration
+```
+GET  /api/v1/entities/{id}/bank/accounts/{id}/gl-linkage
+GET  /api/v1/entities/{id}/bank/gl-linkage/validate-all
+POST /api/v1/entities/{id}/bank/accounts/{id}/link-gl
+GET  /api/v1/entities/{id}/bank/reconciliations/{id}/gl-transactions
+POST /api/v1/entities/{id}/bank/reconciliations/{id}/auto-match-gl
+```
+
 ### New Files Created
 ```
 app/schemas/audit.py                    - Comprehensive Pydantic schemas
@@ -888,19 +947,19 @@ uvicorn main:app --reload --port 8000
 
 ---
 
-## System Statistics (v2.1.0)
+## System Statistics (v2.4.0)
 
 | Metric | Value |
 |--------|-------|
-| **Total Routes** | 527 |
-| **API Endpoints** | 471 |
+| **Total Routes** | 540+ |
+| **API Endpoints** | 485+ |
 | **View Routes** | 52 |
-| **Database Models** | 84 exports |
-| **Test Coverage** | 313 tests passing |
+| **Database Models** | 86 exports |
+| **Test Coverage** | 433 tests passing |
 | **Security Middleware** | 6 layers |
-| **Templates** | 26 HTML files |
-| **Services** | 45+ service modules |
-| **Routers** | 31 API routers |
+| **Templates** | 27 HTML files |
+| **Services** | 48+ service modules |
+| **Routers** | 32 API routers |
 
 ---
 
