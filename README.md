@@ -126,6 +126,28 @@ POST /api/v1/entities/{id}/advanced-audit/attestation/register
 
 ---
 
+## Version 2.4.1 - Frontend Implementation Release
+
+### Overview
+Complete frontend implementations for intercompany transactions and GL-Bank linkage validation.
+
+### Intercompany Transactions UI
+New "Intercompany" tab in the Accounting module (`/accounting`):
+- **Summary Dashboard** - Total transactions, volume, uneliminated amounts
+- **Transaction List** - Filterable list with elimination status
+- **Create Transaction** - Full modal with entity group, from/to entities, type selection
+- **Elimination Tools** - Single and bulk elimination for consolidation
+- **Balance Summary** - By transaction type with progress indicators
+
+### GL-Bank Linkage Validation UI
+New "GL Linkage" button in Bank Reconciliation (`/bank-reconciliation`):
+- **Validation Summary** - Total, linked, unlinked, invalid account counts
+- **Issues List** - Unlinked/invalid accounts with "Link GL" action
+- **Linked Accounts Table** - Shows GL codes and account names
+- **Link GL Dialog** - Quick select buttons for Nigerian Standard COA
+
+---
+
 ## Version 2.4.0 - Enhanced Financial Reporting & Period Controls
 
 ### Overview

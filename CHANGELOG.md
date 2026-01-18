@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.1] - 2026-01-18
+
+### Frontend Implementations for Backend Features
+
+This release adds complete frontend implementations for intercompany transactions
+and GL-Bank linkage validation features that were previously API-only.
+
+### Added
+
+#### Intercompany Transactions UI (`templates/accounting.html`)
+- **New "Intercompany" tab** in the accounting module
+- Summary cards: Total Transactions, Total Volume, Uneliminated Amount
+- Transaction list with filtering (show/hide eliminated)
+- Create intercompany transaction modal:
+  - Entity group selection
+  - From/To entity selection with validation
+  - Transaction type: Sale, Purchase, Loan, Dividend, Management Fee
+  - Amount, currency, date, and description fields
+- Single transaction elimination with confirmation
+- Bulk elimination for consolidation preparation
+- Elimination progress bar with percentage
+- Entity balance summary by transaction type
+- Right panel showing group selection and balance breakdown
+
+#### GL-Bank Linkage Validation UI (`templates/bank_reconciliation.html`)
+- **New "GL Linkage" button** in header toolbar
+- GL Linkage Validation modal with:
+  - Summary cards: Total Accounts, Properly Linked, Unlinked, Invalid
+  - All-green validation status indicator
+  - Issues list with issue type and resolution actions
+  - Properly linked accounts table with GL codes
+  - Recommendations section
+- Link GL Account dialog:
+  - Shows bank account details
+  - GL account code input field
+  - Quick select buttons for Nigerian Standard COA (1120, 1121, 1122, 1123)
+- Automatic refresh after linking
+- Integration with `/api/v1/entities/bank-reconciliation/gl-linkage/validate-all`
+- Integration with `/api/v1/entities/bank-reconciliation/accounts/{id}/link-gl`
+
+### Technical Details
+
+#### accounting.html Changes
+- Added `intercompany` tab button with 🏢 icon
+- Added state variables: `entityGroups`, `groupEntities`, `selectedGroupId`, `intercompanyTransactions`, `intercompanySummary`, `showIntercompanyModal`, `intercompanyFilters`, `intercompanyForm`, `entityNameCache`
+- Added loading state `loading.intercompany`
+- Added methods: `loadEntityGroups()`, `loadIntercompanyData()`, `loadGroupEntities()`, `loadIntercompanyTransactions()`, `loadIntercompanySummary()`, `getEntityName()`, `createIntercompanyTransaction()`, `markForElimination()`, `bulkEliminate()`, `viewIntercompanyDetails()`, `resetIntercompanyForm()`
+
+#### bank_reconciliation.html Changes
+- Added GL Linkage button with shield icon
+- Added modals: `showGLLinkageModal`, `showLinkGLModal`
+- Added state: `validatingGLLinkage`, `linkingGL`, `glLinkageResult`, `linkGLForm`
+- Added methods: `validateAllGLLinkages()`, `showLinkGLDialog()`, `linkGLAccount()`, `validateSingleGLLinkage()`
+
+### Tests
+- All 433 tests passing
+- 3 tests skipped (expected)
+
+---
+
 ## [2.4.0] - 2026-01-19
 
 ### Enhanced Financial Reporting & Period Controls Release

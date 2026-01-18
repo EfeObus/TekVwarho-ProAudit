@@ -68,6 +68,11 @@
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
                 Financial Reports
             </button>
+            <button @click="activeTab = 'intercompany'" 
+                    :class="activeTab === 'intercompany' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                🏢 Intercompany
+            </button>
         </nav>
     </div>
 
@@ -887,6 +892,361 @@
         </div>
     </div>
 
+    <!-- Intercompany Transactions Tab -->
+    <div x-show="activeTab === 'intercompany'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Panel - Transaction List -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 rounded-lg bg-blue-100">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-xs text-gray-500">Total Transactions</p>
+                                <p class="text-xl font-bold text-gray-900" x-text="intercompanySummary?.transaction_count || 0"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 rounded-lg bg-green-100">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-xs text-gray-500">Total Volume</p>
+                                <p class="text-xl font-bold text-green-600" x-text="formatCurrency(intercompanySummary?.total_intercompany_volume || 0)"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 rounded-lg bg-amber-100">
+                                <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-xs text-gray-500">Uneliminated</p>
+                                <p class="text-xl font-bold text-amber-600" x-text="formatCurrency(intercompanySummary?.total_uneliminated || 0)"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transaction List -->
+                <div class="bg-white rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-900">Intercompany Transactions</h3>
+                        <div class="flex space-x-2">
+                            <label class="flex items-center text-sm text-gray-600">
+                                <input type="checkbox" x-model="intercompanyFilters.includeEliminated" 
+                                       @change="loadIntercompanyTransactions()"
+                                       class="rounded border-gray-300 text-green-600 mr-2">
+                                Show Eliminated
+                            </label>
+                            <button @click="showIntercompanyModal = true" 
+                                    class="text-sm px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                + New Transaction
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading State -->
+                    <template x-if="loading.intercompany">
+                        <div class="p-8 text-center text-gray-500">
+                            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                            Loading intercompany transactions...
+                        </div>
+                    </template>
+                    
+                    <!-- Empty State -->
+                    <template x-if="!loading.intercompany && intercompanyTransactions.length === 0">
+                        <div class="p-8 text-center text-gray-500">
+                            <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                            </svg>
+                            <p class="text-gray-600 mb-2">No intercompany transactions</p>
+                            <p class="text-sm text-gray-500">Create transactions between entities in your group for consolidation tracking.</p>
+                        </div>
+                    </template>
+                    
+                    <!-- Transaction Table -->
+                    <template x-if="!loading.intercompany && intercompanyTransactions.length > 0">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">From Entity</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">To Entity</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="txn in intercompanyTransactions" :key="txn.id">
+                                        <tr :class="txn.is_eliminated ? 'bg-gray-50' : ''">
+                                            <td class="px-4 py-3 text-sm text-gray-900" x-text="formatDate(txn.transaction_date)"></td>
+                                            <td class="px-4 py-3">
+                                                <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
+                                                      :class="{
+                                                          'bg-blue-100 text-blue-800': txn.transaction_type === 'sale',
+                                                          'bg-purple-100 text-purple-800': txn.transaction_type === 'purchase',
+                                                          'bg-green-100 text-green-800': txn.transaction_type === 'loan',
+                                                          'bg-amber-100 text-amber-800': txn.transaction_type === 'dividend',
+                                                          'bg-gray-100 text-gray-800': txn.transaction_type === 'management_fee'
+                                                      }" 
+                                                      x-text="txn.transaction_type?.replace(/_/g, ' ')"></span>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-600" x-text="getEntityName(txn.from_entity_id)"></td>
+                                            <td class="px-4 py-3 text-sm text-gray-600" x-text="getEntityName(txn.to_entity_id)"></td>
+                                            <td class="px-4 py-3 text-sm text-right font-mono" x-text="formatCurrency(txn.amount)"></td>
+                                            <td class="px-4 py-3 text-center">
+                                                <span x-show="txn.is_eliminated" class="text-green-600 text-xs font-medium">
+                                                    ✓ Eliminated
+                                                </span>
+                                                <span x-show="!txn.is_eliminated" class="text-amber-600 text-xs font-medium">
+                                                    Pending
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-3 text-right">
+                                                <button x-show="!txn.is_eliminated" 
+                                                        @click="markForElimination(txn)"
+                                                        class="text-green-600 hover:text-green-800 text-sm mr-2">
+                                                    Eliminate
+                                                </button>
+                                                <button @click="viewIntercompanyDetails(txn)"
+                                                        class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    
+                    <!-- Bulk Elimination -->
+                    <div x-show="intercompanyTransactions.filter(t => !t.is_eliminated).length > 0" 
+                         class="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm text-gray-600">
+                                <span class="font-medium" x-text="intercompanyTransactions.filter(t => !t.is_eliminated).length"></span> 
+                                transactions pending elimination
+                            </p>
+                            <button @click="bulkEliminate()" 
+                                    class="text-sm px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                Eliminate All for Consolidation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Summary & Groups -->
+            <div class="space-y-6">
+                <!-- Entity Group Selection -->
+                <div class="bg-white rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-900">Entity Group</h3>
+                    </div>
+                    <div class="p-4">
+                        <select x-model="selectedGroupId" @change="loadIntercompanyData()"
+                                class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                            <option value="">Select a group...</option>
+                            <template x-for="group in entityGroups" :key="group.id">
+                                <option :value="group.id" x-text="group.name"></option>
+                            </template>
+                        </select>
+                        <p x-show="entityGroups.length === 0" class="mt-3 text-sm text-gray-500">
+                            No entity groups found. Create a group to track intercompany transactions.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Balance Summary -->
+                <div class="bg-white rounded-lg shadow" x-show="selectedGroupId && intercompanySummary">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-900">Balance Summary</h3>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <!-- By Transaction Type -->
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">By Type</h4>
+                            <div class="space-y-2">
+                                <template x-for="(amount, type) in (intercompanySummary?.by_transaction_type || {})" :key="type">
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600 capitalize" x-text="type.replace(/_/g, ' ')"></span>
+                                        <span class="font-mono text-gray-900" x-text="formatCurrency(amount)"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Elimination Progress -->
+                        <div class="pt-4 border-t border-gray-200">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">Elimination Status</h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-green-600">✓ Eliminated</span>
+                                    <span class="font-mono" x-text="formatCurrency(intercompanySummary?.total_eliminated || 0)"></span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-amber-600">⏳ Pending</span>
+                                    <span class="font-mono" x-text="formatCurrency(intercompanySummary?.total_uneliminated || 0)"></span>
+                                </div>
+                            </div>
+                            <!-- Progress Bar -->
+                            <div class="mt-3">
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-green-600 h-2 rounded-full" 
+                                         :style="'width: ' + (intercompanySummary?.total_intercompany_volume > 0 
+                                            ? (parseFloat(intercompanySummary?.total_eliminated || 0) / parseFloat(intercompanySummary?.total_intercompany_volume) * 100) 
+                                            : 0) + '%'"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1 text-center">
+                                    <span x-text="intercompanySummary?.total_intercompany_volume > 0 
+                                        ? Math.round(parseFloat(intercompanySummary?.total_eliminated || 0) / parseFloat(intercompanySummary?.total_intercompany_volume) * 100) 
+                                        : 0"></span>% eliminated
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Help Card -->
+                <div class="bg-blue-50 rounded-lg p-4">
+                    <h4 class="font-medium text-blue-900 mb-2">💡 Intercompany Transactions</h4>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li>• Track transactions between related entities</li>
+                        <li>• Eliminate for consolidated statements</li>
+                        <li>• Types: Sales, Purchases, Loans, Dividends, Fees</li>
+                        <li>• Mark as eliminated during consolidation</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Intercompany Transaction Modal -->
+    <div x-show="showIntercompanyModal" x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto" 
+         @keydown.escape.window="showIntercompanyModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showIntercompanyModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">New Intercompany Transaction</h3>
+                    <button @click="showIntercompanyModal = false" class="text-gray-400 hover:text-gray-500">✕</button>
+                </div>
+                
+                <form @submit.prevent="createIntercompanyTransaction()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Entity Group</label>
+                            <select x-model="intercompanyForm.group_id" required
+                                    class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                                <option value="">Select group...</option>
+                                <template x-for="group in entityGroups" :key="group.id">
+                                    <option :value="group.id" x-text="group.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">From Entity</label>
+                                <select x-model="intercompanyForm.from_entity_id" required
+                                        class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                                    <option value="">Select entity...</option>
+                                    <template x-for="entity in groupEntities" :key="entity.id">
+                                        <option :value="entity.id" x-text="entity.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">To Entity</label>
+                                <select x-model="intercompanyForm.to_entity_id" required
+                                        class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                                    <option value="">Select entity...</option>
+                                    <template x-for="entity in groupEntities" :key="entity.id">
+                                        <option :value="entity.id" :disabled="entity.id === intercompanyForm.from_entity_id" x-text="entity.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+                                <select x-model="intercompanyForm.transaction_type" required
+                                        class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                                    <option value="">Select type...</option>
+                                    <option value="sale">Sale</option>
+                                    <option value="purchase">Purchase</option>
+                                    <option value="loan">Loan</option>
+                                    <option value="dividend">Dividend</option>
+                                    <option value="management_fee">Management Fee</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Date</label>
+                                <input type="date" x-model="intercompanyForm.transaction_date" required
+                                       class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                                <input type="number" step="0.01" x-model="intercompanyForm.amount" required min="0"
+                                       class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                                <select x-model="intercompanyForm.currency"
+                                        class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500">
+                                    <option value="NGN">NGN - Naira</option>
+                                    <option value="USD">USD - Dollar</option>
+                                    <option value="GBP">GBP - Pound</option>
+                                    <option value="EUR">EUR - Euro</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea x-model="intercompanyForm.description" rows="2"
+                                      placeholder="Optional description..."
+                                      class="w-full rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showIntercompanyModal = false"
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="saving"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                            <span x-text="saving ? 'Creating...' : 'Create Transaction'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Journal Entry Modal -->
     <div x-show="showJournalEntryModal" x-cloak 
          class="fixed inset-0 z-50 overflow-y-auto" 
@@ -1111,7 +1471,7 @@ function accountingModule() {
         
         // UI State
         activeTab: 'coa',
-        loading: { coa: false, journal: false, report: false },
+        loading: { coa: false, journal: false, report: false, intercompany: false },
         saving: false,
         
         // Chart of Accounts
@@ -1167,6 +1527,30 @@ function accountingModule() {
         },
         reportData: null,
         
+        // Intercompany Transactions
+        entityGroups: [],
+        groupEntities: [],
+        selectedGroupId: '',
+        intercompanyTransactions: [],
+        intercompanySummary: null,
+        showIntercompanyModal: false,
+        intercompanyFilters: {
+            includeEliminated: false,
+        },
+        intercompanyForm: {
+            group_id: '',
+            from_entity_id: '',
+            to_entity_id: '',
+            transaction_type: '',
+            transaction_date: new Date().toISOString().split('T')[0],
+            amount: 0,
+            currency: 'NGN',
+            description: '',
+        },
+        
+        // Entity name cache for display
+        entityNameCache: {},
+        
         // Computed
         get filteredAccounts() {
             return this.accounts.filter(a => a.is_active);
@@ -1192,6 +1576,7 @@ function accountingModule() {
             await this.loadChartOfAccounts();
             await this.loadFiscalYears();
             await this.loadJournalEntries();
+            await this.loadEntityGroups();
         },
         
         // API Helpers
@@ -1441,6 +1826,215 @@ function accountingModule() {
         
         viewPeriodCloseChecklist(period) {
             alert(`Period close checklist for ${period.period_name} coming soon!`);
+        },
+        
+        // Intercompany Methods
+        async loadEntityGroups() {
+            try {
+                const res = await fetch('/api/v1/advanced/entity-groups', { credentials: 'include' });
+                if (res.ok) {
+                    this.entityGroups = await res.json();
+                    // If only one group, auto-select it
+                    if (this.entityGroups.length === 1) {
+                        this.selectedGroupId = this.entityGroups[0].id;
+                        await this.loadIntercompanyData();
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load entity groups:', e);
+            }
+        },
+        
+        async loadIntercompanyData() {
+            if (!this.selectedGroupId) return;
+            await Promise.all([
+                this.loadGroupEntities(),
+                this.loadIntercompanyTransactions(),
+                this.loadIntercompanySummary()
+            ]);
+        },
+        
+        async loadGroupEntities() {
+            if (!this.selectedGroupId) return;
+            try {
+                const res = await fetch(`/api/v1/advanced/entity-groups/${this.selectedGroupId}/members`, { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.groupEntities = data.members || data || [];
+                    // Cache entity names
+                    this.groupEntities.forEach(e => {
+                        this.entityNameCache[e.id || e.entity_id] = e.name || e.entity_name || 'Unknown';
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load group entities:', e);
+            }
+        },
+        
+        async loadIntercompanyTransactions() {
+            if (!this.selectedGroupId) return;
+            this.loading.intercompany = true;
+            try {
+                let url = `/api/v1/advanced/intercompany?group_id=${this.selectedGroupId}`;
+                if (this.intercompanyFilters.includeEliminated) {
+                    url += '&include_eliminated=true';
+                }
+                const res = await fetch(url, { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.intercompanyTransactions = data.items || [];
+                }
+            } catch (e) {
+                console.error('Failed to load intercompany transactions:', e);
+            } finally {
+                this.loading.intercompany = false;
+            }
+        },
+        
+        async loadIntercompanySummary() {
+            if (!this.selectedGroupId) return;
+            try {
+                const res = await fetch(`/api/v1/advanced/intercompany/summary?group_id=${this.selectedGroupId}`, { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.intercompanySummary = data.summary || data;
+                }
+            } catch (e) {
+                console.error('Failed to load intercompany summary:', e);
+            }
+        },
+        
+        getEntityName(entityId) {
+            return this.entityNameCache[entityId] || entityId?.slice(0, 8) || 'Unknown';
+        },
+        
+        async createIntercompanyTransaction() {
+            if (!this.intercompanyForm.group_id || !this.intercompanyForm.from_entity_id || 
+                !this.intercompanyForm.to_entity_id || !this.intercompanyForm.amount) {
+                alert('Please fill all required fields');
+                return;
+            }
+            
+            if (this.intercompanyForm.from_entity_id === this.intercompanyForm.to_entity_id) {
+                alert('From and To entities must be different');
+                return;
+            }
+            
+            this.saving = true;
+            try {
+                const res = await fetch('/api/v1/advanced/intercompany', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        group_id: this.intercompanyForm.group_id,
+                        from_entity_id: this.intercompanyForm.from_entity_id,
+                        to_entity_id: this.intercompanyForm.to_entity_id,
+                        transaction_type: this.intercompanyForm.transaction_type,
+                        transaction_date: this.intercompanyForm.transaction_date,
+                        amount: parseFloat(this.intercompanyForm.amount),
+                        currency: this.intercompanyForm.currency,
+                        description: this.intercompanyForm.description || null
+                    })
+                });
+                
+                if (res.ok) {
+                    this.showIntercompanyModal = false;
+                    this.resetIntercompanyForm();
+                    await this.loadIntercompanyData();
+                    alert('Intercompany transaction created successfully!');
+                } else {
+                    const err = await res.json();
+                    alert('Error: ' + (err.detail || 'Failed to create transaction'));
+                }
+            } catch (e) {
+                alert('Error creating transaction: ' + e.message);
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async markForElimination(txn) {
+            if (!confirm(`Mark this ${txn.transaction_type} transaction of ${this.formatCurrency(txn.amount)} for elimination?`)) return;
+            
+            try {
+                const res = await fetch('/api/v1/advanced/intercompany/eliminate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        transaction_ids: [txn.id],
+                        elimination_date: new Date().toISOString().split('T')[0]
+                    })
+                });
+                
+                if (res.ok) {
+                    await this.loadIntercompanyData();
+                    alert('Transaction marked for elimination');
+                } else {
+                    const err = await res.json();
+                    alert('Error: ' + (err.detail || 'Failed to eliminate'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        },
+        
+        async bulkEliminate() {
+            const pending = this.intercompanyTransactions.filter(t => !t.is_eliminated);
+            if (pending.length === 0) {
+                alert('No pending transactions to eliminate');
+                return;
+            }
+            
+            if (!confirm(`Mark ${pending.length} transaction(s) for elimination? This is used for consolidated financial statement preparation.`)) return;
+            
+            try {
+                const res = await fetch('/api/v1/advanced/intercompany/eliminate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        transaction_ids: pending.map(t => t.id),
+                        elimination_date: new Date().toISOString().split('T')[0]
+                    })
+                });
+                
+                if (res.ok) {
+                    const result = await res.json();
+                    await this.loadIntercompanyData();
+                    alert(`Successfully eliminated ${result.eliminated_count} transactions`);
+                } else {
+                    const err = await res.json();
+                    alert('Error: ' + (err.detail || 'Failed to eliminate'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        },
+        
+        viewIntercompanyDetails(txn) {
+            alert(`Transaction Details:\n\n` +
+                  `Type: ${txn.transaction_type}\n` +
+                  `Date: ${this.formatDate(txn.transaction_date)}\n` +
+                  `From: ${this.getEntityName(txn.from_entity_id)}\n` +
+                  `To: ${this.getEntityName(txn.to_entity_id)}\n` +
+                  `Amount: ${this.formatCurrency(txn.amount)} ${txn.currency}\n` +
+                  `Status: ${txn.is_eliminated ? 'Eliminated on ' + this.formatDate(txn.elimination_date) : 'Pending'}\n` +
+                  (txn.notes ? `Notes: ${txn.notes}` : ''));
+        },
+        
+        resetIntercompanyForm() {
+            this.intercompanyForm = {
+                group_id: this.selectedGroupId || '',
+                from_entity_id: '',
+                to_entity_id: '',
+                transaction_type: '',
+                transaction_date: new Date().toISOString().split('T')[0],
+                amount: 0,
+                currency: 'NGN',
+                description: ''
+            };
         },
         
         // Formatters

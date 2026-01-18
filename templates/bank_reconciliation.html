@@ -57,6 +57,13 @@
                 </svg>
                 Add Account
             </button>
+            <button @click="showGLLinkageModal = true; validateAllGLLinkages()" 
+                    class="inline-flex items-center px-4 py-2 border border-amber-300 text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+                GL Linkage
+            </button>
         </div>
     </div>
 
@@ -882,6 +889,189 @@
             </div>
         </div>
     </div>
+
+    <!-- GL Linkage Validation Modal -->
+    <div x-show="showGLLinkageModal" x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="showGLLinkageModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showGLLinkageModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900">GL Linkage Validation</h3>
+                    <button @click="showGLLinkageModal = false" class="text-gray-400 hover:text-gray-500">✕</button>
+                </div>
+                
+                <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                    <!-- Loading State -->
+                    <div x-show="validatingGLLinkage" class="text-center py-8">
+                        <div class="animate-spin w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p class="text-gray-600">Validating GL linkages...</p>
+                    </div>
+                    
+                    <!-- Summary Cards -->
+                    <div x-show="!validatingGLLinkage && glLinkageResult" class="space-y-6">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div class="bg-blue-50 rounded-lg p-4 text-center">
+                                <p class="text-2xl font-bold text-blue-600" x-text="glLinkageResult?.total_accounts || 0"></p>
+                                <p class="text-xs text-blue-700">Total Accounts</p>
+                            </div>
+                            <div class="bg-green-50 rounded-lg p-4 text-center">
+                                <p class="text-2xl font-bold text-green-600" x-text="glLinkageResult?.linked_count || 0"></p>
+                                <p class="text-xs text-green-700">Properly Linked</p>
+                            </div>
+                            <div class="bg-amber-50 rounded-lg p-4 text-center">
+                                <p class="text-2xl font-bold text-amber-600" x-text="glLinkageResult?.unlinked_count || 0"></p>
+                                <p class="text-xs text-amber-700">Unlinked</p>
+                            </div>
+                            <div class="bg-red-50 rounded-lg p-4 text-center">
+                                <p class="text-2xl font-bold text-red-600" x-text="glLinkageResult?.invalid_count || 0"></p>
+                                <p class="text-xs text-red-700">Invalid Link</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Validation Status -->
+                        <div x-show="glLinkageResult?.all_valid" class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="flex items-center">
+                                <svg class="w-6 h-6 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <div>
+                                    <p class="font-medium text-green-800">All Bank Accounts Properly Linked</p>
+                                    <p class="text-sm text-green-700">Every bank account has a valid GL account code for reconciliation.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Issues List -->
+                        <div x-show="glLinkageResult?.issues && glLinkageResult.issues.length > 0">
+                            <h4 class="text-sm font-semibold text-gray-700 mb-3">Issues Found</h4>
+                            <div class="space-y-3">
+                                <template x-for="issue in glLinkageResult?.issues || []" :key="issue.account_id">
+                                    <div class="border rounded-lg p-4" 
+                                         :class="issue.issue_type === 'unlinked' ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'">
+                                        <div class="flex justify-between items-start">
+                                            <div>
+                                                <p class="font-medium text-gray-900" x-text="issue.bank_name + ' - ' + issue.account_number"></p>
+                                                <p class="text-sm text-gray-600" x-text="issue.account_name"></p>
+                                                <p class="text-xs mt-1" 
+                                                   :class="issue.issue_type === 'unlinked' ? 'text-amber-700' : 'text-red-700'"
+                                                   x-text="issue.issue_type === 'unlinked' ? 'No GL account linked' : 'GL code does not exist: ' + issue.gl_account_code"></p>
+                                            </div>
+                                            <button @click="showLinkGLDialog(issue)" 
+                                                    class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                                                Link GL
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Properly Linked Accounts -->
+                        <div x-show="glLinkageResult?.linked_accounts && glLinkageResult.linked_accounts.length > 0">
+                            <h4 class="text-sm font-semibold text-gray-700 mb-3">Properly Linked Accounts</h4>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bank Account</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">GL Code</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">GL Account Name</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <template x-for="acc in glLinkageResult?.linked_accounts || []" :key="acc.account_id">
+                                            <tr>
+                                                <td class="px-4 py-2 text-sm">
+                                                    <span class="font-medium" x-text="acc.bank_name"></span>
+                                                    <span class="text-gray-500" x-text="' - ***' + acc.account_number?.slice(-4)"></span>
+                                                </td>
+                                                <td class="px-4 py-2 text-sm font-mono text-green-600" x-text="acc.gl_account_code"></td>
+                                                <td class="px-4 py-2 text-sm text-gray-600" x-text="acc.gl_account_name"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Recommendations -->
+                        <div x-show="glLinkageResult?.recommendations && glLinkageResult.recommendations.length > 0" 
+                             class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 class="font-medium text-blue-800 mb-2">💡 Recommendations</h4>
+                            <ul class="text-sm text-blue-700 space-y-1">
+                                <template x-for="rec in glLinkageResult?.recommendations || []" :key="rec">
+                                    <li class="flex items-start">
+                                        <span class="mr-2">•</span>
+                                        <span x-text="rec"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                    <button @click="validateAllGLLinkages()" :disabled="validatingGLLinkage"
+                            class="px-4 py-2 text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 disabled:opacity-50">
+                        <span x-text="validatingGLLinkage ? 'Validating...' : '🔄 Refresh'"></span>
+                    </button>
+                    <button @click="showGLLinkageModal = false"
+                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Link GL Account Dialog -->
+    <div x-show="showLinkGLModal" x-cloak 
+         class="fixed inset-0 z-[60] overflow-y-auto"
+         @keydown.escape.window="showLinkGLModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showLinkGLModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Link GL Account</h3>
+                <form @submit.prevent="linkGLAccount()">
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-sm text-gray-600">Bank Account:</p>
+                            <p class="font-medium text-gray-900" x-text="linkGLForm.bank_name + ' - ' + linkGLForm.account_number"></p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">GL Account Code</label>
+                            <input type="text" x-model="linkGLForm.gl_account_code" required
+                                   placeholder="e.g., 1120, 1121, 1122"
+                                   class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                            <p class="text-xs text-gray-500 mt-1">Enter a valid GL account code from your Chart of Accounts (Bank accounts are typically 11xx)</p>
+                        </div>
+                        <!-- Common Bank GL Codes -->
+                        <div class="bg-blue-50 rounded-lg p-3">
+                            <p class="text-xs font-medium text-blue-800 mb-2">Quick Select (Nigerian Standard COA):</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" @click="linkGLForm.gl_account_code = '1120'" 
+                                        class="px-2 py-1 text-xs bg-white border border-blue-200 rounded hover:bg-blue-100">1120 - Bank</button>
+                                <button type="button" @click="linkGLForm.gl_account_code = '1121'" 
+                                        class="px-2 py-1 text-xs bg-white border border-blue-200 rounded hover:bg-blue-100">1121 - GTBank</button>
+                                <button type="button" @click="linkGLForm.gl_account_code = '1122'" 
+                                        class="px-2 py-1 text-xs bg-white border border-blue-200 rounded hover:bg-blue-100">1122 - Zenith</button>
+                                <button type="button" @click="linkGLForm.gl_account_code = '1123'" 
+                                        class="px-2 py-1 text-xs bg-white border border-blue-200 rounded hover:bg-blue-100">1123 - UBA</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showLinkGLModal = false"
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                        <button type="submit" :disabled="linkingGL"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                            <span x-text="linkingGL ? 'Linking...' : 'Link Account'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -916,6 +1106,19 @@ function bankReconciliationApp() {
         showImportModal: false,
         showAdjustmentModal: false,
         showRejectModal: false,
+        showGLLinkageModal: false,
+        showLinkGLModal: false,
+        
+        // GL Linkage Validation
+        validatingGLLinkage: false,
+        linkingGL: false,
+        glLinkageResult: null,
+        linkGLForm: {
+            account_id: '',
+            bank_name: '',
+            account_number: '',
+            gl_account_code: ''
+        },
         
         // Forms
         accountForm: {
@@ -1386,6 +1589,83 @@ function bankReconciliationApp() {
                 const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}`, { credentials: 'include' });
                 if (res.ok) this.currentRecon = await res.json();
             } catch (e) { console.error(e); }
+        },
+        
+        // GL Linkage Validation Methods
+        async validateAllGLLinkages() {
+            this.validatingGLLinkage = true;
+            this.glLinkageResult = null;
+            try {
+                const res = await fetch('/api/v1/entities/bank-reconciliation/gl-linkage/validate-all', { credentials: 'include' });
+                if (res.ok) {
+                    this.glLinkageResult = await res.json();
+                } else {
+                    alert('Failed to validate GL linkages');
+                }
+            } catch (e) {
+                console.error('Error validating GL linkages:', e);
+                alert('Error validating GL linkages');
+            } finally {
+                this.validatingGLLinkage = false;
+            }
+        },
+        
+        showLinkGLDialog(issue) {
+            this.linkGLForm = {
+                account_id: issue.account_id,
+                bank_name: issue.bank_name,
+                account_number: issue.account_number,
+                gl_account_code: issue.gl_account_code || ''
+            };
+            this.showLinkGLModal = true;
+        },
+        
+        async linkGLAccount() {
+            if (!this.linkGLForm.account_id || !this.linkGLForm.gl_account_code) {
+                alert('Please enter a GL account code');
+                return;
+            }
+            
+            this.linkingGL = true;
+            try {
+                const res = await fetch(
+                    `/api/v1/entities/bank-reconciliation/accounts/${this.linkGLForm.account_id}/link-gl?gl_account_code=${encodeURIComponent(this.linkGLForm.gl_account_code)}`,
+                    { 
+                        method: 'POST',
+                        credentials: 'include'
+                    }
+                );
+                
+                if (res.ok) {
+                    const result = await res.json();
+                    this.showLinkGLModal = false;
+                    alert('✅ GL account linked successfully!\n\nBank: ' + this.linkGLForm.bank_name + '\nGL Code: ' + this.linkGLForm.gl_account_code);
+                    // Refresh the validation results
+                    await this.validateAllGLLinkages();
+                    // Also refresh accounts list
+                    await this.loadAccounts();
+                } else {
+                    const err = await res.json();
+                    alert('Error: ' + (err.detail || err.error || 'Failed to link GL account'));
+                }
+            } catch (e) {
+                console.error('Error linking GL account:', e);
+                alert('Error linking GL account');
+            } finally {
+                this.linkingGL = false;
+            }
+        },
+        
+        async validateSingleGLLinkage(accountId) {
+            try {
+                const res = await fetch(`/api/v1/entities/bank-reconciliation/accounts/${accountId}/gl-linkage`, { credentials: 'include' });
+                if (res.ok) {
+                    return await res.json();
+                }
+            } catch (e) {
+                console.error('Error validating GL linkage:', e);
+            }
+            return null;
         },
         
         // Form resets
