@@ -674,17 +674,8 @@ async def audit_logs_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Audit logs page - view all audit trail entries."""
-    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
-    if redirect:
-        return redirect
-    
-    response = templates.TemplateResponse("audit_logs.html", {
-        "request": request,
-        **get_auth_context(user, entity_id),
-    })
-    set_entity_cookie_if_needed(response, request, entity_id)
-    return response
+    """Redirect to unified audit page - Logs tab."""
+    return RedirectResponse(url="/audit?tab=logs", status_code=302)
 
 
 @router.get("/forensic-audit", response_class=HTMLResponse)
@@ -692,17 +683,8 @@ async def forensic_audit_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Forensic Audit page - deep dive into forensic analysis tools."""
-    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
-    if redirect:
-        return redirect
-    
-    response = templates.TemplateResponse("audit_dashboard.html", {
-        "request": request,
-        **get_auth_context(user, entity_id),
-    })
-    set_entity_cookie_if_needed(response, request, entity_id)
-    return response
+    """Redirect to unified audit page - Forensic tab."""
+    return RedirectResponse(url="/audit?tab=forensic", status_code=302)
 
 
 @router.get("/advanced-audit", response_class=HTMLResponse)
@@ -710,26 +692,8 @@ async def advanced_audit_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Advanced Audit page - Enterprise audit features.
-    
-    Provides:
-    - Tax Explainability Layer
-    - Compliance Replay Engine
-    - Regulatory Confidence Scoring
-    - Third-Party Attestation
-    - Behavioral Analytics
-    """
-    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
-    if redirect:
-        return redirect
-    
-    response = templates.TemplateResponse("advanced_audit.html", {
-        "request": request,
-        **get_auth_context(user, entity_id),
-    })
-    set_entity_cookie_if_needed(response, request, entity_id)
-    return response
+    """Redirect to unified audit page - Advanced tab."""
+    return RedirectResponse(url="/audit?tab=advanced", status_code=302)
 
 
 @router.get("/worm-storage", response_class=HTMLResponse)
@@ -737,17 +701,8 @@ async def worm_storage_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """WORM Storage (Audit Vault) management page."""
-    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
-    if redirect:
-        return redirect
-    
-    response = templates.TemplateResponse("worm_storage.html", {
-        "request": request,
-        **get_auth_context(user, entity_id),
-    })
-    set_entity_cookie_if_needed(response, request, entity_id)
-    return response
+    """Redirect to unified audit page - WORM Storage tab."""
+    return RedirectResponse(url="/audit?tab=worm", status_code=302)
 
 
 # ===========================================

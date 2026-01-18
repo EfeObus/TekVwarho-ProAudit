@@ -1097,7 +1097,7 @@ class ReportsService:
         elements.append(table)
         elements.append(Spacer(1, 10))
         
-        balanced_text = "✓ Balanced" if totals.get("is_balanced") else "✗ Not Balanced"
+        balanced_text = "Balanced" if totals.get("is_balanced") else "Not Balanced"
         elements.append(Paragraph(f"<b>Status:</b> {balanced_text}", styles['Normal']))
         
         return elements

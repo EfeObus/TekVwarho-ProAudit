@@ -383,8 +383,8 @@ async def verify_data_integrity(
     If ANY historical record is modified, ALL subsequent hashes break.
     
     **Returns:**
-    - ✅ Green badge: Data integrity verified
-    - ❌ Red badge: Integrity breach detected
+    - Green badge: Data integrity verified
+    - Red badge: Integrity breach detected
     
     **Legal Weight:**
     Hash chain provides non-repudiation evidence for audit disputes.
@@ -429,7 +429,7 @@ async def get_ledger_integrity_report(
             "All ledger entries are linked via SHA-256 hash chain, ensuring "
             "no retroactive modifications have occurred."
         ) if is_valid else (
-            "⚠️ INTEGRITY BREACH: Discrepancies detected in hash chain. "
+            "INTEGRITY BREACH: Discrepancies detected in hash chain. "
             "This indicates possible data tampering. Immediate investigation required."
         ),
     }

@@ -273,7 +273,7 @@ class BenfordsLawAnalyzer:
                 "Some deviation detected - recommend manual review of flagged categories."
             ),
             "nonconforming": (
-                "⚠️ Data DOES NOT conform to Benford's Law. "
+                "WARNING: Data DOES NOT conform to Benford's Law. "
                 "This may indicate data manipulation, fabricated entries, or unusual patterns. "
                 "IMMEDIATE FORENSIC REVIEW RECOMMENDED."
             ),
@@ -920,7 +920,7 @@ class ForensicAuditService:
                 "verified": False,
                 "status": "INTEGRITY_BREACH_DETECTED",
                 "badge": "red",
-                "message": "⚠️ Data integrity issues detected. Immediate investigation required.",
+                "message": "WARNING: Data integrity issues detected. Immediate investigation required.",
                 "discrepancy_count": len(discrepancies),
                 "discrepancies": discrepancies[:10],  # First 10
                 "verified_at": datetime.utcnow().isoformat(),

@@ -93,16 +93,16 @@ Phase 4: Iterate (Ongoing)
 │  • Tech Savviness: Moderate (uses WhatsApp, mobile banking)     │
 │                                                                 │
 │  Goals:                                                         │
-│  ✓ Stay compliant with tax laws                                 │
-│  ✓ Reduce reliance on expensive accountants                     │
-│  ✓ Understand his financial position at any time                │
-│  ✓ Avoid penalties and audits                                   │
+│  - Stay compliant with tax laws                                 │
+│  - Reduce reliance on expensive accountants                     │
+│  - Understand his financial position at any time                │
+│  - Avoid penalties and audits                                   │
 │                                                                 │
 │  Frustrations:                                                  │
-│  ✗ "Tax laws change and no one tells me"                        │
-│  ✗ "I don't know if my accountant is doing things correctly"    │
-│  ✗ "Excel sheets get corrupted and I lose data"                 │
-│  ✗ "I can't afford QuickBooks and it doesn't work for Nigeria"  │
+│  - "Tax laws change and no one tells me"                        │
+│  - "I don't know if my accountant is doing things correctly"    │
+│  - "Excel sheets get corrupted and I lose data"                 │
+│  - "I can't afford QuickBooks and it doesn't work for Nigeria"  │
 │                                                                 │
 │  Technology Usage:                                              │
 │  • Primary: Android smartphone (budget device)                  │

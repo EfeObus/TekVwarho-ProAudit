@@ -545,13 +545,13 @@ class PayrollAdvancedService:
         
         if any(s == ComplianceStatus.OVERDUE for s in statuses):
             overall_status = "overdue"
-            summary_message = "⚠️ URGENT: You have overdue statutory remittances. Pay immediately to minimize penalties."
+            summary_message = "URGENT: You have overdue statutory remittances. Pay immediately to minimize penalties."
         elif any(s == ComplianceStatus.PENALTY_RISK for s in statuses):
             overall_status = "at_risk"
-            summary_message = "⏰ Payment deadlines approaching. Pay now to avoid penalties."
+            summary_message = "Payment deadlines approaching. Pay now to avoid penalties."
         elif all(s in [ComplianceStatus.ON_TIME, ComplianceStatus.NOT_DUE, ComplianceStatus.EXEMPT] for s in statuses):
             overall_status = "compliant"
-            summary_message = "✅ All statutory remittances are up to date."
+            summary_message = "All statutory remittances are up to date."
         else:
             overall_status = "at_risk"
             summary_message = "Some remittances require attention."

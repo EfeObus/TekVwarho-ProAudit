@@ -929,7 +929,7 @@ This document tracks all segments we will build for the TekVwarho ProAudit appli
 
 ---
 
-## � Security & Compliance Update (NDPA/NITDA 2023)
+## Security & Compliance Update (NDPA/NITDA 2023)
 
 **Date:** January 6, 2026  
 **Version:** 2.1.0

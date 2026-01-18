@@ -15,53 +15,53 @@ Platform Staff Permissions:
 ---------------------------
 | Permission                    | Super Admin | Admin | IT/Dev | CSR | Marketing |
 |-------------------------------|-------------|-------|--------|-----|-----------|
-| manage_platform_settings      | ✓           |       |        |     |           |
-| manage_api_keys               | ✓           |       |        |     |           |
-| handle_escalations            | ✓           |       |        |     |           |
-| onboard_admin                 | ✓           |       |        |     |           |
-| onboard_staff                 | ✓           | ✓     |        |     |           |
-| verify_organizations          | ✓           | ✓     |        |     |           |
-| manage_internal_staff         | ✓           | ✓     |        |     |           |
-| view_global_analytics         | ✓           | ✓     |        |     | ✓         |
-| access_backend                | ✓           | ✓     | ✓      |     |           |
-| manage_codebase               | ✓           |       | ✓      |     |           |
-| monitor_database              | ✓           |       | ✓      |     |           |
-| manage_webhooks               | ✓           |       | ✓      |     |           |
-| view_user_data                | ✓           | ✓     |        | ✓   |           |
-| impersonate_user              | ✓           |       |        | ✓   |           |
-| troubleshoot_submissions      | ✓           | ✓     | ✓      | ✓   |           |
-| manage_campaigns              | ✓           | ✓     |        |     | ✓         |
-| manage_referrals              | ✓           | ✓     |        |     | ✓         |
-| view_user_growth              | ✓           | ✓     |        |     | ✓         |
+| manage_platform_settings      | X           |       |        |     |           |
+| manage_api_keys               | X           |       |        |     |           |
+| handle_escalations            | X           |       |        |     |           |
+| onboard_admin                 | X           |       |        |     |           |
+| onboard_staff                 | X           | X     |        |     |           |
+| verify_organizations          | X           | X     |        |     |           |
+| manage_internal_staff         | X           | X     |        |     |           |
+| view_global_analytics         | X           | X     |        |     | X         |
+| access_backend                | X           | X     | X      |     |           |
+| manage_codebase               | X           |       | X      |     |           |
+| monitor_database              | X           |       | X      |     |           |
+| manage_webhooks               | X           |       | X      |     |           |
+| view_user_data                | X           | X     |        | X   |           |
+| impersonate_user              | X           |       |        | X   |           |
+| troubleshoot_submissions      | X           | X     | X      | X   |           |
+| manage_campaigns              | X           | X     |        |     | X         |
+| manage_referrals              | X           | X     |        |     | X         |
+| view_user_growth              | X           | X     |        |     | X         |
 
 Organization User Permissions (NTAA 2025 Updated):
 --------------------------------------------------
 | Permission                    | Owner | Admin | Accountant | Ext Acct | Auditor | Payroll | Inventory | Viewer |
 |-------------------------------|-------|-------|------------|----------|---------|---------|-----------|--------|
-| manage_organization           | ✓     |       |            |          |         |         |           |        |
-| manage_users                  | ✓     | ✓     |            |          |         |         |           |        |
-| manage_entities               | ✓     | ✓     |            |          |         |         |           |        |
-| manage_settings               | ✓     | ✓     |            |          |         |         |           |        |
-| view_all_transactions         | ✓     | ✓     | ✓          | ✓        | ✓       |         |           |        |
-| create_transactions           | ✓     | ✓     | ✓          |          |         |         |           |        |
-| edit_transactions             | ✓     | ✓     | ✓          |          |         |         |           |        |
-| delete_transactions           | ✓     | ✓     |            |          |         |         |           |        |
-| verify_wren (SoD)             | ✓     | ✓     | ✓          | ✓        |         |         |           |        |
-| manage_invoices               | ✓     | ✓     | ✓          |          |         |         |           |        |
-| cancel_nrs_submission (Lock)  | ✓     |       |            |          |         |         |           |        |
-| view_invoices                 | ✓     | ✓     | ✓          | ✓        | ✓       |         |           | ✓      |
-| manage_tax_filings            | ✓     | ✓     | ✓          | ✓        |         |         |           |        |
-| view_tax_filings              | ✓     | ✓     | ✓          | ✓        | ✓       |         |           |        |
-| manage_payroll                | ✓     | ✓     |            |          |         | ✓       |           |        |
-| view_payroll                  | ✓     | ✓     | ✓          |          | ✓       | ✓       |           |        |
-| manage_inventory              | ✓     | ✓     |            |          |         |         | ✓         |        |
-| view_inventory                | ✓     | ✓     | ✓          |          | ✓       |         | ✓         | ✓      |
-| view_reports                  | ✓     | ✓     | ✓          | ✓        | ✓       |         |           | ✓      |
-| export_data                   | ✓     | ✓     | ✓          | ✓        | ✓       |         |           |        |
-| manage_customers              | ✓     | ✓     | ✓          |          |         |         |           |        |
-| view_customers                | ✓     | ✓     | ✓          | ✓        | ✓       |         |           | ✓      |
-| manage_vendors                | ✓     | ✓     | ✓          |          |         |         | ✓         |        |
-| view_vendors                  | ✓     | ✓     | ✓          | ✓        | ✓       |         | ✓         | ✓      |
+| manage_organization           | X     |       |            |          |         |         |           |        |
+| manage_users                  | X     | X     |            |          |         |         |           |        |
+| manage_entities               | X     | X     |            |          |         |         |           |        |
+| manage_settings               | X     | X     |            |          |         |         |           |        |
+| view_all_transactions         | X     | X     | X          | X        | X       |         |           |        |
+| create_transactions           | X     | X     | X          |          |         |         |           |        |
+| edit_transactions             | X     | X     | X          |          |         |         |           |        |
+| delete_transactions           | X     | X     |            |          |         |         |           |        |
+| verify_wren (SoD)             | X     | X     | X          | X        |         |         |           |        |
+| manage_invoices               | X     | X     | X          |          |         |         |           |        |
+| cancel_nrs_submission (Lock)  | X     |       |            |          |         |         |           |        |
+| view_invoices                 | X     | X     | X          | X        | X       |         |           | X      |
+| manage_tax_filings            | X     | X     | X          | X        |         |         |           |        |
+| view_tax_filings              | X     | X     | X          | X        | X       |         |           |        |
+| manage_payroll                | X     | X     |            |          |         | X       |           |        |
+| view_payroll                  | X     | X     | X          |          | X       | X       |           |        |
+| manage_inventory              | X     | X     |            |          |         |         | X         |        |
+| view_inventory                | X     | X     | X          |          | X       |         | X         | X      |
+| view_reports                  | X     | X     | X          | X        | X       |         |           | X      |
+| export_data                   | X     | X     | X          | X        | X       |         |           |        |
+| manage_customers              | X     | X     | X          |          |         |         |           |        |
+| view_customers                | X     | X     | X          | X        | X       |         |           | X      |
+| manage_vendors                | X     | X     | X          |          |         |         | X         |        |
+| view_vendors                  | X     | X     | X          | X        | X       |         | X         | X      |
 """
 
 from enum import Enum

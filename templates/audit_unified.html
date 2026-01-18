@@ -802,7 +802,38 @@ function unifiedAudit() {
         showIntegrityModal: false,
         
         async init() {
+            // Check for tab parameter in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const tabParam = urlParams.get('tab');
+            if (tabParam) {
+                // Map URL tab param to activeTab values
+                const tabMap = {
+                    'logs': 'logs',
+                    'forensic': 'forensic',
+                    'advanced': 'forensic',  // Advanced audit maps to forensic
+                    'worm': 'vault',          // WORM storage maps to vault
+                    'vault': 'vault',
+                    'runs': 'runs',
+                    'findings': 'findings',
+                    'evidence': 'evidence',
+                    'explainability': 'explainability',
+                    'payroll-decisions': 'payroll-decisions'
+                };
+                if (tabMap[tabParam]) {
+                    this.activeTab = tabMap[tabParam];
+                }
+            }
+            
             await this.loadDashboardData();
+            
+            // Load tab-specific data if needed
+            if (this.activeTab === 'logs') {
+                await this.loadAuditLogs();
+            } else if (this.activeTab === 'vault') {
+                await this.loadVaultStats();
+            } else if (this.activeTab === 'runs') {
+                await this.loadAuditRuns();
+            }
         },
         
         async loadDashboardData() {
