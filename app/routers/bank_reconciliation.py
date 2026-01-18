@@ -1074,3 +1074,101 @@ async def get_reconciliation_report(
         return report
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# =============================================================================
+# GL INTEGRATION ENDPOINTS
+# =============================================================================
+
+@router.post("/reconciliations/{reconciliation_id}/create-journal-entries")
+async def create_gl_journal_entries(
+    reconciliation_id: uuid.UUID,
+    auto_post: bool = Query(True, description="Auto-post journal entries"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Create general ledger journal entries from reconciliation adjustments.
+    
+    This creates proper double-entry journal entries for:
+    - Bank charges (Dr Bank Charges / Cr Bank)
+    - EMTL (Dr EMTL Expense / Cr Bank)  
+    - Stamp Duty (Dr Statutory Charges / Cr Bank)
+    - VAT on charges (Dr Input VAT / Cr Bank)
+    - WHT deductions (Dr WHT Receivable / Cr Bank)
+    - Interest earned (Dr Bank / Cr Interest Income)
+    
+    Nigerian Tax Compliance: Auto-posts charges to correct tax accounts.
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    try:
+        result = await service.create_gl_journal_entries(
+            reconciliation_id=reconciliation_id,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            auto_post=auto_post,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/accounts/{account_id}/outstanding-items")
+async def get_outstanding_items_for_carryforward(
+    account_id: uuid.UUID,
+    as_of_date: date = Query(..., description="Get items outstanding as of this date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Get outstanding items for carry-forward to next period.
+    
+    Returns:
+    - Deposits in transit
+    - Outstanding cheques
+    - Other unresolved items
+    
+    These items should be reviewed and carried forward in the next reconciliation.
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    # Verify account belongs to entity
+    account = await service.get_bank_account(account_id, entity_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Bank account not found")
+    
+    result = await service.get_outstanding_items_for_carryforward(
+        bank_account_id=account_id,
+        as_of_date=as_of_date,
+    )
+    return result
+
+
+@router.get("/validate-for-period-close")
+async def validate_reconciliation_for_period_close(
+    period_end_date: date = Query(..., description="Period end date to validate against"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Validate that all bank accounts are reconciled for period close.
+    
+    This is required for month-end close workflow:
+    1. All bank accounts must have a completed/approved reconciliation
+    2. The reconciliation must cover up to the period end date
+    3. All adjustments must be posted to GL
+    
+    Returns validation result with blocking issues if any.
+    """
+    service = get_bank_reconciliation_service(db)
+    
+    result = await service.validate_reconciliation_for_period_close(
+        entity_id=entity_id,
+        period_end_date=period_end_date,
+    )
+    return result
+

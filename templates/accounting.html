@@ -1,0 +1,1187 @@
+{% extends "base.html" %}
+
+{% block title %}Chart of Accounts & General Ledger - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    .coa-tree-node { cursor: pointer; transition: background-color 0.15s; }
+    .coa-tree-node:hover { background-color: #f3f4f6; }
+    .coa-tree-node.selected { background-color: #dcfce7; }
+    .coa-tree-indent { display: inline-block; width: 1.5rem; }
+    .coa-tree-expand { width: 1rem; cursor: pointer; }
+    .account-type-asset { border-left: 3px solid #3b82f6; }
+    .account-type-liability { border-left: 3px solid #ef4444; }
+    .account-type-equity { border-left: 3px solid #8b5cf6; }
+    .account-type-revenue { border-left: 3px solid #10b981; }
+    .account-type-expense { border-left: 3px solid #f59e0b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="accountingModule()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Chart of Accounts & General Ledger</h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Central accounting engine for double-entry bookkeeping, journal entries, and financial reports
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0 flex space-x-3">
+                <button @click="activeTab = 'reports'" 
+                        :class="activeTab === 'reports' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'"
+                        class="px-4 py-2 rounded-md text-sm font-medium hover:bg-green-50">
+                    📊 Reports
+                </button>
+                <button @click="showJournalEntryModal = true" 
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    New Journal Entry
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-8">
+            <button @click="activeTab = 'coa'" 
+                    :class="activeTab === 'coa' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Chart of Accounts
+            </button>
+            <button @click="activeTab = 'journal'" 
+                    :class="activeTab === 'journal' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Journal Entries
+            </button>
+            <button @click="activeTab = 'periods'" 
+                    :class="activeTab === 'periods' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Fiscal Periods
+            </button>
+            <button @click="activeTab = 'reports'" 
+                    :class="activeTab === 'reports' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Financial Reports
+            </button>
+        </nav>
+    </div>
+
+    <!-- Chart of Accounts Tab -->
+    <div x-show="activeTab === 'coa'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- COA Tree -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900">Account Hierarchy</h3>
+                    <div class="flex space-x-2">
+                        <button @click="initializeDefaultCOA()" 
+                                x-show="accounts.length === 0"
+                                class="text-sm text-green-600 hover:text-green-800">
+                            🔧 Initialize Default COA
+                        </button>
+                        <button @click="showAccountModal = true; accountForm = {}; editingAccount = null" 
+                                class="text-sm text-green-600 hover:text-green-800">
+                            + Add Account
+                        </button>
+                    </div>
+                </div>
+                <div class="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+                    <template x-if="loading.coa">
+                        <div class="p-8 text-center text-gray-500">
+                            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                            Loading Chart of Accounts...
+                        </div>
+                    </template>
+                    <template x-if="!loading.coa && accounts.length === 0">
+                        <div class="p-8 text-center text-gray-500">
+                            <p class="mb-4">No accounts found. Initialize the default Nigerian Chart of Accounts to get started.</p>
+                            <button @click="initializeDefaultCOA()" 
+                                    class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                                Initialize Default COA
+                            </button>
+                        </div>
+                    </template>
+                    <template x-for="account in filteredAccounts" :key="account.id">
+                        <div @click="selectAccount(account)"
+                             :class="[
+                                 'coa-tree-node px-4 py-3',
+                                 selectedAccount?.id === account.id ? 'selected' : '',
+                                 'account-type-' + account.account_type.toLowerCase()
+                             ]"
+                             :style="'padding-left: ' + (account.level * 1.5 + 1) + 'rem'">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <span x-show="account.is_header" class="text-gray-400">📁</span>
+                                    <span x-show="!account.is_header" class="text-gray-400">📄</span>
+                                    <span class="font-mono text-sm text-gray-500" x-text="account.account_code"></span>
+                                    <span class="font-medium text-gray-900" x-text="account.account_name"></span>
+                                    <span x-show="account.is_tax_account" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Tax</span>
+                                    <span x-show="account.is_reconcilable" class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Reconcilable</span>
+                                </div>
+                                <div class="text-right">
+                                    <span x-show="!account.is_header" 
+                                          :class="account.current_balance >= 0 ? 'text-green-600' : 'text-red-600'"
+                                          class="font-mono text-sm"
+                                          x-text="formatCurrency(account.current_balance)">
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Account Details Panel -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Account Details</h3>
+                </div>
+                <div class="p-6">
+                    <template x-if="!selectedAccount">
+                        <p class="text-gray-500 text-center py-8">Select an account to view details</p>
+                    </template>
+                    <template x-if="selectedAccount">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs text-gray-500 uppercase tracking-wide">Account Code</label>
+                                <p class="text-lg font-mono font-medium" x-text="selectedAccount.account_code"></p>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 uppercase tracking-wide">Account Name</label>
+                                <p class="text-lg font-medium" x-text="selectedAccount.account_name"></p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-500 uppercase tracking-wide">Type</label>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                          :class="{
+                                              'bg-blue-100 text-blue-800': selectedAccount.account_type === 'ASSET',
+                                              'bg-red-100 text-red-800': selectedAccount.account_type === 'LIABILITY',
+                                              'bg-purple-100 text-purple-800': selectedAccount.account_type === 'EQUITY',
+                                              'bg-green-100 text-green-800': selectedAccount.account_type === 'REVENUE',
+                                              'bg-yellow-100 text-yellow-800': selectedAccount.account_type === 'EXPENSE'
+                                          }"
+                                          x-text="selectedAccount.account_type">
+                                    </span>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 uppercase tracking-wide">Normal Balance</label>
+                                    <p class="font-medium" x-text="selectedAccount.normal_balance"></p>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 uppercase tracking-wide">Current Balance</label>
+                                <p class="text-2xl font-bold" 
+                                   :class="selectedAccount.current_balance >= 0 ? 'text-green-600' : 'text-red-600'"
+                                   x-text="formatCurrency(selectedAccount.current_balance)">
+                                </p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-500 uppercase tracking-wide">YTD Debit</label>
+                                    <p class="font-medium text-gray-900" x-text="formatCurrency(selectedAccount.ytd_debit || 0)"></p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 uppercase tracking-wide">YTD Credit</label>
+                                    <p class="font-medium text-gray-900" x-text="formatCurrency(selectedAccount.ytd_credit || 0)"></p>
+                                </div>
+                            </div>
+                            <div x-show="selectedAccount.description" class="pt-4 border-t">
+                                <label class="block text-xs text-gray-500 uppercase tracking-wide">Description</label>
+                                <p class="text-gray-700" x-text="selectedAccount.description"></p>
+                            </div>
+                            <div class="pt-4 flex space-x-2">
+                                <button @click="editAccount(selectedAccount)" 
+                                        class="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                                    Edit Account
+                                </button>
+                                <button @click="viewAccountLedger(selectedAccount)"
+                                        class="flex-1 px-3 py-2 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200">
+                                    View Ledger
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Journal Entries Tab -->
+    <div x-show="activeTab === 'journal'" x-cloak>
+        <div class="bg-white rounded-lg shadow">
+            <!-- Filters -->
+            <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap gap-4 items-center">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">From Date</label>
+                    <input type="date" x-model="journalFilters.startDate" @change="loadJournalEntries()"
+                           class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">To Date</label>
+                    <input type="date" x-model="journalFilters.endDate" @change="loadJournalEntries()"
+                           class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Status</label>
+                    <select x-model="journalFilters.status" @change="loadJournalEntries()"
+                            class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                        <option value="">All Statuses</option>
+                        <option value="DRAFT">Draft</option>
+                        <option value="POSTED">Posted</option>
+                        <option value="REVERSED">Reversed</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Type</label>
+                    <select x-model="journalFilters.entryType" @change="loadJournalEntries()"
+                            class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                        <option value="">All Types</option>
+                        <option value="MANUAL">Manual</option>
+                        <option value="SALES">Sales</option>
+                        <option value="PURCHASE">Purchase</option>
+                        <option value="PAYROLL">Payroll</option>
+                        <option value="BANK_RECONCILIATION">Bank Recon</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Journal Entries Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entry #</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Debit</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credit</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-if="loading.journal">
+                            <tr>
+                                <td colspan="8" class="px-6 py-8 text-center text-gray-500">
+                                    <div class="animate-spin w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                                    Loading journal entries...
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="!loading.journal && journalEntries.length === 0">
+                            <tr>
+                                <td colspan="8" class="px-6 py-8 text-center text-gray-500">
+                                    No journal entries found. Create your first journal entry to get started.
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-for="entry in journalEntries" :key="entry.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="font-mono text-sm text-green-600" x-text="entry.entry_number"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="formatDate(entry.entry_date)"></td>
+                                <td class="px-6 py-4 text-sm text-gray-900">
+                                    <span x-text="entry.description" class="block max-w-xs truncate"></span>
+                                    <span x-show="entry.source_module" class="text-xs text-gray-500" x-text="'Source: ' + entry.source_module"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="text-xs px-2 py-1 rounded" 
+                                          :class="{
+                                              'bg-gray-100 text-gray-700': entry.entry_type === 'MANUAL',
+                                              'bg-green-100 text-green-700': entry.entry_type === 'SALES',
+                                              'bg-orange-100 text-orange-700': entry.entry_type === 'PURCHASE',
+                                              'bg-blue-100 text-blue-700': entry.entry_type === 'PAYROLL',
+                                              'bg-purple-100 text-purple-700': entry.entry_type === 'BANK_RECONCILIATION'
+                                          }"
+                                          x-text="entry.entry_type">
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-sm text-gray-900" x-text="formatCurrency(entry.total_debit)"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-sm text-gray-900" x-text="formatCurrency(entry.total_credit)"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    <span class="text-xs px-2 py-1 rounded-full"
+                                          :class="{
+                                              'bg-yellow-100 text-yellow-800': entry.status === 'DRAFT',
+                                              'bg-green-100 text-green-800': entry.status === 'POSTED',
+                                              'bg-red-100 text-red-800': entry.status === 'REVERSED'
+                                          }"
+                                          x-text="entry.status">
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                    <button @click="viewJournalEntry(entry)" class="text-green-600 hover:text-green-800 mr-2">View</button>
+                                    <button x-show="entry.status === 'DRAFT'" @click="postJournalEntry(entry)" class="text-blue-600 hover:text-blue-800 mr-2">Post</button>
+                                    <button x-show="entry.status === 'POSTED'" @click="reverseJournalEntry(entry)" class="text-red-600 hover:text-red-800">Reverse</button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fiscal Periods Tab -->
+    <div x-show="activeTab === 'periods'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Fiscal Years List -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900">Fiscal Years</h3>
+                    <button @click="showFiscalYearModal = true" class="text-sm text-green-600 hover:text-green-800">
+                        + Add Year
+                    </button>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    <template x-if="fiscalYears.length === 0">
+                        <div class="p-8 text-center text-gray-500">
+                            <p class="mb-4">No fiscal years configured.</p>
+                            <button @click="showFiscalYearModal = true" 
+                                    class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                                Create Fiscal Year
+                            </button>
+                        </div>
+                    </template>
+                    <template x-for="year in fiscalYears" :key="year.id">
+                        <div @click="selectFiscalYear(year)"
+                             :class="selectedFiscalYear?.id === year.id ? 'bg-green-50' : ''"
+                             class="px-6 py-4 cursor-pointer hover:bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span class="font-medium text-gray-900" x-text="year.year_name"></span>
+                                    <span x-show="year.is_current" class="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Current</span>
+                                </div>
+                                <span x-show="year.is_closed" class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Closed</span>
+                            </div>
+                            <p class="text-sm text-gray-500" x-text="formatDate(year.start_date) + ' - ' + formatDate(year.end_date)"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Fiscal Periods List -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Fiscal Periods</h3>
+                </div>
+                <template x-if="!selectedFiscalYear">
+                    <div class="p-8 text-center text-gray-500">Select a fiscal year to view periods</div>
+                </template>
+                <template x-if="selectedFiscalYear">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Range</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Bank Recon</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="period in fiscalPeriods" :key="period.id">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900" x-text="period.period_name"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(period.start_date) + ' - ' + formatDate(period.end_date)"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <span class="text-xs px-2 py-1 rounded-full"
+                                                  :class="{
+                                                      'bg-green-100 text-green-800': period.status === 'OPEN',
+                                                      'bg-gray-100 text-gray-800': period.status === 'CLOSED',
+                                                      'bg-red-100 text-red-800': period.status === 'LOCKED'
+                                                  }"
+                                                  x-text="period.status">
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <span x-show="period.bank_reconciled" class="text-green-600">✓</span>
+                                            <span x-show="!period.bank_reconciled" class="text-gray-400">–</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                            <button x-show="period.status === 'OPEN'" 
+                                                    @click="viewPeriodCloseChecklist(period)" 
+                                                    class="text-blue-600 hover:text-blue-800">
+                                                Close Period
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Reports Tab -->
+    <div x-show="activeTab === 'reports'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Report Selection -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Generate Report</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-700 mb-1">Report Type</label>
+                        <select x-model="reportType" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="trial_balance">Trial Balance</option>
+                            <option value="income_statement">Income Statement (P&L)</option>
+                            <option value="balance_sheet">Balance Sheet</option>
+                        </select>
+                    </div>
+                    <div x-show="reportType === 'trial_balance' || reportType === 'balance_sheet'">
+                        <label class="block text-sm text-gray-700 mb-1">As Of Date</label>
+                        <input type="date" x-model="reportFilters.asOfDate" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div x-show="reportType === 'income_statement'">
+                        <label class="block text-sm text-gray-700 mb-1">Start Date</label>
+                        <input type="date" x-model="reportFilters.startDate" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div x-show="reportType === 'income_statement'">
+                        <label class="block text-sm text-gray-700 mb-1">End Date</label>
+                        <input type="date" x-model="reportFilters.endDate" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <button @click="generateReport()" 
+                            class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Generate Report
+                    </button>
+                </div>
+            </div>
+
+            <!-- Report Display -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900" x-text="getReportTitle()"></h3>
+                    <button x-show="reportData" @click="exportReport()" class="text-sm text-green-600 hover:text-green-800">
+                        📥 Export PDF
+                    </button>
+                </div>
+                <div class="p-6">
+                    <template x-if="loading.report">
+                        <div class="text-center py-8">
+                            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                            Generating report...
+                        </div>
+                    </template>
+                    <template x-if="!loading.report && !reportData">
+                        <p class="text-gray-500 text-center py-8">Select report options and click Generate</p>
+                    </template>
+                    
+                    <!-- Trial Balance Report -->
+                    <template x-if="reportType === 'trial_balance' && reportData">
+                        <div>
+                            <div class="text-center mb-6">
+                                <p class="text-sm text-gray-500" x-text="'As of ' + formatDate(reportData.as_of_date)"></p>
+                                <p :class="reportData.is_balanced ? 'text-green-600' : 'text-red-600'" class="font-medium">
+                                    <span x-text="reportData.is_balanced ? '✓ Balanced' : '✗ Not Balanced'"></span>
+                                </p>
+                            </div>
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Code</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Name</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <template x-for="item in reportData.items" :key="item.account_id">
+                                        <tr>
+                                            <td class="px-4 py-2 font-mono text-sm" x-text="item.account_code"></td>
+                                            <td class="px-4 py-2" x-text="item.account_name"></td>
+                                            <td class="px-4 py-2 text-right font-mono" x-text="item.debit_balance > 0 ? formatCurrency(item.debit_balance) : ''"></td>
+                                            <td class="px-4 py-2 text-right font-mono" x-text="item.credit_balance > 0 ? formatCurrency(item.credit_balance) : ''"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                                <tfoot class="bg-gray-50 font-bold">
+                                    <tr>
+                                        <td colspan="2" class="px-4 py-2">TOTALS</td>
+                                        <td class="px-4 py-2 text-right font-mono" x-text="formatCurrency(reportData.total_debits)"></td>
+                                        <td class="px-4 py-2 text-right font-mono" x-text="formatCurrency(reportData.total_credits)"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </template>
+
+                    <!-- Income Statement Report -->
+                    <template x-if="reportType === 'income_statement' && reportData">
+                        <div>
+                            <div class="text-center mb-6">
+                                <p class="text-sm text-gray-500" x-text="'Period: ' + formatDate(reportData.start_date) + ' to ' + formatDate(reportData.end_date)"></p>
+                            </div>
+                            
+                            <!-- Revenue Section -->
+                            <div class="mb-6">
+                                <h4 class="font-semibold text-gray-900 border-b pb-2 mb-2">Revenue</h4>
+                                <template x-for="item in reportData.revenue_items" :key="item.account_id">
+                                    <div class="flex justify-between py-1">
+                                        <span x-text="item.account_name"></span>
+                                        <span class="font-mono text-green-600" x-text="formatCurrency(item.amount)"></span>
+                                    </div>
+                                </template>
+                                <div class="flex justify-between py-2 font-bold border-t">
+                                    <span>Total Revenue</span>
+                                    <span class="font-mono text-green-600" x-text="formatCurrency(reportData.total_revenue)"></span>
+                                </div>
+                            </div>
+                            
+                            <!-- Expenses Section -->
+                            <div class="mb-6">
+                                <h4 class="font-semibold text-gray-900 border-b pb-2 mb-2">Expenses</h4>
+                                <template x-for="item in reportData.expense_items" :key="item.account_id">
+                                    <div class="flex justify-between py-1">
+                                        <span x-text="item.account_name"></span>
+                                        <span class="font-mono text-red-600" x-text="formatCurrency(item.amount)"></span>
+                                    </div>
+                                </template>
+                                <div class="flex justify-between py-2 font-bold border-t">
+                                    <span>Total Expenses</span>
+                                    <span class="font-mono text-red-600" x-text="formatCurrency(reportData.total_expenses)"></span>
+                                </div>
+                            </div>
+                            
+                            <!-- Net Income -->
+                            <div class="bg-gray-100 rounded p-4">
+                                <div class="flex justify-between font-bold text-lg">
+                                    <span>Net Income</span>
+                                    <span :class="reportData.net_income >= 0 ? 'text-green-600' : 'text-red-600'"
+                                          class="font-mono" x-text="formatCurrency(reportData.net_income)">
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Balance Sheet Report -->
+                    <template x-if="reportType === 'balance_sheet' && reportData">
+                        <div>
+                            <div class="text-center mb-6">
+                                <p class="text-sm text-gray-500" x-text="'As of ' + formatDate(reportData.as_of_date)"></p>
+                                <p :class="reportData.is_balanced ? 'text-green-600' : 'text-red-600'" class="font-medium">
+                                    <span x-text="reportData.is_balanced ? '✓ Balanced' : '✗ Assets ≠ Liabilities + Equity'"></span>
+                                </p>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Assets -->
+                                <div>
+                                    <h4 class="font-semibold text-gray-900 border-b pb-2 mb-2">Assets</h4>
+                                    <template x-for="item in reportData.assets" :key="item.account_id">
+                                        <div class="flex justify-between py-1 text-sm">
+                                            <span x-text="item.account_name"></span>
+                                            <span class="font-mono" x-text="formatCurrency(item.balance)"></span>
+                                        </div>
+                                    </template>
+                                    <div class="flex justify-between py-2 font-bold border-t mt-2">
+                                        <span>Total Assets</span>
+                                        <span class="font-mono text-blue-600" x-text="formatCurrency(reportData.total_assets)"></span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Liabilities & Equity -->
+                                <div>
+                                    <h4 class="font-semibold text-gray-900 border-b pb-2 mb-2">Liabilities</h4>
+                                    <template x-for="item in reportData.liabilities" :key="item.account_id">
+                                        <div class="flex justify-between py-1 text-sm">
+                                            <span x-text="item.account_name"></span>
+                                            <span class="font-mono" x-text="formatCurrency(item.balance)"></span>
+                                        </div>
+                                    </template>
+                                    <div class="flex justify-between py-2 font-bold border-t mt-2">
+                                        <span>Total Liabilities</span>
+                                        <span class="font-mono text-red-600" x-text="formatCurrency(reportData.total_liabilities)"></span>
+                                    </div>
+                                    
+                                    <h4 class="font-semibold text-gray-900 border-b pb-2 mb-2 mt-4">Equity</h4>
+                                    <template x-for="item in reportData.equity" :key="item.account_id">
+                                        <div class="flex justify-between py-1 text-sm">
+                                            <span x-text="item.account_name"></span>
+                                            <span class="font-mono" x-text="formatCurrency(item.balance)"></span>
+                                        </div>
+                                    </template>
+                                    <div class="flex justify-between py-2 font-bold border-t mt-2">
+                                        <span>Total Equity</span>
+                                        <span class="font-mono text-purple-600" x-text="formatCurrency(reportData.total_equity)"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Journal Entry Modal -->
+    <div x-show="showJournalEntryModal" x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto" 
+         @keydown.escape.window="showJournalEntryModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showJournalEntryModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                    <h3 class="text-lg font-semibold text-gray-900">New Journal Entry</h3>
+                    <button @click="showJournalEntryModal = false" class="text-gray-400 hover:text-gray-500">✕</button>
+                </div>
+                <form @submit.prevent="createJournalEntry()" class="p-6">
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Entry Date *</label>
+                            <input type="date" x-model="journalEntryForm.entry_date" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Entry Type</label>
+                            <select x-model="journalEntryForm.entry_type" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                <option value="MANUAL">Manual</option>
+                                <option value="ADJUSTMENT">Adjustment</option>
+                                <option value="ACCRUAL">Accrual</option>
+                                <option value="CLOSING">Closing</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                        <input type="text" x-model="journalEntryForm.description" required placeholder="Description of the journal entry"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Memo (Optional)</label>
+                        <textarea x-model="journalEntryForm.memo" rows="2" placeholder="Additional notes"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+                    </div>
+                    
+                    <!-- Journal Entry Lines -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-sm font-medium text-gray-700">Entry Lines</label>
+                            <button type="button" @click="addJournalLine()" class="text-sm text-green-600 hover:text-green-800">+ Add Line</button>
+                        </div>
+                        <table class="min-w-full border">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Debit</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Credit</th>
+                                    <th class="px-3 py-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(line, index) in journalEntryForm.lines" :key="index">
+                                    <tr>
+                                        <td class="px-3 py-2">
+                                            <select x-model="line.account_id" required class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                                <option value="">Select Account</option>
+                                                <template x-for="account in postableAccounts" :key="account.id">
+                                                    <option :value="account.id" x-text="account.account_code + ' - ' + account.account_name"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input type="text" x-model="line.description" placeholder="Line description"
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input type="number" x-model.number="line.debit_amount" min="0" step="0.01"
+                                                   @input="line.credit_amount = 0"
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded text-sm text-right">
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input type="number" x-model.number="line.credit_amount" min="0" step="0.01"
+                                                   @input="line.debit_amount = 0"
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded text-sm text-right">
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <button type="button" @click="removeJournalLine(index)" 
+                                                    x-show="journalEntryForm.lines.length > 2"
+                                                    class="text-red-500 hover:text-red-700">✕</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                            <tfoot class="bg-gray-50 font-bold">
+                                <tr>
+                                    <td colspan="2" class="px-3 py-2 text-right">Totals:</td>
+                                    <td class="px-3 py-2 text-right font-mono" x-text="formatCurrency(totalDebits)"></td>
+                                    <td class="px-3 py-2 text-right font-mono" x-text="formatCurrency(totalCredits)"></td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" class="px-3 py-2 text-right">Difference:</td>
+                                    <td colspan="2" class="px-3 py-2 text-center font-mono"
+                                        :class="Math.abs(totalDebits - totalCredits) < 0.01 ? 'text-green-600' : 'text-red-600'"
+                                        x-text="formatCurrency(Math.abs(totalDebits - totalCredits))">
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    
+                    <div class="flex items-center justify-between pt-4 border-t">
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="journalEntryForm.auto_post" class="mr-2">
+                            <span class="text-sm text-gray-700">Post immediately</span>
+                        </label>
+                        <div class="flex space-x-3">
+                            <button type="button" @click="showJournalEntryModal = false"
+                                    class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                                Cancel
+                            </button>
+                            <button type="submit" :disabled="!isEntryBalanced || saving"
+                                    class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                                <span x-show="!saving">Create Entry</span>
+                                <span x-show="saving">Saving...</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Account Modal -->
+    <div x-show="showAccountModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="showAccountModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showAccountModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900" x-text="editingAccount ? 'Edit Account' : 'New Account'"></h3>
+                    <button @click="showAccountModal = false" class="text-gray-400 hover:text-gray-500">✕</button>
+                </div>
+                <form @submit.prevent="saveAccount()" class="p-6 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Code *</label>
+                            <input type="text" x-model="accountForm.account_code" required
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Account Type *</label>
+                            <select x-model="accountForm.account_type" required class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                <option value="">Select Type</option>
+                                <option value="ASSET">Asset</option>
+                                <option value="LIABILITY">Liability</option>
+                                <option value="EQUITY">Equity</option>
+                                <option value="REVENUE">Revenue</option>
+                                <option value="EXPENSE">Expense</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Account Name *</label>
+                        <input type="text" x-model="accountForm.account_name" required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea x-model="accountForm.description" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Normal Balance *</label>
+                            <select x-model="accountForm.normal_balance" required class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                <option value="DEBIT">Debit</option>
+                                <option value="CREDIT">Credit</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Parent Account</label>
+                            <select x-model="accountForm.parent_id" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                <option value="">No Parent</option>
+                                <template x-for="account in headerAccounts" :key="account.id">
+                                    <option :value="account.id" x-text="account.account_code + ' - ' + account.account_name"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="accountForm.is_header" class="mr-2">
+                            <span class="text-sm text-gray-700">Header Account</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="accountForm.is_reconcilable" class="mr-2">
+                            <span class="text-sm text-gray-700">Reconcilable</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="accountForm.is_tax_account" class="mr-2">
+                            <span class="text-sm text-gray-700">Tax Account</span>
+                        </label>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-4 border-t">
+                        <button type="button" @click="showAccountModal = false"
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="saving"
+                                class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                            <span x-show="!saving" x-text="editingAccount ? 'Update' : 'Create'"></span>
+                            <span x-show="saving">Saving...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function accountingModule() {
+    return {
+        // Entity ID from localStorage
+        entityId: localStorage.getItem('currentEntityId'),
+        
+        // UI State
+        activeTab: 'coa',
+        loading: { coa: false, journal: false, report: false },
+        saving: false,
+        
+        // Chart of Accounts
+        accounts: [],
+        selectedAccount: null,
+        showAccountModal: false,
+        editingAccount: null,
+        accountForm: {
+            account_code: '',
+            account_name: '',
+            description: '',
+            account_type: '',
+            normal_balance: 'DEBIT',
+            parent_id: null,
+            is_header: false,
+            is_reconcilable: false,
+            is_tax_account: false,
+        },
+        
+        // Journal Entries
+        journalEntries: [],
+        journalFilters: {
+            startDate: '',
+            endDate: '',
+            status: '',
+            entryType: '',
+        },
+        showJournalEntryModal: false,
+        journalEntryForm: {
+            entry_date: new Date().toISOString().split('T')[0],
+            description: '',
+            memo: '',
+            entry_type: 'MANUAL',
+            auto_post: false,
+            lines: [
+                { account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
+                { account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
+            ],
+        },
+        
+        // Fiscal Periods
+        fiscalYears: [],
+        selectedFiscalYear: null,
+        fiscalPeriods: [],
+        showFiscalYearModal: false,
+        
+        // Reports
+        reportType: 'trial_balance',
+        reportFilters: {
+            asOfDate: new Date().toISOString().split('T')[0],
+            startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
+            endDate: new Date().toISOString().split('T')[0],
+        },
+        reportData: null,
+        
+        // Computed
+        get filteredAccounts() {
+            return this.accounts.filter(a => a.is_active);
+        },
+        get headerAccounts() {
+            return this.accounts.filter(a => a.is_header);
+        },
+        get postableAccounts() {
+            return this.accounts.filter(a => !a.is_header && a.is_active);
+        },
+        get totalDebits() {
+            return this.journalEntryForm.lines.reduce((sum, line) => sum + (parseFloat(line.debit_amount) || 0), 0);
+        },
+        get totalCredits() {
+            return this.journalEntryForm.lines.reduce((sum, line) => sum + (parseFloat(line.credit_amount) || 0), 0);
+        },
+        get isEntryBalanced() {
+            return Math.abs(this.totalDebits - this.totalCredits) < 0.01 && this.totalDebits > 0;
+        },
+        
+        // Initialize
+        async init() {
+            await this.loadChartOfAccounts();
+            await this.loadFiscalYears();
+            await this.loadJournalEntries();
+        },
+        
+        // API Helpers
+        async apiCall(url, options = {}) {
+            const token = document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1];
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token || '',
+                    ...options.headers,
+                },
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                throw new Error(error.detail || error.message || 'API Error');
+            }
+            return response.json();
+        },
+        
+        // Chart of Accounts Methods
+        async loadChartOfAccounts() {
+            this.loading.coa = true;
+            try {
+                this.accounts = await this.apiCall(`/api/v1/entities/${this.entityId}/accounting/chart-of-accounts`);
+            } catch (e) {
+                console.error('Failed to load COA:', e);
+            } finally {
+                this.loading.coa = false;
+            }
+        },
+        
+        async initializeDefaultCOA() {
+            if (!confirm('Initialize default Nigerian Chart of Accounts? This cannot be undone.')) return;
+            this.loading.coa = true;
+            try {
+                await this.apiCall(`/api/v1/entities/${this.entityId}/accounting/chart-of-accounts/initialize`, { method: 'POST' });
+                await this.loadChartOfAccounts();
+                alert('Chart of Accounts initialized successfully!');
+            } catch (e) {
+                alert('Failed to initialize COA: ' + e.message);
+            } finally {
+                this.loading.coa = false;
+            }
+        },
+        
+        selectAccount(account) {
+            this.selectedAccount = account;
+        },
+        
+        editAccount(account) {
+            this.editingAccount = account;
+            this.accountForm = { ...account };
+            this.showAccountModal = true;
+        },
+        
+        async saveAccount() {
+            this.saving = true;
+            try {
+                const url = this.editingAccount 
+                    ? `/api/v1/entities/${this.entityId}/accounting/chart-of-accounts/${this.editingAccount.id}`
+                    : `/api/v1/entities/${this.entityId}/accounting/chart-of-accounts`;
+                const method = this.editingAccount ? 'PUT' : 'POST';
+                
+                await this.apiCall(url, { method, body: JSON.stringify(this.accountForm) });
+                await this.loadChartOfAccounts();
+                this.showAccountModal = false;
+                this.editingAccount = null;
+            } catch (e) {
+                alert('Failed to save account: ' + e.message);
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        // Journal Entry Methods
+        async loadJournalEntries() {
+            this.loading.journal = true;
+            try {
+                const params = new URLSearchParams();
+                if (this.journalFilters.startDate) params.append('start_date', this.journalFilters.startDate);
+                if (this.journalFilters.endDate) params.append('end_date', this.journalFilters.endDate);
+                if (this.journalFilters.status) params.append('status', this.journalFilters.status);
+                if (this.journalFilters.entryType) params.append('entry_type', this.journalFilters.entryType);
+                
+                const data = await this.apiCall(`/api/v1/entities/${this.entityId}/accounting/journal-entries?${params}`);
+                this.journalEntries = data.items || data;
+            } catch (e) {
+                console.error('Failed to load journal entries:', e);
+            } finally {
+                this.loading.journal = false;
+            }
+        },
+        
+        addJournalLine() {
+            this.journalEntryForm.lines.push({ account_id: '', description: '', debit_amount: 0, credit_amount: 0 });
+        },
+        
+        removeJournalLine(index) {
+            this.journalEntryForm.lines.splice(index, 1);
+        },
+        
+        async createJournalEntry() {
+            if (!this.isEntryBalanced) {
+                alert('Entry must be balanced (total debits = total credits)');
+                return;
+            }
+            this.saving = true;
+            try {
+                await this.apiCall(`/api/v1/entities/${this.entityId}/accounting/journal-entries`, {
+                    method: 'POST',
+                    body: JSON.stringify(this.journalEntryForm),
+                });
+                await this.loadJournalEntries();
+                this.showJournalEntryModal = false;
+                this.resetJournalForm();
+                alert('Journal entry created successfully!');
+            } catch (e) {
+                alert('Failed to create journal entry: ' + e.message);
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        resetJournalForm() {
+            this.journalEntryForm = {
+                entry_date: new Date().toISOString().split('T')[0],
+                description: '',
+                memo: '',
+                entry_type: 'MANUAL',
+                auto_post: false,
+                lines: [
+                    { account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
+                    { account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
+                ],
+            };
+        },
+        
+        async postJournalEntry(entry) {
+            if (!confirm('Post this journal entry to the General Ledger?')) return;
+            try {
+                await this.apiCall(`/api/v1/entities/${this.entityId}/accounting/journal-entries/${entry.id}/post`, { method: 'POST' });
+                await this.loadJournalEntries();
+                await this.loadChartOfAccounts(); // Refresh balances
+                alert('Journal entry posted successfully!');
+            } catch (e) {
+                alert('Failed to post entry: ' + e.message);
+            }
+        },
+        
+        async reverseJournalEntry(entry) {
+            const reason = prompt('Enter reason for reversal:');
+            if (!reason) return;
+            const reversalDate = prompt('Enter reversal date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+            if (!reversalDate) return;
+            
+            try {
+                await this.apiCall(
+                    `/api/v1/entities/${this.entityId}/accounting/journal-entries/${entry.id}/reverse?reversal_date=${reversalDate}&reason=${encodeURIComponent(reason)}`,
+                    { method: 'POST' }
+                );
+                await this.loadJournalEntries();
+                await this.loadChartOfAccounts();
+                alert('Journal entry reversed successfully!');
+            } catch (e) {
+                alert('Failed to reverse entry: ' + e.message);
+            }
+        },
+        
+        viewJournalEntry(entry) {
+            alert(`Entry: ${entry.entry_number}\nDate: ${entry.entry_date}\nDescription: ${entry.description}\nDebit: ${this.formatCurrency(entry.total_debit)}\nCredit: ${this.formatCurrency(entry.total_credit)}`);
+        },
+        
+        // Fiscal Year Methods
+        async loadFiscalYears() {
+            try {
+                this.fiscalYears = await this.apiCall(`/api/v1/entities/${this.entityId}/accounting/fiscal-years`);
+                if (this.fiscalYears.length > 0) {
+                    const current = this.fiscalYears.find(y => y.is_current);
+                    if (current) this.selectFiscalYear(current);
+                }
+            } catch (e) {
+                console.error('Failed to load fiscal years:', e);
+            }
+        },
+        
+        selectFiscalYear(year) {
+            this.selectedFiscalYear = year;
+            // Load periods for this year (would need endpoint)
+            // For now, just show placeholder
+            this.fiscalPeriods = year.periods || [];
+        },
+        
+        // Report Methods
+        getReportTitle() {
+            switch (this.reportType) {
+                case 'trial_balance': return 'Trial Balance';
+                case 'income_statement': return 'Income Statement (P&L)';
+                case 'balance_sheet': return 'Balance Sheet';
+                default: return 'Financial Report';
+            }
+        },
+        
+        async generateReport() {
+            this.loading.report = true;
+            this.reportData = null;
+            try {
+                let url;
+                switch (this.reportType) {
+                    case 'trial_balance':
+                        url = `/api/v1/entities/${this.entityId}/accounting/reports/trial-balance?as_of_date=${this.reportFilters.asOfDate}`;
+                        break;
+                    case 'income_statement':
+                        url = `/api/v1/entities/${this.entityId}/accounting/reports/income-statement?start_date=${this.reportFilters.startDate}&end_date=${this.reportFilters.endDate}`;
+                        break;
+                    case 'balance_sheet':
+                        url = `/api/v1/entities/${this.entityId}/accounting/reports/balance-sheet?as_of_date=${this.reportFilters.asOfDate}`;
+                        break;
+                }
+                this.reportData = await this.apiCall(url);
+            } catch (e) {
+                alert('Failed to generate report: ' + e.message);
+            } finally {
+                this.loading.report = false;
+            }
+        },
+        
+        exportReport() {
+            alert('PDF export coming soon!');
+        },
+        
+        viewAccountLedger(account) {
+            alert(`Account Ledger for ${account.account_name} coming soon!`);
+        },
+        
+        viewPeriodCloseChecklist(period) {
+            alert(`Period close checklist for ${period.period_name} coming soon!`);
+        },
+        
+        // Formatters
+        formatCurrency(value) {
+            return new Intl.NumberFormat('en-NG', {
+                style: 'currency',
+                currency: 'NGN',
+                minimumFractionDigits: 2,
+            }).format(value || 0);
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' });
+        },
+    }
+}
+</script>
+{% endblock %}

@@ -192,10 +192,10 @@ def upgrade() -> None:
             is_reconciled BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_bank_statements_account ON bank_statements(bank_account_id);
-        CREATE INDEX IF NOT EXISTS idx_bank_statements_date ON bank_statements(statement_date);
+        )
     """)
+    op.execute("CREATE INDEX IF NOT EXISTS idx_bank_statements_account ON bank_statements(bank_account_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_bank_statements_date ON bank_statements(statement_date)")
     
     # Create bank_statement_transactions table
     op.execute("""

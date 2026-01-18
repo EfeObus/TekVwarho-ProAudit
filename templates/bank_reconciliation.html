@@ -509,14 +509,98 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
-                                <input type="text" x-model="accountForm.bank_name" required
-                                       class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                                <select x-model="accountForm.bank_name" required
+                                        class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">Select bank...</option>
+                                    <optgroup label="Commercial Banks">
+                                        <option value="Access Bank">Access Bank</option>
+                                        <option value="Citibank Nigeria">Citibank Nigeria</option>
+                                        <option value="Ecobank Nigeria">Ecobank Nigeria</option>
+                                        <option value="Fidelity Bank">Fidelity Bank</option>
+                                        <option value="First Bank of Nigeria">First Bank of Nigeria</option>
+                                        <option value="First City Monument Bank (FCMB)">First City Monument Bank (FCMB)</option>
+                                        <option value="Globus Bank">Globus Bank</option>
+                                        <option value="Guaranty Trust Bank (GTBank)">Guaranty Trust Bank (GTBank)</option>
+                                        <option value="Heritage Bank">Heritage Bank</option>
+                                        <option value="Keystone Bank">Keystone Bank</option>
+                                        <option value="Polaris Bank">Polaris Bank</option>
+                                        <option value="Premium Trust Bank">Premium Trust Bank</option>
+                                        <option value="Providus Bank">Providus Bank</option>
+                                        <option value="Stanbic IBTC Bank">Stanbic IBTC Bank</option>
+                                        <option value="Standard Chartered Bank">Standard Chartered Bank</option>
+                                        <option value="Sterling Bank">Sterling Bank</option>
+                                        <option value="SunTrust Bank">SunTrust Bank</option>
+                                        <option value="Titan Trust Bank">Titan Trust Bank</option>
+                                        <option value="Union Bank of Nigeria">Union Bank of Nigeria</option>
+                                        <option value="United Bank for Africa (UBA)">United Bank for Africa (UBA)</option>
+                                        <option value="Unity Bank">Unity Bank</option>
+                                        <option value="Wema Bank">Wema Bank</option>
+                                        <option value="Zenith Bank">Zenith Bank</option>
+                                    </optgroup>
+                                    <optgroup label="Merchant Banks">
+                                        <option value="Coronation Merchant Bank">Coronation Merchant Bank</option>
+                                        <option value="FBN Merchant Bank">FBN Merchant Bank</option>
+                                        <option value="FSDH Merchant Bank">FSDH Merchant Bank</option>
+                                        <option value="Nova Merchant Bank">Nova Merchant Bank</option>
+                                        <option value="Rand Merchant Bank">Rand Merchant Bank</option>
+                                    </optgroup>
+                                    <optgroup label="Digital/Mobile Banks">
+                                        <option value="Kuda Bank">Kuda Bank</option>
+                                        <option value="Moniepoint MFB">Moniepoint MFB</option>
+                                        <option value="OPay">OPay</option>
+                                        <option value="PalmPay">PalmPay</option>
+                                        <option value="Rubies Bank">Rubies Bank</option>
+                                        <option value="Sparkle MFB">Sparkle MFB</option>
+                                        <option value="VFD Microfinance Bank">VFD Microfinance Bank</option>
+                                    </optgroup>
+                                    <optgroup label="Microfinance Banks">
+                                        <option value="AB Microfinance Bank">AB Microfinance Bank</option>
+                                        <option value="Accion MFB">Accion MFB</option>
+                                        <option value="Baobab MFB">Baobab MFB</option>
+                                        <option value="CEMCS MFB">CEMCS MFB</option>
+                                        <option value="Coronation MFB">Coronation MFB</option>
+                                        <option value="Ekondo MFB">Ekondo MFB</option>
+                                        <option value="e-Barcs MFB">e-Barcs MFB</option>
+                                        <option value="FairMoney MFB">FairMoney MFB</option>
+                                        <option value="Fina Trust MFB">Fina Trust MFB</option>
+                                        <option value="First Multiple MFB">First Multiple MFB</option>
+                                        <option value="Hasal MFB">Hasal MFB</option>
+                                        <option value="Infinity MFB">Infinity MFB</option>
+                                        <option value="LAPO MFB">LAPO MFB</option>
+                                        <option value="Mainstreet MFB">Mainstreet MFB</option>
+                                        <option value="Mutual Trust MFB">Mutual Trust MFB</option>
+                                        <option value="NPF MFB">NPF MFB</option>
+                                        <option value="Peace MFB">Peace MFB</option>
+                                        <option value="Renmoney MFB">Renmoney MFB</option>
+                                        <option value="Seedvest MFB">Seedvest MFB</option>
+                                        <option value="TCF MFB">TCF MFB</option>
+                                        <option value="Unical MFB">Unical MFB</option>
+                                    </optgroup>
+                                    <optgroup label="Development Banks">
+                                        <option value="Bank of Agriculture (BOA)">Bank of Agriculture (BOA)</option>
+                                        <option value="Bank of Industry (BOI)">Bank of Industry (BOI)</option>
+                                        <option value="Development Bank of Nigeria">Development Bank of Nigeria</option>
+                                        <option value="NEXIM Bank">NEXIM Bank</option>
+                                    </optgroup>
+                                    <optgroup label="Other">
+                                        <option value="Other">Other (Enter manually)</option>
+                                    </optgroup>
+                                </select>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
-                                <input type="text" x-model="accountForm.account_number" required
+                                <input type="text" x-model="accountForm.account_number" required maxlength="10" pattern="[0-9]{10}"
+                                       placeholder="10-digit NUBAN"
                                        class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                             </div>
+                        </div>
+                        <!-- Custom Bank Name (if Other selected) -->
+                        <div x-show="accountForm.bank_name === 'Other'" x-cloak>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Custom Bank Name</label>
+                            <input type="text" x-model="accountForm.custom_bank_name" 
+                                   :required="accountForm.bank_name === 'Other'"
+                                   placeholder="Enter bank name"
+                                   class="w-full rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
@@ -836,6 +920,7 @@ function bankReconciliationApp() {
         // Forms
         accountForm: {
             bank_name: '',
+            custom_bank_name: '',
             account_name: '',
             account_number: '',
             account_type: 'current',
@@ -955,11 +1040,20 @@ function bankReconciliationApp() {
         async createAccount() {
             this.savingAccount = true;
             try {
+                // Handle custom bank name
+                const payload = {
+                    ...this.accountForm,
+                    bank_name: this.accountForm.bank_name === 'Other' 
+                        ? this.accountForm.custom_bank_name 
+                        : this.accountForm.bank_name
+                };
+                delete payload.custom_bank_name;
+                
                 const res = await fetch('/api/v1/entities/bank-reconciliation/accounts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify(this.accountForm)
+                    body: JSON.stringify(payload)
                 });
                 if (res.ok) {
                     this.showAccountModal = false;
@@ -1169,18 +1263,32 @@ function bankReconciliationApp() {
         
         async postAdjustments() {
             if (!this.currentRecon) return;
+            if (!confirm('This will create journal entries in the General Ledger for all unposted adjustments. Continue?')) return;
+            
             try {
-                const res = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/adjustments/post`, {
+                // First create GL journal entries
+                const glRes = await fetch(`/api/v1/entities/bank-reconciliation/reconciliations/${this.currentRecon.id}/create-journal-entries?auto_post=true`, {
                     method: 'POST',
                     credentials: 'include'
                 });
-                const result = await res.json();
-                if (res.ok) {
-                    alert(`Posted ${result.posted} adjustments to GL.`);
+                const glResult = await glRes.json();
+                
+                if (glRes.ok && glResult.success) {
                     await this.loadAdjustments();
+                    alert(`✅ Created ${glResult.journal_entries_created} GL journal entries.\n\n` +
+                          `Posted to accounts:\n` +
+                          (glResult.created_entries || []).map(e => `• ${e.type}: ₦${e.amount.toLocaleString()}`).join('\n'));
+                } else {
+                    const errors = glResult.errors || [];
+                    if (errors.length > 0) {
+                        alert(`⚠️ Some adjustments could not be posted:\n${errors.map(e => e.error).join('\n')}`);
+                    } else {
+                        alert(glResult.detail || glResult.message || 'No adjustments to post');
+                    }
                 }
             } catch (e) {
-                alert('Error posting adjustments');
+                console.error('Error posting adjustments:', e);
+                alert('Error posting adjustments to GL');
             }
         },
         
@@ -1283,7 +1391,7 @@ function bankReconciliationApp() {
         // Form resets
         resetAccountForm() {
             this.accountForm = {
-                bank_name: '', account_name: '', account_number: '',
+                bank_name: '', custom_bank_name: '', account_name: '', account_number: '',
                 account_type: 'current', currency: 'NGN',
                 opening_balance: 0, opening_balance_date: new Date().toISOString().split('T')[0],
                 gl_account_code: ''

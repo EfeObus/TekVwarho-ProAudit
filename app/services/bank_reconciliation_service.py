@@ -1832,6 +1832,338 @@ class BankReconciliationService:
         return report
 
 
+# ===========================================
+    # GL INTEGRATION - JOURNAL ENTRY CREATION
+    # ===========================================
+    
+    async def create_gl_journal_entries(
+        self,
+        reconciliation_id: uuid.UUID,
+        entity_id: uuid.UUID,
+        user_id: uuid.UUID,
+        auto_post: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Create journal entries from reconciliation adjustments.
+        
+        This is the critical integration point between bank reconciliation
+        and the general ledger. Each adjustment that affects the books
+        generates a corresponding journal entry.
+        
+        Nigerian-specific entries created:
+        - EMTL (₦50) → Dr EMTL Expense (5200) / Cr Bank
+        - Stamp Duty (₦50) → Dr Statutory Charges (5210) / Cr Bank  
+        - VAT on Charges → Dr Input VAT (1160) / Cr Bank
+        - WHT Deducted → Dr WHT Receivable (1170) / Cr Bank or Revenue
+        - Bank Charges → Dr Bank Charges (5100) / Cr Bank
+        - SMS Fees → Dr Bank Charges (5100) / Cr Bank
+        - Interest Earned → Dr Bank / Cr Interest Income (4200)
+        
+        Returns:
+            Dict with created journal IDs and any errors
+        """
+        from app.models.accounting import JournalEntry, JournalEntryLine, JournalEntryStatus, JournalEntryType
+        
+        recon = await self.get_reconciliation(reconciliation_id)
+        if not recon:
+            raise ValueError("Reconciliation not found")
+        
+        # Get bank account for GL account code
+        account = await self.get_bank_account(recon.bank_account_id)
+        if not account:
+            raise ValueError("Bank account not found")
+        
+        bank_gl_code = account.gl_account_code or "1120"  # Default bank GL code
+        
+        # Get unposted adjustments that affect books
+        adjustments = await self.get_adjustments(
+            reconciliation_id=reconciliation_id,
+            is_posted=False,
+        )
+        
+        book_adjustments = [adj for adj in adjustments if adj.affects_book]
+        
+        if not book_adjustments:
+            return {
+                "success": True,
+                "journal_entries_created": 0,
+                "message": "No unposted book adjustments to process",
+            }
+        
+        # GL Account Mapping for Nigerian charges
+        GL_MAPPING = {
+            AdjustmentType.EMTL: {"debit": "5200", "debit_name": "EMTL Expense"},
+            AdjustmentType.STAMP_DUTY: {"debit": "5210", "debit_name": "Stamp Duty Expense"},
+            AdjustmentType.VAT_ON_CHARGES: {"debit": "1160", "debit_name": "VAT Receivable (Input VAT)"},
+            AdjustmentType.WHT_DEDUCTION: {"debit": "1170", "debit_name": "WHT Receivable"},
+            AdjustmentType.BANK_CHARGE: {"debit": "5100", "debit_name": "Bank Charges"},
+            AdjustmentType.SMS_FEE: {"debit": "5100", "debit_name": "Bank Charges"},
+            AdjustmentType.MAINTENANCE_FEE: {"debit": "5100", "debit_name": "Bank Charges"},
+            AdjustmentType.NIP_CHARGE: {"debit": "5100", "debit_name": "Bank Charges"},
+            AdjustmentType.USSD_CHARGE: {"debit": "5100", "debit_name": "Bank Charges"},
+            AdjustmentType.INTEREST_INCOME: {"credit": "4200", "credit_name": "Interest Income"},
+            AdjustmentType.POS_SETTLEMENT: {"debit": "1130", "debit_name": "Accounts Receivable"},
+            AdjustmentType.REVERSAL: {"debit": "5900", "debit_name": "Suspense Account"},
+            AdjustmentType.OTHER: {"debit": "5900", "debit_name": "Suspense Account"},
+        }
+        
+        created_entries = []
+        errors = []
+        
+        for adj in book_adjustments:
+            try:
+                gl_mapping = GL_MAPPING.get(adj.adjustment_type, GL_MAPPING[AdjustmentType.OTHER])
+                
+                # Create journal entry
+                je_ref = f"RECON-{recon.reference or str(reconciliation_id)[:8]}-{adj.id}"[:50]
+                
+                journal_entry = JournalEntry(
+                    entity_id=entity_id,
+                    entry_date=recon.reconciliation_date,
+                    reference=je_ref,
+                    description=f"Bank Reconciliation: {adj.description}",
+                    entry_type=JournalEntryType.BANK_RECONCILIATION,
+                    status=JournalEntryStatus.POSTED if auto_post else JournalEntryStatus.DRAFT,
+                    total_debit=adj.amount,
+                    total_credit=adj.amount,
+                    source_type="bank_reconciliation",
+                    source_id=reconciliation_id,
+                    created_by_id=user_id,
+                    posted_by_id=user_id if auto_post else None,
+                    posted_at=datetime.utcnow() if auto_post else None,
+                )
+                self.db.add(journal_entry)
+                await self.db.flush()  # Get the ID
+                
+                # Create journal lines
+                if adj.adjustment_type == AdjustmentType.INTEREST_INCOME:
+                    # Interest earned: Dr Bank, Cr Interest Income
+                    debit_line = JournalEntryLine(
+                        journal_entry_id=journal_entry.id,
+                        account_code=bank_gl_code,
+                        description=f"Interest earned - {adj.description}",
+                        debit_amount=adj.amount,
+                        credit_amount=Decimal("0.00"),
+                        line_number=1,
+                    )
+                    credit_line = JournalEntryLine(
+                        journal_entry_id=journal_entry.id,
+                        account_code=gl_mapping.get("credit", "4200"),
+                        description=f"Interest income - {adj.description}",
+                        debit_amount=Decimal("0.00"),
+                        credit_amount=adj.amount,
+                        line_number=2,
+                    )
+                else:
+                    # Expense/charge: Dr Expense/Asset, Cr Bank
+                    debit_line = JournalEntryLine(
+                        journal_entry_id=journal_entry.id,
+                        account_code=gl_mapping.get("debit", "5900"),
+                        description=f"{gl_mapping.get('debit_name', 'Adjustment')} - {adj.description}",
+                        debit_amount=adj.amount,
+                        credit_amount=Decimal("0.00"),
+                        line_number=1,
+                    )
+                    credit_line = JournalEntryLine(
+                        journal_entry_id=journal_entry.id,
+                        account_code=bank_gl_code,
+                        description=f"Bank - {adj.description}",
+                        debit_amount=Decimal("0.00"),
+                        credit_amount=adj.amount,
+                        line_number=2,
+                    )
+                
+                self.db.add(debit_line)
+                self.db.add(credit_line)
+                
+                # Mark adjustment as posted
+                adj.is_posted = True
+                adj.posted_at = datetime.utcnow()
+                adj.posted_by_id = user_id
+                adj.journal_entry_id = journal_entry.id
+                
+                created_entries.append({
+                    "adjustment_id": str(adj.id),
+                    "journal_entry_id": str(journal_entry.id),
+                    "reference": je_ref,
+                    "amount": float(adj.amount),
+                    "type": adj.adjustment_type.value if adj.adjustment_type else "other",
+                })
+                
+            except Exception as e:
+                errors.append({
+                    "adjustment_id": str(adj.id),
+                    "error": str(e),
+                })
+        
+        await self.db.commit()
+        
+        return {
+            "success": len(errors) == 0,
+            "journal_entries_created": len(created_entries),
+            "created_entries": created_entries,
+            "errors": errors,
+            "total_processed": len(book_adjustments),
+        }
+    
+    async def get_outstanding_items_for_carryforward(
+        self,
+        bank_account_id: uuid.UUID,
+        as_of_date: date,
+    ) -> Dict[str, Any]:
+        """
+        Get outstanding items (deposits in transit, outstanding cheques)
+        that need to be carried forward to the next reconciliation period.
+        
+        This is critical for Nigerian businesses where:
+        - Weekend/holiday postings cause timing differences
+        - Cheques may take days to clear
+        - NIP transfers may have delayed postings
+        """
+        # Get unresolved unmatched items from previous reconciliations
+        query = select(UnmatchedItem).join(
+            BankReconciliation
+        ).where(
+            and_(
+                BankReconciliation.bank_account_id == bank_account_id,
+                UnmatchedItem.status == "open",
+                UnmatchedItem.transaction_date <= as_of_date,
+            )
+        ).order_by(UnmatchedItem.transaction_date)
+        
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+        
+        deposits_in_transit = []
+        outstanding_cheques = []
+        other_items = []
+        
+        for item in items:
+            item_dict = {
+                "id": str(item.id),
+                "amount": float(item.amount),
+                "description": item.description,
+                "transaction_date": item.transaction_date.isoformat(),
+                "reference": item.reference,
+                "days_outstanding": (as_of_date - item.transaction_date).days,
+            }
+            
+            if item.item_type in [UnmatchedItemType.DEPOSIT_IN_TRANSIT]:
+                deposits_in_transit.append(item_dict)
+            elif item.item_type in [UnmatchedItemType.OUTSTANDING_CHEQUE]:
+                outstanding_cheques.append(item_dict)
+            else:
+                other_items.append(item_dict)
+        
+        return {
+            "as_of_date": as_of_date.isoformat(),
+            "bank_account_id": str(bank_account_id),
+            "deposits_in_transit": {
+                "count": len(deposits_in_transit),
+                "total": sum(d["amount"] for d in deposits_in_transit),
+                "items": deposits_in_transit,
+            },
+            "outstanding_cheques": {
+                "count": len(outstanding_cheques),
+                "total": sum(c["amount"] for c in outstanding_cheques),
+                "items": outstanding_cheques,
+            },
+            "other_items": {
+                "count": len(other_items),
+                "total": sum(o["amount"] for o in other_items),
+                "items": other_items,
+            },
+        }
+    
+    async def validate_reconciliation_for_period_close(
+        self,
+        entity_id: uuid.UUID,
+        period_end_date: date,
+    ) -> Dict[str, Any]:
+        """
+        Validate that all bank accounts are reconciled for period close.
+        
+        This is required for month-end close workflow:
+        1. All bank accounts must have a completed/approved reconciliation
+        2. The reconciliation must cover up to the period end date
+        3. All adjustments must be posted to GL
+        
+        Returns validation result with blocking issues if any.
+        """
+        accounts = await self.get_bank_accounts(entity_id)
+        
+        issues = []
+        validated_accounts = []
+        
+        for account in accounts:
+            account_status = {
+                "account_id": str(account.id),
+                "bank_name": account.bank_name,
+                "account_number": account.account_number,
+                "is_valid": False,
+                "issues": [],
+            }
+            
+            # Find most recent approved reconciliation
+            query = select(BankReconciliation).where(
+                and_(
+                    BankReconciliation.bank_account_id == account.id,
+                    BankReconciliation.status.in_([
+                        ReconciliationStatus.APPROVED,
+                        ReconciliationStatus.COMPLETED,
+                    ]),
+                )
+            ).order_by(BankReconciliation.period_end.desc()).limit(1)
+            
+            result = await self.db.execute(query)
+            latest_recon = result.scalar_one_or_none()
+            
+            if not latest_recon:
+                account_status["issues"].append("No approved reconciliation found")
+                issues.append(f"{account.bank_name} ({account.account_number[-4:]}): No reconciliation")
+            elif latest_recon.period_end < period_end_date:
+                account_status["issues"].append(
+                    f"Reconciliation only covers up to {latest_recon.period_end}, "
+                    f"need coverage to {period_end_date}"
+                )
+                issues.append(
+                    f"{account.bank_name} ({account.account_number[-4:]}): "
+                    f"Reconciled to {latest_recon.period_end} only"
+                )
+            else:
+                # Check for unposted adjustments
+                unposted = await self.get_adjustments(
+                    reconciliation_id=latest_recon.id,
+                    is_posted=False,
+                )
+                book_unposted = [a for a in unposted if a.affects_book]
+                
+                if book_unposted:
+                    account_status["issues"].append(
+                        f"{len(book_unposted)} unposted adjustments"
+                    )
+                    issues.append(
+                        f"{account.bank_name} ({account.account_number[-4:]}): "
+                        f"{len(book_unposted)} unposted adjustments"
+                    )
+                else:
+                    account_status["is_valid"] = True
+                    account_status["reconciliation_id"] = str(latest_recon.id)
+                    account_status["reconciliation_date"] = latest_recon.reconciliation_date.isoformat()
+            
+            validated_accounts.append(account_status)
+        
+        return {
+            "is_valid": len(issues) == 0,
+            "period_end_date": period_end_date.isoformat(),
+            "total_accounts": len(accounts),
+            "validated_accounts": sum(1 for a in validated_accounts if a["is_valid"]),
+            "accounts": validated_accounts,
+            "blocking_issues": issues,
+            "can_close_period": len(issues) == 0,
+        }
+
+
 # Factory function
 def get_bank_reconciliation_service(db: AsyncSession) -> BankReconciliationService:
     """Get bank reconciliation service instance."""

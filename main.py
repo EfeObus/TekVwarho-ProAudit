@@ -406,6 +406,8 @@ from app.routers import (
     expense_claims,
     # Machine Learning & AI (OCR, Forecasting, NLP, Neural Networks)
     ml_ai,
+    # Chart of Accounts & General Ledger (Core Accounting Engine)
+    accounting,
 )
 
 # View Routes (HTML pages)
@@ -500,6 +502,9 @@ app.include_router(expense_claims.router, prefix="/api/v1/entities", tags=["Expe
 
 # Machine Learning & AI (OCR, Cash Flow Forecasting, Growth Prediction, NLP, Neural Networks)
 app.include_router(ml_ai.router, prefix="/api/v1/ml", tags=["Machine Learning & AI"])
+
+# Chart of Accounts & General Ledger (Core Accounting Engine)
+app.include_router(accounting.router, tags=["Accounting"])
 
 
 if __name__ == "__main__":

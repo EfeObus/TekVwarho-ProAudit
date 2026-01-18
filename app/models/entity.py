@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from app.models.notification import Notification
     from app.models.advanced_accounting import AccountingDimension
     from app.models.payroll import Employee, PayrollRun
+    from app.models.bank_reconciliation import BankAccount
 
 
 class BusinessType(str, Enum):
@@ -198,6 +199,11 @@ class BusinessEntity(BaseModel):
     )
     payroll_runs: Mapped[List["PayrollRun"]] = relationship(
         "PayrollRun",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+    )
+    bank_accounts: Mapped[List["BankAccount"]] = relationship(
+        "BankAccount",
         back_populates="entity",
         cascade="all, delete-orphan",
     )

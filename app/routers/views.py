@@ -397,6 +397,24 @@ async def inventory_page(
     return response
 
 
+@router.get("/accounting", response_class=HTMLResponse)
+async def accounting_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Chart of Accounts & General Ledger management page."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("accounting.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
 @router.get("/fixed-assets", response_class=HTMLResponse)
 async def fixed_assets_page(
     request: Request,
