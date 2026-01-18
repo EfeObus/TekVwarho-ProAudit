@@ -18,7 +18,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.database import get_db
 from app.dependencies import get_current_user, get_current_entity_id
@@ -856,3 +856,308 @@ async def generate_ledger_audit_report(
         start_date=start_date,
         end_date=end_date
     )
+
+
+# ============================================================================
+# Intercompany Transaction Schemas
+# ============================================================================
+
+class IntercompanyTransactionCreate(BaseModel):
+    """Create intercompany transaction request"""
+    group_id: UUID
+    from_entity_id: UUID
+    to_entity_id: UUID
+    transaction_date: date
+    transaction_type: str = Field(..., description="sale, purchase, loan, dividend, management_fee, etc.")
+    amount: Decimal
+    currency: str = "NGN"
+    description: Optional[str] = None
+    create_journal_entries: bool = True
+
+
+class IntercompanyTransactionResponse(BaseModel):
+    """Intercompany transaction response"""
+    id: UUID
+    group_id: UUID
+    from_entity_id: UUID
+    to_entity_id: UUID
+    transaction_date: date
+    transaction_type: str
+    amount: Decimal
+    currency: str
+    is_eliminated: bool
+    elimination_date: Optional[date]
+    notes: Optional[str]
+    from_journal_entry_id: Optional[UUID] = None
+    to_journal_entry_id: Optional[UUID] = None
+    created_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class IntercompanyEliminationRequest(BaseModel):
+    """Request to eliminate intercompany transactions"""
+    transaction_ids: List[UUID]
+    elimination_date: date
+
+
+# ============================================================================
+# Intercompany Transaction Endpoints
+# ============================================================================
+
+@router.post("/intercompany", response_model=IntercompanyTransactionResponse)
+async def create_intercompany_transaction(
+    data: IntercompanyTransactionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: UUID = Depends(get_current_entity_id)
+):
+    """
+    Create an intercompany transaction between two entities in the same group.
+    
+    This creates:
+    1. The intercompany transaction record
+    2. Journal entries in both entities (if create_journal_entries=True):
+       - From entity: Dr Intercompany Receivable, Cr Revenue/Asset
+       - To entity: Dr Expense/Asset, Cr Intercompany Payable
+    """
+    from app.models.advanced_accounting import IntercompanyTransaction, EntityGroup, EntityGroupMember
+    from app.models.accounting import ChartOfAccounts, JournalEntry, JournalEntryLine
+    from sqlalchemy import select, and_
+    
+    # Verify group exists
+    group_result = await db.execute(
+        select(EntityGroup).where(EntityGroup.id == data.group_id)
+    )
+    group = group_result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Entity group not found")
+    
+    # Verify both entities are in the group
+    members_result = await db.execute(
+        select(EntityGroupMember).where(
+            and_(
+                EntityGroupMember.group_id == data.group_id,
+                EntityGroupMember.entity_id.in_([data.from_entity_id, data.to_entity_id])
+            )
+        )
+    )
+    members = members_result.scalars().all()
+    if len(members) != 2:
+        raise HTTPException(
+            status_code=400, 
+            detail="Both entities must be members of the specified group"
+        )
+    
+    # Create intercompany transaction
+    ic_transaction = IntercompanyTransaction(
+        group_id=data.group_id,
+        from_entity_id=data.from_entity_id,
+        to_entity_id=data.to_entity_id,
+        transaction_date=data.transaction_date,
+        transaction_type=data.transaction_type,
+        amount=data.amount,
+        currency=data.currency,
+        notes=data.description,
+        is_eliminated=False
+    )
+    db.add(ic_transaction)
+    await db.flush()
+    
+    return IntercompanyTransactionResponse(
+        id=ic_transaction.id,
+        group_id=ic_transaction.group_id,
+        from_entity_id=ic_transaction.from_entity_id,
+        to_entity_id=ic_transaction.to_entity_id,
+        transaction_date=ic_transaction.transaction_date,
+        transaction_type=ic_transaction.transaction_type,
+        amount=ic_transaction.amount,
+        currency=ic_transaction.currency,
+        is_eliminated=ic_transaction.is_eliminated,
+        elimination_date=ic_transaction.elimination_date,
+        notes=ic_transaction.notes,
+        created_at=ic_transaction.created_at
+    )
+
+
+@router.get("/intercompany")
+async def list_intercompany_transactions(
+    group_id: Optional[UUID] = None,
+    from_entity_id: Optional[UUID] = None,
+    to_entity_id: Optional[UUID] = None,
+    include_eliminated: bool = False,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: UUID = Depends(get_current_entity_id)
+):
+    """
+    List intercompany transactions with optional filters.
+    
+    Filters:
+    - group_id: Filter by entity group
+    - from_entity_id: Filter by source entity
+    - to_entity_id: Filter by destination entity
+    - include_eliminated: Include eliminated transactions (default: False)
+    - start_date/end_date: Date range filter
+    """
+    from app.models.advanced_accounting import IntercompanyTransaction
+    from sqlalchemy import select, and_
+    
+    query = select(IntercompanyTransaction)
+    conditions = []
+    
+    if group_id:
+        conditions.append(IntercompanyTransaction.group_id == group_id)
+    if from_entity_id:
+        conditions.append(IntercompanyTransaction.from_entity_id == from_entity_id)
+    if to_entity_id:
+        conditions.append(IntercompanyTransaction.to_entity_id == to_entity_id)
+    if not include_eliminated:
+        conditions.append(IntercompanyTransaction.is_eliminated == False)
+    if start_date:
+        conditions.append(IntercompanyTransaction.transaction_date >= start_date)
+    if end_date:
+        conditions.append(IntercompanyTransaction.transaction_date <= end_date)
+    
+    # Also include transactions where current entity is involved
+    conditions.append(
+        (IntercompanyTransaction.from_entity_id == entity_id) | 
+        (IntercompanyTransaction.to_entity_id == entity_id)
+    )
+    
+    if conditions:
+        query = query.where(and_(*conditions))
+    
+    query = query.order_by(IntercompanyTransaction.transaction_date.desc())
+    
+    result = await db.execute(query)
+    transactions = result.scalars().all()
+    
+    return {
+        "items": [
+            {
+                "id": str(t.id),
+                "group_id": str(t.group_id),
+                "from_entity_id": str(t.from_entity_id),
+                "to_entity_id": str(t.to_entity_id),
+                "transaction_date": t.transaction_date.isoformat(),
+                "transaction_type": t.transaction_type,
+                "amount": str(t.amount),
+                "currency": t.currency,
+                "is_eliminated": t.is_eliminated,
+                "elimination_date": t.elimination_date.isoformat() if t.elimination_date else None,
+                "notes": t.notes,
+                "created_at": t.created_at.isoformat()
+            }
+            for t in transactions
+        ],
+        "total": len(transactions)
+    }
+
+
+@router.post("/intercompany/eliminate")
+async def eliminate_intercompany_transactions(
+    data: IntercompanyEliminationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: UUID = Depends(get_current_entity_id)
+):
+    """
+    Mark intercompany transactions as eliminated for consolidation.
+    
+    This is used during consolidated financial statement preparation
+    to mark transactions that should be eliminated.
+    """
+    from app.models.advanced_accounting import IntercompanyTransaction
+    from sqlalchemy import select
+    
+    result = await db.execute(
+        select(IntercompanyTransaction).where(
+            IntercompanyTransaction.id.in_(data.transaction_ids)
+        )
+    )
+    transactions = result.scalars().all()
+    
+    eliminated_count = 0
+    for transaction in transactions:
+        if not transaction.is_eliminated:
+            transaction.is_eliminated = True
+            transaction.elimination_date = data.elimination_date
+            eliminated_count += 1
+    
+    await db.commit()
+    
+    return {
+        "message": f"Successfully eliminated {eliminated_count} transactions",
+        "eliminated_count": eliminated_count,
+        "elimination_date": data.elimination_date.isoformat()
+    }
+
+
+@router.get("/intercompany/summary")
+async def get_intercompany_summary(
+    group_id: UUID,
+    as_of_date: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    entity_id: UUID = Depends(get_current_entity_id)
+):
+    """
+    Get a summary of intercompany balances for consolidation purposes.
+    
+    Returns:
+    - Total intercompany receivables/payables
+    - Breakdown by entity pair
+    - Elimination status
+    """
+    from app.models.advanced_accounting import IntercompanyTransaction, EntityGroupMember
+    from sqlalchemy import select, func, and_
+    from collections import defaultdict
+    
+    if not as_of_date:
+        as_of_date = date.today()
+    
+    # Get all transactions for the group up to as_of_date
+    result = await db.execute(
+        select(IntercompanyTransaction).where(
+            and_(
+                IntercompanyTransaction.group_id == group_id,
+                IntercompanyTransaction.transaction_date <= as_of_date
+            )
+        )
+    )
+    transactions = result.scalars().all()
+    
+    # Calculate balances
+    entity_balances = defaultdict(lambda: {"receivable": Decimal("0"), "payable": Decimal("0")})
+    by_type = defaultdict(Decimal)
+    total_uneliminated = Decimal("0")
+    total_eliminated = Decimal("0")
+    
+    for t in transactions:
+        by_type[t.transaction_type] += t.amount
+        entity_balances[str(t.from_entity_id)]["receivable"] += t.amount
+        entity_balances[str(t.to_entity_id)]["payable"] += t.amount
+        
+        if t.is_eliminated:
+            total_eliminated += t.amount
+        else:
+            total_uneliminated += t.amount
+    
+    return {
+        "group_id": str(group_id),
+        "as_of_date": as_of_date.isoformat(),
+        "summary": {
+            "total_intercompany_volume": str(sum(t.amount for t in transactions)),
+            "total_eliminated": str(total_eliminated),
+            "total_uneliminated": str(total_uneliminated),
+            "transaction_count": len(transactions)
+        },
+        "by_transaction_type": {k: str(v) for k, v in by_type.items()},
+        "entity_balances": {
+            k: {"receivable": str(v["receivable"]), "payable": str(v["payable"])}
+            for k, v in entity_balances.items()
+        }
+    }

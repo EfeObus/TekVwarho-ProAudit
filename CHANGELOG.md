@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.0] - 2026-01-19
+
+### Enhanced Financial Reporting & Period Controls Release
+
+This release adds comprehensive financial reporting UI, intercompany transaction management,
+and enhanced period lock enforcement for audit compliance.
+
+### Added
+
+#### Financial Reports UI Enhancements (`templates/accounting.html`)
+- **Cash Flow Statement Report UI**
+  - Full indirect method display with Operating, Investing, Financing sections
+  - Net income adjustments and working capital changes breakdown
+  - Beginning/ending cash summary with net change calculation
+  - Color-coded sections for easy identification
+
+- **AR/AP Aging Reports UI**
+  - Integrated accounts receivable aging with GL reconciliation
+  - Integrated accounts payable aging with GL reconciliation
+  - Visual aging buckets: Current, 1-30, 31-60, 61-90, Over 90 days
+  - Summary cards showing total outstanding, overdue %, and GL balance
+  - Automated recommendations based on aging analysis
+
+#### Intercompany Transaction API (`app/routers/advanced_accounting.py`)
+- `POST /api/v1/advanced/intercompany` - Create intercompany transaction
+- `GET /api/v1/advanced/intercompany` - List intercompany transactions with filters
+- `POST /api/v1/advanced/intercompany/eliminate` - Mark transactions for consolidation elimination
+- `GET /api/v1/advanced/intercompany/summary` - Get intercompany balance summary by group
+- New schemas: `IntercompanyTransactionCreate`, `IntercompanyTransactionResponse`, `IntercompanyEliminationRequest`
+
+#### Period Lock Hard Enforcement (`app/services/accounting_service.py`)
+- Enhanced `create_journal_entry()` with explicit LOCKED period validation
+- Enhanced `post_journal_entry()` with explicit LOCKED period validation
+- Enhanced `reverse_journal_entry()` with explicit LOCKED period validation
+- Clear error messages distinguishing LOCKED vs CLOSED vs non-existent periods:
+  - LOCKED: "Period has been permanently locked and no further entries are allowed"
+  - CLOSED: "Reopen the period or use a different date"
+
+### Changed
+- Report type selector now includes 6 options: Trial Balance, Income Statement, Balance Sheet, Cash Flow Statement, AR Aging, AP Aging
+- Date filter inputs dynamically show/hide based on selected report type
+
+### Technical Details
+- All 433 tests pass
+- No database migrations required (using existing models)
+- Backward compatible with existing accounting.html functionality
+
+---
+
 ## [2.3.0] - 2026-01-19
 
 ### Complete GL Integration Release

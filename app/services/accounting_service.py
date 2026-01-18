@@ -514,7 +514,26 @@ class AccountingService:
         user_id: uuid.UUID,
     ) -> JournalEntry:
         """Create a new journal entry."""
-        # Validate period is open
+        # First check if any period exists for this date
+        any_period = await self.get_fiscal_period_for_date(entity_id, data.entry_date)
+        if not any_period:
+            raise ValueError(f"No fiscal period exists for date {data.entry_date}")
+        
+        # Check if period is LOCKED (hard enforcement)
+        if any_period.status == FiscalPeriodStatus.LOCKED:
+            raise ValueError(
+                f"Cannot post to locked period '{any_period.period_name}'. "
+                f"Period has been permanently locked and no further entries are allowed."
+            )
+        
+        # Check if period is CLOSED
+        if any_period.status == FiscalPeriodStatus.CLOSED:
+            raise ValueError(
+                f"Cannot post to closed period '{any_period.period_name}'. "
+                f"Reopen the period or use a different date."
+            )
+        
+        # Validate period is open (covers remaining statuses)
         period = await self.get_open_period_for_date(entity_id, data.entry_date)
         if not period:
             raise ValueError(f"No open fiscal period for date {data.entry_date}")
@@ -597,6 +616,14 @@ class AccountingService:
         if entry.status != JournalEntryStatus.DRAFT:
             raise ValueError(f"Cannot post entry with status: {entry.status}")
         
+        # Check if period is LOCKED (hard enforcement)
+        any_period = await self.get_fiscal_period_for_date(entry.entity_id, entry.entry_date)
+        if any_period and any_period.status == FiscalPeriodStatus.LOCKED:
+            raise ValueError(
+                f"Cannot post to locked period '{any_period.period_name}'. "
+                f"Period has been permanently locked and no further entries are allowed."
+            )
+        
         # Verify period is still open
         period = await self.get_open_period_for_date(entry.entity_id, entry.entry_date)
         if not period:
@@ -638,6 +665,14 @@ class AccountingService:
         
         if entry.is_reversed:
             raise ValueError("Entry has already been reversed")
+        
+        # Check if reversal period is LOCKED (hard enforcement)
+        any_period = await self.get_fiscal_period_for_date(entry.entity_id, reversal_date)
+        if any_period and any_period.status == FiscalPeriodStatus.LOCKED:
+            raise ValueError(
+                f"Cannot create reversal in locked period '{any_period.period_name}'. "
+                f"Period has been permanently locked."
+            )
         
         # Check period is open
         period = await self.get_open_period_for_date(entry.entity_id, reversal_date)
