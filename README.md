@@ -833,6 +833,32 @@ New tables added via Alembic migration `20260106_1600_add_payroll_system.py`:
 | **Tax Deductibility** | Track tax-deductible expenses with GL account codes |
 | **Payment Tracking** | Track claim payment status and dates |
 
+### Business Intelligence & ML (NEW in v2.4.1)
+
+| Feature | Description |
+|---------|-------------|
+| **Cash Flow Forecasting** | Time series prediction using Exponential Smoothing, ARIMA, or LSTM neural networks |
+| **Growth Prediction** | Revenue, expense, and profit forecasting with polynomial regression and neural networks |
+| **NLP Analysis** | Sentiment analysis, named entity recognition, keyword extraction, and document classification |
+| **OCR Processing** | Intelligent document extraction for receipts, invoices, and financial documents (Nigerian VAT compliant) |
+| **Custom Model Training** | Train and deploy custom ML models for business-specific predictions |
+| **ML Dashboard** | Unified view of all AI-powered insights for each business entity |
+| **Anomaly Detection** | Identify statistical outliers in transaction data using Z-score analysis |
+
+#### ML/AI API Endpoints
+```
+POST /api/v1/ml/forecast/cash-flow      # Generate cash flow forecast
+POST /api/v1/ml/predict/growth          # Growth prediction
+POST /api/v1/ml/nlp/analyze             # NLP text analysis
+POST /api/v1/ml/ocr/process             # OCR document processing
+POST /api/v1/ml/train/neural-network    # Train custom model
+GET  /api/v1/ml/dashboard/{entity_id}   # ML insights dashboard
+GET  /api/v1/ml/models                  # List trained models
+POST /api/v1/ml/anomaly/detect          # Anomaly detection
+```
+
+For detailed documentation, see [Business Intelligence Documentation](docs/BUSINESS_INTELLIGENCE_DOCUMENTATION.md).
+
 ---
 
 ## Test Coverage

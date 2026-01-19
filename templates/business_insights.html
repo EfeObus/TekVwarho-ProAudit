@@ -4,6 +4,45 @@
 
 {% block content %}
 <div x-data="mlDashboard()" x-init="init()" class="space-y-6">
+    <!-- Toast Notification -->
+    <div x-show="notification.show" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform translate-y-2"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 transform translate-y-0"
+         x-transition:leave-end="opacity-0 transform translate-y-2"
+         class="fixed top-4 right-4 z-50 max-w-sm"
+         :class="{
+             'bg-green-500': notification.type === 'success',
+             'bg-red-500': notification.type === 'error',
+             'bg-yellow-500': notification.type === 'warning'
+         }">
+        <div class="rounded-lg shadow-lg p-4 text-white flex items-center space-x-3">
+            <template x-if="notification.type === 'success'">
+                <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </template>
+            <template x-if="notification.type === 'error'">
+                <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </template>
+            <template x-if="notification.type === 'warning'">
+                <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </template>
+            <span x-text="notification.message" class="font-medium"></span>
+            <button @click="notification.show = false" class="ml-auto">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
     <!-- Header -->
     <div class="flex justify-between items-center">
         <div>
@@ -213,11 +252,18 @@
                                 </table>
                             </div>
                         </div>
-                        <div x-show="!forecastResults.forecasts?.length" class="text-center py-12 text-gray-500">
+                        <div x-show="!forecastResults.forecasts?.length && !forecastResults.error" class="text-center py-12 text-gray-500">
                             <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                             </svg>
                             <p>Select an entity and run forecast to see results</p>
+                        </div>
+                        <div x-show="forecastResults.error" class="text-center py-12 text-red-500">
+                            <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <p class="font-medium" x-text="forecastResults.error"></p>
+                            <p class="text-sm text-gray-500 mt-2">Please try again or contact support if the issue persists</p>
                         </div>
                     </div>
                 </div>
@@ -311,8 +357,15 @@
                                 </ul>
                             </div>
                         </div>
-                        <div x-show="!growthResults || !growthResults.predicted_value" class="text-center py-12 text-gray-500">
+                        <div x-show="!growthResults || (!growthResults.predicted_value && !growthResults.error)" class="text-center py-12 text-gray-500">
                             <p>Configure settings and run prediction to see results</p>
+                        </div>
+                        <div x-show="growthResults.error" class="text-center py-12 text-red-500">
+                            <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <p class="font-medium" x-text="growthResults.error"></p>
+                            <p class="text-sm text-gray-500 mt-2">Please try again or contact support if the issue persists</p>
                         </div>
                     </div>
                 </div>
@@ -426,8 +479,15 @@
                                 </div>
                             </div>
                         </div>
-                        <div x-show="!nlpResults.sentiment" class="text-center py-12 text-gray-500">
+                        <div x-show="!nlpResults.sentiment && !nlpResults.error" class="text-center py-12 text-gray-500">
                             <p>Enter text and click Analyze to see NLP results</p>
+                        </div>
+                        <div x-show="nlpResults.error" class="text-center py-12 text-red-500">
+                            <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <p class="font-medium" x-text="nlpResults.error"></p>
+                            <p class="text-sm text-gray-500 mt-2">Please try again or contact support if the issue persists</p>
                         </div>
                     </div>
                 </div>
@@ -718,10 +778,32 @@ function mlDashboard() {
         ocrResults: {},
         trainingResults: {},
 
+        // Toast notification state
+        notification: {
+            show: false,
+            message: '',
+            type: 'success' // success, error, warning
+        },
+
         async init() {
             await this.loadEntities();
             await this.loadOCRStatus();
             await this.loadModels();
+        },
+
+        showSuccess(message) {
+            this.notification = { show: true, message, type: 'success' };
+            setTimeout(() => { this.notification.show = false; }, 3000);
+        },
+
+        showError(message) {
+            this.notification = { show: true, message, type: 'error' };
+            setTimeout(() => { this.notification.show = false; }, 5000);
+        },
+
+        showWarning(message) {
+            this.notification = { show: true, message, type: 'warning' };
+            setTimeout(() => { this.notification.show = false; }, 4000);
         },
 
         async loadEntities() {
@@ -776,8 +858,12 @@ function mlDashboard() {
         },
 
         async runForecast() {
-            if (!this.selectedEntity) return;
+            if (!this.selectedEntity) {
+                this.showError('Please select a business entity first');
+                return;
+            }
             this.loading.forecast = true;
+            this.forecastResults = { error: null };
             try {
                 const response = await fetch('/api/v1/ml/forecast/cash-flow', {
                     method: 'POST',
@@ -789,19 +875,30 @@ function mlDashboard() {
                         method: this.forecastSettings.method
                     })
                 });
+                const data = await response.json();
                 if (response.ok) {
-                    this.forecastResults = await response.json();
+                    this.forecastResults = data;
+                    this.showSuccess('Cash flow forecast generated successfully');
+                } else {
+                    this.forecastResults = { error: data.detail || data.error?.message || 'Forecast failed' };
+                    this.showError(this.forecastResults.error);
                 }
             } catch (error) {
                 console.error('Forecast failed:', error);
+                this.forecastResults = { error: 'Network error - please try again' };
+                this.showError('Network error - please try again');
             } finally {
                 this.loading.forecast = false;
             }
         },
 
         async runGrowthPrediction() {
-            if (!this.selectedEntity) return;
+            if (!this.selectedEntity) {
+                this.showError('Please select a business entity first');
+                return;
+            }
             this.loading.growth = true;
+            this.growthResults = { error: null };
             try {
                 const response = await fetch('/api/v1/ml/predict/growth', {
                     method: 'POST',
@@ -814,19 +911,30 @@ function mlDashboard() {
                         model: this.growthSettings.model
                     })
                 });
+                const data = await response.json();
                 if (response.ok) {
-                    this.growthResults = await response.json();
+                    this.growthResults = data;
+                    this.showSuccess('Growth prediction generated successfully');
+                } else {
+                    this.growthResults = { error: data.detail || data.error?.message || 'Prediction failed' };
+                    this.showError(this.growthResults.error);
                 }
             } catch (error) {
                 console.error('Growth prediction failed:', error);
+                this.growthResults = { error: 'Network error - please try again' };
+                this.showError('Network error - please try again');
             } finally {
                 this.loading.growth = false;
             }
         },
 
         async runNLPAnalysis() {
-            if (!this.nlpInput) return;
+            if (!this.nlpInput) {
+                this.showError('Please enter text to analyze');
+                return;
+            }
             this.loading.nlp = true;
+            this.nlpResults = { error: null };
             try {
                 const response = await fetch('/api/v1/ml/nlp/analyze', {
                     method: 'POST',
@@ -840,11 +948,18 @@ function mlDashboard() {
                         include_classification: this.nlpSettings.classification
                     })
                 });
+                const data = await response.json();
                 if (response.ok) {
-                    this.nlpResults = await response.json();
+                    this.nlpResults = data;
+                    this.showSuccess('NLP analysis completed successfully');
+                } else {
+                    this.nlpResults = { error: data.detail || data.error?.message || 'Analysis failed' };
+                    this.showError(this.nlpResults.error);
                 }
             } catch (error) {
                 console.error('NLP analysis failed:', error);
+                this.nlpResults = { error: 'Network error - please try again' };
+                this.showError('Network error - please try again');
             } finally {
                 this.loading.nlp = false;
             }

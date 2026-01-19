@@ -20,7 +20,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status, Body
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, extract
+from sqlalchemy import select, func, and_, extract, case
 from pydantic import BaseModel, Field
 
 from app.database import get_async_session
@@ -225,7 +225,7 @@ async def forecast_cash_flow(
     query = select(
         func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month'),
         func.sum(
-            func.case(
+            case(
                 (Transaction.transaction_type == 'income', Transaction.amount),
                 else_=-Transaction.amount
             )
@@ -881,13 +881,13 @@ async def get_ml_dashboard(
     query = select(
         func.count(Transaction.id).label('count'),
         func.sum(
-            func.case(
+            case(
                 (Transaction.transaction_type == 'income', Transaction.amount),
                 else_=Decimal('0')
             )
         ).label('total_income'),
         func.sum(
-            func.case(
+            case(
                 (Transaction.transaction_type == 'expense', Transaction.amount),
                 else_=Decimal('0')
             )
@@ -909,7 +909,7 @@ async def get_ml_dashboard(
         forecast_query = select(
             func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month'),
             func.sum(
-                func.case(
+                case(
                     (Transaction.transaction_type == 'income', Transaction.amount),
                     else_=-Transaction.amount
                 )

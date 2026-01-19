@@ -469,24 +469,6 @@ async def expense_claims_page(
     return response
 
 
-@router.get("/intelligence-dashboard", response_class=HTMLResponse)
-async def intelligence_dashboard_page(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """AI & Intelligence Dashboard - ML-powered insights and predictions."""
-    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
-    if redirect:
-        return redirect
-    
-    response = templates.TemplateResponse("business_insights.html", {
-        "request": request,
-        **get_auth_context(user, entity_id),
-    })
-    set_entity_cookie_if_needed(response, request, entity_id)
-    return response
-
-
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(
     request: Request,
