@@ -36,6 +36,11 @@ from app.schemas.accounting import (
     AccountLedgerReport, AccountLedgerEntry,
     GLPostingRequest, GLPostingResponse,
     PeriodCloseChecklist, PeriodCloseRequest, PeriodCloseResponse,
+    FixedAssetSummaryItem, FixedAssetCategorySummary, FixedAssetRegisterSummary,
+    GLFixedAssetValidation, EnhancedBalanceSheetReport,
+    InventorySummaryForGL, ARAgingSummary, APAgingSummary,
+    PayrollSummaryForGL, BankAccountSummaryForGL, ExpenseClaimSummaryForGL,
+    GLSourceSystemSummary, GLAccountReconciliation,
 )
 
 
@@ -1219,3 +1224,1151 @@ class AccountingService:
             message="Period closed successfully",
             closed_at=period.closed_at,
         )
+
+    # =========================================================================
+    # FIXED ASSET INTEGRATION
+    # =========================================================================
+    
+    async def get_fixed_asset_summary(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> FixedAssetRegisterSummary:
+        """
+        Pull fixed asset totals from the Fixed Asset Register for Balance Sheet reporting.
+        
+        This provides detailed breakdown of:
+        - Total fixed assets by category
+        - Accumulated depreciation
+        - Net book values
+        - Individual asset details
+        """
+        from app.models.fixed_asset import FixedAsset, AssetStatus
+        
+        # Query all assets for the entity
+        result = await self.db.execute(
+            select(FixedAsset).where(
+                and_(
+                    FixedAsset.entity_id == entity_id,
+                    FixedAsset.acquisition_date <= as_of_date,
+                )
+            ).order_by(FixedAsset.category, FixedAsset.asset_code)
+        )
+        assets = list(result.scalars().all())
+        
+        # Calculate totals
+        total_cost = Decimal("0.00")
+        total_depreciation = Decimal("0.00")
+        active_count = 0
+        disposed_count = 0
+        
+        # Group by category
+        category_data = {}
+        asset_items = []
+        
+        for asset in assets:
+            cat = asset.category.value
+            
+            # Initialize category if not exists
+            if cat not in category_data:
+                category_data[cat] = {
+                    "count": 0,
+                    "cost": Decimal("0.00"),
+                    "depreciation": Decimal("0.00"),
+                    "nbv": Decimal("0.00"),
+                }
+            
+            # Accumulate totals
+            category_data[cat]["count"] += 1
+            category_data[cat]["cost"] += asset.acquisition_cost
+            category_data[cat]["depreciation"] += asset.accumulated_depreciation
+            category_data[cat]["nbv"] += asset.net_book_value
+            
+            total_cost += asset.acquisition_cost
+            total_depreciation += asset.accumulated_depreciation
+            
+            if asset.status == AssetStatus.ACTIVE:
+                active_count += 1
+            elif asset.status == AssetStatus.DISPOSED:
+                disposed_count += 1
+            
+            # Build asset item
+            asset_items.append(FixedAssetSummaryItem(
+                asset_id=asset.id,
+                asset_code=asset.asset_code,
+                name=asset.name,
+                category=asset.category.value,
+                acquisition_date=asset.acquisition_date,
+                acquisition_cost=asset.acquisition_cost,
+                accumulated_depreciation=asset.accumulated_depreciation,
+                net_book_value=asset.net_book_value,
+                depreciation_method=asset.depreciation_method.value,
+                depreciation_rate=asset.depreciation_rate,
+                status=asset.status.value,
+            ))
+        
+        # Build category summaries
+        category_summaries = [
+            FixedAssetCategorySummary(
+                category=cat,
+                asset_count=data["count"],
+                total_cost=data["cost"],
+                total_depreciation=data["depreciation"],
+                total_nbv=data["nbv"],
+            )
+            for cat, data in category_data.items()
+        ]
+        
+        return FixedAssetRegisterSummary(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            total_assets=len(assets),
+            active_assets=active_count,
+            disposed_assets=disposed_count,
+            total_acquisition_cost=total_cost,
+            total_accumulated_depreciation=total_depreciation,
+            total_net_book_value=total_cost - total_depreciation,
+            by_category=category_summaries,
+            assets=asset_items,
+        )
+    
+    async def validate_fixed_asset_gl_balances(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> GLFixedAssetValidation:
+        """
+        Validate GL balances against Fixed Asset Register totals.
+        
+        Compares:
+        - GL Account 1210 (Property, Plant & Equipment) vs Register total cost
+        - GL Account 1220 (Accumulated Depreciation) vs Register accumulated depreciation
+        - Net book value (GL vs Register)
+        
+        Returns validation result with any discrepancies identified.
+        """
+        from app.models.fixed_asset import FixedAsset, AssetStatus
+        
+        # Get GL balances for fixed asset accounts
+        # Account codes: 1210 = Fixed Assets, 1220 = Accumulated Depreciation
+        gl_fixed_asset_cost = Decimal("0.00")
+        gl_accumulated_depreciation = Decimal("0.00")
+        
+        accounts = await self.get_chart_of_accounts(entity_id, include_headers=False)
+        
+        for account in accounts:
+            if account.account_code == "1210" or (
+                account.account_sub_type and "FIXED_ASSET" in str(account.account_sub_type).upper()
+            ):
+                gl_fixed_asset_cost += abs(account.current_balance)
+            elif account.account_code == "1220" or (
+                account.account_sub_type and "ACCUMULATED_DEPRECIATION" in str(account.account_sub_type).upper()
+            ):
+                gl_accumulated_depreciation += abs(account.current_balance)
+        
+        gl_net_book_value = gl_fixed_asset_cost - gl_accumulated_depreciation
+        
+        # Get Fixed Asset Register totals
+        result = await self.db.execute(
+            select(
+                func.sum(FixedAsset.acquisition_cost).label("total_cost"),
+                func.sum(FixedAsset.accumulated_depreciation).label("total_depreciation"),
+            ).where(
+                and_(
+                    FixedAsset.entity_id == entity_id,
+                    FixedAsset.status == AssetStatus.ACTIVE,
+                )
+            )
+        )
+        register_totals = result.first()
+        
+        register_total_cost = register_totals.total_cost or Decimal("0.00")
+        register_accumulated_depreciation = register_totals.total_depreciation or Decimal("0.00")
+        register_net_book_value = register_total_cost - register_accumulated_depreciation
+        
+        # Calculate variances
+        cost_variance = gl_fixed_asset_cost - register_total_cost
+        depreciation_variance = gl_accumulated_depreciation - register_accumulated_depreciation
+        nbv_variance = gl_net_book_value - register_net_book_value
+        
+        # Identify issues
+        issues = []
+        recommendations = []
+        tolerance = Decimal("0.01")  # Allow for rounding differences
+        
+        if abs(cost_variance) > tolerance:
+            issues.append(
+                f"Fixed asset cost variance: GL shows ₦{gl_fixed_asset_cost:,.2f} but Register shows ₦{register_total_cost:,.2f} "
+                f"(difference: ₦{cost_variance:,.2f})"
+            )
+            recommendations.append(
+                "Review asset acquisitions and disposals. Ensure all purchases are posted to both GL and Asset Register."
+            )
+        
+        if abs(depreciation_variance) > tolerance:
+            issues.append(
+                f"Accumulated depreciation variance: GL shows ₦{gl_accumulated_depreciation:,.2f} but Register shows ₦{register_accumulated_depreciation:,.2f} "
+                f"(difference: ₦{depreciation_variance:,.2f})"
+            )
+            recommendations.append(
+                "Run depreciation posting to ensure GL is updated. Check for manual GL adjustments not reflected in Register."
+            )
+        
+        if abs(nbv_variance) > tolerance:
+            issues.append(
+                f"Net book value variance: GL shows ₦{gl_net_book_value:,.2f} but Register shows ₦{register_net_book_value:,.2f} "
+                f"(difference: ₦{nbv_variance:,.2f})"
+            )
+        
+        if not issues:
+            recommendations.append("GL balances are in sync with the Fixed Asset Register. No action required.")
+        
+        is_valid = len(issues) == 0
+        
+        return GLFixedAssetValidation(
+            entity_id=entity_id,
+            validation_date=as_of_date,
+            is_valid=is_valid,
+            gl_fixed_asset_cost=gl_fixed_asset_cost,
+            gl_accumulated_depreciation=gl_accumulated_depreciation,
+            gl_net_book_value=gl_net_book_value,
+            register_total_cost=register_total_cost,
+            register_accumulated_depreciation=register_accumulated_depreciation,
+            register_net_book_value=register_net_book_value,
+            cost_variance=cost_variance,
+            depreciation_variance=depreciation_variance,
+            nbv_variance=nbv_variance,
+            issues=issues,
+            recommendations=recommendations,
+        )
+    
+    async def get_enhanced_balance_sheet(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+        include_fixed_asset_details: bool = True,
+        validate_fixed_assets: bool = True,
+    ) -> EnhancedBalanceSheetReport:
+        """
+        Generate enhanced Balance Sheet with fixed asset details and validation.
+        
+        This provides:
+        - Standard Balance Sheet format
+        - Detailed fixed asset breakdown by category
+        - Validation of GL vs Fixed Asset Register
+        - Notes on depreciation policy
+        """
+        # Get standard balance sheet
+        basic_balance_sheet = await self.get_balance_sheet(entity_id, as_of_date)
+        
+        # Get fixed asset summary if requested
+        fixed_asset_summary = None
+        fixed_asset_validation = None
+        
+        if include_fixed_asset_details:
+            fixed_asset_summary = await self.get_fixed_asset_summary(entity_id, as_of_date)
+        
+        if validate_fixed_assets:
+            fixed_asset_validation = await self.validate_fixed_asset_gl_balances(entity_id, as_of_date)
+        
+        # Build depreciation policy note
+        depreciation_policy = """
+Depreciation Policy (Nigerian Tax Standards):
+- Buildings: 10% Reducing Balance
+- Plant & Machinery: 25% Reducing Balance  
+- Furniture & Fittings: 20% Reducing Balance
+- Motor Vehicles: 25% Reducing Balance
+- Computer Equipment: 25% Reducing Balance
+- Office Equipment: 20% Reducing Balance
+- Intangible Assets: 12.5% Reducing Balance
+
+Note: Under the 2026 Nigeria Tax Administration Act, capital gains on asset disposal 
+are taxed at the flat CIT rate (30% for large companies). Input VAT on capital 
+expenditure is now recoverable with a valid NRS Invoice Reference Number (IRN).
+        """.strip()
+        
+        # Build fixed asset notes
+        fixed_asset_notes = None
+        if fixed_asset_summary:
+            fixed_asset_notes = f"""
+Fixed Asset Register Summary as at {as_of_date.strftime('%B %d, %Y')}:
+- Total Assets: {fixed_asset_summary.total_assets} ({fixed_asset_summary.active_assets} active, {fixed_asset_summary.disposed_assets} disposed)
+- Total Acquisition Cost: ₦{fixed_asset_summary.total_acquisition_cost:,.2f}
+- Total Accumulated Depreciation: ₦{fixed_asset_summary.total_accumulated_depreciation:,.2f}
+- Total Net Book Value: ₦{fixed_asset_summary.total_net_book_value:,.2f}
+            """.strip()
+        
+        return EnhancedBalanceSheetReport(
+            entity_id=basic_balance_sheet.entity_id,
+            as_of_date=basic_balance_sheet.as_of_date,
+            assets=basic_balance_sheet.assets,
+            liabilities=basic_balance_sheet.liabilities,
+            equity=basic_balance_sheet.equity,
+            total_assets=basic_balance_sheet.total_assets,
+            total_liabilities=basic_balance_sheet.total_liabilities,
+            total_equity=basic_balance_sheet.total_equity,
+            is_balanced=basic_balance_sheet.is_balanced,
+            fixed_asset_summary=fixed_asset_summary,
+            fixed_asset_validation=fixed_asset_validation,
+            fixed_asset_notes=fixed_asset_notes,
+            depreciation_policy=depreciation_policy,
+        )
+
+    # =========================================================================
+    # SOURCE SYSTEM INTEGRATIONS - ACCOUNTING READS FROM OTHER MODULES
+    # =========================================================================
+    
+    async def get_inventory_summary_for_gl(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> "InventorySummaryForGL":
+        """
+        Get inventory summary for GL account 1140 reconciliation.
+        
+        Reads from: Inventory system
+        Maps to: GL 1140 - Inventory
+        """
+        from app.schemas.accounting import InventorySummaryForGL
+        from app.models.inventory import InventoryItem
+        
+        # Get all inventory items
+        result = await self.db.execute(
+            select(InventoryItem).where(
+                InventoryItem.entity_id == entity_id
+            )
+        )
+        items = result.scalars().all()
+        
+        # Calculate totals
+        total_value = Decimal("0.00")
+        total_quantity = 0
+        low_stock_count = 0
+        active_count = 0
+        category_totals = {}
+        
+        for item in items:
+            if item.is_active:
+                active_count += 1
+                item_value = Decimal(str(item.unit_cost)) * item.quantity_on_hand
+                total_value += item_value
+                total_quantity += item.quantity_on_hand
+                
+                if item.quantity_on_hand <= item.reorder_level:
+                    low_stock_count += 1
+                
+                # Group by category
+                cat = item.category or "Uncategorized"
+                if cat not in category_totals:
+                    category_totals[cat] = {"count": 0, "value": Decimal("0.00"), "quantity": 0}
+                category_totals[cat]["count"] += 1
+                category_totals[cat]["value"] += item_value
+                category_totals[cat]["quantity"] += item.quantity_on_hand
+        
+        categories = [
+            {"category": k, "count": v["count"], "value": float(v["value"]), "quantity": v["quantity"]}
+            for k, v in category_totals.items()
+        ]
+        
+        return InventorySummaryForGL(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            total_items=len(items),
+            active_items=active_count,
+            total_inventory_value=total_value,
+            total_quantity_on_hand=total_quantity,
+            low_stock_items=low_stock_count,
+            categories=categories,
+            valuation_method="weighted_average",
+        )
+    
+    async def get_ar_aging_summary(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> "ARAgingSummary":
+        """
+        Get Accounts Receivable aging for GL account 1130 reconciliation.
+        
+        Reads from: Invoice/Customer system
+        Maps to: GL 1130 - Accounts Receivable
+        """
+        from app.schemas.accounting import ARAgingSummary
+        from app.models.invoice import Invoice, InvoiceStatus
+        from app.models.customer import Customer
+        
+        # Get all unpaid/partially paid invoices
+        result = await self.db.execute(
+            select(Invoice).where(
+                and_(
+                    Invoice.entity_id == entity_id,
+                    Invoice.status.in_([InvoiceStatus.PENDING, InvoiceStatus.OVERDUE, InvoiceStatus.PARTIAL]),
+                    Invoice.invoice_date <= as_of_date,
+                )
+            )
+        )
+        invoices = result.scalars().all()
+        
+        # Calculate aging buckets
+        current = Decimal("0.00")
+        days_31_60 = Decimal("0.00")
+        days_61_90 = Decimal("0.00")
+        over_90_days = Decimal("0.00")
+        customer_balances = {}
+        
+        for inv in invoices:
+            outstanding = Decimal(str(inv.total_amount)) - Decimal(str(inv.amount_paid or 0))
+            if outstanding <= 0:
+                continue
+                
+            days_old = (as_of_date - inv.invoice_date).days
+            
+            if days_old <= 30:
+                current += outstanding
+            elif days_old <= 60:
+                days_31_60 += outstanding
+            elif days_old <= 90:
+                days_61_90 += outstanding
+            else:
+                over_90_days += outstanding
+            
+            # Track by customer
+            cust_id = str(inv.customer_id) if inv.customer_id else "Unknown"
+            if cust_id not in customer_balances:
+                customer_balances[cust_id] = {"customer_id": cust_id, "balance": Decimal("0.00")}
+            customer_balances[cust_id]["balance"] += outstanding
+        
+        total_receivables = current + days_31_60 + days_61_90 + over_90_days
+        
+        # Get top 10 customers by balance
+        top_receivables = sorted(
+            customer_balances.values(),
+            key=lambda x: x["balance"],
+            reverse=True
+        )[:10]
+        
+        # Convert Decimal to float for JSON
+        for item in top_receivables:
+            item["balance"] = float(item["balance"])
+        
+        # Count unique customers
+        customers_with_balance = len([c for c in customer_balances.values() if c["balance"] > 0])
+        
+        # Get total customers count
+        cust_result = await self.db.execute(
+            select(func.count(Customer.id)).where(
+                and_(Customer.entity_id == entity_id, Customer.is_active == True)
+            )
+        )
+        total_customers = cust_result.scalar() or 0
+        
+        return ARAgingSummary(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            total_receivables=total_receivables,
+            current=current,
+            days_31_60=days_31_60,
+            days_61_90=days_61_90,
+            over_90_days=over_90_days,
+            total_customers=total_customers,
+            customers_with_balance=customers_with_balance,
+            top_receivables=top_receivables,
+        )
+    
+    async def get_ap_aging_summary(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> "APAgingSummary":
+        """
+        Get Accounts Payable aging for GL account 2110 reconciliation.
+        
+        Reads from: Vendor/Transaction system
+        Maps to: GL 2110 - Accounts Payable
+        """
+        from app.schemas.accounting import APAgingSummary
+        from app.models.transaction import Transaction, TransactionType
+        from app.models.vendor import Vendor
+        
+        # Get all unpaid expense transactions (simplified - could be enhanced with vendor bills table)
+        result = await self.db.execute(
+            select(Transaction).where(
+                and_(
+                    Transaction.entity_id == entity_id,
+                    Transaction.transaction_type == TransactionType.EXPENSE,
+                    Transaction.transaction_date <= as_of_date,
+                )
+            )
+        )
+        transactions = result.scalars().all()
+        
+        # Calculate aging buckets
+        current = Decimal("0.00")
+        days_31_60 = Decimal("0.00")
+        days_61_90 = Decimal("0.00")
+        over_90_days = Decimal("0.00")
+        vendor_balances = {}
+        
+        for txn in transactions:
+            # For simplicity, treat transaction amount as payable (should check payment status)
+            outstanding = Decimal(str(txn.total_amount))
+            days_old = (as_of_date - txn.transaction_date).days
+            
+            if days_old <= 30:
+                current += outstanding
+            elif days_old <= 60:
+                days_31_60 += outstanding
+            elif days_old <= 90:
+                days_61_90 += outstanding
+            else:
+                over_90_days += outstanding
+            
+            # Track by vendor
+            vendor_id = str(txn.vendor_id) if txn.vendor_id else "Unknown"
+            if vendor_id not in vendor_balances:
+                vendor_balances[vendor_id] = {"vendor_id": vendor_id, "balance": Decimal("0.00")}
+            vendor_balances[vendor_id]["balance"] += outstanding
+        
+        total_payables = current + days_31_60 + days_61_90 + over_90_days
+        
+        # Get top 10 vendors by balance
+        top_payables = sorted(
+            vendor_balances.values(),
+            key=lambda x: x["balance"],
+            reverse=True
+        )[:10]
+        
+        for item in top_payables:
+            item["balance"] = float(item["balance"])
+        
+        vendors_with_balance = len([v for v in vendor_balances.values() if v["balance"] > 0])
+        
+        # Get total vendors count
+        vendor_result = await self.db.execute(
+            select(func.count(Vendor.id)).where(
+                and_(Vendor.entity_id == entity_id, Vendor.is_active == True)
+            )
+        )
+        total_vendors = vendor_result.scalar() or 0
+        
+        return APAgingSummary(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            total_payables=total_payables,
+            current=current,
+            days_31_60=days_31_60,
+            days_61_90=days_61_90,
+            over_90_days=over_90_days,
+            total_vendors=total_vendors,
+            vendors_with_balance=vendors_with_balance,
+            top_payables=top_payables,
+        )
+    
+    async def get_payroll_summary_for_gl(
+        self,
+        entity_id: uuid.UUID,
+        period_start: date,
+        period_end: date,
+    ) -> "PayrollSummaryForGL":
+        """
+        Get payroll summary for GL reconciliation.
+        
+        Reads from: Payroll system
+        Maps to: GL 2150-2190 (liabilities), GL 5200-5230 (expenses)
+        """
+        from app.schemas.accounting import PayrollSummaryForGL
+        from app.models.payroll import PayrollRun, PayrollStatus, Employee
+        
+        # Get payroll runs in period
+        result = await self.db.execute(
+            select(PayrollRun).where(
+                and_(
+                    PayrollRun.entity_id == entity_id,
+                    PayrollRun.period_start >= period_start,
+                    PayrollRun.period_end <= period_end,
+                    PayrollRun.status.in_([PayrollStatus.COMPLETED, PayrollStatus.APPROVED]),
+                )
+            )
+        )
+        payroll_runs = result.scalars().all()
+        
+        # Sum totals
+        total_gross = Decimal("0.00")
+        total_employer_pension = Decimal("0.00")
+        total_employer_nsitf = Decimal("0.00")
+        total_paye = Decimal("0.00")
+        total_pension_payable = Decimal("0.00")
+        total_nhf = Decimal("0.00")
+        total_net = Decimal("0.00")
+        
+        for pr in payroll_runs:
+            total_gross += Decimal(str(pr.total_gross_pay or 0))
+            total_employer_pension += Decimal(str(pr.total_pension_employer or 0))
+            total_employer_nsitf += Decimal(str(pr.total_nsitf or 0))
+            total_paye += Decimal(str(pr.total_paye or 0))
+            total_pension_payable += Decimal(str(pr.total_pension_employee or 0)) + Decimal(str(pr.total_pension_employer or 0))
+            total_nhf += Decimal(str(pr.total_nhf or 0))
+            total_net += Decimal(str(pr.total_net_pay or 0))
+        
+        # Get employee count
+        emp_result = await self.db.execute(
+            select(func.count(Employee.id)).where(
+                and_(Employee.entity_id == entity_id, Employee.employment_status != "terminated")
+            )
+        )
+        total_employees = emp_result.scalar() or 0
+        
+        return PayrollSummaryForGL(
+            entity_id=entity_id,
+            period_start=period_start,
+            period_end=period_end,
+            total_gross_salary=total_gross,
+            total_employer_pension=total_employer_pension,
+            total_employer_nsitf=total_employer_nsitf,
+            total_itf=Decimal("0.00"),  # ITF is calculated annually
+            total_paye_payable=total_paye,
+            total_pension_payable=total_pension_payable,
+            total_nhf_payable=total_nhf,
+            total_nsitf_payable=total_employer_nsitf,
+            total_salaries_payable=total_net,
+            total_employees=total_employees,
+            payroll_runs=len(payroll_runs),
+        )
+    
+    async def get_bank_summary_for_gl(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> "BankAccountSummaryForGL":
+        """
+        Get bank account summary for GL account 1120 reconciliation.
+        
+        Reads from: Bank Reconciliation system
+        Maps to: GL 1120 - Bank Accounts
+        """
+        from app.schemas.accounting import BankAccountSummaryForGL
+        from app.models.bank_reconciliation import BankAccount, BankReconciliation
+        
+        # Get all bank accounts
+        result = await self.db.execute(
+            select(BankAccount).where(
+                and_(
+                    BankAccount.entity_id == entity_id,
+                    BankAccount.is_active == True,
+                )
+            )
+        )
+        bank_accounts = result.scalars().all()
+        
+        total_balance = Decimal("0.00")
+        accounts_list = []
+        last_reconciled = None
+        total_unreconciled = 0
+        outstanding_deposits = Decimal("0.00")
+        outstanding_checks = Decimal("0.00")
+        
+        for acc in bank_accounts:
+            balance = Decimal(str(acc.current_balance or 0))
+            total_balance += balance
+            
+            accounts_list.append({
+                "account_id": str(acc.id),
+                "bank_name": acc.bank_name,
+                "account_number": acc.account_number[-4:] if acc.account_number else "****",
+                "account_name": acc.account_name,
+                "balance": float(balance),
+                "currency": acc.currency or "NGN",
+            })
+            
+            # Get latest reconciliation for this account
+            recon_result = await self.db.execute(
+                select(BankReconciliation)
+                .where(BankReconciliation.bank_account_id == acc.id)
+                .order_by(desc(BankReconciliation.reconciliation_date))
+                .limit(1)
+            )
+            latest_recon = recon_result.scalar_one_or_none()
+            
+            if latest_recon:
+                if last_reconciled is None or latest_recon.reconciliation_date > last_reconciled:
+                    last_reconciled = latest_recon.reconciliation_date
+                outstanding_deposits += Decimal(str(latest_recon.outstanding_deposits or 0))
+                outstanding_checks += Decimal(str(latest_recon.outstanding_checks or 0))
+        
+        return BankAccountSummaryForGL(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            total_bank_balance=total_balance,
+            accounts=accounts_list,
+            last_reconciled_date=last_reconciled,
+            unreconciled_items_count=total_unreconciled,
+            outstanding_deposits=outstanding_deposits,
+            outstanding_checks=outstanding_checks,
+        )
+    
+    async def get_expense_claims_summary_for_gl(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> "ExpenseClaimSummaryForGL":
+        """
+        Get expense claims summary for GL reconciliation.
+        
+        Reads from: Expense Claims system
+        """
+        from app.schemas.accounting import ExpenseClaimSummaryForGL
+        from app.models.expense_claims import ExpenseClaim, ClaimStatus
+        
+        # Get claims
+        result = await self.db.execute(
+            select(ExpenseClaim).where(
+                and_(
+                    ExpenseClaim.entity_id == entity_id,
+                    ExpenseClaim.created_at <= as_of_date,
+                )
+            )
+        )
+        claims = result.scalars().all()
+        
+        pending = Decimal("0.00")
+        approved = Decimal("0.00")
+        paid = Decimal("0.00")
+        
+        for claim in claims:
+            amount = Decimal(str(claim.approved_amount or claim.total_amount or 0))
+            if claim.status in [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED, ClaimStatus.PENDING_APPROVAL]:
+                pending += amount
+            elif claim.status == ClaimStatus.APPROVED:
+                approved += amount
+            elif claim.status == ClaimStatus.PAID:
+                paid += amount
+        
+        return ExpenseClaimSummaryForGL(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            total_pending_claims=pending,
+            total_approved_claims=approved,
+            total_paid_claims=paid,
+            claims_by_category=[],  # Could be expanded
+            claims_count=len(claims),
+        )
+    
+    async def get_gl_source_system_summary(
+        self,
+        entity_id: uuid.UUID,
+        as_of_date: date,
+    ) -> "GLSourceSystemSummary":
+        """
+        Get comprehensive GL summary with all source system data.
+        
+        This is the master endpoint for reconciling GL accounts with source systems.
+        """
+        from app.schemas.accounting import GLSourceSystemSummary
+        
+        # Gather all source system summaries
+        inventory = await self.get_inventory_summary_for_gl(entity_id, as_of_date)
+        ar = await self.get_ar_aging_summary(entity_id, as_of_date)
+        ap = await self.get_ap_aging_summary(entity_id, as_of_date)
+        
+        # Get payroll for current month
+        first_of_month = as_of_date.replace(day=1)
+        payroll = await self.get_payroll_summary_for_gl(entity_id, first_of_month, as_of_date)
+        
+        bank = await self.get_bank_summary_for_gl(entity_id, as_of_date)
+        fixed_assets = await self.get_fixed_asset_summary(entity_id, as_of_date)
+        expense_claims = await self.get_expense_claims_summary_for_gl(entity_id, as_of_date)
+        
+        # Validate GL accounts against source systems
+        validations = []
+        discrepancy_count = 0
+        
+        # Get GL balances
+        gl_accounts = await self.get_chart_of_accounts(entity_id, include_headers=False)
+        gl_map = {acc.account_code: acc for acc in gl_accounts}
+        
+        def add_validation(code: str, name: str, source: str, source_balance: Decimal):
+            gl_acc = gl_map.get(code)
+            gl_balance = Decimal(str(gl_acc.current_balance)) if gl_acc else Decimal("0.00")
+            variance = gl_balance - source_balance
+            is_reconciled = abs(variance) < Decimal("0.01")
+            
+            validations.append({
+                "account_code": code,
+                "account_name": name,
+                "gl_balance": float(gl_balance),
+                "source_system": source,
+                "source_balance": float(source_balance),
+                "variance": float(variance),
+                "is_reconciled": is_reconciled,
+            })
+            
+            return 0 if is_reconciled else 1
+        
+        # Validate key accounts
+        discrepancy_count += add_validation("1140", "Inventory", "inventory", inventory.total_inventory_value)
+        discrepancy_count += add_validation("1130", "Accounts Receivable", "invoices", ar.total_receivables)
+        discrepancy_count += add_validation("2110", "Accounts Payable", "vendors", ap.total_payables)
+        discrepancy_count += add_validation("1120", "Bank Accounts", "bank_reconciliation", bank.total_bank_balance)
+        discrepancy_count += add_validation("1210", "Fixed Assets", "fixed_assets", fixed_assets.total_acquisition_cost)
+        discrepancy_count += add_validation("1220", "Accumulated Depreciation", "fixed_assets", fixed_assets.total_accumulated_depreciation)
+        
+        return GLSourceSystemSummary(
+            entity_id=entity_id,
+            as_of_date=as_of_date,
+            generated_at=datetime.utcnow(),
+            inventory=inventory,
+            accounts_receivable=ar,
+            accounts_payable=ap,
+            payroll=payroll,
+            bank_accounts=bank,
+            fixed_assets=fixed_assets,
+            expense_claims=expense_claims,
+            validations=validations,
+            has_discrepancies=discrepancy_count > 0,
+            discrepancy_count=discrepancy_count,
+        )
+
+    # =========================================================================
+    # GL SYNC FROM SOURCE SYSTEMS
+    # =========================================================================
+    
+    async def sync_gl_from_source_systems(
+        self,
+        entity_id: uuid.UUID,
+        user_id: uuid.UUID,
+        as_of_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Synchronize GL balances by reading from all source systems and updating
+        the Chart of Accounts current_balance field directly.
+        
+        This method:
+        1. Reads totals from all source systems (Inventory, AR, AP, Payroll, etc.)
+        2. Updates the corresponding GL account balances
+        3. Returns a summary of what was synced
+        
+        NOTE: This is a direct balance update, not via journal entries.
+        Use this for initial setup or reconciliation purposes.
+        """
+        sync_date = as_of_date or date.today()
+        results = {
+            "entity_id": str(entity_id),
+            "sync_date": str(sync_date),
+            "accounts_updated": [],
+            "errors": [],
+            "summary": {}
+        }
+        
+        # Get all GL accounts
+        gl_accounts = await self.get_chart_of_accounts(entity_id, include_headers=False)
+        gl_map = {acc.account_code: acc for acc in gl_accounts}
+        
+        async def update_account(code: str, new_balance: Decimal, source: str):
+            """Helper to update an account balance."""
+            acc = gl_map.get(code)
+            if acc:
+                old_balance = acc.current_balance
+                acc.current_balance = new_balance
+                results["accounts_updated"].append({
+                    "account_code": code,
+                    "account_name": acc.account_name,
+                    "old_balance": float(old_balance),
+                    "new_balance": float(new_balance),
+                    "source": source,
+                })
+            else:
+                results["errors"].append(f"Account {code} not found in Chart of Accounts")
+        
+        try:
+            # ==========================================
+            # 1. INVENTORY (GL 1140)
+            # ==========================================
+            from app.models.inventory import InventoryItem
+            
+            inv_result = await self.db.execute(
+                select(func.coalesce(func.sum(InventoryItem.unit_cost * InventoryItem.quantity_on_hand), 0))
+                .where(and_(InventoryItem.entity_id == entity_id, InventoryItem.is_active == True))
+            )
+            inventory_total = Decimal(str(inv_result.scalar() or 0))
+            await update_account("1140", inventory_total, "inventory")
+            results["summary"]["inventory"] = float(inventory_total)
+            
+            # ==========================================
+            # 2. ACCOUNTS RECEIVABLE (GL 1130) - From unpaid invoices
+            # ==========================================
+            from app.models.invoice import Invoice, InvoiceStatus
+            
+            ar_result = await self.db.execute(
+                select(func.coalesce(func.sum(Invoice.total_amount - Invoice.amount_paid), 0))
+                .where(and_(
+                    Invoice.entity_id == entity_id,
+                    Invoice.status.in_([InvoiceStatus.PENDING, InvoiceStatus.OVERDUE, InvoiceStatus.PARTIAL]),
+                ))
+            )
+            ar_total = Decimal(str(ar_result.scalar() or 0))
+            await update_account("1130", ar_total, "invoices")
+            results["summary"]["accounts_receivable"] = float(ar_total)
+            
+            # ==========================================
+            # 3. SALES REVENUE (GL 4100) - Total invoiced
+            # ==========================================
+            sales_result = await self.db.execute(
+                select(func.coalesce(func.sum(Invoice.subtotal), 0))
+                .where(and_(
+                    Invoice.entity_id == entity_id,
+                    Invoice.status != InvoiceStatus.DRAFT,
+                    Invoice.status != InvoiceStatus.CANCELLED,
+                ))
+            )
+            sales_total = Decimal(str(sales_result.scalar() or 0))
+            await update_account("4100", sales_total, "invoices")
+            results["summary"]["sales_revenue"] = float(sales_total)
+            
+            # ==========================================
+            # 4. VAT PAYABLE (GL 2130) - Output VAT from invoices
+            # ==========================================
+            vat_output_result = await self.db.execute(
+                select(func.coalesce(func.sum(Invoice.vat_amount), 0))
+                .where(and_(
+                    Invoice.entity_id == entity_id,
+                    Invoice.status != InvoiceStatus.DRAFT,
+                    Invoice.status != InvoiceStatus.CANCELLED,
+                ))
+            )
+            vat_output_total = Decimal(str(vat_output_result.scalar() or 0))
+            await update_account("2130", vat_output_total, "invoices")
+            results["summary"]["vat_payable"] = float(vat_output_total)
+            
+            # ==========================================
+            # 5. ACCOUNTS PAYABLE (GL 2110) - From expense transactions
+            # ==========================================
+            from app.models.transaction import Transaction, TransactionType
+            
+            ap_result = await self.db.execute(
+                select(func.coalesce(func.sum(Transaction.total_amount), 0))
+                .where(and_(
+                    Transaction.entity_id == entity_id,
+                    Transaction.transaction_type == TransactionType.EXPENSE,
+                ))
+            )
+            ap_total = Decimal(str(ap_result.scalar() or 0))
+            await update_account("2110", ap_total, "transactions")
+            results["summary"]["accounts_payable"] = float(ap_total)
+            
+            # ==========================================
+            # 6. VAT RECEIVABLE (GL 1160) - Input VAT from expenses
+            # ==========================================
+            vat_input_result = await self.db.execute(
+                select(func.coalesce(func.sum(Transaction.vat_amount), 0))
+                .where(and_(
+                    Transaction.entity_id == entity_id,
+                    Transaction.transaction_type == TransactionType.EXPENSE,
+                    Transaction.vat_recoverable == True,
+                ))
+            )
+            vat_input_total = Decimal(str(vat_input_result.scalar() or 0))
+            await update_account("1160", vat_input_total, "transactions")
+            results["summary"]["vat_receivable"] = float(vat_input_total)
+            
+            # ==========================================
+            # 7. FIXED ASSETS (GL 1210) & ACCUMULATED DEPRECIATION (GL 1220)
+            # ==========================================
+            from app.models.fixed_asset import FixedAsset, AssetStatus
+            
+            fa_cost_result = await self.db.execute(
+                select(func.coalesce(func.sum(FixedAsset.acquisition_cost), 0))
+                .where(and_(
+                    FixedAsset.entity_id == entity_id,
+                    FixedAsset.status != AssetStatus.DISPOSED,
+                ))
+            )
+            fa_cost = Decimal(str(fa_cost_result.scalar() or 0))
+            await update_account("1210", fa_cost, "fixed_assets")
+            results["summary"]["fixed_assets_cost"] = float(fa_cost)
+            
+            fa_depr_result = await self.db.execute(
+                select(func.coalesce(func.sum(FixedAsset.accumulated_depreciation), 0))
+                .where(and_(
+                    FixedAsset.entity_id == entity_id,
+                    FixedAsset.status != AssetStatus.DISPOSED,
+                ))
+            )
+            fa_depr = Decimal(str(fa_depr_result.scalar() or 0))
+            # Accumulated depreciation is a contra-asset (credit balance)
+            await update_account("1220", fa_depr, "fixed_assets")
+            results["summary"]["accumulated_depreciation"] = float(fa_depr)
+            
+            # ==========================================
+            # 8. PAYROLL LIABILITIES & EXPENSES
+            # ==========================================
+            from app.models.payroll import PayrollRun, PayrollStatus
+            
+            # Get totals from completed payroll runs
+            payroll_result = await self.db.execute(
+                select(
+                    func.coalesce(func.sum(PayrollRun.total_gross_pay), 0).label("gross"),
+                    func.coalesce(func.sum(PayrollRun.total_paye), 0).label("paye"),
+                    func.coalesce(func.sum(PayrollRun.total_pension_employee + PayrollRun.total_pension_employer), 0).label("pension"),
+                    func.coalesce(func.sum(PayrollRun.total_nhf), 0).label("nhf"),
+                    func.coalesce(func.sum(PayrollRun.total_nsitf), 0).label("nsitf"),
+                    func.coalesce(func.sum(PayrollRun.total_net_pay), 0).label("net"),
+                    func.coalesce(func.sum(PayrollRun.total_pension_employer), 0).label("employer_pension"),
+                )
+                .where(and_(
+                    PayrollRun.entity_id == entity_id,
+                    PayrollRun.status.in_([PayrollStatus.COMPLETED, PayrollStatus.APPROVED]),
+                ))
+            )
+            payroll = payroll_result.one()
+            
+            # Salary Expense (GL 5200)
+            await update_account("5200", Decimal(str(payroll.gross)), "payroll")
+            results["summary"]["salaries_expense"] = float(payroll.gross)
+            
+            # Employer Pension Expense (GL 5210)
+            await update_account("5210", Decimal(str(payroll.employer_pension)), "payroll")
+            results["summary"]["employer_pension_expense"] = float(payroll.employer_pension)
+            
+            # NSITF Expense (GL 5220)
+            await update_account("5220", Decimal(str(payroll.nsitf)), "payroll")
+            results["summary"]["nsitf_expense"] = float(payroll.nsitf)
+            
+            # PAYE Payable (GL 2150)
+            await update_account("2150", Decimal(str(payroll.paye)), "payroll")
+            results["summary"]["paye_payable"] = float(payroll.paye)
+            
+            # Pension Payable (GL 2160)
+            await update_account("2160", Decimal(str(payroll.pension)), "payroll")
+            results["summary"]["pension_payable"] = float(payroll.pension)
+            
+            # NHF Payable (GL 2170)
+            await update_account("2170", Decimal(str(payroll.nhf)), "payroll")
+            results["summary"]["nhf_payable"] = float(payroll.nhf)
+            
+            # NSITF Payable (GL 2180)
+            await update_account("2180", Decimal(str(payroll.nsitf)), "payroll")
+            results["summary"]["nsitf_payable"] = float(payroll.nsitf)
+            
+            # Salaries Payable (GL 2190)
+            await update_account("2190", Decimal(str(payroll.net)), "payroll")
+            results["summary"]["salaries_payable"] = float(payroll.net)
+            
+            # ==========================================
+            # 9. BANK ACCOUNTS (GL 1120)
+            # ==========================================
+            from app.models.bank_reconciliation import BankAccount
+            
+            bank_result = await self.db.execute(
+                select(func.coalesce(func.sum(BankAccount.current_balance), 0))
+                .where(and_(
+                    BankAccount.entity_id == entity_id,
+                    BankAccount.is_active == True,
+                ))
+            )
+            bank_total = Decimal(str(bank_result.scalar() or 0))
+            await update_account("1120", bank_total, "bank_accounts")
+            results["summary"]["bank_accounts"] = float(bank_total)
+            
+            # ==========================================
+            # 10. COGS (GL 5100) - From inventory sold
+            # Calculate based on sales * average margin (simplified)
+            # In real system, would track actual COGS from stock movements
+            # ==========================================
+            from app.models.inventory import StockMovement, StockMovementType
+            
+            cogs_result = await self.db.execute(
+                select(func.coalesce(func.sum(func.abs(StockMovement.quantity) * StockMovement.unit_cost), 0))
+                .where(and_(
+                    StockMovement.movement_type == StockMovementType.SALE,
+                ))
+            )
+            cogs_total = Decimal(str(cogs_result.scalar() or 0))
+            await update_account("5100", cogs_total, "inventory_movements")
+            results["summary"]["cost_of_goods_sold"] = float(cogs_total)
+            
+            # Commit all changes
+            await self.db.commit()
+            
+            results["success"] = True
+            results["total_accounts_updated"] = len(results["accounts_updated"])
+            
+        except Exception as e:
+            results["success"] = False
+            results["errors"].append(str(e))
+            await self.db.rollback()
+        
+        return results
+    
+    async def recalculate_gl_balances_from_journal_entries(
+        self,
+        entity_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Recalculate all GL account balances from posted journal entries.
+        
+        This is useful when balances get out of sync with journal entry lines.
+        """
+        results = {
+            "entity_id": str(entity_id),
+            "accounts_updated": [],
+            "errors": [],
+        }
+        
+        try:
+            # Get all accounts
+            accounts = await self.get_chart_of_accounts(entity_id, include_headers=False)
+            
+            for account in accounts:
+                # Sum all posted journal entry lines for this account
+                debit_result = await self.db.execute(
+                    select(func.coalesce(func.sum(JournalEntryLine.debit_amount), 0))
+                    .join(JournalEntry, JournalEntryLine.journal_entry_id == JournalEntry.id)
+                    .where(and_(
+                        JournalEntry.entity_id == entity_id,
+                        JournalEntry.status == JournalEntryStatus.POSTED,
+                        JournalEntryLine.account_id == account.id,
+                    ))
+                )
+                total_debit = Decimal(str(debit_result.scalar() or 0))
+                
+                credit_result = await self.db.execute(
+                    select(func.coalesce(func.sum(JournalEntryLine.credit_amount), 0))
+                    .join(JournalEntry, JournalEntryLine.journal_entry_id == JournalEntry.id)
+                    .where(and_(
+                        JournalEntry.entity_id == entity_id,
+                        JournalEntry.status == JournalEntryStatus.POSTED,
+                        JournalEntryLine.account_id == account.id,
+                    ))
+                )
+                total_credit = Decimal(str(credit_result.scalar() or 0))
+                
+                # Calculate balance based on normal balance
+                if account.normal_balance == NormalBalance.DEBIT:
+                    new_balance = total_debit - total_credit
+                else:
+                    new_balance = total_credit - total_debit
+                
+                old_balance = account.current_balance
+                account.current_balance = new_balance
+                account.ytd_debit = total_debit
+                account.ytd_credit = total_credit
+                
+                results["accounts_updated"].append({
+                    "account_code": account.account_code,
+                    "account_name": account.account_name,
+                    "old_balance": float(old_balance),
+                    "new_balance": float(new_balance),
+                    "total_debit": float(total_debit),
+                    "total_credit": float(total_credit),
+                })
+            
+            await self.db.commit()
+            results["success"] = True
+            results["total_accounts_updated"] = len(results["accounts_updated"])
+            
+        except Exception as e:
+            results["success"] = False
+            results["errors"].append(str(e))
+            await self.db.rollback()
+        
+        return results

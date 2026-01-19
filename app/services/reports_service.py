@@ -883,7 +883,7 @@ class ReportsService:
             asset_list.append({
                 "id": str(asset.id),
                 "name": asset.name,
-                "asset_type": asset.asset_type,
+                "asset_type": asset.category.value if asset.category else None,
                 "acquisition_date": asset.acquisition_date.isoformat(),
                 "acquisition_cost": float(asset.acquisition_cost),
                 "depreciation_method": asset.depreciation_method.value if asset.depreciation_method else None,

@@ -30,6 +30,7 @@ from app.schemas.accounting import (
     AccountLedgerReport,
     GLPostingRequest, GLPostingResponse,
     PeriodCloseChecklist, PeriodCloseRequest, PeriodCloseResponse,
+    FixedAssetRegisterSummary, GLFixedAssetValidation, EnhancedBalanceSheetReport,
 )
 from app.services.accounting_service import AccountingService
 
@@ -310,11 +311,16 @@ async def list_journal_entries(
         limit=limit,
         offset=offset,
     )
+    # Calculate pagination values
+    page = (offset // limit) + 1 if limit > 0 else 1
+    total_pages = (total + limit - 1) // limit if limit > 0 else 1
+    
     return JournalEntryListResponse(
         items=entries,
         total=total,
-        limit=limit,
-        offset=offset,
+        page=page,
+        page_size=limit,
+        total_pages=total_pages,
     )
 
 
@@ -542,3 +548,339 @@ async def close_fiscal_period(
         await db.rollback()
     
     return response
+
+
+# ============================================================================
+# FIXED ASSET INTEGRATION ENDPOINTS
+# ============================================================================
+
+@router.get("/fixed-assets/summary", response_model=FixedAssetRegisterSummary)
+async def get_fixed_asset_summary(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get fixed asset summary for Balance Sheet reporting.
+    
+    Returns detailed breakdown of all fixed assets including:
+    - Total acquisition cost
+    - Accumulated depreciation
+    - Net book value
+    - Breakdown by category
+    - Individual asset details
+    
+    This data is pulled directly from the Fixed Asset Register
+    to ensure consistency with financial statements.
+    """
+    service = AccountingService(db)
+    return await service.get_fixed_asset_summary(entity_id, as_of_date)
+
+
+@router.get("/fixed-assets/validate", response_model=GLFixedAssetValidation)
+async def validate_fixed_asset_gl_balances(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Validation date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Validate GL balances against Fixed Asset Register totals.
+    
+    Compares:
+    - GL Fixed Asset accounts vs Register total cost
+    - GL Accumulated Depreciation vs Register depreciation
+    - Net book values
+    
+    Returns:
+    - Validation status (pass/fail)
+    - Variance amounts
+    - Issues identified
+    - Recommendations for resolution
+    
+    Use this endpoint before period close to ensure fixed asset
+    balances are accurate and reconciled.
+    """
+    service = AccountingService(db)
+    return await service.validate_fixed_asset_gl_balances(entity_id, as_of_date)
+
+
+@router.get("/reports/balance-sheet-enhanced", response_model=EnhancedBalanceSheetReport)
+async def get_enhanced_balance_sheet(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    include_fixed_asset_details: bool = Query(True, description="Include detailed fixed asset breakdown"),
+    validate_fixed_assets: bool = Query(True, description="Validate GL vs Fixed Asset Register"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate enhanced Balance Sheet with fixed asset details.
+    
+    This comprehensive report includes:
+    - Standard Balance Sheet format (Assets, Liabilities, Equity)
+    - Fixed Asset Register summary by category
+    - GL vs Register validation results
+    - Depreciation policy notes
+    - 2026 Tax compliance notes (capital gains, VAT recovery)
+    
+    The enhanced balance sheet ensures that fixed asset values
+    shown in the Balance Sheet can be traced back to the
+    Fixed Asset Register, providing audit assurance.
+    """
+    service = AccountingService(db)
+    return await service.get_enhanced_balance_sheet(
+        entity_id=entity_id,
+        as_of_date=as_of_date,
+        include_fixed_asset_details=include_fixed_asset_details,
+        validate_fixed_assets=validate_fixed_assets,
+    )
+
+
+# ============================================================================
+# SOURCE SYSTEM INTEGRATION ENDPOINTS - ACCOUNTING READS FROM OTHER MODULES
+# ============================================================================
+
+@router.get("/source-systems/inventory")
+async def get_inventory_summary_for_gl(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get inventory summary for GL account 1140 reconciliation.
+    
+    Reads from: Inventory system
+    Maps to: GL 1140 - Inventory
+    
+    Returns:
+    - Total inventory value (should match GL 1140)
+    - Item counts (total, active, low stock)
+    - Breakdown by category
+    - Valuation method
+    """
+    service = AccountingService(db)
+    return await service.get_inventory_summary_for_gl(entity_id, as_of_date)
+
+
+@router.get("/source-systems/accounts-receivable")
+async def get_ar_aging_summary(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get Accounts Receivable aging for GL account 1130 reconciliation.
+    
+    Reads from: Invoice/Customer system
+    Maps to: GL 1130 - Accounts Receivable
+    
+    Returns:
+    - Total receivables (should match GL 1130)
+    - Aging buckets (Current, 31-60, 61-90, 90+ days)
+    - Customer counts
+    - Top 10 customers by balance
+    """
+    service = AccountingService(db)
+    return await service.get_ar_aging_summary(entity_id, as_of_date)
+
+
+@router.get("/source-systems/accounts-payable")
+async def get_ap_aging_summary(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get Accounts Payable aging for GL account 2110 reconciliation.
+    
+    Reads from: Vendor/Transaction system
+    Maps to: GL 2110 - Accounts Payable
+    
+    Returns:
+    - Total payables (should match GL 2110)
+    - Aging buckets (Current, 31-60, 61-90, 90+ days)
+    - Vendor counts
+    - Top 10 vendors by balance
+    """
+    service = AccountingService(db)
+    return await service.get_ap_aging_summary(entity_id, as_of_date)
+
+
+@router.get("/source-systems/payroll")
+async def get_payroll_summary_for_gl(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    period_start: date = Query(..., description="Period start date"),
+    period_end: date = Query(..., description="Period end date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get payroll summary for GL reconciliation.
+    
+    Reads from: Payroll system
+    Maps to: 
+    - GL 5200 - Salaries & Wages (gross)
+    - GL 5210 - Employer Pension
+    - GL 5220 - Employer NSITF
+    - GL 2150 - PAYE Payable
+    - GL 2160 - Pension Payable
+    - GL 2170 - NHF Payable
+    - GL 2190 - Salaries Payable (net)
+    
+    Returns:
+    - Expense totals (gross salary, employer contributions)
+    - Liability totals (PAYE, pension, NHF, net payable)
+    - Employee count
+    - Payroll run count
+    """
+    service = AccountingService(db)
+    return await service.get_payroll_summary_for_gl(entity_id, period_start, period_end)
+
+
+@router.get("/source-systems/bank")
+async def get_bank_summary_for_gl(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get bank account summary for GL account 1120 reconciliation.
+    
+    Reads from: Bank Reconciliation system
+    Maps to: GL 1120 - Bank Accounts
+    
+    Returns:
+    - Total bank balance (should match GL 1120)
+    - Individual account balances
+    - Last reconciliation date
+    - Outstanding items (deposits, checks)
+    """
+    service = AccountingService(db)
+    return await service.get_bank_summary_for_gl(entity_id, as_of_date)
+
+
+@router.get("/source-systems/expense-claims")
+async def get_expense_claims_summary_for_gl(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get expense claims summary for GL reconciliation.
+    
+    Reads from: Expense Claims system
+    
+    Returns:
+    - Pending claims total
+    - Approved claims total
+    - Paid claims total
+    - Claims by category
+    """
+    service = AccountingService(db)
+    return await service.get_expense_claims_summary_for_gl(entity_id, as_of_date)
+
+
+@router.get("/source-systems/summary")
+async def get_gl_source_system_summary(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: date = Query(..., description="Report date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get comprehensive GL summary with ALL source system data.
+    
+    This is the MASTER endpoint for reconciling GL accounts with source systems.
+    It pulls data from:
+    - Inventory (GL 1140)
+    - Accounts Receivable (GL 1130)
+    - Accounts Payable (GL 2110)
+    - Payroll (GL 2150-2190, 5200-5230)
+    - Bank Accounts (GL 1120)
+    - Fixed Assets (GL 1210, 1220)
+    - Expense Claims
+    
+    Returns:
+    - All source system summaries
+    - GL validation results for each account
+    - Discrepancy count and details
+    - Overall reconciliation status
+    
+    Use this endpoint for:
+    - Month-end close preparation
+    - Audit preparation
+    - Financial statement preparation
+    - Identifying data integrity issues
+    """
+    service = AccountingService(db)
+    return await service.get_gl_source_system_summary(entity_id, as_of_date)
+
+
+@router.post("/sync-from-source-systems")
+async def sync_gl_from_source_systems(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    as_of_date: Optional[date] = Query(None, description="Sync as of date (defaults to today)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    SYNC GL balances from all source systems.
+    
+    This endpoint reads data from all source systems and updates
+    the Chart of Accounts current_balance fields directly.
+    
+    Source Systems synced:
+    - Inventory → GL 1140
+    - Invoices/AR → GL 1130, 4100, 2130
+    - Transactions/AP → GL 2110, 1160
+    - Fixed Assets → GL 1210, 1220
+    - Payroll → GL 5200, 5210, 5220, 2150, 2160, 2170, 2180, 2190
+    - Bank Accounts → GL 1120
+    - Stock Movements → GL 5100 (COGS)
+    
+    Returns:
+    - List of accounts updated with old/new balances
+    - Summary of synced totals
+    - Any errors encountered
+    
+    Use this endpoint:
+    - During initial setup
+    - To reconcile GL after data import
+    - When GL balances are out of sync with source systems
+    
+    WARNING: This overwrites current GL balances with source system values.
+    """
+    service = AccountingService(db)
+    return await service.sync_gl_from_source_systems(entity_id, current_user.id, as_of_date)
+
+
+@router.post("/recalculate-balances")
+async def recalculate_gl_balances(
+    entity_id: uuid.UUID = Path(..., description="Entity ID"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Recalculate all GL account balances from posted journal entries.
+    
+    This endpoint recalculates current_balance, ytd_debit, and ytd_credit
+    for all accounts based on the sum of posted journal entry lines.
+    
+    Use this endpoint:
+    - When balances are out of sync with journal entries
+    - After manual database corrections
+    - As part of period close verification
+    
+    Returns:
+    - List of accounts with old and new balances
+    - Total debits and credits per account
+    """
+    service = AccountingService(db)
+    return await service.recalculate_gl_balances_from_journal_entries(entity_id)

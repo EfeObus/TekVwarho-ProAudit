@@ -597,3 +597,209 @@ class PeriodCloseResponse(BaseModel):
     status: FiscalPeriodStatus
     message: str
     closed_at: Optional[datetime] = None
+
+
+# =============================================================================
+# FIXED ASSET INTEGRATION SCHEMAS
+# =============================================================================
+
+class FixedAssetSummaryItem(BaseModel):
+    """Summary of a fixed asset for financial reporting."""
+    asset_id: UUID
+    asset_code: str
+    name: str
+    category: str
+    acquisition_date: date
+    acquisition_cost: Decimal
+    accumulated_depreciation: Decimal
+    net_book_value: Decimal
+    depreciation_method: str
+    depreciation_rate: Decimal
+    status: str
+
+
+class FixedAssetCategorySummary(BaseModel):
+    """Summary by category for Balance Sheet notes."""
+    category: str
+    asset_count: int
+    total_cost: Decimal
+    total_depreciation: Decimal
+    total_nbv: Decimal
+
+
+class FixedAssetRegisterSummary(BaseModel):
+    """Complete fixed asset register summary for accounting integration."""
+    entity_id: UUID
+    as_of_date: date
+    total_assets: int
+    active_assets: int
+    disposed_assets: int
+    total_acquisition_cost: Decimal
+    total_accumulated_depreciation: Decimal
+    total_net_book_value: Decimal
+    by_category: List[FixedAssetCategorySummary]
+    assets: List[FixedAssetSummaryItem]
+
+
+class GLFixedAssetValidation(BaseModel):
+    """Validation result comparing GL balances to Fixed Asset Register."""
+    entity_id: UUID
+    validation_date: date
+    is_valid: bool
+    
+    # GL Balances (from Chart of Accounts)
+    gl_fixed_asset_cost: Decimal
+    gl_accumulated_depreciation: Decimal
+    gl_net_book_value: Decimal
+    
+    # Register Balances (from Fixed Asset tables)
+    register_total_cost: Decimal
+    register_accumulated_depreciation: Decimal
+    register_net_book_value: Decimal
+    
+    # Variances
+    cost_variance: Decimal
+    depreciation_variance: Decimal
+    nbv_variance: Decimal
+    
+    # Issues
+    issues: List[str]
+    recommendations: List[str]
+
+
+class EnhancedBalanceSheetReport(BalanceSheetReport):
+    """Enhanced balance sheet with fixed asset details and validation."""
+    # Fixed Asset Details
+    fixed_asset_summary: Optional[FixedAssetRegisterSummary] = None
+    fixed_asset_validation: Optional[GLFixedAssetValidation] = None
+    
+    # Additional Notes
+    fixed_asset_notes: Optional[str] = None
+    depreciation_policy: Optional[str] = None
+
+
+# =============================================================================
+# SOURCE SYSTEM INTEGRATION SCHEMAS
+# =============================================================================
+
+class InventorySummaryForGL(BaseModel):
+    """Inventory summary for GL reconciliation. Maps to GL 1140."""
+    entity_id: UUID
+    as_of_date: date
+    total_items: int
+    active_items: int
+    total_inventory_value: Decimal  # Should match GL 1140
+    total_quantity_on_hand: int
+    low_stock_items: int
+    categories: List[dict]  # Breakdown by category
+    valuation_method: str = "weighted_average"
+
+
+class ARAgingSummary(BaseModel):
+    """Accounts Receivable aging for GL reconciliation. Maps to GL 1130."""
+    entity_id: UUID
+    as_of_date: date
+    total_receivables: Decimal  # Should match GL 1130
+    current: Decimal  # 0-30 days
+    days_31_60: Decimal
+    days_61_90: Decimal
+    over_90_days: Decimal
+    total_customers: int
+    customers_with_balance: int
+    top_receivables: List[dict]  # Top 10 customers by balance
+
+
+class APAgingSummary(BaseModel):
+    """Accounts Payable aging for GL reconciliation. Maps to GL 2110."""
+    entity_id: UUID
+    as_of_date: date
+    total_payables: Decimal  # Should match GL 2110
+    current: Decimal  # 0-30 days
+    days_31_60: Decimal
+    days_61_90: Decimal
+    over_90_days: Decimal
+    total_vendors: int
+    vendors_with_balance: int
+    top_payables: List[dict]  # Top 10 vendors by balance
+
+
+class PayrollSummaryForGL(BaseModel):
+    """Payroll summary for GL reconciliation. Maps to GL 2150-2190, 5200-5230."""
+    entity_id: UUID
+    period_start: date
+    period_end: date
+    
+    # Expense accounts (5200-5230)
+    total_gross_salary: Decimal  # GL 5200
+    total_employer_pension: Decimal  # GL 5210
+    total_employer_nsitf: Decimal  # GL 5220
+    total_itf: Decimal  # GL 5230
+    
+    # Liability accounts (2150-2190)
+    total_paye_payable: Decimal  # GL 2150
+    total_pension_payable: Decimal  # GL 2160
+    total_nhf_payable: Decimal  # GL 2170
+    total_nsitf_payable: Decimal  # GL 2180
+    total_salaries_payable: Decimal  # GL 2190
+    
+    # Stats
+    total_employees: int
+    payroll_runs: int
+
+
+class BankAccountSummaryForGL(BaseModel):
+    """Bank account summary for GL reconciliation. Maps to GL 1120."""
+    entity_id: UUID
+    as_of_date: date
+    total_bank_balance: Decimal  # Should match GL 1120
+    accounts: List[dict]  # Individual bank account balances
+    last_reconciled_date: Optional[date]
+    unreconciled_items_count: int
+    outstanding_deposits: Decimal
+    outstanding_checks: Decimal
+
+
+class ExpenseClaimSummaryForGL(BaseModel):
+    """Expense claims summary for GL reconciliation."""
+    entity_id: UUID
+    as_of_date: date
+    total_pending_claims: Decimal
+    total_approved_claims: Decimal
+    total_paid_claims: Decimal
+    claims_by_category: List[dict]
+    claims_count: int
+
+
+class GLSourceSystemSummary(BaseModel):
+    """Comprehensive GL summary with all source system data."""
+    entity_id: UUID
+    as_of_date: date
+    generated_at: datetime
+    
+    # Source system summaries
+    inventory: Optional[InventorySummaryForGL] = None
+    accounts_receivable: Optional[ARAgingSummary] = None
+    accounts_payable: Optional[APAgingSummary] = None
+    payroll: Optional[PayrollSummaryForGL] = None
+    bank_accounts: Optional[BankAccountSummaryForGL] = None
+    fixed_assets: Optional[FixedAssetRegisterSummary] = None
+    expense_claims: Optional[ExpenseClaimSummaryForGL] = None
+    
+    # GL Validation
+    validations: List[dict] = []  # List of validation results
+    has_discrepancies: bool = False
+    discrepancy_count: int = 0
+
+
+class GLAccountReconciliation(BaseModel):
+    """Reconciliation of a single GL account with source system."""
+    account_code: str
+    account_name: str
+    gl_balance: Decimal
+    source_system: str
+    source_balance: Decimal
+    variance: Decimal
+    variance_percent: Optional[Decimal]
+    is_reconciled: bool
+    notes: Optional[str] = None
+    last_reconciled: Optional[date] = None

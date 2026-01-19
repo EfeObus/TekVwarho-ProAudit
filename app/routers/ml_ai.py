@@ -222,8 +222,9 @@ async def forecast_cash_flow(
     start_date = end_date - timedelta(days=730)  # ~2 years
     
     # Aggregate monthly cash flow
+    month_col = func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month')
     query = select(
-        func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month'),
+        month_col,
         func.sum(
             case(
                 (Transaction.transaction_type == 'income', Transaction.amount),
@@ -237,9 +238,9 @@ async def forecast_cash_flow(
             Transaction.transaction_date <= end_date
         )
     ).group_by(
-        func.to_char(Transaction.transaction_date, 'YYYY-MM')
+        month_col
     ).order_by(
-        func.to_char(Transaction.transaction_date, 'YYYY-MM')
+        month_col
     )
     
     result = await db.execute(query)
@@ -332,8 +333,9 @@ async def predict_growth(
     else:
         type_filter = True  # All transactions for profit
     
+    month_col = func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month')
     query = select(
-        func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month'),
+        month_col,
         func.sum(Transaction.amount).label('total')
     ).where(
         and_(
@@ -342,9 +344,9 @@ async def predict_growth(
             type_filter
         )
     ).group_by(
-        func.to_char(Transaction.transaction_date, 'YYYY-MM')
+        month_col
     ).order_by(
-        func.to_char(Transaction.transaction_date, 'YYYY-MM')
+        month_col
     )
     
     result = await db.execute(query)
@@ -906,8 +908,9 @@ async def get_ml_dashboard(
     forecast_data = None
     try:
         # Get historical data for forecasting
+        forecast_month_col = func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month')
         forecast_query = select(
-            func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month'),
+            forecast_month_col,
             func.sum(
                 case(
                     (Transaction.transaction_type == 'income', Transaction.amount),
@@ -920,9 +923,9 @@ async def get_ml_dashboard(
                 Transaction.transaction_date >= start_date
             )
         ).group_by(
-            func.to_char(Transaction.transaction_date, 'YYYY-MM')
+            forecast_month_col
         ).order_by(
-            func.to_char(Transaction.transaction_date, 'YYYY-MM')
+            forecast_month_col
         )
         
         forecast_result = await db.execute(forecast_query)
@@ -964,8 +967,9 @@ async def get_ml_dashboard(
     growth_data = None
     try:
         # Get historical values for growth prediction
+        growth_month_col = func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month')
         growth_query = select(
-            func.to_char(Transaction.transaction_date, 'YYYY-MM').label('month'),
+            growth_month_col,
             func.sum(Transaction.amount).label('total')
         ).where(
             and_(
@@ -974,9 +978,9 @@ async def get_ml_dashboard(
                 Transaction.transaction_type == 'income'
             )
         ).group_by(
-            func.to_char(Transaction.transaction_date, 'YYYY-MM')
+            growth_month_col
         ).order_by(
-            func.to_char(Transaction.transaction_date, 'YYYY-MM')
+            growth_month_col
         )
         
         growth_result = await db.execute(growth_query)

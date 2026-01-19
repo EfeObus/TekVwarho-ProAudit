@@ -34,6 +34,7 @@ from app.services.vat_recovery_service import VATRecoveryService
 from app.services.development_levy_service import DevelopmentLevyService
 from app.services.pit_relief_service import PITReliefService
 from app.services.ntaa_compliance_service import NTAAComplianceService
+from app.services.gl_event_service import GLEventService, get_gl_event_service
 
 # Tax Calculators
 from app.services.tax_calculators.vat_service import VATService, VATCalculator
@@ -77,6 +78,9 @@ __all__ = [
     "DevelopmentLevyService",
     "PITReliefService",
     "NTAAComplianceService",
+    # GL Event Service
+    "GLEventService",
+    "get_gl_event_service",
     # Tax Calculators
     "VATService",
     "VATCalculator",

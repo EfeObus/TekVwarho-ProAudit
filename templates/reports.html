@@ -5,9 +5,20 @@
 {% block content %}
 <div x-data="reportsPage()" x-init="init()">
     <!-- Header -->
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
-        <p class="text-gray-600">Financial and tax reports for compliance</p>
+    <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
+            <p class="text-gray-600">Financial and tax reports for compliance</p>
+        </div>
+        <div class="mt-4 md:mt-0">
+            <a href="/accounting" 
+               class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-green-50 hover:text-green-800 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Accounting
+            </a>
+        </div>
     </div>
 
     <!-- Report Type Selector -->
@@ -1311,9 +1322,9 @@ function reportsPage() {
         async generatePnL() {
             this.loading.pnl = true;
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/profit-loss?start_date=${this.startDate}&end_date=${this.endDate}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.pnl = await response.json();
@@ -1330,9 +1341,9 @@ function reportsPage() {
         async generateCashFlow() {
             this.loading.cashflow = true;
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/cash-flow?start_date=${this.startDate}&end_date=${this.endDate}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.cashflow = await response.json();
@@ -1347,9 +1358,9 @@ function reportsPage() {
         async generateTrialBalance() {
             this.loading.trialBalance = true;
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/trial-balance?as_of_date=${this.asOfDate}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.trialBalance = await response.json();
@@ -1364,9 +1375,9 @@ function reportsPage() {
         async generateBalanceSheet() {
             this.loading.balanceSheet = true;
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/balance-sheet?as_of_date=${this.asOfDate}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.balanceSheet = await response.json();
@@ -1381,9 +1392,9 @@ function reportsPage() {
         async generateFixedAssets() {
             this.loading.fixedAssets = true;
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/fixed-assets?as_of_date=${this.asOfDate}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.fixedAssets = await response.json();
@@ -1398,9 +1409,9 @@ function reportsPage() {
         async generateVATReturn() {
             this.loading.vat = true;
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/tax/vat-return?year=${this.taxYear}&month=${this.taxMonth}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.vat = await response.json();
@@ -1416,18 +1427,18 @@ function reportsPage() {
             this.loading.wht = true;
             try {
                 // Get WHT summary
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/tax/wht-summary?start_date=${this.startDate}&end_date=${this.endDate}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.wht = await response.json();
                 }
                 
                 // Also get WHT by vendor
-                const vendorResponse = await fetch(
+                const vendorResponse = await authFetch(
                     `/api/v1/tax/${this.entityId}/wht/by-vendor?start_date=${this.startDate}&end_date=${this.endDate}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (vendorResponse.ok) {
                     this.reports.whtByVendor = await vendorResponse.json();
@@ -1443,10 +1454,9 @@ function reportsPage() {
             if (!this.whtCalc.grossAmount || !this.whtCalc.serviceType) return;
             
             try {
-                const response = await fetch('/api/v1/tax/wht/calculate', {
+                const response = await authFetch('/api/v1/tax/wht/calculate', {
                     method: 'POST',
                     headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1470,10 +1480,9 @@ function reportsPage() {
             if (!this.whtCalc.grossAmount || !this.whtCalc.serviceType) return;
             
             try {
-                const response = await fetch('/api/v1/tax/wht/calculate-gross', {
+                const response = await authFetch('/api/v1/tax/wht/calculate-gross', {
                     method: 'POST',
                     headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('token'),
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1496,8 +1505,8 @@ function reportsPage() {
         async loadWHTRates() {
             this.loading.whtRates = true;
             try {
-                const response = await fetch('/api/v1/tax/wht/rates', {
-                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                const response = await authFetch('/api/v1/tax/wht/rates', {
+                    credentials: 'include'
                 });
                 if (response.ok) {
                     this.whtRates = await response.json();
@@ -1512,9 +1521,9 @@ function reportsPage() {
         async generateCIT() {
             this.loading.cit = true;
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/entities/${this.entityId}/reports/tax/cit?fiscal_year=${this.fiscalYear}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 if (response.ok) {
                     this.reports.cit = await response.json();
@@ -1543,8 +1552,8 @@ function reportsPage() {
             }
             
             try {
-                const response = await fetch(url, {
-                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                const response = await authFetch(url, {
+                    credentials: 'include'
                 });
                 
                 if (response.ok) {
@@ -1581,8 +1590,8 @@ function reportsPage() {
         
         async loadSelfAssessmentInfo() {
             try {
-                const response = await fetch('/api/v1/tax-2026/self-assessment/info', {
-                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+                const response = await authFetch('/api/v1/tax-2026/self-assessment/info', {
+                    credentials: 'include'
                 });
                 if (response.ok) {
                     this.selfAssessment.info = await response.json();
@@ -1597,9 +1606,9 @@ function reportsPage() {
             this.loading.selfAssessment = true;
             
             try {
-                const response = await fetch(
+                const response = await authFetch(
                     `/api/v1/self-assessment/${this.entityId}/annual-returns/${this.selfAssessment.fiscalYear}`,
-                    { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } }
+                    
                 );
                 
                 if (response.ok) {
@@ -1621,11 +1630,10 @@ function reportsPage() {
             this.loading.taxProExport = true;
             
             try {
-                const response = await fetch(`/api/v1/self-assessment/${this.entityId}/taxpro-export`, {
+                const response = await authFetch(`/api/v1/self-assessment/${this.entityId}/taxpro-export`, {
                     method: 'POST',
                     headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         fiscal_year: parseInt(this.selfAssessment.fiscalYear),
@@ -1686,8 +1694,8 @@ function reportsPage() {
         
         async loadVaultStats() {
             try {
-                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/statistics`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                const res = await authFetch(`/api/v1/entities/${this.entityId}/audit/vault/statistics`, {
+                    
                 });
                 if (res.ok) {
                     this.vaultStats = await res.json();
@@ -1713,8 +1721,8 @@ function reportsPage() {
                 if (this.vaultFilter.document_type) params.append('document_type', this.vaultFilter.document_type);
                 if (this.vaultFilter.retention_status) params.append('retention_status', this.vaultFilter.retention_status);
                 
-                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/records?${params}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                const res = await authFetch(`/api/v1/entities/${this.entityId}/audit/vault/records?${params}`, {
+                    
                 });
                 if (res.ok) {
                     const data = await res.json();
@@ -1728,8 +1736,8 @@ function reportsPage() {
         
         async loadRetentionTimeline() {
             try {
-                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/retention-timeline`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                const res = await authFetch(`/api/v1/entities/${this.entityId}/audit/vault/retention-timeline`, {
+                    
                 });
                 if (res.ok) {
                     const data = await res.json();
@@ -1742,8 +1750,8 @@ function reportsPage() {
         
         async viewRecordDetail(recordId) {
             try {
-                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/records/${recordId}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                const res = await authFetch(`/api/v1/entities/${this.entityId}/audit/vault/records/${recordId}`, {
+                    
                 });
                 if (res.ok) {
                     this.recordDetail = await res.json();
@@ -1756,9 +1764,9 @@ function reportsPage() {
         
         async verifyRecord(recordId) {
             try {
-                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/verify/${recordId}`, {
+                const res = await authFetch(`/api/v1/entities/${this.entityId}/audit/vault/verify/${recordId}`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    
                 });
                 if (res.ok) {
                     const result = await res.json();
@@ -1774,9 +1782,9 @@ function reportsPage() {
         async verifyFiscalYear() {
             this.verifying = true;
             try {
-                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/verify-year/${this.verifyYear}`, {
+                const res = await authFetch(`/api/v1/entities/${this.entityId}/audit/vault/verify-year/${this.verifyYear}`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    
                 });
                 if (res.ok) {
                     this.verificationResult = await res.json();
@@ -1793,8 +1801,8 @@ function reportsPage() {
                 const params = new URLSearchParams({
                     include_full_data: this.exportFullData,
                 });
-                const res = await fetch(`/api/v1/entities/${this.entityId}/audit/vault/export/${this.exportYear}?${params}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                const res = await authFetch(`/api/v1/entities/${this.entityId}/audit/vault/export/${this.exportYear}?${params}`, {
+                    
                 });
                 if (res.ok) {
                     this.exportResult = await res.json();

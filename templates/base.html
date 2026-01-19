@@ -327,11 +327,16 @@
             loading: false,
             notifications: [],
             unreadCount: 0,
+            notificationPollingFailed: false,
             
             init() {
                 this.fetchNotifications();
-                // Poll for new notifications every 30 seconds
-                setInterval(() => this.fetchUnreadCount(), 30000);
+                // Poll for new notifications every 60 seconds (reduced from 30s)
+                setInterval(() => {
+                    if (!this.notificationPollingFailed) {
+                        this.fetchUnreadCount();
+                    }
+                }, 60000);
             },
             
             toggle() {
@@ -362,10 +367,10 @@
                     const response = await authFetch('/api/v1/notifications/unread-count');
                     if (response.ok) {
                         const data = await response.json();
-                        this.unreadCount = data.count || 0;
+                        this.unreadCount = data.unread_count || data.count || 0;
                     }
                 } catch (error) {
-                    console.error('Failed to fetch unread count:', error);
+                    // Silently ignore to avoid console spam - notifications are optional
                 }
             },
             
