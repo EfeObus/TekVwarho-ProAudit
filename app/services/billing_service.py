@@ -1267,6 +1267,7 @@ class BillingService:
         """Handle payment failed webhook."""
         data = payload.get("data", {})
         reference = data.get("reference")
+        metadata = data.get("metadata", {})
         
         # Update PaymentTransaction record
         tx_result = await self.db.execute(
@@ -1285,8 +1286,60 @@ class BillingService:
             
             logger.info(f"Updated payment transaction {payment_tx.id} via webhook: status=failed")
         
-        # TODO: Send notification email to admin
-        # TODO: Possibly restrict access after X failed attempts
+        # Get organization and admin for notification
+        organization_id_str = metadata.get("organization_id")
+        if organization_id_str:
+            try:
+                from app.models.organization import Organization
+                from app.models.user import User
+                from app.services.billing_email_service import BillingEmailService
+                from app.services.dunning_service import DunningService
+                
+                org_id = UUID(organization_id_str)
+                
+                # Get organization
+                org_result = await self.db.execute(
+                    select(Organization).where(Organization.id == org_id)
+                )
+                org = org_result.scalar_one_or_none()
+                
+                # Get admin user
+                admin_result = await self.db.execute(
+                    select(User)
+                    .where(User.organization_id == org_id)
+                    .where(User.is_active == True)
+                    .order_by(User.created_at)
+                    .limit(1)
+                )
+                admin_user = admin_result.scalar_one_or_none()
+                
+                # Calculate amount from transaction or kobo value
+                amount_naira = payment_tx.amount_kobo // 100 if payment_tx else data.get("amount", 0) // 100
+                failure_reason = data.get("message", "Payment failed")
+                
+                # Record failure in dunning system
+                dunning_service = DunningService(self.db)
+                await dunning_service.record_payment_failure(
+                    organization_id=org_id,
+                    reason=failure_reason,
+                    amount_naira=amount_naira,
+                    transaction_reference=reference,
+                )
+                
+                # Send notification email
+                if admin_user and admin_user.email and org:
+                    billing_email_service = BillingEmailService(self.db)
+                    await billing_email_service.send_payment_failed(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        amount_naira=amount_naira,
+                        reason=failure_reason,
+                        retry_url="/checkout",
+                    )
+                    logger.info(f"Sent payment failure notification to {admin_user.email}")
+                
+            except Exception as e:
+                logger.error(f"Error handling payment failure notification: {e}")
         
         return {"handled": True, "event": "invoice.payment_failed", "reference": reference}
     

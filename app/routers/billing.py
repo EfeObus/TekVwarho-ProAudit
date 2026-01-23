@@ -959,6 +959,9 @@ async def resend_invoice_email(
     This will send a copy of the invoice to the organization's
     billing contact email.
     """
+    from app.models.organization import Organization
+    from app.models.sku import TenantSKU
+    
     if not current_user.organization_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -980,16 +983,32 @@ async def resend_invoice_email(
             detail="Payment transaction not found",
         )
     
-    # Send invoice email
+    # Get organization name
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == current_user.organization_id)
+    )
+    org = org_result.scalar_one_or_none()
+    organization_name = org.name if org else "Customer"
+    
+    # Get next billing date from TenantSKU
+    sku_result = await db.execute(
+        select(TenantSKU).where(TenantSKU.organization_id == current_user.organization_id)
+    )
+    tenant_sku = sku_result.scalar_one_or_none()
+    next_billing_date = tenant_sku.current_period_end if tenant_sku else None
+    
+    # Send invoice email using correct method signature
     email_service = BillingEmailService(db)
     
     try:
-        await email_service.send_payment_success_email(
-            organization_id=current_user.organization_id,
+        await email_service.send_payment_success(
+            email=current_user.email,
+            organization_name=organization_name,
             tier=transaction.tier or "professional",
             amount_naira=transaction.amount_kobo // 100,
-            next_billing_date=None,  # Will be calculated from subscription
-            payment_reference=transaction.reference,
+            reference=transaction.reference,
+            payment_date=transaction.paid_at or transaction.created_at,
+            next_billing_date=next_billing_date,
         )
         
         return {"message": "Invoice email sent successfully", "sent_to": current_user.email}
