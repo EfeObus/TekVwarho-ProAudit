@@ -911,3 +911,191 @@ Best regards,
             body_html=self._get_base_html_template(content),
             attachments=attachments,
         ))
+
+    # ===========================================
+    # USAGE ALERT EMAILS
+    # ===========================================
+    
+    async def send_usage_alert(
+        self,
+        email: str,
+        organization_name: str,
+        metric_name: str,
+        current_usage: int,
+        limit: int,
+        percentage: float,
+        threshold: str,
+        upgrade_url: str = "/settings?tab=billing",
+    ) -> bool:
+        """
+        Send usage limit alert notification.
+        
+        Args:
+            email: Recipient email
+            organization_name: Organization name
+            metric_name: Human-readable metric name (e.g., "Transactions", "Users")
+            current_usage: Current usage count
+            limit: Usage limit for the tier
+            percentage: Usage percentage
+            threshold: Alert threshold level ("80", "90", "100")
+            upgrade_url: URL to upgrade subscription
+            
+        Returns:
+            True if email sent successfully
+        """
+        # Determine severity and styling
+        if threshold == "100":
+            severity = "CRITICAL"
+            alert_class = "danger"
+            icon = "🚨"
+            subject = f"[CRITICAL] {metric_name} Limit Exceeded - {self.company_name}"
+        elif threshold == "90":
+            severity = "WARNING"
+            alert_class = "warning"
+            icon = "⚠️"
+            subject = f"[WARNING] {metric_name} Usage at {percentage:.0f}% - {self.company_name}"
+        else:  # 80%
+            severity = "NOTICE"
+            alert_class = "highlight"
+            icon = "ℹ️"
+            subject = f"{metric_name} Usage Approaching Limit - {self.company_name}"
+        
+        remaining = limit - current_usage
+        remaining_text = f"{remaining:,} remaining" if remaining > 0 else "Limit reached"
+        
+        content = f"""
+        <h2>{icon} Usage Alert: {metric_name}</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <div class="{alert_class}">
+            <p><strong>Alert Level:</strong> {severity}</p>
+            <p><strong>Metric:</strong> {metric_name}</p>
+            <p><strong>Current Usage:</strong> {current_usage:,} of {limit:,} ({percentage:.1f}%)</p>
+            <p><strong>Status:</strong> {remaining_text}</p>
+        </div>
+        
+        {"<p><strong>Action Required:</strong> You have reached your monthly limit. Some features may be restricted until your billing period resets or you upgrade your plan.</p>" if threshold == "100" else ""}
+        
+        {"<p><strong>Recommendation:</strong> Your usage is approaching the limit. Consider upgrading your plan to avoid service interruption.</p>" if threshold == "90" else ""}
+        
+        {"<p><strong>Heads Up:</strong> Your usage is at 80% of your monthly limit. You may want to monitor your usage or consider an upgrade.</p>" if threshold == "80" else ""}
+        
+        <p>
+            <a href="{upgrade_url}" class="button">View Usage & Upgrade Options</a>
+        </p>
+        
+        <p>If you have questions about your usage or plan options, please contact our support team.</p>
+        """
+        
+        body_text = f"""
+{icon} Usage Alert: {metric_name}
+
+Dear {organization_name} Team,
+
+Alert Level: {severity}
+Metric: {metric_name}
+Current Usage: {current_usage:,} of {limit:,} ({percentage:.1f}%)
+Status: {remaining_text}
+
+{"Action Required: You have reached your monthly limit." if threshold == "100" else ""}
+{"Recommendation: Consider upgrading to avoid service interruption." if threshold == "90" else ""}
+{"Heads Up: Your usage is at 80% of your monthly limit." if threshold == "80" else ""}
+
+View usage and upgrade options: {upgrade_url}
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+
+    async def send_scheduled_cancellation(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        effective_date: Optional[datetime] = None,
+    ) -> bool:
+        """
+        Send notification that subscription is scheduled for cancellation.
+        
+        Args:
+            email: Recipient email
+            organization_name: Name of the organization
+            tier: Current tier being cancelled
+            effective_date: When cancellation takes effect
+            
+        Returns:
+            True if email sent successfully
+        """
+        effective_str = effective_date.strftime("%B %d, %Y") if effective_date else "end of current billing period"
+        
+        subject = f"Subscription Cancellation Scheduled - {self.company_name}"
+        
+        content = f"""
+        <h2 style="color: #f39c12;">Subscription Cancellation Scheduled</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>This email confirms that your subscription cancellation request has been received. Your current subscription details:</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Current Plan:</strong> {tier.title()}</p>
+            <p style="margin: 5px 0;"><strong>Status:</strong> Scheduled for cancellation</p>
+            <p style="margin: 5px 0;"><strong>Effective Date:</strong> {effective_str}</p>
+        </div>
+        
+        <h3>What Happens Next?</h3>
+        <ul>
+            <li>You'll retain full access to all {tier.title()} features until {effective_str}</li>
+            <li>After that date, your account will be downgraded to the Core (free) plan</li>
+            <li>Your data will be preserved, but some features may become unavailable</li>
+        </ul>
+        
+        <h3>Changed Your Mind?</h3>
+        <p>You can reactivate your subscription at any time before the effective date to keep your current plan.</p>
+        
+        <p>
+            <a href="{self.base_url}/billing" class="button">Manage Subscription</a>
+        </p>
+        
+        <p>Thank you for being a {self.company_name} customer. If you have any feedback about your experience, we'd love to hear from you.</p>
+        """
+        
+        body_text = f"""
+Subscription Cancellation Scheduled
+
+Dear {organization_name} Team,
+
+Your subscription cancellation request has been received.
+
+Current Plan: {tier.title()}
+Status: Scheduled for cancellation
+Effective Date: {effective_str}
+
+What Happens Next?
+- You'll retain full access until {effective_str}
+- After that, your account will be downgraded to the Core (free) plan
+- Your data will be preserved
+
+Changed Your Mind?
+You can reactivate at any time before the effective date.
+
+Manage your subscription at: {self.base_url}/billing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))

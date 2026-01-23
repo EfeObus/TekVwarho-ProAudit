@@ -11,9 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, record_usage_event
 from app.models.user import User
 from app.models.audit_consolidated import AuditAction
+from app.models.sku import UsageMetricType
 from app.schemas.auth import MessageResponse
 from app.schemas.customer import (
     CustomerCreateRequest,
@@ -152,6 +153,18 @@ async def create_customer(
             "is_business": request.is_business,
         },
     )
+    
+    # Record usage metering for SKU tier limits
+    if current_user.organization_id:
+        await record_usage_event(
+            db=db,
+            organization_id=current_user.organization_id,
+            metric_type=UsageMetricType.TRANSACTIONS,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            resource_type="customer",
+            resource_id=str(customer.id),
+        )
     
     return CustomerResponse(
         id=customer.id,

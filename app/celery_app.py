@@ -135,6 +135,18 @@ celery_app.conf.update(
             'task': 'app.tasks.celery_tasks.send_payment_reminders_task',
             'schedule': crontab(hour=9, minute=0),
         },
+        
+        # Process scheduled cancellations/downgrades daily at 12:05 AM
+        'process-scheduled-cancellations': {
+            'task': 'app.tasks.celery_tasks.process_scheduled_cancellations_task',
+            'schedule': crontab(hour=0, minute=5),
+        },
+        
+        # Check usage alerts every 6 hours
+        'check-usage-alerts': {
+            'task': 'app.tasks.celery_tasks.check_usage_alerts_task',
+            'schedule': crontab(hour='*/6', minute=15),
+        },
     },
 )
 

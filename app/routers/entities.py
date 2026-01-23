@@ -10,8 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user, require_role
+from app.dependencies import get_current_active_user, require_role, record_usage_event
 from app.models.user import User, UserRole
+from app.models.sku import UsageMetricType
 from app.schemas.entity import (
     EntityCreateRequest,
     EntityUpdateRequest,
@@ -129,6 +130,18 @@ async def create_entity(
             "is_vat_registered": entity.is_vat_registered,
         }
     )
+    
+    # Record usage metering for entity count tracking
+    if current_user.organization_id:
+        await record_usage_event(
+            db=db,
+            organization_id=current_user.organization_id,
+            metric_type=UsageMetricType.ENTITIES,
+            entity_id=entity.id,
+            user_id=current_user.id,
+            resource_type="business_entity",
+            resource_id=str(entity.id),
+        )
     
     return EntityResponse(
         id=entity.id,

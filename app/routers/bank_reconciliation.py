@@ -23,9 +23,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, Uplo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id, require_feature
+from app.dependencies import get_current_user, get_current_entity_id, require_feature, record_usage_event
 from app.models.entity import BusinessEntity
-from app.models.sku import Feature
+from app.models.sku import Feature, UsageMetricType
 from app.models.user import User
 from app.models.bank_reconciliation import (
     BankAccountType, BankAccountCurrency, BankStatementSource,
@@ -135,6 +135,18 @@ async def create_bank_account(
             "account_number": account_data.account_number[-4:] if account_data.account_number else None,  # Last 4 digits only
         }
     )
+    
+    # Record usage metering for transaction tracking
+    if current_user.organization_id:
+        await record_usage_event(
+            db=db,
+            organization_id=current_user.organization_id,
+            metric_type=UsageMetricType.TRANSACTIONS,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            resource_type="bank_account",
+            resource_id=str(account.id),
+        )
     
     return account
 

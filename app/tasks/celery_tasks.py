@@ -1057,3 +1057,54 @@ async def _send_payment_reminders() -> Dict[str, Any]:
         
         logger.info(f"Payment reminders sent: {reminders_sent}")
         return {"reminders_sent": reminders_sent}
+
+
+# ===========================================
+# SCHEDULED CANCELLATION TASK
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.process_scheduled_cancellations_task')
+def process_scheduled_cancellations_task() -> Dict[str, Any]:
+    """
+    Process subscriptions scheduled for cancellation at period end.
+    
+    This task checks for subscriptions with cancel_at_period_end=True
+    where the period has ended, and downgrades them to the scheduled tier.
+    """
+    return run_async(_process_scheduled_cancellations())
+
+
+async def _process_scheduled_cancellations() -> Dict[str, Any]:
+    """Async implementation of scheduled cancellation processing."""
+    from app.tasks.scheduled_tasks import process_scheduled_cancellations
+    
+    async with async_session_factory() as db:
+        result = await process_scheduled_cancellations(db)
+        await db.commit()
+        return result
+
+
+# ===========================================
+# USAGE ALERTS CHECK TASK
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.check_usage_alerts_task')
+def check_usage_alerts_task() -> Dict[str, Any]:
+    """
+    Check usage across all organizations and send alerts.
+    
+    This task monitors usage against limits and sends email/in-app
+    notifications when thresholds (80%, 90%, 100%) are reached.
+    """
+    return run_async(_check_usage_alerts())
+
+
+async def _check_usage_alerts() -> Dict[str, Any]:
+    """Async implementation of usage alert checking."""
+    from app.tasks.scheduled_tasks import check_usage_alerts
+    
+    async with async_session_factory() as db:
+        result = await check_usage_alerts(db)
+        await db.commit()
+        return result
+

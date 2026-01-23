@@ -12,6 +12,7 @@ This module provides dependency injection for:
 """
 
 import uuid
+from uuid import UUID
 from typing import List, Optional, Union, Dict, Any
 
 from fastapi import Depends, HTTPException, status, Request
@@ -775,3 +776,75 @@ def require_ocr():
 def require_api_access():
     """Require API access (Enterprise tier for full access)."""
     return require_feature([Feature.FULL_API_ACCESS])
+
+
+# =============================================================================
+# METERING HELPER FUNCTIONS
+# =============================================================================
+
+async def record_usage_event(
+    db: AsyncSession,
+    organization_id: UUID,
+    metric_type: "UsageMetricType",
+    quantity: int = 1,
+    entity_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None,
+    resource_type: Optional[str] = None,
+    resource_id: Optional[str] = None,
+) -> None:
+    """
+    Helper function to record a usage event.
+    
+    This is a convenience wrapper around MeteringService for use in routers.
+    Silently handles errors to not disrupt the main request flow.
+    
+    Args:
+        db: Database session
+        organization_id: Organization UUID
+        metric_type: Type of usage metric (TRANSACTIONS, INVOICES, etc.)
+        quantity: Amount to record (default 1)
+        entity_id: Optional business entity ID
+        user_id: Optional user ID
+        resource_type: Type of resource (e.g., "customer", "vendor")
+        resource_id: ID of the specific resource
+    """
+    try:
+        from app.services.metering_service import MeteringService
+        
+        metering_service = MeteringService(db)
+        await metering_service.record_event(
+            organization_id=organization_id,
+            metric_type=metric_type,
+            quantity=quantity,
+            entity_id=entity_id,
+            user_id=user_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+        )
+    except Exception as e:
+        # Log but don't fail the request if metering fails
+        logger.warning(f"Failed to record usage event: {e}")
+
+
+async def record_entity_creation(
+    db: AsyncSession,
+    organization_id: UUID,
+    entity_id: UUID,
+    user_id: Optional[UUID] = None,
+) -> None:
+    """Record entity creation and update entity count."""
+    try:
+        from app.services.metering_service import MeteringService, UsageMetricType
+        
+        metering_service = MeteringService(db)
+        await metering_service.record_event(
+            organization_id=organization_id,
+            metric_type=UsageMetricType.ENTITIES,
+            quantity=1,
+            entity_id=entity_id,
+            user_id=user_id,
+            resource_type="entity",
+            resource_id=str(entity_id),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to record entity creation: {e}")

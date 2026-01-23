@@ -19,11 +19,12 @@ from app.dependencies import (
     get_current_active_user, 
     get_current_entity_id,
     require_feature,
+    record_usage_event,
 )
 from app.models.user import User
 from app.models.payroll import EmploymentStatus, PayrollStatus, PayrollFrequency
 from app.models.audit_consolidated import AuditAction
-from app.models.sku import Feature
+from app.models.sku import Feature, UsageMetricType
 from app.services.payroll_service import PayrollService
 from app.services.audit_service import AuditService
 from app.schemas.payroll import (
@@ -109,6 +110,18 @@ async def create_employee(
                 "basic_salary": float(data.basic_salary) if data.basic_salary else 0,
             },
         )
+        
+        # Record usage metering for employee count tracking
+        if current_user.organization_id:
+            await record_usage_event(
+                db=db,
+                organization_id=current_user.organization_id,
+                metric_type=UsageMetricType.EMPLOYEES,
+                entity_id=entity_id,
+                user_id=current_user.id,
+                resource_type="employee",
+                resource_id=str(employee.id),
+            )
         
         # Add computed properties
         response = EmployeeResponse.model_validate(employee)

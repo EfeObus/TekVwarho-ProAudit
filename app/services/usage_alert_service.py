@@ -347,20 +347,73 @@ class UsageAlertService:
     
     async def _notify_email(self, alerts: List[UsageAlert]) -> Dict[str, Any]:
         """Send email notifications for alerts."""
-        # TODO: Integrate with email service
-        # This is a stub implementation
+        from app.services.billing_email_service import BillingEmailService
+        from app.models.organization import Organization
+        from app.models.user import User
+        from sqlalchemy import select
+        
         sent_count = 0
+        failed_count = 0
+        errors = []
+        
+        billing_email_service = BillingEmailService(self.db)
         
         for alert in alerts:
-            # Get organization admin emails
-            # await email_service.send_usage_alert(alert)
-            logger.info(f"Email alert (stub): {alert.message}")
-            sent_count += 1
+            try:
+                # Get organization info
+                org_result = await self.db.execute(
+                    select(Organization).where(Organization.id == alert.organization_id)
+                )
+                org = org_result.scalar_one_or_none()
+                
+                if not org:
+                    errors.append(f"Organization not found: {alert.organization_id}")
+                    failed_count += 1
+                    continue
+                
+                # Get admin user for notification
+                admin_result = await self.db.execute(
+                    select(User)
+                    .where(User.organization_id == alert.organization_id)
+                    .where(User.is_active == True)
+                    .order_by(User.created_at)
+                    .limit(1)
+                )
+                admin_user = admin_result.scalar_one_or_none()
+                
+                if not admin_user or not admin_user.email:
+                    errors.append(f"No admin email for org: {alert.organization_id}")
+                    failed_count += 1
+                    continue
+                
+                # Send usage alert email
+                success = await billing_email_service.send_usage_alert(
+                    email=admin_user.email,
+                    organization_name=org.name,
+                    metric_name=self.METRIC_DISPLAY_NAMES.get(alert.metric_type, alert.metric_type.value),
+                    current_usage=alert.current_usage,
+                    limit=alert.limit,
+                    percentage=alert.percentage,
+                    threshold=alert.threshold.value,
+                )
+                
+                if success:
+                    sent_count += 1
+                    logger.info(f"Sent usage alert email to {admin_user.email}: {alert.metric_type.value} at {alert.percentage:.1f}%")
+                else:
+                    failed_count += 1
+                    errors.append(f"Email send failed for {admin_user.email}")
+                    
+            except Exception as e:
+                logger.error(f"Error sending usage alert email: {e}")
+                failed_count += 1
+                errors.append(str(e))
         
         return {
-            "status": "stub",
+            "status": "success" if failed_count == 0 else "partial",
             "sent_count": sent_count,
-            "message": "Email notifications not yet implemented"
+            "failed_count": failed_count,
+            "errors": errors if errors else None,
         }
     
     async def _notify_websocket(self, alerts: List[UsageAlert]) -> Dict[str, Any]:
@@ -386,17 +439,77 @@ class UsageAlertService:
     
     async def _notify_in_app(self, alerts: List[UsageAlert]) -> Dict[str, Any]:
         """Store alerts for in-app notification display."""
-        # Store alerts in database for in-app display
+        from app.models.notification import (
+            Notification, 
+            NotificationType, 
+            NotificationPriority,
+        )
+        from app.models.user import User
+        from sqlalchemy import select
+        
         stored_count = 0
+        errors = []
         
         for alert in alerts:
-            # For now, just log it. In production, we'd store in a notifications table
-            logger.info(f"In-app alert: {alert.message}")
-            stored_count += 1
+            try:
+                # Get admin users for the organization
+                admin_result = await self.db.execute(
+                    select(User)
+                    .where(User.organization_id == alert.organization_id)
+                    .where(User.is_active == True)
+                )
+                admin_users = admin_result.scalars().all()
+                
+                if not admin_users:
+                    errors.append(f"No users found for org: {alert.organization_id}")
+                    continue
+                
+                # Determine notification type and priority based on threshold
+                if alert.threshold == AlertThreshold.EXCEEDED_100:
+                    notification_type = NotificationType.WARNING
+                    priority = NotificationPriority.URGENT
+                elif alert.threshold == AlertThreshold.CRITICAL_90:
+                    notification_type = NotificationType.WARNING
+                    priority = NotificationPriority.HIGH
+                else:
+                    notification_type = NotificationType.INFO
+                    priority = NotificationPriority.NORMAL
+                
+                metric_name = self.METRIC_DISPLAY_NAMES.get(alert.metric_type, alert.metric_type.value)
+                
+                # Create notification for each user in the organization
+                for user in admin_users:
+                    notification = Notification(
+                        user_id=user.id,
+                        title=f"Usage Alert: {metric_name}",
+                        message=alert.message,
+                        notification_type=notification_type,
+                        priority=priority,
+                        channels=["in_app"],
+                        metadata={
+                            "alert_type": "usage_alert",
+                            "metric_type": alert.metric_type.value,
+                            "current_usage": alert.current_usage,
+                            "limit": alert.limit,
+                            "percentage": alert.percentage,
+                            "threshold": alert.threshold.value,
+                        },
+                    )
+                    self.db.add(notification)
+                    stored_count += 1
+                
+                logger.info(f"Stored in-app alert for org {alert.organization_id}: {metric_name} at {alert.percentage:.1f}%")
+                
+            except Exception as e:
+                logger.error(f"Error storing in-app notification: {e}")
+                errors.append(str(e))
+        
+        await self.db.flush()
         
         return {
-            "status": "success",
+            "status": "success" if not errors else "partial",
             "stored_count": stored_count,
+            "errors": errors if errors else None,
         }
     
     async def _notify_webhook(self, alerts: List[UsageAlert]) -> Dict[str, Any]:

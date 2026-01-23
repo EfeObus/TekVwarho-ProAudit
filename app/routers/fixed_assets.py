@@ -20,8 +20,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_active_user, require_organization_permission
+from app.dependencies import get_current_active_user, require_organization_permission, record_usage_event
 from app.models.user import User, UserRole
+from app.models.sku import UsageMetricType
 from app.utils.permissions import OrganizationPermission
 from app.models.fixed_asset import (
     AssetCategory,
@@ -302,6 +303,18 @@ async def create_fixed_asset(
                 "acquisition_date": str(asset.acquisition_date),
             }
         )
+        
+        # Record usage metering for transaction tracking
+        if current_user.organization_id:
+            await record_usage_event(
+                db=db,
+                organization_id=current_user.organization_id,
+                metric_type=UsageMetricType.TRANSACTIONS,
+                entity_id=asset_data.entity_id,
+                user_id=current_user.id,
+                resource_type="fixed_asset",
+                resource_id=str(asset.id),
+            )
         
         return _asset_to_response(asset)
         

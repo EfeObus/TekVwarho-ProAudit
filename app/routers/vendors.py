@@ -11,9 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, record_usage_event
 from app.models.user import User
 from app.models.audit_consolidated import AuditAction
+from app.models.sku import UsageMetricType
 from app.schemas.auth import MessageResponse
 from app.schemas.vendor import (
     VendorCreateRequest,
@@ -168,6 +169,18 @@ async def create_vendor(
             "is_vat_registered": request.is_vat_registered,
         },
     )
+    
+    # Record usage metering for SKU tier limits
+    if current_user.organization_id:
+        await record_usage_event(
+            db=db,
+            organization_id=current_user.organization_id,
+            metric_type=UsageMetricType.TRANSACTIONS,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            resource_type="vendor",
+            resource_id=str(vendor.id),
+        )
     
     return VendorResponse(
         id=vendor.id,

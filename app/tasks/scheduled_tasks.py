@@ -295,6 +295,271 @@ async def database_maintenance(db: AsyncSession) -> dict:
 
 
 # ===========================================
+# SCHEDULED TASK: PROCESS SUBSCRIPTION CANCELLATIONS
+# ===========================================
+
+async def process_scheduled_cancellations(db: AsyncSession) -> dict:
+    """
+    Process subscriptions scheduled for cancellation at period end.
+    
+    This task checks for subscriptions where:
+    - cancel_at_period_end is True
+    - current_period_end has passed
+    
+    For each, it:
+    - Downgrades to the scheduled tier (usually CORE)
+    - Clears cancellation flags
+    - Sends notification email
+    
+    Should run daily (ideally at midnight or early morning).
+    """
+    from app.models.sku import TenantSKU, SKUTier
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.services.billing_email_service import BillingEmailService
+    
+    now = datetime.utcnow()
+    today = date.today()
+    
+    # Find subscriptions scheduled for cancellation where period has ended
+    result = await db.execute(
+        select(TenantSKU)
+        .where(TenantSKU.is_active == True)
+        .where(TenantSKU.cancel_at_period_end == True)
+        .where(TenantSKU.current_period_end <= today)
+    )
+    
+    scheduled_cancellations = result.scalars().all()
+    
+    processed_count = 0
+    errors = []
+    
+    for sku in scheduled_cancellations:
+        try:
+            previous_tier = sku.tier.value
+            target_tier = sku.scheduled_downgrade_tier or SKUTier.CORE
+            
+            # Downgrade to target tier
+            sku.tier = target_tier
+            sku.intelligence_addon = None  # Remove intelligence addon
+            
+            # Clear cancellation flags
+            sku.cancel_at_period_end = False
+            sku.scheduled_downgrade_tier = None
+            
+            # Update period (start a new free period)
+            sku.current_period_start = today
+            sku.current_period_end = today + timedelta(days=30)  # Monthly free tier
+            
+            # Record the downgrade
+            sku.upgraded_from = previous_tier
+            sku.upgraded_at = now
+            sku.notes = f"Downgraded from {previous_tier} to {target_tier.value} on {today.strftime('%Y-%m-%d')} (scheduled cancellation)"
+            
+            # Send downgrade notification email
+            try:
+                org_result = await db.execute(
+                    select(Organization).where(Organization.id == sku.organization_id)
+                )
+                org = org_result.scalar_one_or_none()
+                
+                admin_result = await db.execute(
+                    select(User)
+                    .where(User.organization_id == sku.organization_id)
+                    .where(User.is_active == True)
+                    .order_by(User.created_at)
+                    .limit(1)
+                )
+                admin_user = admin_result.scalar_one_or_none()
+                
+                if admin_user and admin_user.email and org:
+                    billing_email_service = BillingEmailService(db)
+                    await billing_email_service.send_trial_ended_downgrade(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        previous_tier=previous_tier,
+                    )
+                    logger.info(f"Sent downgrade notification to {admin_user.email}")
+            except Exception as email_error:
+                logger.error(f"Failed to send downgrade email for org {sku.organization_id}: {email_error}")
+            
+            processed_count += 1
+            logger.info(f"Processed scheduled cancellation for org {sku.organization_id}: {previous_tier} -> {target_tier.value}")
+            
+        except Exception as e:
+            logger.error(f"Error processing cancellation for org {sku.organization_id}: {e}")
+            errors.append({
+                "organization_id": str(sku.organization_id),
+                "error": str(e),
+            })
+    
+    await db.commit()
+    
+    return {
+        "scheduled_count": len(scheduled_cancellations),
+        "processed_count": processed_count,
+        "errors": errors if errors else None,
+    }
+
+
+# ===========================================
+# SCHEDULED TASK: PROCESS TRIAL EXPIRATIONS
+# ===========================================
+
+async def process_trial_expirations(db: AsyncSession) -> dict:
+    """
+    Process expired trials and downgrade to Core.
+    
+    Checks for subscriptions where trial_ends_at has passed.
+    
+    Should run daily.
+    """
+    from app.models.sku import TenantSKU, SKUTier
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.services.billing_email_service import BillingEmailService
+    
+    now = datetime.utcnow()
+    today = date.today()
+    
+    # Find expired trials (trial_ends_at in the past, still on paid tier)
+    result = await db.execute(
+        select(TenantSKU)
+        .where(TenantSKU.is_active == True)
+        .where(TenantSKU.trial_ends_at != None)
+        .where(TenantSKU.trial_ends_at <= now)
+        .where(TenantSKU.tier != SKUTier.CORE)
+    )
+    
+    expired_trials = result.scalars().all()
+    
+    processed_count = 0
+    errors = []
+    
+    for sku in expired_trials:
+        try:
+            previous_tier = sku.tier.value
+            
+            # Downgrade to Core
+            sku.tier = SKUTier.CORE
+            sku.intelligence_addon = None
+            sku.trial_ends_at = None  # Clear trial
+            
+            # Update period
+            sku.current_period_start = today
+            sku.current_period_end = today + timedelta(days=30)
+            
+            # Record the downgrade
+            sku.upgraded_from = previous_tier
+            sku.upgraded_at = now
+            sku.notes = f"Trial expired. Downgraded from {previous_tier} to Core on {today.strftime('%Y-%m-%d')}"
+            
+            # Send notification email
+            try:
+                org_result = await db.execute(
+                    select(Organization).where(Organization.id == sku.organization_id)
+                )
+                org = org_result.scalar_one_or_none()
+                
+                admin_result = await db.execute(
+                    select(User)
+                    .where(User.organization_id == sku.organization_id)
+                    .where(User.is_active == True)
+                    .order_by(User.created_at)
+                    .limit(1)
+                )
+                admin_user = admin_result.scalar_one_or_none()
+                
+                if admin_user and admin_user.email and org:
+                    billing_email_service = BillingEmailService(db)
+                    await billing_email_service.send_trial_ended_downgrade(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        previous_tier=previous_tier,
+                    )
+            except Exception as email_error:
+                logger.error(f"Failed to send trial expiration email for org {sku.organization_id}: {email_error}")
+            
+            processed_count += 1
+            logger.info(f"Processed trial expiration for org {sku.organization_id}: {previous_tier} -> Core")
+            
+        except Exception as e:
+            logger.error(f"Error processing trial expiration for org {sku.organization_id}: {e}")
+            errors.append({
+                "organization_id": str(sku.organization_id),
+                "error": str(e),
+            })
+    
+    await db.commit()
+    
+    return {
+        "expired_count": len(expired_trials),
+        "processed_count": processed_count,
+        "errors": errors if errors else None,
+    }
+
+
+# ===========================================
+# SCHEDULED TASK: USAGE ALERT CHECK
+# ===========================================
+
+async def check_usage_alerts(db: AsyncSession) -> dict:
+    """
+    Check usage across all organizations and send alerts.
+    
+    This task:
+    - Gets all active organizations
+    - Checks usage against limits for each
+    - Sends notifications for thresholds (80%, 90%, 100%)
+    
+    Should run every 6 hours or daily.
+    """
+    from app.models.sku import TenantSKU
+    from app.services.usage_alert_service import UsageAlertService
+    
+    # Get all active subscriptions
+    result = await db.execute(
+        select(TenantSKU)
+        .where(TenantSKU.is_active == True)
+    )
+    tenant_skus = result.scalars().all()
+    
+    total_alerts = 0
+    organizations_checked = 0
+    errors = []
+    
+    alert_service = UsageAlertService(db)
+    
+    for sku in tenant_skus:
+        try:
+            organizations_checked += 1
+            
+            # Check and send alerts for this organization
+            result = await alert_service.check_and_alert(
+                organization_id=sku.organization_id,
+                notify_email=True,
+                notify_in_app=True,
+            )
+            
+            if result.get("alerts_generated", 0) > 0:
+                total_alerts += result["alerts_generated"]
+                logger.info(f"Generated {result['alerts_generated']} usage alerts for org {sku.organization_id}")
+            
+        except Exception as e:
+            logger.error(f"Error checking usage alerts for org {sku.organization_id}: {e}")
+            errors.append({
+                "organization_id": str(sku.organization_id),
+                "error": str(e),
+            })
+    
+    return {
+        "organizations_checked": organizations_checked,
+        "total_alerts_generated": total_alerts,
+        "errors": errors if errors else None,
+    }
+
+
+# ===========================================
 # TASK RUNNER (Development)
 # ===========================================
 
@@ -328,6 +593,9 @@ class TaskRunner:
             ("check_low_stock_items", check_low_stock_items),
             ("check_vat_filing_deadlines", check_vat_filing_deadlines),
             ("sync_pending_nrs_invoices", sync_pending_nrs_invoices),
+            ("process_scheduled_cancellations", process_scheduled_cancellations),
+            ("process_trial_expirations", process_trial_expirations),
+            ("check_usage_alerts", check_usage_alerts),
         ]
         
         for name, task_func in tasks:

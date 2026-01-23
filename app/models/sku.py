@@ -201,6 +201,28 @@ class TenantSKU(BaseModel):
     )
     suspension_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
+    # Cancellation scheduling
+    cancel_at_period_end: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="If True, subscription will be cancelled/downgraded at end of current period"
+    )
+    cancellation_requested_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When cancellation was requested"
+    )
+    cancellation_reason: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Reason for cancellation"
+    )
+    scheduled_downgrade_tier: Mapped[Optional[SKUTier]] = mapped_column(
+        SQLEnum(SKUTier),
+        nullable=True,
+        comment="Tier to downgrade to at period end (usually CORE)"
+    )
+    
     # Audit trail
     upgraded_from: Mapped[Optional[str]] = mapped_column(
         String(50),

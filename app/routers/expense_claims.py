@@ -14,9 +14,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, record_usage_event
 from app.models.user import User
 from app.models.expense_claims import ExpenseCategory, ClaimStatus, PaymentMethod
+from app.models.sku import UsageMetricType
 from app.services.expense_claims_service import (
     ExpenseClaimsService, get_expense_claims_service
 )
@@ -153,6 +154,18 @@ async def create_expense_claim(
             "employee_id": str(employee_id),
         }
     )
+    
+    # Record usage metering for transaction tracking
+    if current_user.organization_id:
+        await record_usage_event(
+            db=db,
+            organization_id=current_user.organization_id,
+            metric_type=UsageMetricType.TRANSACTIONS,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            resource_type="expense_claim",
+            resource_id=str(claim.id),
+        )
     
     return _claim_to_response(claim)
 

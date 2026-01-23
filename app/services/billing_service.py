@@ -611,6 +611,138 @@ class PaystackProvider(PaymentProvider):
         }
         
         return await self._make_request("GET", "/bank/resolve", params=params)
+    
+    async def get_customer(
+        self,
+        customer_code: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get customer details including saved authorizations.
+        
+        API: GET https://api.paystack.co/customer/:customer_code
+        
+        Args:
+            customer_code: Paystack customer code
+            
+        Returns:
+            Customer data including authorizations or None
+        """
+        if self._is_stub:
+            return {
+                "id": 12345,
+                "customer_code": customer_code,
+                "email": "stub@example.com",
+                "authorizations": [
+                    {
+                        "authorization_code": "AUTH_stub123",
+                        "card_type": "visa",
+                        "last4": "4081",
+                        "exp_month": "12",
+                        "exp_year": "2030",
+                        "bank": "TEST BANK",
+                        "channel": "card",
+                        "reusable": True,
+                    }
+                ],
+            }
+        
+        result = await self._make_request("GET", f"/customer/{customer_code}")
+        
+        if result.get("status"):
+            return result.get("data")
+        return None
+    
+    async def charge_authorization(
+        self,
+        authorization_code: str,
+        email: str,
+        amount_naira: int,
+        reference: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> PaymentResult:
+        """
+        Charge a saved authorization (card) for recurring/automatic payments.
+        
+        API: POST https://api.paystack.co/transaction/charge_authorization
+        
+        Args:
+            authorization_code: Saved authorization code
+            email: Customer email
+            amount_naira: Amount to charge in Naira
+            reference: Unique transaction reference
+            metadata: Additional metadata
+            
+        Returns:
+            PaymentResult with success/failure details
+        """
+        if self._is_stub:
+            logger.warning("PaystackProvider in STUB mode - returning fake charge")
+            return PaymentResult(
+                success=True,
+                reference=reference,
+                status=PaymentStatus.SUCCESS,
+                amount_naira=amount_naira,
+                message="Charge successful (STUB MODE)",
+                transaction_id=f"stub_charge_{reference}",
+                paid_at=datetime.utcnow(),
+                metadata={"stub": True},
+            )
+        
+        amount_kobo = amount_naira * 100
+        
+        payload = {
+            "authorization_code": authorization_code,
+            "email": email,
+            "amount": amount_kobo,
+            "reference": reference,
+            "currency": "NGN",
+        }
+        
+        if metadata:
+            payload["metadata"] = metadata
+        
+        logger.info(f"Charging authorization: ref={reference}, amount=₦{amount_naira:,}")
+        
+        result = await self._make_request("POST", "/transaction/charge_authorization", data=payload)
+        
+        if not result.get("status"):
+            return PaymentResult(
+                success=False,
+                reference=reference,
+                status=PaymentStatus.FAILED,
+                amount_naira=amount_naira,
+                message=result.get("message", "Charge failed"),
+            )
+        
+        data = result.get("data", {})
+        tx_status = data.get("status", "").lower()
+        
+        success = tx_status == "success"
+        
+        # Parse paid_at
+        paid_at = None
+        if data.get("paid_at"):
+            try:
+                paid_at = datetime.fromisoformat(data["paid_at"].replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                paid_at = datetime.utcnow() if success else None
+        
+        logger.info(f"Authorization charge result: ref={reference}, status={tx_status}, success={success}")
+        
+        return PaymentResult(
+            success=success,
+            reference=reference,
+            status=PaymentStatus.SUCCESS if success else PaymentStatus.FAILED,
+            amount_naira=data.get("amount", 0) // 100,
+            message=data.get("gateway_response", "Charged"),
+            transaction_id=str(data.get("id", "")),
+            paid_at=paid_at,
+            metadata={
+                "transaction_id": data.get("id"),
+                "gateway_response": data.get("gateway_response"),
+                "channel": data.get("channel"),
+            },
+        )
 
 
 # =============================================================================
@@ -698,6 +830,364 @@ class BillingService:
         
         return total
     
+    def calculate_prorated_upgrade_price(
+        self,
+        current_tier: SKUTier,
+        new_tier: SKUTier,
+        billing_cycle: BillingCycle,
+        days_remaining: int,
+        total_days_in_period: int,
+        current_intelligence: Optional[IntelligenceAddon] = None,
+        new_intelligence: Optional[IntelligenceAddon] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calculate prorated price for a mid-cycle upgrade.
+        
+        For upgrades: Customer pays the difference prorated for remaining days.
+        
+        Args:
+            current_tier: Current SKU tier
+            new_tier: Target SKU tier
+            billing_cycle: Billing cycle (monthly/annual)
+            days_remaining: Days left in current billing period
+            total_days_in_period: Total days in the billing period (30 or 365)
+            current_intelligence: Current intelligence addon
+            new_intelligence: Target intelligence addon
+            
+        Returns:
+            Dictionary with breakdown and prorated amount
+        """
+        # Get current subscription value
+        current_price = self.calculate_subscription_price(
+            tier=current_tier,
+            billing_cycle=billing_cycle,
+            intelligence_addon=current_intelligence,
+        )
+        
+        # Get new subscription value
+        new_price = self.calculate_subscription_price(
+            tier=new_tier,
+            billing_cycle=billing_cycle,
+            intelligence_addon=new_intelligence,
+        )
+        
+        # Calculate daily rate difference
+        price_difference = new_price - current_price
+        
+        if price_difference <= 0:
+            # This is a downgrade, not an upgrade
+            return {
+                "is_upgrade": False,
+                "current_price": current_price,
+                "new_price": new_price,
+                "price_difference": price_difference,
+                "prorated_amount": 0,
+                "days_remaining": days_remaining,
+                "total_days": total_days_in_period,
+                "message": "Downgrades do not require payment. Changes apply at next billing cycle.",
+            }
+        
+        # Calculate prorated amount
+        # For monthly: daily_rate = monthly_price / 30
+        # For annual: daily_rate = annual_price / 365
+        daily_rate_difference = price_difference / total_days_in_period
+        prorated_amount = int(daily_rate_difference * days_remaining)
+        
+        # Credit for unused current subscription
+        current_daily_rate = current_price / total_days_in_period
+        unused_credit = int(current_daily_rate * days_remaining)
+        
+        return {
+            "is_upgrade": True,
+            "current_tier": current_tier.value,
+            "new_tier": new_tier.value,
+            "billing_cycle": billing_cycle.value,
+            "current_price": current_price,
+            "new_price": new_price,
+            "price_difference": price_difference,
+            "days_remaining": days_remaining,
+            "total_days": total_days_in_period,
+            "unused_credit": unused_credit,
+            "prorated_charge": prorated_amount,
+            "prorated_amount": prorated_amount,  # Amount to charge now
+            "prorated_amount_formatted": f"₦{prorated_amount:,}",
+            "new_period_amount": new_price,  # Full amount for next billing cycle
+            "message": f"Pay ₦{prorated_amount:,} now for the remaining {days_remaining} days, then ₦{new_price:,}/{billing_cycle.value}",
+        }
+    
+    async def calculate_upgrade_proration(
+        self,
+        organization_id: UUID,
+        new_tier: SKUTier,
+        new_intelligence: Optional[IntelligenceAddon] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calculate prorated upgrade price for an organization.
+        
+        This fetches the current subscription details and calculates
+        the prorated amount for upgrading to a new tier.
+        """
+        # Get current subscription
+        result = await self.db.execute(
+            select(TenantSKU).where(
+                and_(
+                    TenantSKU.organization_id == organization_id,
+                    TenantSKU.is_active == True,
+                )
+            )
+        )
+        tenant_sku = result.scalar_one_or_none()
+        
+        if not tenant_sku:
+            return {
+                "error": "No active subscription found",
+                "is_upgrade": None,
+            }
+        
+        # Calculate days remaining
+        now = datetime.utcnow()
+        billing_cycle = BillingCycle(tenant_sku.billing_cycle)
+        
+        if tenant_sku.current_period_end:
+            period_end = tenant_sku.current_period_end
+            if isinstance(period_end, date) and not isinstance(period_end, datetime):
+                period_end = datetime.combine(period_end, datetime.min.time())
+            days_remaining = max(0, (period_end - now).days)
+        else:
+            days_remaining = 30 if billing_cycle == BillingCycle.MONTHLY else 365
+        
+        total_days = 30 if billing_cycle == BillingCycle.MONTHLY else 365
+        
+        return self.calculate_prorated_upgrade_price(
+            current_tier=tenant_sku.tier,
+            new_tier=new_tier,
+            billing_cycle=billing_cycle,
+            days_remaining=days_remaining,
+            total_days_in_period=total_days,
+            current_intelligence=tenant_sku.intelligence_addon,
+            new_intelligence=new_intelligence,
+        )
+    
+    async def validate_downgrade(
+        self,
+        organization_id: UUID,
+        target_tier: SKUTier,
+    ) -> Dict[str, Any]:
+        """
+        Validate if a downgrade is possible by checking current usage against target tier limits.
+        
+        Args:
+            organization_id: Organization attempting to downgrade
+            target_tier: Target tier to downgrade to
+            
+        Returns:
+            Dictionary with validation result and any exceeded limits
+        """
+        from app.services.metering_service import MeteringService
+        from app.models.sku import TIER_LIMITS, UsageMetricType
+        
+        metering = MeteringService(self.db)
+        
+        # Get current usage
+        current_usage = await metering.get_all_current_usage(organization_id)
+        
+        # Get target tier limits
+        target_limits = TIER_LIMITS.get(target_tier, {})
+        
+        exceeded_metrics = []
+        warnings = []
+        
+        # Map metric names to limit keys
+        metric_limit_map = {
+            "transactions": "transactions_per_month",
+            "users": "users",
+            "entities": "entities",
+            "invoices": "invoices_per_month",
+            "api_calls": "api_calls_per_month",
+            "ocr_pages": "ocr_pages_per_month",
+            "storage_mb": "storage_mb",
+            "ml_inferences": "ml_inferences_per_month",
+            "employees": "employees",
+        }
+        
+        display_names = {
+            "transactions": "Monthly Transactions",
+            "users": "Active Users",
+            "entities": "Business Entities",
+            "invoices": "Monthly Invoices",
+            "api_calls": "API Calls",
+            "ocr_pages": "OCR Pages",
+            "storage_mb": "Storage (MB)",
+            "ml_inferences": "ML Inferences",
+            "employees": "Employees",
+        }
+        
+        for metric_name, usage in current_usage.items():
+            limit_key = metric_limit_map.get(metric_name)
+            if not limit_key:
+                continue
+            
+            limit = target_limits.get(limit_key, -1)
+            
+            # -1 means unlimited
+            if limit == -1:
+                continue
+            
+            if usage > limit:
+                exceeded_metrics.append({
+                    "metric": metric_name,
+                    "display_name": display_names.get(metric_name, metric_name),
+                    "current_usage": usage,
+                    "target_limit": limit,
+                    "excess": usage - limit,
+                    "action_required": f"Reduce {display_names.get(metric_name, metric_name)} from {usage:,} to {limit:,} or fewer",
+                })
+            elif usage > limit * 0.8:
+                # Warn if close to limit after downgrade
+                warnings.append({
+                    "metric": metric_name,
+                    "display_name": display_names.get(metric_name, metric_name),
+                    "current_usage": usage,
+                    "target_limit": limit,
+                    "percentage": (usage / limit) * 100,
+                })
+        
+        can_downgrade = len(exceeded_metrics) == 0
+        
+        return {
+            "can_downgrade": can_downgrade,
+            "target_tier": target_tier.value,
+            "exceeded_limits": exceeded_metrics if exceeded_metrics else None,
+            "warnings": warnings if warnings else None,
+            "message": (
+                "You can proceed with the downgrade."
+                if can_downgrade
+                else f"Cannot downgrade: {len(exceeded_metrics)} usage metric(s) exceed the target tier limits. Please reduce usage first."
+            ),
+        }
+    
+    async def request_downgrade(
+        self,
+        organization_id: UUID,
+        target_tier: SKUTier,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Request a downgrade to a lower tier.
+        
+        Downgrades take effect at the end of the current billing period.
+        If force=True, will schedule even if limits exceeded (with warning).
+        
+        Args:
+            organization_id: Organization requesting downgrade
+            target_tier: Target tier to downgrade to
+            force: If True, schedule downgrade even with exceeded limits
+            
+        Returns:
+            Dictionary with downgrade request result
+        """
+        # Validate downgrade
+        validation = await self.validate_downgrade(organization_id, target_tier)
+        
+        if not validation["can_downgrade"] and not force:
+            return {
+                "success": False,
+                "message": validation["message"],
+                "exceeded_limits": validation["exceeded_limits"],
+            }
+        
+        # Get current subscription
+        result = await self.db.execute(
+            select(TenantSKU).where(
+                and_(
+                    TenantSKU.organization_id == organization_id,
+                    TenantSKU.is_active == True,
+                )
+            )
+        )
+        tenant_sku = result.scalar_one_or_none()
+        
+        if not tenant_sku:
+            return {"success": False, "message": "No active subscription found"}
+        
+        # Check tier hierarchy
+        tier_order = {SKUTier.CORE: 0, SKUTier.PROFESSIONAL: 1, SKUTier.ENTERPRISE: 2}
+        if tier_order.get(target_tier, 0) >= tier_order.get(tenant_sku.tier, 0):
+            return {
+                "success": False,
+                "message": f"Target tier ({target_tier.value}) is not lower than current tier ({tenant_sku.tier.value})",
+            }
+        
+        now = datetime.utcnow()
+        previous_tier = tenant_sku.tier.value
+        
+        # Schedule downgrade at period end
+        tenant_sku.cancel_at_period_end = True
+        tenant_sku.cancellation_requested_at = now
+        tenant_sku.cancellation_reason = f"Downgrade to {target_tier.value} requested"
+        tenant_sku.scheduled_downgrade_tier = target_tier
+        tenant_sku.notes = f"Scheduled downgrade from {previous_tier} to {target_tier.value}. Effective: {tenant_sku.current_period_end.strftime('%Y-%m-%d') if tenant_sku.current_period_end else 'end of period'}."
+        
+        await self.db.flush()
+        
+        # Send confirmation email
+        await self._send_downgrade_scheduled_email(
+            organization_id=organization_id,
+            previous_tier=previous_tier,
+            target_tier=target_tier.value,
+            effective_date=tenant_sku.current_period_end,
+            exceeded_limits=validation.get("exceeded_limits"),
+        )
+        
+        return {
+            "success": True,
+            "message": f"Downgrade to {target_tier.value} scheduled for end of billing period",
+            "current_tier": previous_tier,
+            "target_tier": target_tier.value,
+            "effective_date": tenant_sku.current_period_end.isoformat() if tenant_sku.current_period_end else None,
+            "exceeded_limits": validation.get("exceeded_limits"),
+            "warnings": validation.get("warnings"),
+        }
+    
+    async def _send_downgrade_scheduled_email(
+        self,
+        organization_id: UUID,
+        previous_tier: str,
+        target_tier: str,
+        effective_date: Optional[datetime],
+        exceeded_limits: Optional[List[Dict]] = None,
+    ) -> None:
+        """Send downgrade scheduled confirmation email."""
+        from app.services.billing_email_service import BillingEmailService
+        from app.models.organization import Organization
+        from app.models.user import User
+        
+        try:
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.id == organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            
+            admin_result = await self.db.execute(
+                select(User)
+                .where(User.organization_id == organization_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            if admin_user and admin_user.email and org:
+                billing_email_service = BillingEmailService(self.db)
+                await billing_email_service.send_scheduled_cancellation(
+                    email=admin_user.email,
+                    organization_name=org.name,
+                    tier=previous_tier,
+                    effective_date=effective_date,
+                )
+        except Exception as e:
+            logger.error(f"Failed to send downgrade scheduled email: {e}")
+    
     def get_tier_pricing_display(
         self,
         tier: SKUTier,
@@ -731,6 +1221,311 @@ class BillingService:
     # ===========================================
     # PAYMENT INTENTS
     # ===========================================
+    
+    async def validate_trial_to_paid_conversion(
+        self,
+        organization_id: UUID,
+    ) -> Dict[str, Any]:
+        """
+        Validate that an organization can convert from trial to paid.
+        
+        This checks:
+        1. Organization has an active trial
+        2. Organization has a valid payment method on file (Paystack authorization)
+        3. Trial hasn't already ended
+        
+        Args:
+            organization_id: Organization to validate
+            
+        Returns:
+            Dictionary with validation result and any issues
+        """
+        result = await self.db.execute(
+            select(TenantSKU).where(
+                and_(
+                    TenantSKU.organization_id == organization_id,
+                    TenantSKU.is_active == True,
+                )
+            )
+        )
+        tenant_sku = result.scalar_one_or_none()
+        
+        if not tenant_sku:
+            return {
+                "can_convert": False,
+                "reason": "no_subscription",
+                "message": "No active subscription found for this organization.",
+            }
+        
+        now = datetime.utcnow()
+        
+        # Check if currently on trial
+        if not tenant_sku.trial_ends_at:
+            return {
+                "can_convert": False,
+                "reason": "not_on_trial",
+                "message": "Organization is not currently on a trial.",
+                "current_tier": tenant_sku.tier.value,
+            }
+        
+        if tenant_sku.trial_ends_at < now:
+            return {
+                "can_convert": False,
+                "reason": "trial_expired",
+                "message": "Trial has already expired. Please start a new subscription.",
+                "trial_ended_at": tenant_sku.trial_ends_at.isoformat(),
+            }
+        
+        # Check for saved payment method (Paystack authorization)
+        has_payment_method = False
+        payment_method_details = None
+        
+        metadata = tenant_sku.custom_metadata or {}
+        paystack_sub = metadata.get("paystack_subscription", {})
+        
+        if paystack_sub.get("customer_code"):
+            # Customer has been registered with Paystack
+            # Check if they have a saved authorization
+            try:
+                customer_code = paystack_sub["customer_code"]
+                customer_info = await self.payment_provider.get_customer(customer_code)
+                
+                if customer_info and customer_info.get("authorizations"):
+                    authorizations = customer_info["authorizations"]
+                    # Find valid authorization
+                    for auth in authorizations:
+                        if auth.get("reusable", False):
+                            has_payment_method = True
+                            payment_method_details = {
+                                "type": auth.get("channel", "card"),
+                                "card_type": auth.get("card_type"),
+                                "last4": auth.get("last4"),
+                                "exp_month": auth.get("exp_month"),
+                                "exp_year": auth.get("exp_year"),
+                                "bank": auth.get("bank"),
+                            }
+                            break
+            except Exception as e:
+                logger.warning(f"Error checking customer payment methods: {e}")
+        
+        # Check for pending payment transaction that could provide authorization
+        payment_result = await self.db.execute(
+            select(PaymentTransaction)
+            .where(PaymentTransaction.organization_id == organization_id)
+            .where(PaymentTransaction.status == "success")
+            .order_by(PaymentTransaction.created_at.desc())
+            .limit(1)
+        )
+        last_payment = payment_result.scalar_one_or_none()
+        
+        if last_payment and last_payment.card_last4:
+            has_payment_method = True
+            payment_method_details = {
+                "type": last_payment.payment_method or "card",
+                "card_type": last_payment.card_type,
+                "last4": last_payment.card_last4,
+                "bank": last_payment.bank_name,
+            }
+        
+        if not has_payment_method:
+            return {
+                "can_convert": False,
+                "reason": "no_payment_method",
+                "message": "No valid payment method on file. Please add a payment method to continue.",
+                "action_required": "add_payment_method",
+            }
+        
+        # Calculate days remaining in trial
+        days_remaining = (tenant_sku.trial_ends_at - now).days
+        
+        return {
+            "can_convert": True,
+            "reason": "valid",
+            "message": "Organization can convert from trial to paid subscription.",
+            "trial_ends_at": tenant_sku.trial_ends_at.isoformat(),
+            "days_remaining": days_remaining,
+            "current_tier": tenant_sku.tier.value,
+            "payment_method": payment_method_details,
+        }
+    
+    async def convert_trial_to_paid(
+        self,
+        organization_id: UUID,
+        tier: Optional[SKUTier] = None,
+        billing_cycle: Optional[BillingCycle] = None,
+    ) -> Dict[str, Any]:
+        """
+        Convert a trial subscription to a paid subscription.
+        
+        Args:
+            organization_id: Organization to convert
+            tier: Target tier (defaults to current trial tier)
+            billing_cycle: Billing cycle (defaults to monthly)
+            
+        Returns:
+            Dictionary with conversion result
+        """
+        # First validate
+        validation = await self.validate_trial_to_paid_conversion(organization_id)
+        
+        if not validation.get("can_convert"):
+            return {
+                "success": False,
+                "message": validation.get("message"),
+                "reason": validation.get("reason"),
+                "action_required": validation.get("action_required"),
+            }
+        
+        # Get current subscription
+        result = await self.db.execute(
+            select(TenantSKU).where(
+                and_(
+                    TenantSKU.organization_id == organization_id,
+                    TenantSKU.is_active == True,
+                )
+            )
+        )
+        tenant_sku = result.scalar_one_or_none()
+        
+        if not tenant_sku:
+            return {"success": False, "message": "No subscription found"}
+        
+        # Use current tier if not specified
+        target_tier = tier or tenant_sku.tier
+        target_cycle = billing_cycle or BillingCycle.MONTHLY
+        
+        now = datetime.utcnow()
+        
+        # Calculate price
+        amount = self.calculate_subscription_price(
+            tier=target_tier,
+            billing_cycle=target_cycle,
+            intelligence_addon=tenant_sku.intelligence_addon,
+        )
+        
+        # Try to charge using saved payment method
+        metadata = tenant_sku.custom_metadata or {}
+        paystack_sub = metadata.get("paystack_subscription", {})
+        
+        if paystack_sub.get("customer_code"):
+            try:
+                # Attempt to charge with saved authorization
+                charge_result = await self.payment_provider.charge_authorization(
+                    authorization_code=paystack_sub.get("authorization_code"),
+                    email=paystack_sub.get("customer_email"),
+                    amount_naira=amount,
+                    reference=f"TVP-CONV-{organization_id.hex[:8]}-{now.strftime('%Y%m%d%H%M%S')}",
+                    metadata={
+                        "organization_id": str(organization_id),
+                        "tier": target_tier.value,
+                        "billing_cycle": target_cycle.value,
+                        "conversion_type": "trial_to_paid",
+                    },
+                )
+                
+                if charge_result.success:
+                    # Update subscription
+                    tenant_sku.trial_ends_at = None
+                    tenant_sku.current_period_start = now
+                    
+                    if target_cycle == BillingCycle.ANNUAL:
+                        tenant_sku.current_period_end = now + timedelta(days=365)
+                    else:
+                        tenant_sku.current_period_end = now + timedelta(days=30)
+                    
+                    tenant_sku.tier = target_tier
+                    tenant_sku.billing_cycle = target_cycle.value
+                    
+                    await self.db.flush()
+                    
+                    # Send confirmation
+                    await self._send_trial_conversion_success_email(
+                        organization_id=organization_id,
+                        tier=target_tier.value,
+                        amount=amount,
+                        reference=charge_result.reference,
+                    )
+                    
+                    return {
+                        "success": True,
+                        "message": "Successfully converted to paid subscription",
+                        "tier": target_tier.value,
+                        "billing_cycle": target_cycle.value,
+                        "amount_charged": amount,
+                        "next_billing_date": tenant_sku.current_period_end.isoformat(),
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Payment failed: {charge_result.message}",
+                        "reason": "payment_failed",
+                        "action_required": "update_payment_method",
+                    }
+                    
+            except Exception as e:
+                logger.error(f"Error charging for trial conversion: {e}")
+                return {
+                    "success": False,
+                    "message": "Payment processing error. Please try again or update your payment method.",
+                    "reason": "payment_error",
+                    "error": str(e),
+                }
+        else:
+            # No saved authorization - need to redirect to payment page
+            return {
+                "success": False,
+                "message": "No saved payment method. Please complete checkout.",
+                "reason": "no_authorization",
+                "action_required": "complete_checkout",
+                "checkout_url": f"/billing/upgrade?tier={target_tier.value}&cycle={target_cycle.value}",
+            }
+    
+    async def _send_trial_conversion_success_email(
+        self,
+        organization_id: UUID,
+        tier: str,
+        amount: int,
+        reference: str,
+    ) -> None:
+        """Send email confirming successful trial to paid conversion."""
+        from app.services.billing_email_service import BillingEmailService
+        from app.models.organization import Organization
+        from app.models.user import User
+        
+        try:
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.id == organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            
+            admin_result = await self.db.execute(
+                select(User)
+                .where(User.organization_id == organization_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            if admin_user and admin_user.email and org:
+                billing_email_service = BillingEmailService(self.db)
+                
+                result = await self.db.execute(
+                    select(TenantSKU).where(TenantSKU.organization_id == organization_id)
+                )
+                tenant_sku = result.scalar_one_or_none()
+                
+                await billing_email_service.send_payment_success(
+                    email=admin_user.email,
+                    organization_name=org.name,
+                    tier=tier,
+                    amount_naira=amount,
+                    reference=reference,
+                    payment_date=datetime.utcnow(),
+                    next_billing_date=tenant_sku.current_period_end if tenant_sku else None,
+                )
+        except Exception as e:
+            logger.error(f"Failed to send trial conversion email: {e}")
     
     async def create_payment_intent(
         self,
@@ -1599,12 +2394,21 @@ class BillingService:
         self,
         organization_id: UUID,
         reason: Optional[str] = None,
+        immediate: bool = False,
     ) -> Dict[str, Any]:
         """
         Cancel a subscription (downgrade to Core at end of period).
         
         The subscription remains active until the end of the current
         billing period, then downgrades to Core tier.
+        
+        Args:
+            organization_id: Organization to cancel
+            reason: Reason for cancellation
+            immediate: If True, cancel immediately instead of at period end
+            
+        Returns:
+            Dictionary with cancellation details
         """
         result = await self.db.execute(
             select(TenantSKU).where(
@@ -1619,16 +2423,138 @@ class BillingService:
         if not tenant_sku:
             return {"success": False, "message": "No active subscription found"}
         
-        # Mark for cancellation (doesn't immediately downgrade)
-        tenant_sku.notes = f"Cancelled: {reason or 'User requested'}"
-        # In production, would also cancel with Paystack
+        now = datetime.utcnow()
+        previous_tier = tenant_sku.tier.value
+        
+        if immediate:
+            # Immediately downgrade to Core
+            tenant_sku.tier = SKUTier.CORE
+            tenant_sku.intelligence_addon = None
+            tenant_sku.cancel_at_period_end = False
+            tenant_sku.cancellation_requested_at = now
+            tenant_sku.cancellation_reason = reason or "User requested immediate cancellation"
+            tenant_sku.scheduled_downgrade_tier = None
+            tenant_sku.notes = f"Immediately cancelled on {now.strftime('%Y-%m-%d')}: {reason or 'User requested'}"
+            
+            await self.db.flush()
+            
+            # Send cancellation email
+            await self._send_cancellation_email(organization_id, previous_tier, immediate=True)
+            
+            return {
+                "success": True,
+                "message": "Subscription has been cancelled and downgraded to Core",
+                "previous_tier": previous_tier,
+                "new_tier": SKUTier.CORE.value,
+                "effective_immediately": True,
+            }
+        else:
+            # Schedule cancellation at period end
+            tenant_sku.cancel_at_period_end = True
+            tenant_sku.cancellation_requested_at = now
+            tenant_sku.cancellation_reason = reason or "User requested cancellation"
+            tenant_sku.scheduled_downgrade_tier = SKUTier.CORE
+            tenant_sku.notes = f"Scheduled for cancellation: {reason or 'User requested'}. Access until {tenant_sku.current_period_end.strftime('%Y-%m-%d') if tenant_sku.current_period_end else 'end of period'}."
+            
+            await self.db.flush()
+            
+            # Send scheduled cancellation email
+            await self._send_cancellation_email(organization_id, previous_tier, immediate=False, period_end=tenant_sku.current_period_end)
+            
+            return {
+                "success": True,
+                "message": "Subscription will be cancelled at end of billing period",
+                "previous_tier": previous_tier,
+                "effective_date": tenant_sku.current_period_end.isoformat() if tenant_sku.current_period_end else None,
+                "cancel_at_period_end": True,
+            }
+    
+    async def _send_cancellation_email(
+        self,
+        organization_id: UUID,
+        previous_tier: str,
+        immediate: bool = False,
+        period_end: Optional[datetime] = None,
+    ) -> None:
+        """Send cancellation confirmation email."""
+        from app.services.billing_email_service import BillingEmailService
+        from app.models.organization import Organization
+        from app.models.user import User
+        
+        try:
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.id == organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            
+            admin_result = await self.db.execute(
+                select(User)
+                .where(User.organization_id == organization_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            if admin_user and admin_user.email and org:
+                billing_email_service = BillingEmailService(self.db)
+                
+                if immediate:
+                    # Use the trial_ended_downgrade template for immediate cancellation
+                    await billing_email_service.send_trial_ended_downgrade(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        previous_tier=previous_tier,
+                    )
+                else:
+                    # Send scheduled cancellation notice
+                    await billing_email_service.send_scheduled_cancellation(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        tier=previous_tier,
+                        effective_date=period_end,
+                    )
+        except Exception as e:
+            logger.error(f"Failed to send cancellation email: {e}")
+    
+    async def reactivate_subscription(
+        self,
+        organization_id: UUID,
+    ) -> Dict[str, Any]:
+        """
+        Reactivate a subscription that was scheduled for cancellation.
+        
+        This can only be done before the period end.
+        """
+        result = await self.db.execute(
+            select(TenantSKU).where(
+                and_(
+                    TenantSKU.organization_id == organization_id,
+                    TenantSKU.is_active == True,
+                )
+            )
+        )
+        tenant_sku = result.scalar_one_or_none()
+        
+        if not tenant_sku:
+            return {"success": False, "message": "No active subscription found"}
+        
+        if not tenant_sku.cancel_at_period_end:
+            return {"success": False, "message": "Subscription is not scheduled for cancellation"}
+        
+        # Clear cancellation flags
+        tenant_sku.cancel_at_period_end = False
+        tenant_sku.cancellation_requested_at = None
+        tenant_sku.cancellation_reason = None
+        tenant_sku.scheduled_downgrade_tier = None
+        tenant_sku.notes = f"Cancellation reversed on {datetime.utcnow().strftime('%Y-%m-%d')}"
         
         await self.db.flush()
         
         return {
             "success": True,
-            "message": "Subscription will be cancelled at end of billing period",
-            "current_period_end": tenant_sku.current_period_end.isoformat() if tenant_sku.current_period_end else None,
+            "message": "Subscription has been reactivated",
+            "tier": tenant_sku.tier.value,
         }
 
 

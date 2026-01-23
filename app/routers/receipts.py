@@ -15,9 +15,10 @@ from pydantic import BaseModel, Field
 from io import BytesIO
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, record_usage_event
 from app.models.user import User
 from app.models.audit_consolidated import AuditAction
+from app.models.sku import UsageMetricType
 from app.services.entity_service import EntityService
 from app.services.ocr_service import OCRService, ExtractedReceiptData
 from app.services.file_storage_service import FileStorageService, FileCategory
@@ -197,6 +198,18 @@ async def upload_receipt(
             "ocr_processed": process_ocr,
         },
     )
+    
+    # Record OCR usage metering if OCR was processed
+    if process_ocr and current_user.organization_id:
+        await record_usage_event(
+            db=db,
+            organization_id=current_user.organization_id,
+            metric_type=UsageMetricType.OCR_PAGES,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            resource_type="receipt_ocr",
+            resource_id=upload_result["file_id"],
+        )
     
     return ReceiptUploadResponse(
         file_id=upload_result["file_id"],
