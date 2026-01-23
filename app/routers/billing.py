@@ -11,6 +11,7 @@ from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field, EmailStr
 
@@ -23,6 +24,9 @@ from app.services.billing_service import (
     BillingCycle,
     PaymentStatus,
 )
+from app.services.invoice_pdf_service import InvoicePDFService
+from app.services.dunning_service import DunningService, DunningLevel
+from app.services.billing_email_service import BillingEmailService
 from app.config.sku_config import TIER_PRICING, INTELLIGENCE_PRICING
 from sqlalchemy import select, desc, func
 
@@ -125,6 +129,32 @@ class PaymentHistoryResponse(BaseModel):
     page: int
     per_page: int
     has_more: bool
+
+
+class SubscriptionAccessResponse(BaseModel):
+    """Response for subscription access check."""
+    has_access: bool
+    status: str
+    tier: Optional[str]
+    message: str
+    days_remaining: int
+    grace_period_remaining: int
+    is_trial: bool
+
+
+class DunningStatusResponse(BaseModel):
+    """Response for dunning status."""
+    organization_id: str
+    level: str
+    amount_naira: int
+    amount_formatted: str
+    first_failure_at: Optional[str]
+    last_retry_at: Optional[str]
+    retry_count: int
+    next_retry_at: Optional[str]
+    days_until_suspension: int
+    notes: Optional[str]
+    is_in_dunning: bool
 
 
 # =============================================================================
@@ -705,3 +735,268 @@ async def paystack_webhook(
         logger.error(f"Webhook processing error: {e}", exc_info=True)
         # Return 200 to acknowledge receipt (prevents retries for parsing errors)
         return {"status": "error", "message": str(e)}
+
+
+# =============================================================================
+# SUBSCRIPTION ACCESS ENDPOINT
+# =============================================================================
+
+@router.get(
+    "/subscription-access",
+    response_model=SubscriptionAccessResponse,
+    summary="Check subscription access status",
+)
+async def check_subscription_access(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Check if the current organization has valid subscription access.
+    
+    Returns access status including:
+    - has_access: Whether the organization can access the application
+    - status: Current subscription status (active, trial, grace_period, suspended, etc.)
+    - tier: Current subscription tier
+    - message: Human-readable status message
+    - days_remaining: Days until subscription expires or trial ends
+    - grace_period_remaining: Days remaining in grace period (if applicable)
+    - is_trial: Whether currently in trial period
+    
+    This endpoint is used by the frontend to display subscription status
+    banners and handle access restrictions.
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    service = BillingService(db)
+    access_info = await service.check_subscription_access(current_user.organization_id)
+    
+    return SubscriptionAccessResponse(
+        has_access=access_info.get("has_access", False),
+        status=access_info.get("status", "unknown"),
+        tier=access_info.get("tier"),
+        message=access_info.get("message", ""),
+        days_remaining=access_info.get("days_remaining", 0),
+        grace_period_remaining=access_info.get("grace_period_remaining", 0),
+        is_trial=access_info.get("is_trial", False),
+    )
+
+
+# =============================================================================
+# DUNNING STATUS ENDPOINT
+# =============================================================================
+
+@router.get(
+    "/dunning-status",
+    response_model=DunningStatusResponse,
+    summary="Get dunning/payment failure status",
+)
+async def get_dunning_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the current dunning status for the organization.
+    
+    Dunning is the process of handling failed payments with escalating
+    notifications and retry attempts.
+    
+    Returns:
+    - is_in_dunning: Whether the organization has any failed payments
+    - level: Current dunning level (initial, warning, urgent, final, suspended)
+    - amount_naira: Amount that failed to process
+    - retry_count: Number of payment retry attempts
+    - days_until_suspension: Days remaining before account suspension
+    
+    If the organization is not in dunning, is_in_dunning will be False
+    and other fields will have default/empty values.
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    dunning_service = DunningService(db)
+    dunning_record = await dunning_service.get_dunning_status(current_user.organization_id)
+    
+    if not dunning_record:
+        return DunningStatusResponse(
+            organization_id=str(current_user.organization_id),
+            level="none",
+            amount_naira=0,
+            amount_formatted="₦0",
+            first_failure_at=None,
+            last_retry_at=None,
+            retry_count=0,
+            next_retry_at=None,
+            days_until_suspension=0,
+            notes=None,
+            is_in_dunning=False,
+        )
+    
+    return DunningStatusResponse(
+        organization_id=str(dunning_record.organization_id),
+        level=dunning_record.level.value,
+        amount_naira=dunning_record.amount_naira,
+        amount_formatted=f"₦{dunning_record.amount_naira:,}",
+        first_failure_at=dunning_record.first_failure_at.isoformat() if dunning_record.first_failure_at else None,
+        last_retry_at=dunning_record.last_retry_at.isoformat() if dunning_record.last_retry_at else None,
+        retry_count=dunning_record.retry_count,
+        next_retry_at=dunning_record.next_retry_at.isoformat() if dunning_record.next_retry_at else None,
+        days_until_suspension=dunning_record.days_until_suspension,
+        notes=dunning_record.notes,
+        is_in_dunning=True,
+    )
+
+
+# =============================================================================
+# INVOICE PDF ENDPOINT
+# =============================================================================
+
+@router.get(
+    "/invoice/{payment_id}/pdf",
+    summary="Download invoice PDF",
+    responses={
+        200: {
+            "content": {"application/pdf": {}},
+            "description": "PDF invoice file",
+        }
+    },
+)
+async def download_invoice_pdf(
+    payment_id: UUID = Path(..., description="Payment transaction ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Download a PDF invoice for a specific payment transaction.
+    
+    The invoice includes:
+    - Company and customer details
+    - Line items with subscription details
+    - VAT breakdown (7.5% Nigerian standard)
+    - Payment reference and status
+    - Bank details for wire transfers (if unpaid)
+    
+    Returns a PDF file that can be saved or printed.
+    """
+    import io
+    
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    # Get the payment transaction
+    result = await db.execute(
+        select(PaymentTransaction).where(
+            PaymentTransaction.id == payment_id,
+            PaymentTransaction.organization_id == current_user.organization_id,
+        )
+    )
+    transaction = result.scalar_one_or_none()
+    
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment transaction not found",
+        )
+    
+    # Generate PDF invoice
+    pdf_service = InvoicePDFService(db)
+    
+    try:
+        pdf_bytes = await pdf_service.generate_subscription_invoice(
+            organization_id=current_user.organization_id,
+            tier=transaction.tier or "professional",
+            billing_cycle=transaction.billing_cycle or "monthly",
+            amount_naira=transaction.amount_kobo // 100,
+            payment_reference=transaction.reference,
+            paid_at=transaction.paid_at,
+        )
+        
+        # Create filename
+        invoice_date = transaction.created_at.strftime("%Y%m%d") if transaction.created_at else "invoice"
+        filename = f"TekVwarho_Invoice_{invoice_date}_{transaction.reference[:8].upper()}.pdf"
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(pdf_bytes)),
+            },
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate invoice PDF: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate invoice PDF",
+        )
+
+
+# =============================================================================
+# RESEND INVOICE EMAIL ENDPOINT
+# =============================================================================
+
+@router.post(
+    "/invoice/{payment_id}/resend",
+    summary="Resend invoice email",
+)
+async def resend_invoice_email(
+    payment_id: UUID = Path(..., description="Payment transaction ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Resend the invoice email for a specific payment transaction.
+    
+    This will send a copy of the invoice to the organization's
+    billing contact email.
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    # Get the payment transaction
+    result = await db.execute(
+        select(PaymentTransaction).where(
+            PaymentTransaction.id == payment_id,
+            PaymentTransaction.organization_id == current_user.organization_id,
+        )
+    )
+    transaction = result.scalar_one_or_none()
+    
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment transaction not found",
+        )
+    
+    # Send invoice email
+    email_service = BillingEmailService(db)
+    
+    try:
+        await email_service.send_payment_success_email(
+            organization_id=current_user.organization_id,
+            tier=transaction.tier or "professional",
+            amount_naira=transaction.amount_kobo // 100,
+            next_billing_date=None,  # Will be calculated from subscription
+            payment_reference=transaction.reference,
+        )
+        
+        return {"message": "Invoice email sent successfully", "sent_to": current_user.email}
+    except Exception as e:
+        logger.error(f"Failed to send invoice email: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send invoice email",
+        )
+

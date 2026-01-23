@@ -288,6 +288,134 @@
     </nav>
     {% endblock %}
     
+    <!-- Subscription Status Banner -->
+    {% if user and subscription_status %}
+    <div x-data="subscriptionBanner()" x-init="init()" x-cloak>
+        <!-- Trial Warning Banner -->
+        <template x-if="status === 'trial' && daysRemaining <= 7">
+            <div class="bg-blue-600 text-white">
+                <div class="max-w-7xl mx-auto py-3 px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between flex-wrap">
+                        <div class="flex items-center">
+                            <span class="flex p-2 rounded-lg bg-blue-800">
+                                <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </span>
+                            <p class="ml-3 font-medium text-sm">
+                                <span class="md:inline">Your trial expires in <span x-text="daysRemaining"></span> days.</span>
+                            </p>
+                        </div>
+                        <div class="mt-2 md:mt-0">
+                            <a href="/checkout" class="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition">
+                                Subscribe Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- Grace Period Warning Banner -->
+        <template x-if="status === 'grace_period'">
+            <div class="bg-yellow-500 text-white">
+                <div class="max-w-7xl mx-auto py-3 px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between flex-wrap">
+                        <div class="flex items-center">
+                            <span class="flex p-2 rounded-lg bg-yellow-600">
+                                <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                            </span>
+                            <p class="ml-3 font-medium text-sm">
+                                <span class="font-bold">Payment Overdue:</span>
+                                <span class="md:inline" x-text="message || 'Please update your payment method.'"></span>
+                                <span class="font-bold" x-text="'(' + gracePeriodRemaining + ' days remaining)'"></span>
+                            </p>
+                        </div>
+                        <div class="mt-2 md:mt-0">
+                            <a href="/checkout" class="bg-white text-yellow-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-50 transition">
+                                Pay Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- Trial Expired Banner -->
+        <template x-if="status === 'trial_expired'">
+            <div class="bg-orange-500 text-white">
+                <div class="max-w-7xl mx-auto py-3 px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between flex-wrap">
+                        <div class="flex items-center">
+                            <span class="flex p-2 rounded-lg bg-orange-600">
+                                <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </span>
+                            <p class="ml-3 font-medium text-sm">
+                                <span class="font-bold">Trial Expired:</span>
+                                <span class="md:inline">Subscribe now to continue using all features.</span>
+                            </p>
+                        </div>
+                        <div class="mt-2 md:mt-0">
+                            <a href="/checkout" class="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-50 transition">
+                                Subscribe Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- Suspended Banner (Urgent) -->
+        <template x-if="status === 'suspended'">
+            <div class="bg-red-600 text-white">
+                <div class="max-w-7xl mx-auto py-3 px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between flex-wrap">
+                        <div class="flex items-center">
+                            <span class="flex p-2 rounded-lg bg-red-800">
+                                <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                                </svg>
+                            </span>
+                            <p class="ml-3 font-medium text-sm">
+                                <span class="font-bold">Account Suspended:</span>
+                                <span class="md:inline">Your account has been suspended due to non-payment. Please resolve to restore access.</span>
+                            </p>
+                        </div>
+                        <div class="mt-2 md:mt-0 flex space-x-2">
+                            <a href="/checkout" class="bg-white text-red-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition">
+                                Resolve Now
+                            </a>
+                            <a href="/settings#billing" class="bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-800 transition">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+    
+    <script>
+    function subscriptionBanner() {
+        return {
+            status: '{{ subscription_status|default("") }}',
+            message: '{{ subscription_message|default("")|escapejs }}',
+            daysRemaining: {{ subscription_days_remaining|default(0) }},
+            gracePeriodRemaining: {{ subscription_grace_period_remaining|default(0) }},
+            
+            init() {
+                // Banner is initialized with server-side values
+                // Can be enhanced with client-side polling if needed
+            }
+        };
+    }
+    </script>
+    {% endif %}
+    
     <!-- Flash Messages -->
     {% if flash_messages %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">

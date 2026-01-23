@@ -173,6 +173,55 @@ EXEMPT_PREFIXES: List[str] = [
     "/logout",
     "/register",
     "/api/v1/auth/",
+    "/api/v1/billing/",  # Allow billing endpoints during suspension
+    "/checkout",
+    "/pricing",
+    "/payment-success",
+    "/payment-failed",
+    "/",
+]
+
+# Paths that require active subscription (not suspended)
+SUBSCRIPTION_REQUIRED_PREFIXES: List[str] = [
+    "/api/v1/",
+    "/dashboard",
+    "/transactions",
+    "/invoices",
+    "/sales",
+    "/reports",
+    "/audit",
+    "/payroll",
+    "/accounting",
+    "/inventory",
+    "/customers",
+    "/vendors",
+    "/fixed-assets",
+    "/bank-reconciliation",
+    "/expense-claims",
+    "/tax-2026",
+    "/business-insights",
+    "/receipts",
+    "/settings",  # Settings allowed except billing
+]
+
+# Paths exempt from subscription status check
+SUBSCRIPTION_EXEMPT_PREFIXES: List[str] = [
+    "/static/",
+    "/api/docs",
+    "/api/redoc",
+    "/openapi.json",
+    "/health",
+    "/favicon.ico",
+    "/login",
+    "/logout",
+    "/register",
+    "/api/v1/auth/",
+    "/api/v1/billing/",  # Always allow billing operations
+    "/checkout",
+    "/pricing",
+    "/payment-success",
+    "/payment-failed",
+    "/select-entity",
     "/",
 ]
 
@@ -337,9 +386,41 @@ class SKUContextMiddleware(BaseHTTPMiddleware):
             request.state.sku_loaded = True
             request.state.sku_org_id = org_id
             
+            # Load subscription status for grace period/suspension checking
+            await self._load_subscription_status(request, org_id, db)
+            
             # Record API call metering for /api/ paths
             if request.url.path.startswith("/api/v1/"):
                 await self._record_api_call(request, org_id, db)
+    
+    async def _load_subscription_status(
+        self,
+        request: Request,
+        org_id: UUID,
+        db,
+    ) -> None:
+        """Load subscription status for access control."""
+        try:
+            from app.services.billing_service import BillingService
+            
+            billing_service = BillingService(db)
+            access_info = await billing_service.check_subscription_access(org_id)
+            
+            # Store subscription status in request state
+            request.state.subscription_status = access_info.get("status", "unknown")
+            request.state.subscription_has_access = access_info.get("has_access", True)
+            request.state.subscription_message = access_info.get("message", "")
+            request.state.subscription_days_remaining = access_info.get("days_remaining", 0)
+            request.state.subscription_grace_period_remaining = access_info.get("grace_period_remaining", 0)
+            
+        except Exception as e:
+            # Default to allowing access if check fails
+            logger.warning(f"Failed to load subscription status: {e}")
+            request.state.subscription_status = "unknown"
+            request.state.subscription_has_access = True
+            request.state.subscription_message = ""
+            request.state.subscription_days_remaining = 0
+            request.state.subscription_grace_period_remaining = 0
     
     async def _record_api_call(
         self, 
@@ -368,13 +449,14 @@ class SKUContextMiddleware(BaseHTTPMiddleware):
             logger.warning(f"Failed to record API call: {e}")
 
 
-def setup_sku_middleware(app, enable_feature_gating: bool = True) -> None:
+def setup_sku_middleware(app, enable_feature_gating: bool = True, enable_subscription_enforcement: bool = True) -> None:
     """
     Add SKU middleware to the FastAPI app.
     
     Args:
         app: FastAPI application
         enable_feature_gating: Whether to enable path-based feature gating
+        enable_subscription_enforcement: Whether to enforce subscription status
     """
     # Context middleware first (provides data for feature gating)
     app.add_middleware(SKUContextMiddleware)
@@ -384,7 +466,107 @@ def setup_sku_middleware(app, enable_feature_gating: bool = True) -> None:
         app.add_middleware(FeatureGateMiddleware)
         logger.info("SKU feature gating middleware enabled")
     
+    # Subscription enforcement middleware
+    if enable_subscription_enforcement:
+        app.add_middleware(SubscriptionEnforcementMiddleware)
+        logger.info("Subscription enforcement middleware enabled")
+    
     logger.info("SKU context middleware enabled")
+
+
+class SubscriptionEnforcementMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware that enforces subscription status and blocks suspended accounts.
+    
+    This middleware checks if the organization has a valid subscription and
+    blocks access to protected routes if the account is suspended.
+    
+    Allowed statuses for access:
+    - active: Normal active subscription
+    - trial: In trial period
+    - grace_period: Payment overdue but within grace period
+    - trial_expired: Trial ended but within grace period
+    
+    Blocked statuses:
+    - suspended: Account suspended due to non-payment
+    - cancelled: Subscription cancelled
+    """
+    
+    async def dispatch(
+        self, 
+        request: Request, 
+        call_next: RequestResponseEndpoint
+    ) -> Response:
+        path = request.url.path
+        
+        # Check if path is exempt from subscription check
+        if self._is_exempt(path):
+            return await call_next(request)
+        
+        # Check if path requires subscription
+        if not self._requires_subscription(path):
+            return await call_next(request)
+        
+        # Check subscription status
+        subscription_status = getattr(request.state, 'subscription_status', None)
+        has_access = getattr(request.state, 'subscription_has_access', True)
+        
+        # If status not loaded, allow access (unauthenticated requests)
+        if subscription_status is None:
+            return await call_next(request)
+        
+        # Check if account is suspended
+        if subscription_status == "suspended" or not has_access:
+            message = getattr(request.state, 'subscription_message', 
+                            'Your account has been suspended due to non-payment.')
+            
+            # For API requests, return JSON error
+            if path.startswith("/api/"):
+                return JSONResponse(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    content={
+                        "error": "subscription_suspended",
+                        "message": message,
+                        "status": subscription_status,
+                        "upgrade_url": "/checkout",
+                        "billing_url": "/api/v1/billing/subscription-access",
+                    },
+                )
+            
+            # For page requests, redirect to a suspended page or checkout
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(
+                url=f"/checkout?status=suspended&message={message}",
+                status_code=status.HTTP_302_FOUND,
+            )
+        
+        # For grace period, add warning headers
+        if subscription_status == "grace_period":
+            grace_remaining = getattr(request.state, 'subscription_grace_period_remaining', 0)
+            response = await call_next(request)
+            response.headers["X-Subscription-Warning"] = "grace_period"
+            response.headers["X-Grace-Period-Remaining"] = str(grace_remaining)
+            return response
+        
+        return await call_next(request)
+    
+    def _is_exempt(self, path: str) -> bool:
+        """Check if path is exempt from subscription check."""
+        if path == "/":
+            return True
+        
+        for prefix in SUBSCRIPTION_EXEMPT_PREFIXES:
+            if path.startswith(prefix):
+                return True
+        
+        return False
+    
+    def _requires_subscription(self, path: str) -> bool:
+        """Check if path requires an active subscription."""
+        for prefix in SUBSCRIPTION_REQUIRED_PREFIXES:
+            if path.startswith(prefix):
+                return True
+        return False
 
 
 class FeatureGateMiddleware(BaseHTTPMiddleware):
@@ -502,6 +684,12 @@ def get_sku_template_context(request: Request) -> dict:
         "sku_features": getattr(request.state, 'sku_features', set()),
         "sku_is_trial": getattr(request.state, 'sku_is_trial', False),
         "has_feature": lambda f: f in getattr(request.state, 'sku_features', set()),
+        # Subscription status
+        "subscription_status": getattr(request.state, 'subscription_status', None),
+        "subscription_has_access": getattr(request.state, 'subscription_has_access', True),
+        "subscription_message": getattr(request.state, 'subscription_message', ''),
+        "subscription_days_remaining": getattr(request.state, 'subscription_days_remaining', 0),
+        "subscription_grace_period_remaining": getattr(request.state, 'subscription_grace_period_remaining', 0),
     }
 
 
