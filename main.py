@@ -132,6 +132,13 @@ setup_security_middleware(
     csrf_enabled=True,  # Always enable CSRF
 )
 
+# Setup SKU Feature Gating Middleware (Commercial Tiers)
+from app.middleware.sku_middleware import setup_sku_middleware
+setup_sku_middleware(
+    app=app,
+    enable_feature_gating=True,  # Set to False to disable tier enforcement
+)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -408,6 +415,12 @@ from app.routers import (
     ml_ai,
     # Chart of Accounts & General Ledger (Core Accounting Engine)
     accounting,
+    # Evidence Collection (Document Upload, Screenshots, Transaction Snapshots, Confirmations)
+    evidence_routes,
+    # SKU Management (Platform Admin)
+    admin_sku,
+    # Billing (Subscription Management, Payments, Upgrades)
+    billing,
 )
 
 # View Routes (HTML pages)
@@ -505,6 +518,15 @@ app.include_router(ml_ai.router, prefix="/api/v1/ml", tags=["Machine Learning & 
 
 # Chart of Accounts & General Ledger (Core Accounting Engine)
 app.include_router(accounting.router, tags=["Accounting"])
+
+# Evidence Collection (Document Upload, Screenshots, Transaction Snapshots, Confirmations)
+app.include_router(evidence_routes.router, tags=["Evidence Collection"])
+
+# SKU Management - Platform Admin (Tier Management, Pricing, Usage Analytics)
+app.include_router(admin_sku.router, prefix="/api/v1", tags=["SKU Management"])
+
+# Billing - Subscription Management, Payments, Upgrades (Paystack Integration)
+app.include_router(billing.router, tags=["Billing"])
 
 
 if __name__ == "__main__":

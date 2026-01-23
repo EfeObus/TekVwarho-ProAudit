@@ -999,7 +999,7 @@
                         <!-- Recommendations -->
                         <div x-show="glLinkageResult?.recommendations && glLinkageResult.recommendations.length > 0" 
                              class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <h4 class="font-medium text-blue-800 mb-2">💡 Recommendations</h4>
+                            <h4 class="font-medium text-blue-800 mb-2"> Recommendations</h4>
                             <ul class="text-sm text-blue-700 space-y-1">
                                 <template x-for="rec in glLinkageResult?.recommendations || []" :key="rec">
                                     <li class="flex items-start">
@@ -1478,13 +1478,13 @@ function bankReconciliationApp() {
                 
                 if (glRes.ok && glResult.success) {
                     await this.loadAdjustments();
-                    alert(`✅ Created ${glResult.journal_entries_created} GL journal entries.\n\n` +
+                    alert(`Yes Created ${glResult.journal_entries_created} GL journal entries.\n\n` +
                           `Posted to accounts:\n` +
                           (glResult.created_entries || []).map(e => `• ${e.type}: ₦${e.amount.toLocaleString()}`).join('\n'));
                 } else {
                     const errors = glResult.errors || [];
                     if (errors.length > 0) {
-                        alert(`⚠️ Some adjustments could not be posted:\n${errors.map(e => e.error).join('\n')}`);
+                        alert(`Warning: Some adjustments could not be posted:\n${errors.map(e => e.error).join('\n')}`);
                     } else {
                         alert(glResult.detail || glResult.message || 'No adjustments to post');
                     }
@@ -1639,7 +1639,7 @@ function bankReconciliationApp() {
                 if (res.ok) {
                     const result = await res.json();
                     this.showLinkGLModal = false;
-                    alert('✅ GL account linked successfully!\n\nBank: ' + this.linkGLForm.bank_name + '\nGL Code: ' + this.linkGLForm.gl_account_code);
+                    alert('Yes GL account linked successfully!\n\nBank: ' + this.linkGLForm.bank_name + '\nGL Code: ' + this.linkGLForm.gl_account_code);
                     // Refresh the validation results
                     await this.validateAllGLLinkages();
                     // Also refresh accounts list

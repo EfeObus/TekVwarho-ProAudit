@@ -31,6 +31,80 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 ---
 
+## Version 2.5.0 - Commercial SKU System & Multi-Tier Monetization
+
+### Pricing Tiers (Nigerian Naira)
+
+| Tier | Monthly Price | Target Market | Users |
+|------|---------------|---------------|-------|
+| **Core** | ₦25,000 - ₦75,000 | Small businesses, Startups | 1-5 |
+| **Professional** | ₦150,000 - ₦400,000 | Growing SMEs, Accounting firms | 5-25 |
+| **Enterprise** | ₦1,000,000 - ₦5,000,000+ | Multi-nationals, Regulated industries | Unlimited |
+| **Intelligence** (Add-on) | ₦250,000 - ₦1,000,000 | Audit teams, Forensic accountants | Any |
+
+### Feature Highlights by Tier
+
+| Feature | Core | Professional | Enterprise |
+|---------|:----:|:------------:|:----------:|
+| General Ledger & Chart of Accounts | Yes | Yes | Yes |
+| Journal Entries & Basic Reports | Yes | Yes | Yes |
+| Tax Engine & Invoicing | Yes | Yes | Yes |
+| Payroll & Bank Reconciliation | No | Yes | Yes |
+| Fixed Assets & Expense Claims | No | Yes | Yes |
+| E-Invoicing / NRS Compliance | No | Yes | Yes |
+| WORM Audit Vault | No | No | Yes |
+| Multi-Entity & Intercompany | No | No | Yes |
+| SOX/IFRS Compliance | No | No | Yes |
+| Full API Access | No | No | Yes |
+
+### Billing & Payments
+- **Payment Provider:** Paystack (Nigerian market leader)
+- **Billing Cycles:** Monthly or Annual (20% discount)
+- **Trial Period:** 14 days free (Professional tier)
+- **Usage Metering:** Transactions, invoices, API calls, storage, users
+- **Currency:** Nigerian Naira (₦) - amounts stored in kobo
+
+### Paystack Integration (Production-Ready)
+Fully implemented payment processing with real API integration:
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Payment Initialization | Yes | Real API calls via httpx async client |
+| Payment Verification | Yes | Transaction status verification |
+| Webhook Handling | Yes | HMAC-SHA512 signature verification |
+| Payment History | Yes | Paginated transaction history API |
+| Subscription Management | Yes | Upgrade/downgrade flow |
+| Refunds | Yes | Full and partial refund support |
+
+### Payment API Endpoints
+```
+GET  /api/v1/billing/pricing              # Get tier pricing
+GET  /api/v1/billing/subscription         # Current subscription
+POST /api/v1/billing/checkout             # Create payment intent
+GET  /api/v1/billing/payments             # Payment history (paginated)
+GET  /api/v1/billing/payments/{id}        # Payment details
+POST /api/v1/billing/webhook/paystack     # Webhook handler (secured)
+```
+
+### Payment Flow
+```
+1. User selects tier → POST /checkout
+2. System initializes Paystack → Returns authorization_url
+3. User pays on Paystack checkout page
+4. Paystack sends webhook → Signature verified
+5. PaymentTransaction updated → TenantSKU upgraded
+```
+
+### Security Features
+- **Webhook Signature Verification** - HMAC-SHA512 with constant-time comparison
+- **Idempotency** - Webhook event ID prevents duplicate processing
+- **PCI Compliant** - No card data stored (handled by Paystack)
+- **Stub Mode** - Graceful fallback when credentials missing
+
+**Full Documentation:** [docs/PAYMENT_MODULE_DOCUMENTATION.md](docs/PAYMENT_MODULE_DOCUMENTATION.md)
+
+---
+
 ## Version 2.2.0 - World-Class Forensic Audit System
 
 ### Overview
@@ -995,19 +1069,20 @@ uvicorn main:app --reload --port 8000
 
 ---
 
-## System Statistics (v2.4.0)
+## System Statistics (v2.5.0)
 
 | Metric | Value |
 |--------|-------|
-| **Total Routes** | 540+ |
-| **API Endpoints** | 485+ |
-| **View Routes** | 52 |
-| **Database Models** | 86 exports |
-| **Test Coverage** | 433 tests passing |
-| **Security Middleware** | 6 layers |
-| **Templates** | 27 HTML files |
-| **Services** | 48+ service modules |
-| **Routers** | 32 API routers |
+| **Total Routes** | 550+ |
+| **API Endpoints** | 495+ |
+| **View Routes** | 55 |
+| **Database Models** | 91 exports |
+| **Test Coverage** | 468 tests passing |
+| **Security Middleware** | 8 layers (incl. SKU) |
+| **Templates** | 30 HTML files |
+| **Services** | 52+ service modules |
+| **Routers** | 34 API routers |
+| **SKU Feature Flags** | 40+ |
 
 ---
 

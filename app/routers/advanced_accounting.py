@@ -23,6 +23,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.database import get_db
 from app.dependencies import get_current_user, get_current_entity_id
 from app.models.user import User
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 router = APIRouter(prefix="/api/v1/advanced", tags=["Advanced Accounting"])
 
@@ -230,6 +232,22 @@ async def create_purchase_order(
         created_by=current_user.id
     )
     
+    # Audit logging for PO creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="purchase_order",
+        entity_id=str(po.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "po_number": po.po_number,
+            "vendor_id": str(request.vendor_id),
+            "total_amount": str(po.total_amount),
+            "status": po.status,
+        }
+    )
+    
     return {
         "id": str(po.id),
         "po_number": po.po_number,
@@ -242,7 +260,8 @@ async def create_purchase_order(
 async def approve_purchase_order(
     po_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    entity_id: UUID = Depends(get_current_entity_id)
 ):
     """Approve a Purchase Order"""
     from app.services.three_way_matching import three_way_matching_service
@@ -251,6 +270,20 @@ async def approve_purchase_order(
         db=db,
         po_id=po_id,
         approved_by=current_user.id
+    )
+    
+    # Audit logging for PO approval
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="purchase_order",
+        entity_id=str(po.id),
+        action=AuditAction.APPROVE,
+        user_id=current_user.id,
+        new_values={
+            "status": po.status,
+            "approved_by": str(current_user.id),
+        }
     )
     
     return {"id": str(po.id), "status": po.status}
@@ -273,6 +306,21 @@ async def create_goods_received_note(
         grn_data=request.dict(exclude={"po_id", "items"}),
         items=request.items,
         created_by=current_user.id
+    )
+    
+    # Audit logging for GRN creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="goods_received_note",
+        entity_id=str(grn.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "grn_number": grn.grn_number,
+            "po_id": str(request.po_id),
+            "status": grn.status,
+        }
     )
     
     return {
@@ -362,6 +410,23 @@ async def record_wht_credit(
         entity_id=entity_id,
         credit_note_data=request.dict(),
         created_by=current_user.id
+    )
+    
+    # Audit logging for WHT credit creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="wht_credit",
+        entity_id=str(cn.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "credit_note_number": cn.credit_note_number,
+            "wht_amount": str(cn.wht_amount),
+            "wht_type": request.wht_type,
+            "issuer_name": request.issuer_name,
+            "issuer_tin": request.issuer_tin,
+        }
     )
     
     return {

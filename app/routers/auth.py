@@ -4,6 +4,7 @@ TekVwarho ProAudit - Authentication Router
 API endpoints for user authentication.
 """
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,8 @@ from app.schemas.auth import (
 from app.config import settings
 from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.utils.security import verify_refresh_token
 
 
@@ -161,6 +164,9 @@ async def login(
     elif fastapi_request and fastapi_request.client:
         client_ip = fastapi_request.client.host
     
+    # Get user agent for audit logging
+    user_agent = fastapi_request.headers.get("user-agent", "unknown") if fastapi_request else "unknown"
+    
     # Check if account/IP is locked out
     is_locked, seconds_remaining = AccountLockoutManager.is_locked_out(request.email)
     if not is_locked:
@@ -185,6 +191,23 @@ async def login(
         remaining, lockout_duration = AccountLockoutManager.record_failed_attempt(request.email)
         AccountLockoutManager.record_failed_attempt(client_ip)
         
+        # Audit logging for failed login
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=None,
+            entity_type="user",
+            entity_id=None,
+            action=AuditAction.LOGIN_FAILED,
+            user_id=None,
+            new_values={
+                "email": request.email,
+                "ip_address": client_ip,
+                "reason": "invalid_credentials",
+            },
+            ip_address=client_ip,
+            user_agent=user_agent,
+        )
+        
         if lockout_duration:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -206,6 +229,24 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is deactivated",
         )
+    
+    # Audit logging for successful login
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=user.organization_id if user.organization_id else user.id,
+        entity_type="user",
+        entity_id=str(user.id),
+        action=AuditAction.LOGIN,
+        user_id=user.id,
+        new_values={
+            "email": user.email,
+            "ip_address": client_ip,
+            "user_agent": user_agent,
+            "login_time": str(datetime.utcnow()),
+        },
+        ip_address=client_ip,
+        user_agent=user_agent,
+    )
     
     # Create tokens
     tokens = auth_service.create_tokens(user)
@@ -376,6 +417,20 @@ async def change_password(
             current_password=request.current_password,
             new_password=request.new_password,
         )
+        
+        # Audit logging for password change
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=current_user.organization_id if current_user.organization_id else current_user.id,
+            entity_type="user",
+            entity_id=str(current_user.id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            new_values={
+                "action": "password_change",
+                "email": current_user.email,
+            }
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -396,6 +451,7 @@ async def change_password(
 )
 async def logout(
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """
     Logout user.
@@ -404,6 +460,19 @@ async def logout(
     by discarding the tokens. This endpoint is for consistency and
     future token blacklisting implementation.
     """
+    # Audit logging for logout
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=current_user.organization_id if current_user.organization_id else current_user.id,
+        entity_type="user",
+        entity_id=str(current_user.id),
+        action=AuditAction.LOGOUT,
+        user_id=current_user.id,
+        new_values={
+            "email": current_user.email,
+        }
+    )
+    
     return MessageResponse(
         message="Logged out successfully",
         success=True,

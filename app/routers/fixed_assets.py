@@ -30,6 +30,8 @@ from app.models.fixed_asset import (
     DisposalType,
 )
 from app.services.fixed_asset_service import FixedAssetService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 router = APIRouter(prefix="/api/v1/fixed-assets", tags=["Fixed Assets"])
 
@@ -285,6 +287,22 @@ async def create_fixed_asset(
             created_by_id=current_user.id,
         )
         
+        # Audit logging
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=asset_data.entity_id,
+            entity_type="fixed_asset",
+            entity_id=str(asset.id),
+            action=AuditAction.CREATE,
+            user_id=current_user.id,
+            new_values={
+                "name": asset.name,
+                "category": asset.category.value if hasattr(asset.category, 'value') else str(asset.category),
+                "acquisition_cost": str(asset.acquisition_cost),
+                "acquisition_date": str(asset.acquisition_date),
+            }
+        )
+        
         return _asset_to_response(asset)
         
     except ValueError as e:
@@ -355,6 +373,14 @@ async def update_fixed_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     
+    # Capture old values for audit
+    old_values = {
+        "name": asset.name,
+        "category": asset.category.value if hasattr(asset.category, 'value') else str(asset.category),
+        "status": asset.status.value if hasattr(asset.status, 'value') else str(asset.status),
+        "location": asset.location,
+    }
+    
     # Build update dict from provided fields
     update_dict = asset_data.model_dump(exclude_unset=True)
     
@@ -364,6 +390,19 @@ async def update_fixed_asset(
             updated_by_id=current_user.id,
             **update_dict,
         )
+        
+        # Audit logging
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=asset.entity_id,
+            entity_type="fixed_asset",
+            entity_id=str(asset_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values=old_values,
+            new_values=update_dict,
+        )
+        
         return _asset_to_response(updated_asset)
         
     except ValueError as e:
@@ -482,6 +521,24 @@ async def dispose_asset(
             disposed_by_id=current_user.id,
         )
         
+        # Audit logging
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=asset.entity_id,
+            entity_type="fixed_asset",
+            entity_id=str(asset_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"status": "active"},
+            new_values={
+                "status": "disposed",
+                "disposal_type": disposal.disposal_type.value,
+                "disposal_date": str(disposal.disposal_date),
+                "disposal_proceeds": str(disposal.disposal_proceeds),
+                "capital_gain_loss": str(capital_gain),
+            }
+        )
+        
         return {
             "message": "Asset disposed successfully",
             "asset_id": str(disposed_asset.id),
@@ -598,8 +655,31 @@ async def delete_fixed_asset(
                     detail="Permanent deletion requires admin privileges"
                 )
             await service.permanent_delete_asset(asset_id)
+            
+            # Audit logging for permanent delete
+            audit_service = AuditService(db)
+            await audit_service.log_action(
+                business_entity_id=asset.entity_id,
+                entity_type="fixed_asset",
+                entity_id=str(asset_id),
+                action=AuditAction.DELETE,
+                user_id=current_user.id,
+                old_values={"name": asset.name, "status": "permanent_delete"},
+            )
         else:
             await service.archive_asset(asset_id, archived_by_id=current_user.id)
+            
+            # Audit logging for archive
+            audit_service = AuditService(db)
+            await audit_service.log_action(
+                business_entity_id=asset.entity_id,
+                entity_type="fixed_asset",
+                entity_id=str(asset_id),
+                action=AuditAction.UPDATE,
+                user_id=current_user.id,
+                old_values={"status": "active"},
+                new_values={"status": "archived"},
+            )
         
         return None
         

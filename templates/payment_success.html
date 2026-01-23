@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Successful - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    .success-checkmark {
+        animation: checkmark 0.8s ease-in-out;
+    }
+    @keyframes checkmark {
+        0% { transform: scale(0); opacity: 0; }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .confetti {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        animation: fall 3s ease-in-out infinite;
+    }
+    @keyframes fall {
+        0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center py-12">
+    <!-- Confetti Animation -->
+    <div id="confetti-container"></div>
+    
+    <div class="max-w-lg mx-auto px-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 text-center">
+            <!-- Success Icon -->
+            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 success-checkmark">
+                <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            
+            <!-- Success Message -->
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
+            <p class="text-gray-600 mb-6">
+                Welcome to <span class="font-semibold text-green-600">{{ tier_name|default('Professional') }}</span>!
+                Your account has been upgraded.
+            </p>
+            
+            <!-- Order Details -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+                <h3 class="font-semibold text-gray-900 mb-3">Order Summary</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Plan</span>
+                        <span class="font-medium">{{ tier_name|default('Professional') }}</span>
+                    </div>
+                    {% if amount %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Amount</span>
+                        <span class="font-medium">₦{{ "{:,.0f}".format(amount) }}</span>
+                    </div>
+                    {% endif %}
+                    {% if reference %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Reference</span>
+                        <span class="font-mono text-xs">{{ reference }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Date</span>
+                        <span class="font-medium">{{ now().strftime('%B %d, %Y') if now else 'Today' }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- What's Next -->
+            <div class="bg-blue-50 rounded-lg p-4 mb-6 text-left">
+                <h3 class="font-semibold text-blue-900 mb-2"> What's Next?</h3>
+                <ul class="text-sm text-blue-800 space-y-1">
+                    <li>• Your new features are now active</li>
+                    <li>• Check out the new capabilities in your dashboard</li>
+                    <li>• Receipt sent to your email</li>
+                </ul>
+            </div>
+            
+            <!-- Actions -->
+            <div class="space-y-3">
+                <a href="/dashboard" class="block w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition">
+                    Go to Dashboard
+                </a>
+                <a href="/settings/billing" class="block w-full py-3 bg-white text-gray-700 font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition">
+                    View Billing Settings
+                </a>
+            </div>
+            
+            <!-- Support -->
+            <p class="text-xs text-gray-500 mt-6">
+                Questions? <a href="mailto:support@tekvwarho.com" class="text-blue-600 hover:underline">Contact support</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Confetti animation
+function createConfetti() {
+    const container = document.getElementById('confetti-container');
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+    
+    for (let i = 0; i < 50; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.left = Math.random() * 100 + 'vw';
+        confetti.style.animationDelay = Math.random() * 3 + 's';
+        confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        container.appendChild(confetti);
+    }
+    
+    // Clean up confetti after animation
+    setTimeout(() => {
+        container.innerHTML = '';
+    }, 5000);
+}
+
+// Run confetti on page load
+document.addEventListener('DOMContentLoaded', createConfetti);
+</script>
+{% endblock %}

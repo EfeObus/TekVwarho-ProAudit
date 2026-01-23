@@ -17,6 +17,8 @@ from app.dependencies import get_current_active_user
 from app.models.user import User
 from app.services.entity_service import EntityService
 from app.services.tax_calculators.vat_service import VATService, VATCalculator, NIGERIA_VAT_RATE
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.schemas.auth import MessageResponse
 
 
@@ -254,6 +256,22 @@ async def update_vat_record(
     vat_service = VATService(db)
     vat_record = await vat_service.update_vat_record(entity_id, year, month)
     
+    # Audit logging for VAT update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="vat_record",
+        entity_id=str(vat_record.id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        new_values={
+            "period": f"{year}-{month:02d}",
+            "output_vat": float(vat_record.output_vat),
+            "input_vat_total": float(vat_record.input_vat_total),
+            "net_vat_payable": float(vat_record.net_vat_payable),
+        }
+    )
+    
     return VATRecordResponse(
         id=vat_record.id,
         entity_id=vat_record.entity_id,
@@ -316,6 +334,22 @@ async def mark_vat_filed(
     
     try:
         vat_record = await vat_service.mark_vat_filed(vat_record_id, entity_id)
+        
+        # Audit logging for VAT filing
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="vat_record",
+            entity_id=str(vat_record_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"is_filed": False},
+            new_values={
+                "is_filed": True,
+                "filed_by": current_user.email,
+                "net_vat_payable": float(vat_record.net_vat_payable),
+            }
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.dependencies import get_current_active_user
 from app.services.reports_service import ReportsService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.models.user import User
 
 router = APIRouter()

@@ -22,6 +22,16 @@
     <!-- Custom Styles -->
     <link rel="stylesheet" href="/static/css/main.css">
     
+    <!-- Upgrade Modal (SKU System) -->
+    <script src="/static/js/upgrade-modal.js"></script>
+    {% if sku %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            TekVwarhoUpgrade.init('{{ sku.tier.value if sku.tier else "core" }}');
+        });
+    </script>
+    {% endif %}
+    
     <!-- CSRF Token Script and Auth Utilities -->
     <script>
         // Get CSRF token from cookie

@@ -21,6 +21,8 @@ from app.schemas.entity import (
 )
 from app.schemas.auth import MessageResponse
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 
 router = APIRouter()
@@ -109,6 +111,23 @@ async def create_entity(
         is_vat_registered=request.is_vat_registered,
         vat_registration_date=request.vat_registration_date,
         annual_turnover_threshold=request.annual_turnover_threshold,
+    )
+    
+    # Audit logging for entity creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity.id,
+        entity_type="business_entity",
+        entity_id=str(entity.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "name": entity.name,
+            "legal_name": entity.legal_name,
+            "tin": entity.tin,
+            "rc_number": entity.rc_number,
+            "is_vat_registered": entity.is_vat_registered,
+        }
     )
     
     return EntityResponse(
@@ -217,9 +236,38 @@ async def update_entity(
             detail="Write access denied for this entity",
         )
     
+    # Capture old values for audit
+    old_values = {
+        "name": entity.name,
+        "legal_name": entity.legal_name,
+        "tin": entity.tin,
+        "email": entity.email,
+        "phone": entity.phone,
+        "is_vat_registered": entity.is_vat_registered,
+    }
+    
     # Update entity
     update_data = request.model_dump(exclude_unset=True)
     entity = await entity_service.update_entity(entity, **update_data)
+    
+    # Audit logging for entity update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="business_entity",
+        entity_id=str(entity_id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        old_values=old_values,
+        new_values={
+            "name": entity.name,
+            "legal_name": entity.legal_name,
+            "tin": entity.tin,
+            "email": entity.email,
+            "phone": entity.phone,
+            "is_vat_registered": entity.is_vat_registered,
+        }
+    )
     
     return EntityResponse(
         id=entity.id,
@@ -278,7 +326,25 @@ async def delete_entity(
             detail="Delete access denied for this entity",
         )
     
+    # Capture entity data for audit before deletion
+    deleted_entity_data = {
+        "name": entity.name,
+        "legal_name": entity.legal_name,
+        "tin": entity.tin,
+    }
+    
     await entity_service.delete_entity(entity)
+    
+    # Audit logging for entity deletion
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="business_entity",
+        entity_id=str(entity_id),
+        action=AuditAction.DELETE,
+        user_id=current_user.id,
+        old_values=deleted_entity_data
+    )
     
     return MessageResponse(
         message="Entity deleted successfully",

@@ -1,152 +1,358 @@
-TEKVWARHO LTD PROPRIETARY LICENSE
-=====================================
+TEKVWARHO PROAUDIT - DUAL LICENSE AGREEMENT
+=============================================
 
-Copyright (c) 2026 Tekvwarho LTD. All Rights Reserved.
+Copyright (c) 2024-2026 Tekvwarho LTD. All Rights Reserved.
 
-IMPORTANT - READ CAREFULLY: This license agreement ("Agreement") is a legal 
-agreement between you (either an individual or a single entity) and Tekvwarho 
-LTD ("Company"), a company incorporated under the laws of the Federal Republic 
-of Nigeria, for the software product identified above, which includes computer 
-software and may include associated media, printed materials, and online or 
-electronic documentation ("Software").
+This software is available under TWO distinct licensing options. Your use of
+this software is governed by the license type applicable to your situation.
 
-BY ACCESSING, VIEWING, COPYING, OR USING THIS SOFTWARE, YOU AGREE TO BE BOUND 
-BY THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT USE THIS SOFTWARE.
+================================================================================
+                        LICENSE TYPE DETERMINATION
+================================================================================
 
--------------------------------------------------------------------------------
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  IF YOU HAVE A SIGNED COMMERCIAL LICENSE AGREEMENT WITH TEKVWARHO LTD:     │
+│  → You are governed by the COMMERCIAL LICENSE (Part A) below               │
+│                                                                             │
+│  IF YOU DO NOT HAVE A COMMERCIAL LICENSE:                                   │
+│  → You are governed by the EVALUATION LICENSE (Part B) below               │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-1. GRANT OF LICENSE
+================================================================================
+                 PART A: COMMERCIAL LICENSE AGREEMENT
+================================================================================
 
-Subject to the terms and conditions of this Agreement, the Company grants you 
-a limited, non-exclusive, non-transferable, revocable license to:
+This Commercial License Agreement ("Commercial Agreement") governs the use of
+TekVwarho ProAudit ("Software") by licensees who have executed a separate
+commercial license agreement with Tekvwarho LTD.
 
-   a) Access and view this Software for PERSONAL USE only; and
-   b) Use this Software for EDUCATIONAL PURPOSES only.
+1. COMMERCIAL LICENSE TIERS
 
-1A. BUSINESS LICENSE OPTION
-
-Businesses and organizations may purchase a commercial license to use this 
-Software for their professional and operational needs. The Business License 
-is specifically designed for and available to:
-
-   a) CONSULTING FIRMS - Tax consultancy, business advisory, and management 
-      consulting firms requiring tax compliance automation;
+   TIER 1: PROFESSIONAL LICENSE (Single Entity)
+   ---------------------------------------------
+   Grants the licensee the right to:
+   - Deploy and operate the Software for internal business operations
+   - Process unlimited transactions for the licensee's own business
+   - Integrate with the licensee's existing systems
+   - Receive standard support and maintenance updates
    
-   b) ACCOUNTING PROFESSIONALS - Chartered accountants, certified public 
-      accountants, bookkeepers, and accounting firms managing client tax 
-      obligations;
+   TIER 2: ENTERPRISE LICENSE (Multi-Entity/Multi-Site)
+   -----------------------------------------------------
+   Grants the licensee all Professional License rights, plus:
+   - Deploy across multiple business entities, subsidiaries, or locations
+   - Process transactions for affiliated companies under common ownership
+   - Access priority support with dedicated account management
+   - Receive custom integrations and implementation assistance
+   - Obtain audit-ready compliance documentation
    
-   c) AUDITORS - Internal auditors, external auditors, and audit firms 
-      requiring comprehensive tax verification and compliance tools;
+   TIER 3: SERVICE PROVIDER LICENSE (Client Services)
+   --------------------------------------------------
+   Grants the licensee all Enterprise License rights, plus:
+   - Process tax calculations and compliance on behalf of clients
+   - White-label capabilities (subject to separate branding agreement)
+   - Multi-tenant deployment for managed service offerings
+   - Client onboarding tools and reporting dashboards
+   - Volume-based pricing for client portfolios
+
+2. COMMERCIAL LICENSE SCOPE
+
+   The Commercial License permits:
    
-   d) GOVERNMENT AGENCIES - Federal, State, and Local Government agencies, 
-      ministries, departments, and parastatals requiring tax administration, 
-      monitoring, or compliance verification capabilities;
+   a) PRODUCTION DEPLOYMENT
+      - Installation on production servers
+      - Processing of live business transactions
+      - Integration with production financial systems
+      - Connection to FIRS, NRS, and other regulatory systems
    
-   e) CORPORATE ENTITIES - Businesses of all sizes requiring internal tax 
-      compliance and management solutions;
+   b) ENTERPRISE INTEGRATION
+      - API access for system-to-system integration
+      - Database connectivity for reporting and analytics
+      - Single sign-on (SSO) integration
+      - Webhook configurations for workflow automation
    
-   f) OTHER PROFESSIONAL USERS - Any other business or organization with 
-      legitimate tax compliance automation needs.
+   c) CLIENT INSTALLATIONS (Service Provider Tier only)
+      - Deployment for managed clients
+      - Processing of client tax obligations
+      - Multi-tenant or dedicated client instances
+   
+   d) DATA PROCESSING
+      - Processing of personally identifiable information (PII)
+      - Financial and tax data processing
+      - Cross-border data handling (subject to applicable laws)
 
-To obtain a Business License, contact Tekvwarho LTD at the address provided 
-in Section 9. Business licenses are subject to separate terms, pricing, and 
-support agreements. The Business License grants the right to:
+3. COMMERCIAL LICENSE RESTRICTIONS
 
-   - Deploy and use the Software for internal business operations
-   - Process tax calculations and compliance for clients (for service providers)
-   - Access priority technical support and updates
-   - Receive implementation and training assistance
+   Commercial Licensees may NOT:
+   
+   a) Resell, sublicense, or redistribute the Software itself
+   b) Reverse engineer, decompile, or disassemble the Software
+   c) Remove or alter proprietary notices or branding
+   d) Use the Software to create a competing product
+   e) Transfer the license without written consent from Tekvwarho LTD
+   f) Exceed the scope of the licensed tier
+   g) Use the Software in violation of applicable laws
 
-The Business License does NOT permit resale, redistribution, or sublicensing 
-of the Software.
+4. COMMERCIAL SUPPORT AND MAINTENANCE
 
-2. RESTRICTIONS
+   Commercial Licenses include:
+   
+   a) SOFTWARE UPDATES
+      - Security patches and bug fixes
+      - Regulatory compliance updates (tax law changes)
+      - Feature enhancements (per license tier)
+   
+   b) TECHNICAL SUPPORT
+      - Email and ticket-based support
+      - Response times per service level agreement (SLA)
+      - Phone support (Enterprise and Service Provider tiers)
+   
+   c) COMPLIANCE ASSISTANCE
+      - NTAA 2025 compliance guidance
+      - Audit preparation support
+      - Regulatory change notifications
 
-You may NOT, under any circumstances:
+5. COMMERCIAL LICENSE FEES AND PAYMENT
 
-   a) Sell, resell, sublicense, rent, lease, or lend this Software;
-   b) Redistribute, publish, or make available this Software to any third party
-      without a valid Business License;
-   c) Use this Software for any commercial purpose without a Business License 
-      or express written permission from Tekvwarho LTD;
-   d) Modify, adapt, translate, reverse engineer, decompile, disassemble, or 
-      create derivative works based on this Software;
-   e) Remove, alter, or obscure any proprietary notices, labels, or marks on 
-      this Software;
-   f) Use this Software in any manner that violates applicable Nigerian laws 
-      or international laws;
-   g) Share, transfer, or assign your license (Personal, Educational, or 
-      Business) to any other party without prior written consent.
+   License fees are specified in the executed commercial agreement. Fees may be
+   structured as:
+   
+   - Annual subscription
+   - Perpetual license with annual maintenance
+   - Transaction-based pricing
+   - Hybrid models
+   
+   Payment terms, renewal conditions, and fee adjustments are governed by the
+   executed commercial agreement.
 
-3. INTELLECTUAL PROPERTY
+================================================================================
+                 PART B: EVALUATION LICENSE AGREEMENT
+================================================================================
 
-This Software is the exclusive intellectual property of Tekvwarho LTD. All 
-rights, title, and interest in and to the Software, including but not limited 
-to all copyrights, patents, trade secrets, trademarks, and other intellectual 
-property rights, are and shall remain the sole and exclusive property of 
-Tekvwarho LTD.
+This Evaluation License Agreement ("Evaluation Agreement") governs the use of
+TekVwarho ProAudit ("Software") by users who have NOT executed a commercial
+license agreement with Tekvwarho LTD.
 
-This Software is protected under:
-   - The Copyright Act (Cap C28, Laws of the Federation of Nigeria 2004)
-   - The Nigerian Copyright Commission regulations
-   - The Cybercrimes (Prohibition, Prevention, etc.) Act 2015
-   - Applicable international intellectual property treaties
+1. GRANT OF EVALUATION LICENSE
 
-4. NO WARRANTY
+   Subject to the terms of this Evaluation Agreement, Tekvwarho LTD grants you
+   a limited, non-exclusive, non-transferable, revocable license to:
+   
+   a) ACCESS AND EVALUATE the Software to assess its suitability for your
+      business needs;
+   
+   b) CONDUCT DEMONSTRATIONS of the Software for internal stakeholders and
+      decision-makers;
+   
+   c) PERFORM TESTING in non-production environments to validate functionality
+      and integration capabilities;
+   
+   d) USE FOR EDUCATIONAL PURPOSES including training, academic research, and
+      personal learning.
 
-THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. TEKVWARHO LTD DOES 
-NOT WARRANT THAT THE SOFTWARE WILL MEET YOUR REQUIREMENTS OR THAT THE 
-OPERATION OF THE SOFTWARE WILL BE UNINTERRUPTED OR ERROR-FREE.
+2. EVALUATION LICENSE RESTRICTIONS
+
+   Under the Evaluation License, you may NOT:
+   
+   a) USE FOR PRODUCTION PURPOSES
+      - Process live business transactions
+      - Connect to production financial systems
+      - Submit actual tax filings or NRS reports
+      - Process real customer or client data
+   
+   b) COMMERCIAL EXPLOITATION
+      - Generate revenue using the Software
+      - Charge clients for services using the Software
+      - Include in paid products or services
+   
+   c) DEPLOYMENT
+      - Install on production servers
+      - Deploy for client use
+      - Offer as a hosted or managed service
+   
+   d) MODIFICATION AND DISTRIBUTION
+      - Modify, adapt, or create derivative works
+      - Redistribute, publish, or share the Software
+      - Reverse engineer, decompile, or disassemble
+
+3. EVALUATION PERIOD
+
+   a) The Evaluation License is valid for THIRTY (30) DAYS from first use
+      unless extended in writing by Tekvwarho LTD.
+   
+   b) Upon expiration of the evaluation period, you must either:
+      - Purchase a Commercial License, or
+      - Cease all use and destroy all copies of the Software
+   
+   c) Extended evaluation periods may be granted upon request for legitimate
+      enterprise evaluation processes.
+
+4. EVALUATION DATA
+
+   a) Data entered during evaluation should be TEST DATA ONLY
+   b) No warranty is provided for data retention during evaluation
+   c) Evaluation instances may be reset or terminated without notice
+   d) Export of evaluation data is not guaranteed
+
+5. CONVERSION TO COMMERCIAL LICENSE
+
+   To convert from Evaluation to Commercial License:
+   
+   a) Contact Tekvwarho LTD at licensing@tekvwarho.com
+   b) Request a commercial license quote based on your requirements
+   c) Execute the commercial license agreement
+   d) Receive production deployment credentials and support access
+
+================================================================================
+                    PART C: COMMON TERMS AND CONDITIONS
+================================================================================
+
+The following terms apply to BOTH Commercial and Evaluation Licenses:
+
+1. INTELLECTUAL PROPERTY
+
+   a) The Software is the exclusive intellectual property of Tekvwarho LTD.
+   
+   b) All rights, title, and interest in the Software, including copyrights,
+      patents, trade secrets, trademarks, and other intellectual property
+      rights, remain the sole property of Tekvwarho LTD.
+   
+   c) This Software is protected under:
+      - The Copyright Act (Cap C28, Laws of the Federation of Nigeria 2004)
+      - The Nigerian Copyright Commission regulations
+      - The Cybercrimes (Prohibition, Prevention, etc.) Act 2015
+      - Applicable international intellectual property treaties
+
+2. DATA PROTECTION AND PRIVACY
+
+   a) Use of the Software must comply with:
+      - Nigeria Data Protection Regulation (NDPR) 2019
+      - Nigeria Data Protection Act 2023
+      - General Data Protection Regulation (GDPR) where applicable
+   
+   b) Tekvwarho LTD processes data in accordance with its Privacy Policy
+   
+   c) Commercial licensees are responsible for their own data protection
+      compliance when processing personal data through the Software
+
+3. REGULATORY COMPLIANCE
+
+   a) The Software is designed to support compliance with Nigerian tax laws,
+      including but not limited to:
+      - Federal Inland Revenue Service (Establishment) Act
+      - Companies Income Tax Act
+      - Value Added Tax Act
+      - Personal Income Tax Act
+      - Finance Act (as amended)
+      - NTAA 2025 (Nigerian Tax Administration Act)
+   
+   b) Licensees remain solely responsible for their own tax compliance
+   
+   c) The Software provides tools and calculations; it does not constitute
+      tax advice
+
+4. WARRANTY DISCLAIMER
+
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+   
+   TEKVWARHO LTD DOES NOT WARRANT THAT:
+   - The Software will meet your specific requirements
+   - The Software will be uninterrupted or error-free
+   - Defects in the Software will be corrected
+   - The Software will produce accurate tax calculations in all scenarios
 
 5. LIMITATION OF LIABILITY
 
-IN NO EVENT SHALL TEKVWARHO LTD BE LIABLE FOR ANY INDIRECT, INCIDENTAL, 
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
-ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+   a) IN NO EVENT SHALL TEKVWARHO LTD BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
+      SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES, INCLUDING:
+      - Loss of profits or revenue
+      - Loss of data
+      - Business interruption
+      - Procurement of substitute goods or services
+   
+   b) TEKVWARHO LTD'S TOTAL LIABILITY SHALL NOT EXCEED:
+      - For Commercial Licensees: The license fees paid in the 12 months
+        preceding the claim
+      - For Evaluation Licensees: Zero (0) Naira
+   
+   c) These limitations apply regardless of the theory of liability (contract,
+      tort, strict liability, or otherwise)
 
-6. TERMINATION
+6. INDEMNIFICATION
 
-This license is effective until terminated. It will terminate automatically 
-without notice from Tekvwarho LTD if you fail to comply with any provision 
-of this Agreement. Upon termination, you must destroy all copies of the 
-Software in your possession.
+   You agree to indemnify, defend, and hold harmless Tekvwarho LTD from any
+   claims, damages, losses, or expenses arising from:
+   
+   a) Your use of the Software
+   b) Your violation of this Agreement
+   c) Your violation of applicable laws
+   d) Any third-party claims related to your use of the Software
 
-7. GOVERNING LAW AND JURISDICTION
+7. TERMINATION
 
-This Agreement shall be governed by and construed in accordance with the 
-laws of the Federal Republic of Nigeria. Any disputes arising under or in 
-connection with this Agreement shall be subject to the exclusive jurisdiction 
-of the courts of Nigeria.
+   a) EVALUATION LICENSE: May be terminated by either party at any time
+   
+   b) COMMERCIAL LICENSE: Termination governed by the executed commercial
+      agreement
+   
+   c) AUTOMATIC TERMINATION: Occurs upon breach of any material term
+   
+   d) EFFECT OF TERMINATION: Upon termination, you must:
+      - Cease all use of the Software
+      - Destroy all copies in your possession
+      - Certify destruction in writing upon request
 
-8. COMPLIANCE WITH NIGERIAN LAW
+8. GOVERNING LAW AND JURISDICTION
 
-Use of this Software must comply with all applicable Nigerian laws and 
-regulations, including but not limited to:
-   - Companies and Allied Matters Act (CAMA) 2020
-   - Nigeria Data Protection Regulation (NDPR) 2019
-   - Nigeria Data Protection Act 2023
-   - Federal Inland Revenue Service (Establishment) Act
-   - Finance Act (as amended)
-   - Cybercrimes (Prohibition, Prevention, etc.) Act 2015
+   a) This Agreement is governed by the laws of the Federal Republic of Nigeria
+   
+   b) Disputes shall be subject to the exclusive jurisdiction of the courts
+      of Nigeria
+   
+   c) For Commercial Licenses, alternative dispute resolution may be specified
+      in the executed commercial agreement
 
-9. CONTACT INFORMATION
+9. EXPORT COMPLIANCE
 
-For licensing inquiries, permissions, or commercial use requests:
+   You agree to comply with all applicable export laws and regulations,
+   including restrictions on destinations, end-users, and end-use.
 
-Tekvwarho LTD
-Federal Republic of Nigeria
-Email: legal@tekvwarho.com
+10. SEVERABILITY
 
--------------------------------------------------------------------------------
+    If any provision of this Agreement is found unenforceable, the remaining
+    provisions shall continue in full force and effect.
 
-BY USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT YOU HAVE READ THIS AGREEMENT, 
-UNDERSTAND IT, AND AGREE TO BE BOUND BY ITS TERMS AND CONDITIONS.
+11. ENTIRE AGREEMENT
 
-Copyright (c) 2026 Tekvwarho LTD. All Rights Reserved.
+    This Agreement, together with any executed commercial license agreement,
+    constitutes the entire agreement between the parties regarding the Software.
+
+================================================================================
+                         CONTACT INFORMATION
+================================================================================
+
+For licensing inquiries:
+
+   Tekvwarho LTD
+   Federal Republic of Nigeria
+   
+   Commercial Licensing:  licensing@tekvwarho.com
+   Legal Inquiries:       legal@tekvwarho.com
+   General Support:       support@tekvwarho.com
+   
+   Website: https://tekvwarho.com
+
+================================================================================
+
+BY ACCESSING, INSTALLING, OR USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT YOU
+HAVE READ THIS AGREEMENT, UNDERSTAND IT, AND AGREE TO BE BOUND BY ITS TERMS.
+
+IF YOU DO NOT AGREE TO THESE TERMS, DO NOT USE THIS SOFTWARE.
+
+================================================================================
+                                    END OF LICENSE
+================================================================================
+
+Copyright (c) 2024-2026 Tekvwarho LTD. All Rights Reserved.
+TekVwarho ProAudit™ is a trademark of Tekvwarho LTD.

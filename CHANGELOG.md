@@ -7,6 +7,160 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.0] - 2026-01-22
+
+### Commercial SKU System & Multi-Tier Monetization Release
+
+This release introduces a comprehensive SKU (Stock Keeping Unit) system for commercial deployment, 
+enabling tiered pricing, feature gating, usage metering, and subscription management for the 
+Nigerian market.
+
+### Added
+
+#### Commercial Pricing Structure (Nigerian Naira)
+- **Core Tier**: ₦25,000 - ₦75,000/month (Small businesses, 1-5 users)
+- **Professional Tier**: ₦150,000 - ₦400,000/month (Growing SMEs, 5-25 users)
+- **Enterprise Tier**: ₦1,000,000 - ₦5,000,000+/month (Multi-national corporations)
+- **Intelligence Add-on**: ₦250,000 - ₦1,000,000/month (ML/AI features)
+
+#### Database Models & Tables
+- `sku_pricing` - Tier pricing configuration with NGN currency support
+- `tenant_skus` - Organization subscription assignments with trial support
+- `usage_records` - Monthly usage tracking per metric type
+- `usage_events` - Granular usage event logging
+- `feature_access_logs` - Feature access audit trail with denial reasons
+- `payment_transactions` - **NEW** Complete payment tracking table:
+  - Paystack identifiers (reference, access_code, authorization_url)
+  - Transaction details (status, amount_kobo, currency, fees)
+  - SKU context (tier, billing_cycle, intelligence_addon)
+  - Payment method info (card_type, last4, bank_name)
+  - Timestamps (initiated_at, completed_at, webhook_received_at)
+  - Full Paystack response storage (JSON)
+  - Webhook idempotency tracking (webhook_event_id)
+
+#### SKU Configuration (`app/config/sku_config.py`)
+- `SKUTier` enum: CORE, PROFESSIONAL, ENTERPRISE
+- `IntelligenceAddon` enum: STANDARD, ADVANCED
+- `Feature` enum: 40+ feature flags for gating
+- `TierPricing` dataclass with monthly/annual pricing
+- `TierLimits` dataclass with usage limits per tier
+- `TIER_FEATURES_CONFIG` - Feature sets per tier
+
+#### Paystack Configuration (`app/config.py`)
+- `PAYSTACK_SECRET_KEY` - API authentication (sk_test_* or sk_live_*)
+- `PAYSTACK_PUBLIC_KEY` - Frontend checkout integration
+- `PAYSTACK_WEBHOOK_SECRET` - Webhook signature verification
+- `PAYSTACK_BASE_URL` - API base URL (default: https://api.paystack.co)
+- `paystack_headers` property - Pre-built auth headers
+- `paystack_is_live` property - Live vs test mode detection
+
+#### Billing Service (`app/services/billing_service.py`)
+- **PaystackProvider class** - Production-ready API integration
+  - `initialize_payment()` - Initialize transaction with Paystack
+  - `verify_payment()` - Verify transaction status
+  - `create_subscription()` - Create recurring subscription
+  - `cancel_subscription()` - Disable subscription
+  - `refund_payment()` - Full/partial refunds
+  - `get_transaction()` - Fetch transaction details
+  - `list_transactions()` - List all transactions
+  - `resolve_account()` - Bank account resolution
+- Real httpx async HTTP client (not stub mode)
+- Automatic retry and timeout handling
+- Graceful fallback to stub mode when credentials missing
+- Subscription price calculation (monthly/annual with 20% discount)
+- Payment reference generation (TVP-{org}-{timestamp} format)
+- Nigerian Naira formatting utilities
+
+#### Billing API (`app/routers/billing.py`)
+- `GET /api/v1/billing/pricing` - Get tier pricing (Core, Professional, Enterprise)
+- `GET /api/v1/billing/subscription` - Current organization subscription
+- `POST /api/v1/billing/checkout` - Create payment intent, returns Paystack URL
+- `GET /api/v1/billing/payments` - Payment history (paginated, filterable)
+- `GET /api/v1/billing/payments/{id}` - Single payment details
+- `POST /api/v1/billing/webhook/paystack` - Secured webhook handler
+
+#### Webhook Security (`app/routers/billing.py`)
+- `verify_paystack_signature()` - HMAC-SHA512 verification
+- Constant-time comparison (prevents timing attacks)
+- Returns HTTP 400 for invalid signatures
+- Logs security warnings in production without secret
+
+#### Usage Alert Service (`app/services/usage_alert_service.py`)
+- Alert thresholds: WARNING (80%), CRITICAL (90%), EXCEEDED (100%)
+- Multi-channel notifications: EMAIL, IN_APP, WEBHOOK
+- Configurable alert preferences per organization
+
+#### SKU Middleware (`app/middleware/sku_middleware.py`)
+- `SKUFeatureMiddleware` - Automatic feature gating based on tenant tier
+- `SKUContextMiddleware` - Injects SKU context into requests
+
+#### Self-Service Upgrade Flow
+- `templates/checkout.html` - Multi-step checkout with Alpine.js
+  - Step 1: Plan selection (Core/Professional/Enterprise)
+  - Step 2: Billing cycle (Monthly/Annual with 15% discount)
+  - Step 3: Intelligence add-on upsell
+  - Step 4: Additional users configuration
+- `templates/payment_success.html` - Success page with confetti animation
+- `templates/payment_failed.html` - Failure page with retry options
+- `static/js/upgrade-modal.js` - Global upgrade prompt component
+
+#### Unit Tests (`tests/test_sku_system.py`)
+- 35 comprehensive tests covering:
+  - Feature flag configuration
+  - TenantSKU model operations
+  - Billing service pricing calculations
+  - Usage alert thresholds
+  - Tier limits enforcement
+  - Nigerian Naira price formatting
+
+#### Paystack Tests (`tests/test_paystack_provider.py`)
+- 25 comprehensive tests covering:
+  - Webhook signature verification (valid, invalid, tampered)
+  - PaystackProvider stub mode
+  - PaystackProvider real mode (mocked httpx)
+  - API timeout and network error handling
+  - BillingService pricing calculations
+  - PaymentTransaction model properties
+  - Integration tests with mocked database
+
+#### Documentation
+- `docs/PAYMENT_MODULE_DOCUMENTATION.md` - Comprehensive payment documentation:
+  - Architecture diagrams and component overview
+  - Configuration and environment variables
+  - Complete payment flow with sequence diagrams
+  - All API endpoints with request/response examples
+  - Database model schema and amount handling
+  - Security best practices and webhook verification
+  - Nigerian Naira pricing tiers
+  - Error handling and troubleshooting
+  - Testing guide with mocking examples
+  - Production deployment checklist
+
+### Changed
+- `app/models/audit_consolidated.py` - Made `entity_id` and `user_id` nullable for system-level audit events
+- `app/routers/auth.py` - Fixed login audit logging to use `datetime.utcnow()` instead of missing `_now()` method
+- `app/services/auth_service.py` - Registration now creates 14-day trial `TenantSKU` automatically
+
+### Fixed
+- `test_login_success` - Fixed `AttributeError: 'AuthService' object has no attribute '_now'`
+- `test_login_wrong_password` - Fixed `NotNullViolationError` for `entity_id` in audit_logs
+
+### Technical Details
+- All 493 tests passing (3 skipped) - 25 new payment tests
+- Paystack integration **production-ready** (real API calls, not stubs)
+- 20% annual discount calculated automatically
+- Usage metering for transactions, invoices, API calls, storage, users
+- Feature access logged with denial reasons for upgrade prompts
+- Webhook signature verification with HMAC-SHA512
+- Payment transactions stored with full audit trail
+- Alembic migration: `20260122_1920_add_payment_transactions.py`
+
+### Documentation
+- `docs/COMMERCIAL_SKU_STRUCTURE.md` - Comprehensive SKU documentation (551 lines)
+- Updated `.env` with Paystack configuration section
+
+---
+
 ## [2.4.1] - 2026-01-18
 
 ### Frontend Implementations for Backend Features
@@ -50,7 +204,7 @@ and GL-Bank linkage validation features that were previously API-only.
 ### Technical Details
 
 #### accounting.html Changes
-- Added `intercompany` tab button with 🏢 icon
+- Added `intercompany` tab button with building icon
 - Added state variables: `entityGroups`, `groupEntities`, `selectedGroupId`, `intercompanyTransactions`, `intercompanySummary`, `showIntercompanyModal`, `intercompanyFilters`, `intercompanyForm`, `entityNameCache`
 - Added loading state `loading.intercompany`
 - Added methods: `loadEntityGroups()`, `loadIntercompanyData()`, `loadGroupEntities()`, `loadIntercompanyTransactions()`, `loadIntercompanySummary()`, `getEntityName()`, `createIntercompanyTransaction()`, `markForElimination()`, `bulkEliminate()`, `viewIntercompanyDetails()`, `resetIntercompanyForm()`

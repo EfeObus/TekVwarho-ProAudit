@@ -29,7 +29,7 @@ Platform staff are internal TekVwarho employees who manage the platform. They ar
 
 ### Super Admin
 
-> 🔐 **Credentials:** Super Admin credentials are stored securely in environment variables.  
+>  **Credentials:** Super Admin credentials are stored securely in environment variables.  
 > See `.env.example` for the required configuration:
 > ```env
 > SUPER_ADMIN_EMAIL=<configured-in-env>

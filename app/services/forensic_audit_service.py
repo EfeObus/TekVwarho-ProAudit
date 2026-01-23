@@ -897,11 +897,100 @@ class ForensicAuditService:
         """
         Verify data integrity using hash chain verification.
         
+        Falls back to journal entry verification if no ledger entries exist.
         This is the "Verify Integrity" button feature.
         Returns green badge if all hashes match.
         """
         from app.services.immutable_ledger import immutable_ledger_service
+        from app.models.advanced_accounting import LedgerEntry
+        from app.models.accounting import JournalEntry, JournalEntryStatus
+        from sqlalchemy import select, func
         
+        # Count ledger entries for this entity
+        count_query = select(func.count(LedgerEntry.id)).where(
+            LedgerEntry.entity_id == entity_id
+        )
+        result = await self.db.execute(count_query)
+        ledger_count = result.scalar() or 0
+        
+        # Also count journal entries
+        je_count_query = select(func.count(JournalEntry.id)).where(
+            JournalEntry.entity_id == entity_id,
+            JournalEntry.status == JournalEntryStatus.POSTED
+        )
+        je_result = await self.db.execute(je_count_query)
+        journal_count = je_result.scalar() or 0
+        
+        # If no ledger entries but we have journal entries, verify those instead
+        if ledger_count == 0:
+            if journal_count > 0:
+                # Verify journal entries are balanced
+                balance_query = select(
+                    func.sum(JournalEntry.total_debit).label('total_debit'),
+                    func.sum(JournalEntry.total_credit).label('total_credit')
+                ).where(
+                    JournalEntry.entity_id == entity_id,
+                    JournalEntry.status == JournalEntryStatus.POSTED
+                )
+                balance_result = await self.db.execute(balance_query)
+                balance_row = balance_result.first()
+                
+                total_debit = balance_row.total_debit or Decimal("0")
+                total_credit = balance_row.total_credit or Decimal("0")
+                is_balanced = abs(total_debit - total_credit) < Decimal("0.01")
+                
+                if is_balanced:
+                    return {
+                        "verified": True,
+                        "status": "JOURNAL_ENTRIES_VERIFIED",
+                        "badge": "green",
+                        "message": f"[OK] {journal_count} posted journal entries verified. All entries are balanced (Debits = Credits).",
+                        "record_count": journal_count,
+                        "total_debit": str(total_debit),
+                        "total_credit": str(total_credit),
+                        "discrepancy_count": 0,
+                        "discrepancies": [],
+                        "verified_at": datetime.utcnow().isoformat(),
+                        "data_source": "journal_entries",
+                        "note": "Immutable ledger not yet populated. Journal entries used for verification."
+                    }
+                else:
+                    return {
+                        "verified": False,
+                        "status": "JOURNAL_IMBALANCE_DETECTED",
+                        "badge": "red",
+                        "message": f"[WARNING] Journal entries are not balanced! Total Debits: ₦{total_debit:,.2f}, Total Credits: ₦{total_credit:,.2f}",
+                        "record_count": journal_count,
+                        "total_debit": str(total_debit),
+                        "total_credit": str(total_credit),
+                        "discrepancy_count": 1,
+                        "discrepancies": [{
+                            "type": "balance_mismatch",
+                            "message": "Debits and Credits do not balance",
+                            "debit_total": str(total_debit),
+                            "credit_total": str(total_credit),
+                            "difference": str(abs(total_debit - total_credit))
+                        }],
+                        "verified_at": datetime.utcnow().isoformat(),
+                        "data_source": "journal_entries"
+                    }
+            else:
+                return {
+                    "verified": False,
+                    "status": "NO_RECORDS_FOUND",
+                    "badge": "yellow",
+                    "message": "No financial records found for this entity. Create journal entries or transactions to enable integrity verification.",
+                    "record_count": 0,
+                    "discrepancy_count": 0,
+                    "discrepancies": [{
+                        "type": "no_records",
+                        "message": "No journal entries or ledger entries exist for verification",
+                        "details": "Post financial transactions to enable data integrity checks."
+                    }],
+                    "verified_at": datetime.utcnow().isoformat(),
+                }
+        
+        # If ledger entries exist, verify hash chain
         is_valid, discrepancies = await immutable_ledger_service.verify_chain_integrity(
             self.db, entity_id
         )
@@ -911,19 +1000,24 @@ class ForensicAuditService:
                 "verified": True,
                 "status": "DATA_INTEGRITY_VERIFIED",
                 "badge": "green",
-                "message": "✅ All ledger entries verified. Hash chain is intact.",
+                "message": f"[OK] All {ledger_count} ledger entries verified. Hash chain is intact.",
+                "record_count": ledger_count,
                 "discrepancy_count": 0,
+                "discrepancies": [],
                 "verified_at": datetime.utcnow().isoformat(),
+                "data_source": "immutable_ledger"
             }
         else:
             return {
                 "verified": False,
                 "status": "INTEGRITY_BREACH_DETECTED",
                 "badge": "red",
-                "message": "WARNING: Data integrity issues detected. Immediate investigation required.",
+                "message": f"[WARNING] Data integrity issues detected in {len(discrepancies)} of {ledger_count} records. Immediate investigation required.",
+                "record_count": ledger_count,
                 "discrepancy_count": len(discrepancies),
                 "discrepancies": discrepancies[:10],  # First 10
                 "verified_at": datetime.utcnow().isoformat(),
+                "data_source": "immutable_ledger"
             }
 
 

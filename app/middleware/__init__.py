@@ -14,7 +14,16 @@ from app.middleware.security import (
     setup_security_middleware,
 )
 
+from app.middleware.sku_middleware import (
+    SKUContextMiddleware,
+    setup_sku_middleware,
+    get_sku_template_context,
+    has_feature,
+    require_tier,
+)
+
 __all__ = [
+    # Security middleware
     "GeoFencingMiddleware",
     "RateLimitingMiddleware",
     "CSRFMiddleware",
@@ -22,4 +31,10 @@ __all__ = [
     "RequestLoggingMiddleware",
     "AccountLockoutMiddleware",
     "setup_security_middleware",
+    # SKU middleware
+    "SKUContextMiddleware",
+    "setup_sku_middleware",
+    "get_sku_template_context",
+    "has_feature",
+    "require_tier",
 ]

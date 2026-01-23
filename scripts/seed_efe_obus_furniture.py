@@ -631,7 +631,7 @@ async def seed_database():
             await session.commit()
             
             print("\n" + "=" * 60)
-            print("✅ SEED COMPLETED SUCCESSFULLY!")
+            print("[OK] SEED COMPLETED SUCCESSFULLY!")
             print("=" * 60)
             print(f"\nCompany: Efe Obus Furniture Manufacturing LTD")
             print(f"Owner: Efe Obukohwo")
@@ -651,16 +651,34 @@ async def seed_database():
             
         except Exception as e:
             await session.rollback()
-            print(f"\n❌ ERROR: {e}")
+            print(f"\n[FAIL] ERROR: {e}")
             raise
 
 
 async def create_organization(session: AsyncSession) -> Organization:
-    """Create the organization."""
+    """Create the organization with TenantSKU for commercial feature gating."""
+    from app.models.sku import TenantSKU, SKUTier, IntelligenceAddon
+    
     org_data = COMPANY_DATA["organization"]
     org = Organization(**org_data)
     session.add(org)
     await session.flush()
+    
+    # Create TenantSKU for commercial feature gating
+    today = date.today()
+    tenant_sku = TenantSKU(
+        organization_id=org.id,
+        tier=SKUTier.ENTERPRISE,
+        intelligence_addon=IntelligenceAddon.ADVANCED,
+        billing_cycle="annual",
+        is_active=True,
+        current_period_start=today,
+        current_period_end=date(today.year + 1, today.month, today.day),
+        notes="Seeded demo organization - Efe Obus Furniture Manufacturing LTD",
+    )
+    session.add(tenant_sku)
+    await session.flush()
+    
     return org
 
 

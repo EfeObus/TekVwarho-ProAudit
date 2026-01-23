@@ -225,7 +225,7 @@ async def seed_impact_previews():
                 preview = await generate_impact_preview_for_run(db, payroll, previous_payroll)
                 db.add(preview)
                 
-                print(f"  ✅ Created preview for: {payroll.name}")
+                print(f"  [OK] Created preview for: {payroll.name}")
                 print(f"     Period: {payroll.period_start} to {payroll.period_end}")
                 print(f"     Gross: ₦{payroll.total_gross_pay:,.2f}")
                 if previous_payroll:

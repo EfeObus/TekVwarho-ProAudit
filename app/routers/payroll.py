@@ -2,6 +2,8 @@
 TekVwarho ProAudit - Payroll Router
 
 API endpoints for payroll management with Nigerian compliance.
+
+SKU REQUIREMENT: ProAudit Professional tier or above
 """
 
 import uuid
@@ -12,10 +14,18 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_user, get_current_active_user, get_current_entity_id
+from app.dependencies import (
+    get_current_user, 
+    get_current_active_user, 
+    get_current_entity_id,
+    require_feature,
+)
 from app.models.user import User
 from app.models.payroll import EmploymentStatus, PayrollStatus, PayrollFrequency
+from app.models.audit_consolidated import AuditAction
+from app.models.sku import Feature
 from app.services.payroll_service import PayrollService
+from app.services.audit_service import AuditService
 from app.schemas.payroll import (
     # Employee schemas
     EmployeeCreate,
@@ -52,6 +62,9 @@ from app.schemas.payroll import (
 
 router = APIRouter()
 
+# Feature gate for all payroll endpoints
+payroll_feature_gate = require_feature([Feature.PAYROLL])
+
 
 # ===========================================
 # EMPLOYEE ENDPOINTS
@@ -62,12 +75,12 @@ router = APIRouter()
     response_model=EmployeeResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new employee",
-    description="Create a new employee with personal, compliance, and salary details.",
+    description="Create a new employee with personal, compliance, and salary details. Requires Professional tier.",
 )
 async def create_employee(
     data: EmployeeCreate,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(payroll_feature_gate),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
 ):
     """Create a new employee."""
@@ -78,6 +91,23 @@ async def create_employee(
             entity_id=entity_id,
             data=data.model_dump(),
             created_by_id=current_user.id,
+        )
+        
+        # Audit log for employee creation
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="employee",
+            entity_id=str(employee.id),
+            action=AuditAction.CREATE,
+            user_id=current_user.id,
+            new_values={
+                "employee_id": employee.employee_id,
+                "first_name": data.first_name,
+                "last_name": data.last_name,
+                "email": data.email,
+                "basic_salary": float(data.basic_salary) if data.basic_salary else 0,
+            },
         )
         
         # Add computed properties
@@ -228,6 +258,17 @@ async def update_employee(
             detail="Employee not found",
         )
     
+    # Audit log for employee update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="employee",
+        entity_id=str(employee.id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        new_values=data.model_dump(exclude_unset=True),
+    )
+    
     response = EmployeeResponse.model_validate(employee)
     response.full_name = employee.full_name
     response.monthly_gross = employee.monthly_gross
@@ -364,6 +405,24 @@ async def create_payroll_run(
             employee_ids=data.employee_ids,
             created_by_id=current_user.id,
         )
+        
+        # Audit log for payroll run creation
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="payroll_run",
+            entity_id=str(payroll.id),
+            action=AuditAction.CREATE,
+            user_id=current_user.id,
+            new_values={
+                "name": data.name,
+                "period_start": str(data.period_start),
+                "period_end": str(data.period_end),
+                "payment_date": str(data.payment_date),
+                "frequency": data.frequency,
+            },
+        )
+        
         return PayrollRunResponse.model_validate(payroll)
     except ValueError as e:
         raise HTTPException(

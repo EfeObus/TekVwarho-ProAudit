@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.dependencies import get_current_active_user
 from app.models.user import User
+from app.models.audit_consolidated import AuditAction
 from app.schemas.auth import MessageResponse
 from app.schemas.vendor import (
     VendorCreateRequest,
@@ -23,6 +24,7 @@ from app.schemas.vendor import (
 )
 from app.services.vendor_service import VendorService
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
 
 
 router = APIRouter()
@@ -149,6 +151,23 @@ async def create_vendor(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    
+    # Audit log for vendor creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="vendor",
+        entity_id=str(vendor.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "name": request.name,
+            "tin": request.tin,
+            "email": request.email,
+            "phone": request.phone,
+            "is_vat_registered": request.is_vat_registered,
+        },
+    )
     
     return VendorResponse(
         id=vendor.id,
@@ -278,8 +297,29 @@ async def update_vendor(
             detail="Vendor not found",
         )
     
+    # Store old values for audit
+    old_values = {
+        "name": vendor.name,
+        "tin": vendor.tin,
+        "email": vendor.email,
+        "phone": vendor.phone,
+    }
+    
     update_data = request.model_dump(exclude_unset=True)
     vendor = await vendor_service.update_vendor(vendor, **update_data)
+    
+    # Audit log for vendor update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="vendor",
+        entity_id=str(vendor.id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        old_values=old_values,
+        new_values=update_data,
+    )
+    
     stats = await vendor_service.get_vendor_stats(vendor)
     
     return VendorResponse(
@@ -348,7 +388,26 @@ async def delete_vendor(
             detail="Vendor not found",
         )
     
+    # Store vendor data for audit before deletion
+    deleted_values = {
+        "name": vendor.name,
+        "tin": vendor.tin,
+        "email": vendor.email,
+    }
+    deleted_id = str(vendor.id)
+    
     await vendor_service.delete_vendor(vendor)
+    
+    # Audit log for vendor deletion
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="vendor",
+        entity_id=deleted_id,
+        action=AuditAction.DELETE,
+        user_id=current_user.id,
+        old_values=deleted_values,
+    )
     
     return MessageResponse(
         message="Vendor deleted successfully",

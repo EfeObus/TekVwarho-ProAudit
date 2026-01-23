@@ -25,6 +25,8 @@ from app.dependencies import get_current_user, get_current_active_user, get_curr
 from app.models.user import User
 from app.models.payroll import Employee
 from app.services.payroll_advanced_service import PayrollAdvancedService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.schemas.payroll_advanced import (
     ComplianceSnapshotCreate,
     ComplianceSnapshotResponse,
@@ -185,6 +187,21 @@ async def generate_compliance_snapshot(
         period_month=data.period_month,
         period_year=data.period_year,
         paye_tax_state=data.paye_tax_state,
+    )
+    
+    # Audit logging for compliance snapshot generation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="compliance_snapshot",
+        entity_id=str(snapshot.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "period_month": data.period_month,
+            "period_year": data.period_year,
+            "overall_status": snapshot.overall_status.value if hasattr(snapshot, 'overall_status') else None,
+        }
     )
     
     return service._format_snapshot_response(snapshot)
@@ -740,6 +757,100 @@ async def get_decision_log_summary(
     """
     service = PayrollAdvancedService(db)
     return await service.get_decision_log_summary(entity_id, payroll_run_id)
+
+
+@router.get(
+    "/decision-logs/export",
+    summary="Export decision logs to CSV",
+    description="Export all decision logs to CSV format for audit trails.",
+)
+async def export_decision_logs_csv(
+    payroll_run_id: Optional[uuid.UUID] = Query(None, description="Filter by payroll run"),
+    decision_type: Optional[str] = Query(None, description="Filter by decision type"),
+    from_date: Optional[date] = Query(None, description="Filter from date"),
+    to_date: Optional[date] = Query(None, description="Filter to date"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_active_user),
+    entity_id: uuid.UUID = Depends(get_current_entity_id),
+):
+    """
+    Export decision logs to CSV format.
+    
+    Returns a CSV file containing:
+    - Decision type, category
+    - Title, description
+    - Created by (name, role)
+    - Timestamp
+    - Lock status
+    - Content hash for verification
+    """
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    from datetime import datetime as dt
+    
+    service = PayrollAdvancedService(db)
+    
+    # Get logs using existing service method
+    logs_response = await service.get_decision_logs(
+        entity_id=entity_id,
+        payroll_run_id=payroll_run_id,
+        decision_type=decision_type,
+        page=1,
+        per_page=10000  # Export all
+    )
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header row
+    writer.writerow([
+        "ID",
+        "Decision Type",
+        "Category",
+        "Title",
+        "Description",
+        "Created By",
+        "Created By Role",
+        "Created At",
+        "Is Locked",
+        "Content Hash"
+    ])
+    
+    # Data rows
+    for log in logs_response.get("logs", []):
+        created_at = log.get("created_at", "")
+        if hasattr(created_at, 'isoformat'):
+            created_at = created_at.isoformat()
+        
+        writer.writerow([
+            str(log.get("id", "")),
+            log.get("decision_type", ""),
+            log.get("category", ""),
+            log.get("title", ""),
+            log.get("description", ""),
+            log.get("created_by_name", ""),
+            log.get("created_by_role", ""),
+            created_at,
+            "Yes" if log.get("is_locked") else "No",
+            log.get("content_hash", "")[:16] + "..." if log.get("content_hash") else ""
+        ])
+    
+    # Reset stream position
+    output.seek(0)
+    
+    # Generate filename with timestamp
+    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"decision_logs_export_{timestamp}.csv"
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
 
 
 @router.get(
@@ -1679,6 +1790,21 @@ async def resolve_ghost_detection(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Detection {detection_id} not found",
         )
+    
+    # Audit logging for ghost worker resolution
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="ghost_worker_detection",
+        entity_id=str(detection_id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        new_values={
+            "resolution_note": data.resolution_note,
+            "resolved_by": str(current_user.id),
+            "status": "resolved",
+        }
+    )
     
     return {
         "message": "Detection resolved successfully",

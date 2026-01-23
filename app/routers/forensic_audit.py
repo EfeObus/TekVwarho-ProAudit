@@ -130,7 +130,9 @@ async def analyze_benfords_law(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Perform Benford's Law analysis on transactions.
+    Perform Benford's Law analysis on financial data.
+    
+    Aggregates data from: Transactions, Journal Entries, Invoices, Sales, and Expense Claims.
     
     Benford's Law states that in naturally occurring numerical data,
     the leading digit follows a specific logarithmic distribution.
@@ -143,33 +145,127 @@ async def analyze_benfords_law(
     - Non-conforming (MAD >= 0.015): Potential fraud indicator
     """
     from app.models.transaction import Transaction
-    from sqlalchemy import select, and_
+    from app.models.accounting import JournalEntry, JournalEntryStatus
+    from app.models.invoice import Invoice
+    from sqlalchemy import select, and_, union_all
     from decimal import Decimal
     
     start_date = date(fiscal_year, 1, 1)
     end_date = date(fiscal_year, 12, 31)
     
-    # Query transactions
-    query = select(Transaction.amount).where(
-        and_(
-            Transaction.entity_id == entity_id,
-            Transaction.transaction_date >= start_date,
-            Transaction.transaction_date <= end_date,
-            Transaction.amount > 0,  # Only positive amounts
+    amounts = []
+    data_sources = {}
+    
+    # 1. Query transactions
+    try:
+        txn_query = select(Transaction.amount).where(
+            and_(
+                Transaction.entity_id == entity_id,
+                Transaction.transaction_date >= start_date,
+                Transaction.transaction_date <= end_date,
+                Transaction.amount > 0,
+            )
         )
-    )
+        if transaction_type:
+            txn_query = txn_query.where(Transaction.type == transaction_type)
+        
+        result = await db.execute(txn_query)
+        txn_amounts = [Decimal(str(row[0])) for row in result.all() if row[0]]
+        amounts.extend(txn_amounts)
+        data_sources["transactions"] = len(txn_amounts)
+    except Exception as e:
+        data_sources["transactions"] = f"Error: {str(e)}"
     
-    if transaction_type:
-        query = query.where(Transaction.type == transaction_type)
+    # 2. Query journal entries (total_debit or total_credit)
+    try:
+        je_query = select(JournalEntry.total_debit).where(
+            and_(
+                JournalEntry.entity_id == entity_id,
+                JournalEntry.entry_date >= start_date,
+                JournalEntry.entry_date <= end_date,
+                JournalEntry.status == JournalEntryStatus.POSTED,
+                JournalEntry.total_debit > 0,
+            )
+        )
+        result = await db.execute(je_query)
+        je_amounts = [Decimal(str(row[0])) for row in result.all() if row[0]]
+        amounts.extend(je_amounts)
+        data_sources["journal_entries"] = len(je_amounts)
+    except Exception as e:
+        data_sources["journal_entries"] = f"Error: {str(e)}"
     
-    result = await db.execute(query)
-    amounts = [Decimal(str(row[0])) for row in result.all() if row[0]]
+    # 3. Query invoices
+    try:
+        inv_query = select(Invoice.total_amount).where(
+            and_(
+                Invoice.entity_id == entity_id,
+                Invoice.invoice_date >= start_date,
+                Invoice.invoice_date <= end_date,
+                Invoice.total_amount > 0,
+            )
+        )
+        result = await db.execute(inv_query)
+        inv_amounts = [Decimal(str(row[0])) for row in result.all() if row[0]]
+        amounts.extend(inv_amounts)
+        data_sources["invoices"] = len(inv_amounts)
+    except Exception as e:
+        data_sources["invoices"] = f"Error: {str(e)}"
+    
+    # 4. Query sales (if model exists)
+    try:
+        from app.models.inventory import Sale
+        sale_query = select(Sale.total_amount).where(
+            and_(
+                Sale.entity_id == entity_id,
+                Sale.sale_date >= start_date,
+                Sale.sale_date <= end_date,
+                Sale.total_amount > 0,
+            )
+        )
+        result = await db.execute(sale_query)
+        sale_amounts = [Decimal(str(row[0])) for row in result.all() if row[0]]
+        amounts.extend(sale_amounts)
+        data_sources["sales"] = len(sale_amounts)
+    except Exception as e:
+        data_sources["sales"] = f"Not available: {str(e)}"
+    
+    # 5. Query expense claims
+    try:
+        from app.models.expense_claims import ExpenseClaim
+        exp_query = select(ExpenseClaim.total_amount).where(
+            and_(
+                ExpenseClaim.entity_id == entity_id,
+                ExpenseClaim.claim_date >= start_date,
+                ExpenseClaim.claim_date <= end_date,
+                ExpenseClaim.total_amount > 0,
+            )
+        )
+        result = await db.execute(exp_query)
+        exp_amounts = [Decimal(str(row[0])) for row in result.all() if row[0]]
+        amounts.extend(exp_amounts)
+        data_sources["expense_claims"] = len(exp_amounts)
+    except Exception as e:
+        data_sources["expense_claims"] = f"Not available: {str(e)}"
     
     if len(amounts) < 100:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Benford's Law analysis requires minimum 100 transactions. Found: {len(amounts)}"
-        )
+        # Return a helpful response instead of error
+        return {
+            "status": "insufficient_data",
+            "message": f"Benford's Law analysis requires minimum 100 data points for statistical significance. Found {len(amounts)} records.",
+            "records_found": len(amounts),
+            "minimum_required": 100,
+            "data_sources": data_sources,
+            "suggestions": [
+                "Record more transactions in the system",
+                "Create journal entries for accounting activity",
+                "Add sales invoices or expense claims",
+                f"The current fiscal year ({fiscal_year}) may have limited data - try a previous year if available"
+            ],
+            "interpretation": {
+                "why_100": "Benford's Law is a statistical phenomenon that requires a sufficient sample size to produce meaningful results.",
+                "alternatives": "You can still run Anomaly Detection or Data Integrity checks with smaller datasets."
+            }
+        }
     
     # Perform analysis
     analyzer = BenfordsLawAnalyzer()
@@ -179,6 +275,8 @@ async def analyze_benfords_law(
         "entity_id": str(entity_id),
         "fiscal_year": fiscal_year,
         "transaction_type": transaction_type or "all",
+        "data_sources": data_sources,
+        "total_records_analyzed": len(amounts),
         **analysis,
     }
 
@@ -218,13 +316,15 @@ async def analyze_benfords_law_custom(
 async def detect_anomalies(
     entity_id: uuid.UUID,
     fiscal_year: int = Query(..., ge=2020, le=2030),
-    group_by: Optional[str] = Query(None, description="Group analysis by field (category, vendor)"),
+    group_by: Optional[str] = Query(None, description="Group analysis by field (category, vendor, source)"),
     threshold: float = Query(2.5, ge=1.5, le=5.0, description="Z-score threshold"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Detect statistical anomalies in transactions using Z-scores.
+    Detect statistical anomalies in financial data using Z-scores.
+    
+    Aggregates data from: Transactions, Journal Entries, Invoices, Sales, and Expense Claims.
     
     Z-score measures how many standard deviations a value is from the mean.
     Transactions with high Z-scores are statistically unusual.
@@ -240,51 +340,156 @@ async def detect_anomalies(
     - Find category anomalies
     """
     from app.models.transaction import Transaction
+    from app.models.accounting import JournalEntry, JournalEntryStatus
+    from app.models.invoice import Invoice
     from sqlalchemy import select, and_
-    from sqlalchemy.orm import selectinload
     
     start_date = date(fiscal_year, 1, 1)
     end_date = date(fiscal_year, 12, 31)
     
-    # Query transactions with related data
-    query = select(Transaction).where(
-        and_(
-            Transaction.entity_id == entity_id,
-            Transaction.transaction_date >= start_date,
-            Transaction.transaction_date <= end_date,
+    all_data = []
+    data_sources = {}
+    
+    # 1. Query transactions
+    try:
+        query = select(Transaction).where(
+            and_(
+                Transaction.entity_id == entity_id,
+                Transaction.transaction_date >= start_date,
+                Transaction.transaction_date <= end_date,
+            )
         )
-    )
+        result = await db.execute(query)
+        transactions = result.scalars().all()
+        
+        for txn in transactions:
+            all_data.append({
+                "id": str(txn.id),
+                "amount": float(txn.amount) if txn.amount else 0,
+                "date": txn.transaction_date.isoformat() if txn.transaction_date else None,
+                "description": txn.description,
+                "category": getattr(txn, 'category_name', None) or str(getattr(txn, 'category_id', '')),
+                "vendor": getattr(txn, 'vendor_name', None) or str(getattr(txn, 'vendor_id', '')),
+                "source": "transaction",
+            })
+        data_sources["transactions"] = len(transactions)
+    except Exception as e:
+        data_sources["transactions"] = f"Error: {str(e)}"
     
-    result = await db.execute(query)
-    transactions = result.scalars().all()
-    
-    if len(transactions) < 10:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Minimum 10 transactions required. Found: {len(transactions)}"
+    # 2. Query journal entries
+    try:
+        je_query = select(JournalEntry).where(
+            and_(
+                JournalEntry.entity_id == entity_id,
+                JournalEntry.entry_date >= start_date,
+                JournalEntry.entry_date <= end_date,
+                JournalEntry.status == JournalEntryStatus.POSTED,
+            )
         )
+        result = await db.execute(je_query)
+        journals = result.scalars().all()
+        
+        for je in journals:
+            all_data.append({
+                "id": str(je.id),
+                "amount": float(je.total_debit) if je.total_debit else 0,
+                "date": je.entry_date.isoformat() if je.entry_date else None,
+                "description": je.description,
+                "category": je.entry_type.value if je.entry_type else "journal",
+                "vendor": je.source_module or "manual",
+                "source": "journal_entry",
+            })
+        data_sources["journal_entries"] = len(journals)
+    except Exception as e:
+        data_sources["journal_entries"] = f"Error: {str(e)}"
     
-    # Prepare transaction data
-    txn_data = [
-        {
-            "id": str(txn.id),
-            "amount": float(txn.amount) if txn.amount else 0,
-            "transaction_date": txn.transaction_date.isoformat() if txn.transaction_date else None,
-            "description": txn.description,
-            "category": getattr(txn, 'category_name', None) or str(getattr(txn, 'category_id', '')),
-            "vendor": getattr(txn, 'vendor_name', None) or str(getattr(txn, 'vendor_id', '')),
-            "type": txn.type if hasattr(txn, 'type') else None,
+    # 3. Query invoices
+    try:
+        inv_query = select(Invoice).where(
+            and_(
+                Invoice.entity_id == entity_id,
+                Invoice.invoice_date >= start_date,
+                Invoice.invoice_date <= end_date,
+            )
+        )
+        result = await db.execute(inv_query)
+        invoices = result.scalars().all()
+        
+        for inv in invoices:
+            all_data.append({
+                "id": str(inv.id),
+                "amount": float(inv.total_amount) if inv.total_amount else 0,
+                "date": inv.invoice_date.isoformat() if inv.invoice_date else None,
+                "description": f"Invoice {inv.invoice_number}",
+                "category": getattr(inv, 'invoice_type', 'B2B'),
+                "vendor": getattr(inv, 'customer_name', None) or str(getattr(inv, 'customer_id', '')),
+                "source": "invoice",
+            })
+        data_sources["invoices"] = len(invoices)
+    except Exception as e:
+        data_sources["invoices"] = f"Error: {str(e)}"
+    
+    # 4. Query expense claims
+    try:
+        from app.models.expense_claims import ExpenseClaim
+        exp_query = select(ExpenseClaim).where(
+            and_(
+                ExpenseClaim.entity_id == entity_id,
+                ExpenseClaim.claim_date >= start_date,
+                ExpenseClaim.claim_date <= end_date,
+            )
+        )
+        result = await db.execute(exp_query)
+        expenses = result.scalars().all()
+        
+        for exp in expenses:
+            all_data.append({
+                "id": str(exp.id),
+                "amount": float(exp.total_amount) if exp.total_amount else 0,
+                "date": exp.claim_date.isoformat() if exp.claim_date else None,
+                "description": exp.description or f"Expense Claim {exp.claim_number}",
+                "category": getattr(exp, 'expense_type', 'expense'),
+                "vendor": getattr(exp, 'employee_name', None) or str(getattr(exp, 'employee_id', '')),
+                "source": "expense_claim",
+            })
+        data_sources["expense_claims"] = len(expenses)
+    except Exception as e:
+        data_sources["expense_claims"] = f"Not available: {str(e)}"
+    
+    if len(all_data) < 10:
+        # Return a helpful JSON response instead of error
+        return {
+            "status": "insufficient_data",
+            "message": f"Anomaly detection requires at least 10 records. Found {len(all_data)} records.",
+            "records_found": len(all_data),
+            "data_sources": data_sources,
+            "suggestions": [
+                "Create more transactions in the system",
+                "Record journal entries for accounting transactions",
+                "Add invoices or expense claims",
+                "Check the date range - current year may have limited data"
+            ],
+            "anomalies": [],
+            "summary": {
+                "total_anomalies": 0,
+                "critical_count": 0,
+                "warning_count": 0,
+                "normal_count": 0
+            }
         }
-        for txn in transactions
-    ]
     
     detector = ZScoreAnomalyDetector()
-    return detector.detect_anomalies(
-        txn_data,
+    result = detector.detect_anomalies(
+        all_data,
         amount_field="amount",
-        group_by=group_by,
+        group_by=group_by if group_by else "source",
         threshold=threshold
     )
+    
+    result["data_sources"] = data_sources
+    result["total_records_analyzed"] = len(all_data)
+    
+    return result
 
 
 @router.post("/anomaly-detection/custom")
@@ -700,3 +905,177 @@ async def verify_worm_document(
     return await worm_storage.verify_document(
         entity_id, document_type, document_id, expected_hash
     )
+
+
+# =============================================================================
+# IMMUTABLE LEDGER SYNC
+# =============================================================================
+
+@router.post("/sync-ledger")
+async def sync_journal_entries_to_ledger(
+    entity_id: uuid.UUID,
+    fiscal_year: int = Query(..., ge=2020, le=2030, description="Fiscal year to sync"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Sync posted journal entries to the immutable ledger.
+    
+    Creates hash-chained ledger entries from existing journal entries
+    for blockchain-like audit integrity verification.
+    
+    **IMPORTANT:** This is a one-time sync operation per fiscal year.
+    Once synced, entries cannot be modified without breaking the hash chain.
+    """
+    from app.models.accounting import JournalEntry, JournalEntryLine, JournalEntryStatus
+    from app.models.advanced_accounting import LedgerEntry
+    from app.services.immutable_ledger import immutable_ledger_service
+    from sqlalchemy import select, func, and_
+    from decimal import Decimal
+    
+    start_date = date(fiscal_year, 1, 1)
+    end_date = date(fiscal_year, 12, 31)
+    
+    # Check if there are already ledger entries for this period
+    existing_count_query = select(func.count(LedgerEntry.id)).where(
+        and_(
+            LedgerEntry.entity_id == entity_id,
+            LedgerEntry.entry_date >= start_date,
+            LedgerEntry.entry_date <= end_date,
+        )
+    )
+    result = await db.execute(existing_count_query)
+    existing_count = result.scalar() or 0
+    
+    if existing_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ledger already has {existing_count} entries for fiscal year {fiscal_year}. Cannot re-sync."
+        )
+    
+    # Get all posted journal entries with their lines
+    je_query = select(JournalEntry).where(
+        and_(
+            JournalEntry.entity_id == entity_id,
+            JournalEntry.entry_date >= start_date,
+            JournalEntry.entry_date <= end_date,
+            JournalEntry.status == JournalEntryStatus.POSTED,
+        )
+    ).order_by(JournalEntry.entry_date, JournalEntry.entry_number)
+    
+    result = await db.execute(je_query)
+    journal_entries = result.scalars().all()
+    
+    if not journal_entries:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No posted journal entries found for fiscal year {fiscal_year}."
+        )
+    
+    synced_count = 0
+    errors = []
+    
+    for je in journal_entries:
+        try:
+            # Create ledger entry for each journal entry
+            await immutable_ledger_service.create_entry(
+                db=db,
+                entity_id=entity_id,
+                entry_type="journal_entry",
+                source_type="journal",
+                source_id=je.id,
+                account_code=None,  # Will be tracked per line in a more detailed implementation
+                debit_amount=je.total_debit or Decimal("0"),
+                credit_amount=je.total_credit or Decimal("0"),
+                entry_date=je.entry_date,
+                description=je.description or f"Journal Entry {je.entry_number}",
+                reference=je.entry_number,
+                created_by_id=current_user.id,
+                currency=je.currency or "NGN"
+            )
+            synced_count += 1
+        except Exception as e:
+            errors.append({
+                "entry_number": je.entry_number,
+                "error": str(e)
+            })
+    
+    await db.commit()
+    
+    return {
+        "status": "success" if synced_count > 0 else "no_entries",
+        "message": f"Synced {synced_count} journal entries to immutable ledger for fiscal year {fiscal_year}.",
+        "fiscal_year": fiscal_year,
+        "synced_count": synced_count,
+        "error_count": len(errors),
+        "errors": errors[:10] if errors else [],
+        "next_steps": [
+            "Run 'Verify Integrity' to confirm hash chain is valid",
+            "Entries are now protected with SHA-256 hash chain",
+            "Any modification will be detectable in integrity checks"
+        ]
+    }
+
+
+@router.get("/ledger-stats")
+async def get_ledger_statistics(
+    entity_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get statistics about the immutable ledger for this entity.
+    """
+    from app.models.advanced_accounting import LedgerEntry
+    from app.models.accounting import JournalEntry, JournalEntryStatus
+    from sqlalchemy import select, func, and_
+    
+    # Ledger stats
+    ledger_query = select(
+        func.count(LedgerEntry.id).label('count'),
+        func.min(LedgerEntry.entry_date).label('first_date'),
+        func.max(LedgerEntry.entry_date).label('last_date'),
+        func.sum(LedgerEntry.debit_amount).label('total_debit'),
+        func.sum(LedgerEntry.credit_amount).label('total_credit'),
+    ).where(LedgerEntry.entity_id == entity_id)
+    
+    result = await db.execute(ledger_query)
+    ledger_stats = result.first()
+    
+    # Journal entry stats (for comparison)
+    je_query = select(
+        func.count(JournalEntry.id).label('count'),
+        func.min(JournalEntry.entry_date).label('first_date'),
+        func.max(JournalEntry.entry_date).label('last_date'),
+    ).where(
+        and_(
+            JournalEntry.entity_id == entity_id,
+            JournalEntry.status == JournalEntryStatus.POSTED,
+        )
+    )
+    
+    je_result = await db.execute(je_query)
+    je_stats = je_result.first()
+    
+    return {
+        "immutable_ledger": {
+            "entry_count": ledger_stats.count or 0,
+            "first_entry_date": ledger_stats.first_date.isoformat() if ledger_stats.first_date else None,
+            "last_entry_date": ledger_stats.last_date.isoformat() if ledger_stats.last_date else None,
+            "total_debit": str(ledger_stats.total_debit or 0),
+            "total_credit": str(ledger_stats.total_credit or 0),
+            "status": "populated" if (ledger_stats.count or 0) > 0 else "empty"
+        },
+        "journal_entries": {
+            "posted_count": je_stats.count or 0,
+            "first_entry_date": je_stats.first_date.isoformat() if je_stats.first_date else None,
+            "last_entry_date": je_stats.last_date.isoformat() if je_stats.last_date else None,
+            "sync_status": "synced" if ledger_stats.count == je_stats.count else "needs_sync" if je_stats.count > 0 else "no_entries"
+        },
+        "recommendations": (
+            ["Run 'Sync Ledger' to populate immutable ledger from journal entries"]
+            if (ledger_stats.count or 0) == 0 and (je_stats.count or 0) > 0
+            else ["Ledger is up to date"] if ledger_stats.count == je_stats.count
+            else ["Some journal entries may not be synced - consider running sync"]
+        )
+    }

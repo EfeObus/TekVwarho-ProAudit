@@ -34,7 +34,7 @@
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
-                    📊 Financial Reports
+                     Financial Reports
                 </a>
                 <button @click="showJournalEntryModal = true" 
                         class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
@@ -68,7 +68,7 @@
             <button @click="activeTab = 'intercompany'" 
                     :class="activeTab === 'intercompany' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-                🏢 Intercompany
+                 Intercompany
             </button>
         </nav>
     </div>
@@ -84,7 +84,7 @@
                         <button @click="initializeDefaultCOA()" 
                                 x-show="accounts.length === 0"
                                 class="text-sm text-green-600 hover:text-green-800">
-                            🔧 Initialize Default COA
+                             Initialize Default COA
                         </button>
                         <button @click="showAccountModal = true; accountForm = {}; editingAccount = null" 
                                 class="text-sm text-green-600 hover:text-green-800">
@@ -118,7 +118,7 @@
                              :style="'padding-left: ' + (account.level * 1.5 + 1) + 'rem'">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center space-x-2">
-                                    <span x-show="account.is_header" class="text-gray-400">📁</span>
+                                    <span x-show="account.is_header" class="text-gray-400"></span>
                                     <span x-show="!account.is_header" class="text-gray-400">📄</span>
                                     <span class="font-mono text-sm text-gray-500" x-text="account.account_code"></span>
                                     <span class="font-medium text-gray-900" x-text="account.account_name"></span>
@@ -659,7 +659,7 @@
 
                 <!-- Help Card -->
                 <div class="bg-blue-50 rounded-lg p-4">
-                    <h4 class="font-medium text-blue-900 mb-2">💡 Intercompany Transactions</h4>
+                    <h4 class="font-medium text-blue-900 mb-2"> Intercompany Transactions</h4>
                     <ul class="text-sm text-blue-800 space-y-1">
                         <li>• Track transactions between related entities</li>
                         <li>• Eliminate for consolidated statements</li>

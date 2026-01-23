@@ -17,9 +17,11 @@ from io import BytesIO
 from app.database import get_async_session
 from app.dependencies import get_current_active_user
 from app.models.user import User
+from app.models.audit_consolidated import AuditAction
 from app.services.entity_service import EntityService
 from app.services.ocr_service import OCRService, ExtractedReceiptData
 from app.services.file_storage_service import FileStorageService, FileCategory
+from app.services.audit_service import AuditService
 from app.schemas.auth import MessageResponse
 
 
@@ -179,6 +181,22 @@ async def upload_receipt(
             content_type=file.content_type,
         )
         extracted_data = receipt_data.to_dict()
+    
+    # Audit log for receipt upload
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="receipt",
+        entity_id=upload_result["file_id"],
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "filename": upload_result["filename"],
+            "content_type": upload_result["content_type"],
+            "size": upload_result["size"],
+            "ocr_processed": process_ocr,
+        },
+    )
     
     return ReceiptUploadResponse(
         file_id=upload_result["file_id"],
@@ -404,6 +422,17 @@ async def delete_file(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found",
         )
+    
+    # Audit log for file deletion
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="receipt",
+        entity_id=file_id,
+        action=AuditAction.DELETE,
+        user_id=current_user.id,
+        old_values={"file_id": file_id},
+    )
     
     return MessageResponse(message="File deleted successfully")
 

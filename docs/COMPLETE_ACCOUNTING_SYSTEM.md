@@ -1102,9 +1102,9 @@ When creating/posting/reversing journal entries, the system checks:
 
 | Period Status | Action | Result |
 |---------------|--------|--------|
-| OPEN | Create/Post/Reverse | ✅ Allowed |
-| CLOSED | Create/Post/Reverse | ❌ "Reopen the period or use a different date" |
-| LOCKED | Create/Post/Reverse | ❌ "Period has been permanently locked" |
+| OPEN | Create/Post/Reverse | Yes Allowed |
+| CLOSED | Create/Post/Reverse | No "Reopen the period or use a different date" |
+| LOCKED | Create/Post/Reverse | No "Period has been permanently locked" |
 
 ### 15.3 Error Messages
 

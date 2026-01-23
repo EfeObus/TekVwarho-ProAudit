@@ -23,8 +23,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, Uplo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models.entity import BusinessEntity
+from app.models.sku import Feature
 from app.models.user import User
 from app.models.bank_reconciliation import (
     BankAccountType, BankAccountCurrency, BankStatementSource,
@@ -36,6 +37,8 @@ from app.services.bank_reconciliation_service import (
 )
 from app.services.bank_integration_service import BankIntegrationService
 from app.services.matching_engine import MatchingConfig
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.schemas.bank_reconciliation import (
     BankAccountCreate, BankAccountUpdate, BankAccountResponse,
     BankStatementTransactionResponse, BankStatementImportCreate,
@@ -51,6 +54,9 @@ from app.schemas.bank_reconciliation import (
 )
 
 router = APIRouter(prefix="/bank-reconciliation", tags=["Bank Reconciliation"])
+
+# Feature gate for bank reconciliation - requires Professional tier or higher
+bank_recon_feature_gate = require_feature([Feature.BANK_RECONCILIATION])
 
 
 # Helper to get entity
@@ -114,6 +120,22 @@ async def create_bank_account(
         okra_account_id=account_data.okra_account_id,
         stitch_account_id=account_data.stitch_account_id,
     )
+    
+    # Audit logging
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="bank_account",
+        entity_id=str(account.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "bank_name": account_data.bank_name,
+            "account_name": account_data.account_name,
+            "account_number": account_data.account_number[-4:] if account_data.account_number else None,  # Last 4 digits only
+        }
+    )
+    
     return account
 
 
@@ -540,6 +562,22 @@ async def create_reconciliation(
         reference=recon_data.reference,
         created_by_id=current_user.id,
     )
+    
+    # Audit logging
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="bank_reconciliation",
+        entity_id=str(reconciliation.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "reconciliation_date": str(recon_data.reconciliation_date),
+            "period": f"{recon_data.period_start} to {recon_data.period_end}",
+            "bank_account_id": str(recon_data.bank_account_id),
+        }
+    )
+    
     return reconciliation
 
 
@@ -620,6 +658,21 @@ async def auto_match_transactions(
         reconciliation_id=reconciliation_id,
         entity_id=account.entity_id,
         config=matching_config,
+    )
+    
+    # Audit logging
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=account.entity_id,
+        entity_type="bank_reconciliation",
+        entity_id=str(reconciliation_id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        new_values={
+            "action": "auto_match",
+            "matches_found": result.get("matched_count", 0),
+            "total_processed": result.get("total_processed", 0),
+        }
     )
     
     return AutoMatchResult(**result)

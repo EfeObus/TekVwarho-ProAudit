@@ -24,6 +24,8 @@ from app.database import get_async_session
 from app.dependencies import get_current_active_user, require_organization_permission
 from app.models.user import User, UserRole
 from app.models.organization import Organization, OrganizationType, VerificationStatus
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.utils.permissions import OrganizationPermission
 
 
@@ -257,6 +259,14 @@ async def update_organization_settings(
     """Update organization settings."""
     organization = await get_organization(org_id, current_user, db)
     
+    # Capture old values for audit
+    old_values = {
+        "name": organization.name,
+        "email": organization.email,
+        "phone": organization.phone,
+        "fiscal_year_start_month": getattr(organization, 'fiscal_year_start_month', 1),
+    }
+    
     update_data = request.model_dump(exclude_unset=True)
     
     for key, value in update_data.items():
@@ -265,6 +275,24 @@ async def update_organization_settings(
     
     await db.commit()
     await db.refresh(organization)
+    
+    # Audit logging for settings update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=org_id,
+        entity_type="organization_settings",
+        entity_id=str(org_id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        old_values=old_values,
+        new_values={
+            "name": organization.name,
+            "email": organization.email,
+            "phone": organization.phone,
+            "fiscal_year_start_month": getattr(organization, 'fiscal_year_start_month', 1),
+            "updated_fields": list(update_data.keys()),
+        }
+    )
     
     return OrganizationSettingsResponse(
         id=organization.id,

@@ -734,3 +734,196 @@ async def business_insights_page(
     })
     set_entity_cookie_if_needed(response, request, entity_id)
     return response
+
+
+# ===========================================
+# FEATURE GATE - UPGRADE PROMPTS
+# ===========================================
+
+@router.get("/feature-unavailable", response_class=HTMLResponse)
+async def feature_unavailable_page(
+    request: Request,
+    feature: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Display upgrade prompt when a feature is not available.
+    
+    This page is shown when:
+    - User tries to access a feature not in their SKU tier
+    - Feature check fails at API or UI level
+    
+    Query params:
+        feature: The feature that was denied (e.g., 'payroll', 'bank_reconciliation')
+    """
+    from app.utils.sku_context import get_sku_context, get_feature_upgrade_prompt
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Get SKU context for the user's organization
+    sku = None
+    if user and user.organization_id:
+        sku = await get_sku_context(db, user.organization_id)
+    
+    # Get feature-specific upgrade prompt info
+    feature_info = get_feature_upgrade_prompt(feature) if feature else {}
+    
+    response = templates.TemplateResponse("feature_unavailable.html", {
+        "request": request,
+        "sku": sku,
+        "feature": feature,
+        "feature_title": feature_info.get("title", "Feature Unavailable"),
+        "feature_description": feature_info.get("description", "This feature requires a higher tier plan."),
+        "feature_icon": feature_info.get("icon", "⭐"),
+        "required_tier": feature_info.get("required_tier", "professional"),
+        **get_auth_context(user, entity_id),
+    })
+    return response
+
+
+@router.get("/pricing", response_class=HTMLResponse)
+async def pricing_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Pricing page showing all SKU tiers.
+    
+    Displays:
+    - Core, Professional, Enterprise tier pricing (in Naira)
+    - Intelligence add-on pricing
+    - Feature comparison matrix
+    """
+    from app.utils.sku_context import get_sku_context
+    from app.config.sku_config import TIER_PRICING, INTELLIGENCE_PRICING
+    
+    user = await get_user_from_token(request, db)
+    entity_id = get_entity_id_from_session(request)
+    
+    # Get SKU context if user is logged in
+    sku = None
+    if user and user.organization_id:
+        sku = await get_sku_context(db, user.organization_id)
+    
+    return templates.TemplateResponse("pricing.html", {
+        "request": request,
+        "sku": sku,
+        "tier_pricing": TIER_PRICING,
+        "intelligence_pricing": INTELLIGENCE_PRICING,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/checkout", response_class=HTMLResponse)
+async def checkout_page(
+    request: Request,
+    tier: str = None,
+    billing_cycle: str = "monthly",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Checkout page for subscription upgrades.
+    
+    Requires authentication. Allows users to:
+    - Select tier and billing cycle
+    - Add intelligence add-on
+    - Add additional users
+    - Proceed to Paystack payment
+    """
+    from app.utils.sku_context import get_sku_context
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Get current SKU context
+    sku = None
+    if user and user.organization_id:
+        sku = await get_sku_context(db, user.organization_id)
+    
+    return templates.TemplateResponse("checkout.html", {
+        "request": request,
+        "sku": sku,
+        "tier": tier or (sku.tier.value if sku else "professional"),
+        "billing_cycle": billing_cycle,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/payment-success", response_class=HTMLResponse)
+async def payment_success_page(
+    request: Request,
+    reference: str = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Payment success page.
+    
+    Shown after successful Paystack payment verification.
+    Displays order confirmation and next steps.
+    """
+    from datetime import datetime
+    from app.utils.sku_context import get_sku_context
+    from app.services.billing_service import BillingService
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Get current SKU context (should be updated after payment)
+    sku = None
+    tier_name = "Professional"
+    amount = None
+    
+    if user and user.organization_id:
+        sku = await get_sku_context(db, user.organization_id)
+        if sku:
+            tier_name = sku.tier_display_name
+    
+    # Verify payment if reference provided
+    if reference:
+        try:
+            billing_service = BillingService(db)
+            result = await billing_service.verify_and_process_payment(reference)
+            if result.success and result.amount:
+                amount = result.amount
+        except Exception:
+            pass  # Don't fail the success page if verification has issues
+    
+    return templates.TemplateResponse("payment_success.html", {
+        "request": request,
+        "sku": sku,
+        "tier_name": tier_name,
+        "reference": reference,
+        "amount": amount,
+        "now": datetime.now,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/payment-failed", response_class=HTMLResponse)
+async def payment_failed_page(
+    request: Request,
+    tier: str = None,
+    error: str = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Payment failed page.
+    
+    Shown when payment is cancelled or fails.
+    Provides options to retry or contact support.
+    """
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    return templates.TemplateResponse("payment_failed.html", {
+        "request": request,
+        "tier": tier,
+        "error_message": error,
+        **get_auth_context(user, entity_id),
+    })
+

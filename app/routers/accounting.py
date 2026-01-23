@@ -3,6 +3,9 @@ TekVwarho ProAudit - Accounting Router
 
 API endpoints for Chart of Accounts and General Ledger operations.
 This is the central accounting API that all financial modules integrate with.
+
+SKU Usage Metering:
+- Journal entry creation counts toward transaction limits
 """
 
 import uuid
@@ -18,6 +21,7 @@ from app.models.user import User
 from app.models.accounting import (
     AccountType, JournalEntryStatus, JournalEntryType, FiscalPeriodStatus
 )
+from app.models.audit_consolidated import AuditAction
 from app.schemas.accounting import (
     ChartOfAccountsCreate, ChartOfAccountsUpdate, ChartOfAccountsResponse,
     ChartOfAccountsTree,
@@ -33,6 +37,8 @@ from app.schemas.accounting import (
     FixedAssetRegisterSummary, GLFixedAssetValidation, EnhancedBalanceSheetReport,
 )
 from app.services.accounting_service import AccountingService
+from app.services.audit_service import AuditService
+from app.services.metering_service import MeteringService
 
 
 router = APIRouter(prefix="/api/v1/entities/{entity_id}/accounting", tags=["Accounting"])
@@ -142,6 +148,22 @@ async def create_account(
             data=data,
             user_id=current_user.id,
         )
+        
+        # Audit log for account creation
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="chart_of_accounts",
+            entity_id=str(account.id),
+            action=AuditAction.CREATE,
+            user_id=current_user.id,
+            new_values={
+                "account_code": data.account_code,
+                "account_name": data.account_name,
+                "account_type": data.account_type.value if hasattr(data.account_type, 'value') else str(data.account_type),
+            },
+        )
+        
         await db.commit()
         return account
     except ValueError as e:
@@ -339,6 +361,34 @@ async def create_journal_entry(
             data=data,
             user_id=current_user.id,
         )
+        
+        # Audit log for journal entry creation
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="journal_entry",
+            entity_id=str(entry.id),
+            action=AuditAction.CREATE,
+            user_id=current_user.id,
+            new_values={
+                "entry_number": entry.entry_number,
+                "description": data.description,
+                "total_amount": float(entry.total_debit) if hasattr(entry, 'total_debit') else 0,
+                "entry_type": data.entry_type.value if hasattr(data.entry_type, 'value') else str(data.entry_type),
+            },
+        )
+        
+        # Record usage metering for SKU tier limits
+        # Journal entries count as transactions
+        if current_user.organization_id:
+            metering_service = MeteringService(db)
+            await metering_service.record_transaction(
+                organization_id=current_user.organization_id,
+                entity_id=entity_id,
+                user_id=current_user.id,
+                transaction_id=str(entry.id),
+            )
+        
         await db.commit()
         return entry
     except ValueError as e:
@@ -375,6 +425,21 @@ async def post_journal_entry(
             entry_id=entry_id,
             user_id=current_user.id,
         )
+        
+        # Audit log for journal entry posting
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="journal_entry",
+            entity_id=str(entry.id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            new_values={
+                "status": "POSTED",
+                "posted_at": entry.posted_at.isoformat() if entry.posted_at else None,
+            },
+        )
+        
         await db.commit()
         return entry
     except ValueError as e:

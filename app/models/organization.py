@@ -28,14 +28,27 @@ from app.models.base import BaseModel
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.entity import BusinessEntity
+    from app.models.sku import TenantSKU, UsageRecord
 
 
 class SubscriptionTier(str, Enum):
-    """Subscription tiers for organizations."""
-    FREE = "free"           # Limited features
-    STARTER = "starter"     # Basic features
-    PROFESSIONAL = "professional"  # Full features
-    ENTERPRISE = "enterprise"      # Custom features
+    """
+    DEPRECATED: Legacy subscription tiers for organizations.
+    
+    This enum is kept for backwards compatibility with existing database data.
+    New code should use the TenantSKU model and SKUTier enum from app.models.sku
+    for commercial feature gating.
+    
+    Migration Path:
+    - FREE -> SKUTier.CORE (trial)
+    - STARTER -> SKUTier.CORE
+    - PROFESSIONAL -> SKUTier.PROFESSIONAL
+    - ENTERPRISE -> SKUTier.ENTERPRISE
+    """
+    FREE = "free"           # Maps to CORE (trial)
+    STARTER = "starter"     # Maps to CORE
+    PROFESSIONAL = "professional"  # Maps to PROFESSIONAL
+    ENTERPRISE = "enterprise"      # Maps to ENTERPRISE
 
 
 class OrganizationType(str, Enum):
@@ -162,6 +175,21 @@ class Organization(BaseModel):
     )
     entities: Mapped[List["BusinessEntity"]] = relationship(
         "BusinessEntity",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    
+    # SKU relationship (Commercial tier management)
+    tenant_sku: Mapped[Optional["TenantSKU"]] = relationship(
+        "TenantSKU",
+        back_populates="organization",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    
+    # Usage records relationship
+    usage_records: Mapped[List["UsageRecord"]] = relationship(
+        "UsageRecord",
         back_populates="organization",
         cascade="all, delete-orphan",
     )

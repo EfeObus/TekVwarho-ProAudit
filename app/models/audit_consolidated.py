@@ -89,6 +89,14 @@ class AuditRunStatus(str, enum.Enum):
 
 class AuditRunType(str, enum.Enum):
     """Type of audit being performed."""
+    # Compliance Audits
+    TAX_COMPLIANCE = "tax_compliance"
+    FINANCIAL_STATEMENT = "financial_statement"
+    VAT_AUDIT = "vat_audit"
+    WHT_AUDIT = "wht_audit"
+    PAYE_AUDIT = "paye_audit"
+    
+    # Forensic Analysis
     BENFORDS_LAW = "benfords_law"
     ZSCORE_ANOMALY = "zscore_anomaly"
     NRS_GAP_ANALYSIS = "nrs_gap_analysis"
@@ -97,6 +105,8 @@ class AuditRunType(str, enum.Enum):
     FULL_FORENSIC = "full_forensic"
     COMPLIANCE_REPLAY = "compliance_replay"
     BEHAVIORAL_ANALYTICS = "behavioral_analytics"
+    
+    # Custom
     CUSTOM = "custom"
 
 
@@ -177,8 +187,9 @@ class AuditLog(Base):
     # Entity Context (business entity)
     entity_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
-        nullable=True,  # Allow NULL for platform-level actions
+        nullable=True,
         index=True,
+        comment="Business entity ID (nullable for system-level events like login failures)",
     )
     
     # Organization Context (for multi-tenant queries)
@@ -191,8 +202,17 @@ class AuditLog(Base):
     # User Context
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
-        nullable=True,  # System actions may not have a user
+        nullable=True,
         index=True,
+        comment="User ID (nullable for unauthenticated actions like login failures)",
+    )
+    
+    # User Email (required for audit trail - denormalized for efficiency)
+    user_email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="system@tekvwarho.com",
+        comment="Email of user who performed the action",
     )
     
     # Impersonation Context (if CSR is impersonating)
@@ -203,22 +223,39 @@ class AuditLog(Base):
     )
     
     # Action
-    action: Mapped[AuditAction] = mapped_column(
-        Enum(AuditAction),
+    action: Mapped[str] = mapped_column(
+        String(50),
         nullable=False,
         index=True,
+        comment="Action performed (CREATE, UPDATE, DELETE, etc.)",
+    )
+    
+    # Legacy fields (table_name and record_id for database compatibility)
+    table_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True,
+        default="",
+        comment="Table name for the affected entity (legacy field)",
+    )
+    record_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        default=uuid.uuid4,
+        comment="Record ID in the table (legacy field)",
     )
     
     # Target Entity
-    target_entity_type: Mapped[str] = mapped_column(
+    target_entity_type: Mapped[Optional[str]] = mapped_column(
         String(100),
-        nullable=False,
+        nullable=True,
         index=True,
+        default="",
         comment="Type of entity (transaction, invoice, etc.)",
     )
-    target_entity_id: Mapped[str] = mapped_column(
+    target_entity_id: Mapped[Optional[str]] = mapped_column(
         String(100),
-        nullable=False,
+        nullable=True,
         index=True,
         comment="ID of the affected entity",
     )
@@ -301,7 +338,8 @@ class AuditLog(Base):
     )
     
     def __repr__(self) -> str:
-        return f"<AuditLog(id={self.id}, action={self.action.value}, type={self.target_entity_type})>"
+        action_str = self.action if isinstance(self.action, str) else self.action.value
+        return f"<AuditLog(id={self.id}, action={action_str}, type={self.target_entity_type})>"
 
 
 # ===========================================
@@ -327,6 +365,28 @@ class AuditRun(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+    
+    # Human-readable Run ID (for display)
+    run_id: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        unique=True,
+        index=True,
+        comment="Human-readable run identifier (e.g., RUN-2026-001)",
+    )
+    
+    # Title and Description
+    title: Mapped[str] = mapped_column(
+        String(200),
+        nullable=False,
+        comment="Human-readable title for this audit run",
+    )
+    
+    description: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Detailed description of the audit run purpose",
     )
     
     # Entity Context

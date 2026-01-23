@@ -6,6 +6,9 @@ API endpoints for invoice management with NRS e-invoicing support.
 NTAA 2025 Compliance:
 - 72-Hour Legal Lock: Submitted invoices are locked
 - Only Owner can cancel NRS submissions during the 72-hour window
+
+SKU Usage Metering:
+- Invoice creation is metered for SKU tier limits
 """
 
 from datetime import date, datetime
@@ -22,6 +25,7 @@ from app.models.user import User, UserRole
 from app.models.invoice import InvoiceStatus, VATTreatment
 from app.services.invoice_service import InvoiceService
 from app.services.entity_service import EntityService
+from app.services.metering_service import MeteringService
 from app.schemas.auth import MessageResponse
 from app.utils.permissions import OrganizationPermission, has_organization_permission
 
@@ -359,6 +363,16 @@ async def create_invoice(
         notes=request.notes,
         terms=request.terms,
     )
+    
+    # Record usage metering for SKU tier limits
+    if current_user.organization_id:
+        metering_service = MeteringService(db)
+        await metering_service.record_invoice(
+            organization_id=current_user.organization_id,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            invoice_id=str(invoice.id),
+        )
     
     return invoice_to_response(invoice)
 

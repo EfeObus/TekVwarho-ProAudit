@@ -199,7 +199,7 @@ def sync_gl_balances():
         
         conn.commit()
         print('=' * 60)
-        print('✅ GL Sync completed successfully!')
+        print('[OK] GL Sync completed successfully!')
 
 if __name__ == '__main__':
     sync_gl_balances()

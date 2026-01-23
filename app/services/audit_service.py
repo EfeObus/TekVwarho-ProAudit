@@ -7,13 +7,14 @@ Comprehensive audit logging for compliance.
 import uuid
 from datetime import datetime, date
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, Tuple
 from dataclasses import dataclass
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_consolidated import AuditLog, AuditAction
+from app.models.user import User
 
 
 @dataclass
@@ -68,12 +69,25 @@ class AuditService:
         if action == AuditAction.UPDATE and old_values and new_values:
             changes = self._calculate_changes(old_values, new_values)
         
+        # Fetch user email if user_id is provided
+        user_email = "system@tekvwarho.com"  # Default for system actions
+        if user_id:
+            user_result = await self.db.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = user_result.scalar_one_or_none()
+            if user:
+                user_email = user.email
+        
         audit_log = AuditLog(
             entity_id=business_entity_id,
             target_entity_type=entity_type,
             target_entity_id=entity_id,
-            action=action,
+            action=action.value if hasattr(action, 'value') else str(action),  # Convert enum to string
             user_id=user_id,
+            user_email=user_email,
+            table_name=entity_type,  # Required field - use entity_type
+            record_id=uuid.UUID(entity_id) if entity_id and len(entity_id) == 36 else uuid.uuid4(),  # Required field
             old_values=old_values,
             new_values=new_values,
             changes=changes,
@@ -83,6 +97,7 @@ class AuditService:
         
         self.db.add(audit_log)
         await self.db.flush()
+        await self.db.commit()  # Ensure the audit log is persisted
         
         return audit_log
     
@@ -119,7 +134,8 @@ class AuditService:
         end_date: Optional[date] = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[AuditLog]:
+        return_total: bool = False,
+    ) -> Union[List[AuditLog], Tuple[List[AuditLog], int]]:
         """
         Get audit logs with optional filtering.
         
@@ -133,34 +149,49 @@ class AuditService:
             end_date: Filter by date range end
             skip: Pagination offset
             limit: Pagination limit
+            return_total: If True, return (logs, total_count) tuple
         
         Returns:
-            List of matching audit logs
+            List of matching audit logs, or tuple of (logs, total_count) if return_total=True
         """
-        query = select(AuditLog).where(AuditLog.entity_id == entity_id)
+        # Build base filter conditions
+        conditions = [AuditLog.entity_id == entity_id]
         
         if target_entity_type:
-            query = query.where(AuditLog.target_entity_type == target_entity_type)
+            conditions.append(AuditLog.target_entity_type == target_entity_type)
         
         if target_entity_id:
-            query = query.where(AuditLog.target_entity_id == target_entity_id)
+            conditions.append(AuditLog.target_entity_id == target_entity_id)
         
         if action:
-            query = query.where(AuditLog.action == action)
+            conditions.append(AuditLog.action == action)
         
         if user_id:
-            query = query.where(AuditLog.user_id == user_id)
+            conditions.append(AuditLog.user_id == user_id)
         
         if start_date:
-            query = query.where(func.date(AuditLog.created_at) >= start_date)
+            conditions.append(func.date(AuditLog.created_at) >= start_date)
         
         if end_date:
-            query = query.where(func.date(AuditLog.created_at) <= end_date)
+            conditions.append(func.date(AuditLog.created_at) <= end_date)
         
+        # Get total count if requested
+        total = 0
+        if return_total:
+            count_query = select(func.count(AuditLog.id)).where(*conditions)
+            count_result = await self.db.execute(count_query)
+            total = count_result.scalar() or 0
+        
+        # Get paginated results
+        query = select(AuditLog).where(*conditions)
         query = query.order_by(AuditLog.created_at.desc()).offset(skip).limit(limit)
         
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        logs = list(result.scalars().all())
+        
+        if return_total:
+            return logs, total
+        return logs
     
     async def get_entity_history(
         self,
@@ -184,7 +215,7 @@ class AuditService:
         for log in reversed(logs):  # Oldest first
             entry = {
                 "timestamp": log.created_at.isoformat(),
-                "action": log.action.value,
+                "action": log.action if isinstance(log.action, str) else log.action.value,
                 "user_id": str(log.user_id) if log.user_id else None,
             }
             
@@ -230,7 +261,7 @@ class AuditService:
         
         activity = {}
         for row in result:
-            action_name = row.action.value
+            action_name = row.action if isinstance(row.action, str) else row.action.value
             if action_name not in activity:
                 activity[action_name] = {}
             activity[action_name][row.target_entity_type] = row.count
@@ -264,7 +295,7 @@ class AuditService:
             .group_by(AuditLog.action)
         )
         
-        by_action = {row.action.value: row.count for row in action_counts}
+        by_action = {(row.action if isinstance(row.action, str) else row.action.value): row.count for row in action_counts}
         
         # Count by entity type
         entity_counts = await self.db.execute(

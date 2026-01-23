@@ -36,6 +36,8 @@ from app.services.nrs_service import (
     NRSDisputeResponse,
     get_nrs_client,
 )
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 router = APIRouter(prefix="/nrs", tags=["NRS Integration"])
 
@@ -254,6 +256,25 @@ async def submit_invoice(
     )
     
     invoice_type = "B2B" if request.buyer_tin else "B2C"
+    
+    # Audit logging for NRS submission
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="invoice",
+        entity_id=request.invoice_number,
+        action=AuditAction.NRS_SUBMIT,
+        user_id=current_user.id,
+        new_values={
+            "irn": result.irn,
+            "invoice_number": request.invoice_number,
+            "invoice_type": invoice_type,
+            "total_amount": request.total_amount,
+            "vat_amount": request.vat_amount,
+            "buyer_name": request.buyer_name,
+            "success": result.success,
+        }
+    )
     
     return NRSInvoiceSubmitResponse(
         success=result.success,

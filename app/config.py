@@ -138,6 +138,30 @@ class Settings(BaseSettings):
         return self.stitch_sandbox_url if self.stitch_sandbox_mode else self.stitch_base_url
     
     # ===========================================
+    # PAYSTACK PAYMENT GATEWAY (https://paystack.com)
+    # Used for: Subscription payments, billing, SKU tier upgrades
+    # Nigerian Naira (NGN) transactions
+    # ===========================================
+    paystack_secret_key: str = ""
+    paystack_public_key: str = ""
+    paystack_webhook_secret: str = ""
+    paystack_sandbox_mode: bool = True
+    paystack_base_url: str = "https://api.paystack.co"
+    
+    @property
+    def paystack_is_live(self) -> bool:
+        """Check if using live Paystack keys (sk_live_*)."""
+        return self.paystack_secret_key.startswith("sk_live_")
+    
+    @property
+    def paystack_headers(self) -> dict:
+        """Get headers for Paystack API requests."""
+        return {
+            "Authorization": f"Bearer {self.paystack_secret_key}",
+            "Content-Type": "application/json",
+        }
+    
+    # ===========================================
     # FILE STORAGE
     # ===========================================
     storage_backend: str = "local"

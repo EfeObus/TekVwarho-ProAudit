@@ -122,8 +122,8 @@
                                       }"
                                       x-text="log.action.toUpperCase()"></span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.target_entity_type"></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono" x-text="log.target_entity_id.substring(0, 8) + '...'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.target_entity_type || '-'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono" x-text="log.target_entity_id ? log.target_entity_id.substring(0, 8) + '...' : '-'"></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.user_id ? log.user_id.substring(0, 8) + '...' : 'System'"></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="log.ip_address || '-'"></td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -320,7 +320,61 @@ function auditLogs() {
         },
         
         async exportLogs() {
-            alert('Audit logs export feature coming soon!');
+            try {
+                // Build query parameters from filters
+                const params = new URLSearchParams();
+                if (this.filters.startDate) params.append('start_date', this.filters.startDate);
+                if (this.filters.endDate) params.append('end_date', this.filters.endDate);
+                if (this.filters.action) params.append('action_type', this.filters.action);
+                params.append('format', 'csv');
+                
+                const url = `/api/v1/${this.entityId}/exports/audit-trail?${params.toString()}`;
+                
+                // Use fetch with blob to handle file download
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${this.getToken()}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Export failed');
+                }
+                
+                // Get the filename from Content-Disposition header or generate one
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = `audit_trail_${this.entityId}_${new Date().toISOString().split('T')[0]}.csv`;
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename=(.+)/);
+                    if (filenameMatch) filename = filenameMatch[1];
+                }
+                
+                // Create blob and download
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(downloadUrl);
+                
+                // Show success message
+                this.showNotification('Audit trail exported successfully!', 'success');
+            } catch (error) {
+                console.error('Export error:', error);
+                this.showNotification('Failed to export audit trail. Please try again.', 'error');
+            }
+        },
+        
+        showNotification(message, type) {
+            // Simple notification - you can replace with your notification system
+            const div = document.createElement('div');
+            div.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`;
+            div.textContent = message;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
         },
         
         getToken() {

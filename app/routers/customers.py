@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.dependencies import get_current_active_user
 from app.models.user import User
+from app.models.audit_consolidated import AuditAction
 from app.schemas.auth import MessageResponse
 from app.schemas.customer import (
     CustomerCreateRequest,
@@ -22,6 +23,7 @@ from app.schemas.customer import (
 )
 from app.services.customer_service import CustomerService
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
 
 
 router = APIRouter()
@@ -132,6 +134,23 @@ async def create_customer(
         state=request.state,
         is_business=request.is_business,
         notes=request.notes,
+    )
+    
+    # Audit log for customer creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="customer",
+        entity_id=str(customer.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "name": request.name,
+            "tin": request.tin,
+            "email": request.email,
+            "phone": request.phone,
+            "is_business": request.is_business,
+        },
     )
     
     return CustomerResponse(
@@ -252,8 +271,29 @@ async def update_customer(
             detail="Customer not found",
         )
     
+    # Store old values for audit
+    old_values = {
+        "name": customer.name,
+        "tin": customer.tin,
+        "email": customer.email,
+        "phone": customer.phone,
+    }
+    
     update_data = request.model_dump(exclude_unset=True)
     customer = await customer_service.update_customer(customer, **update_data)
+    
+    # Audit log for customer update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="customer",
+        entity_id=str(customer.id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        old_values=old_values,
+        new_values=update_data,
+    )
+    
     stats = await customer_service.get_customer_stats(customer)
     
     return CustomerResponse(
@@ -317,7 +357,26 @@ async def delete_customer(
             detail="Customer not found",
         )
     
+    # Store customer data for audit before deletion
+    deleted_values = {
+        "name": customer.name,
+        "tin": customer.tin,
+        "email": customer.email,
+    }
+    deleted_id = str(customer.id)
+    
     await customer_service.delete_customer(customer)
+    
+    # Audit log for customer deletion
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="customer",
+        entity_id=deleted_id,
+        action=AuditAction.DELETE,
+        user_id=current_user.id,
+        old_values=deleted_values,
+    )
     
     return MessageResponse(
         message="Customer deleted successfully",

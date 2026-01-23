@@ -14,8 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.dependencies import get_current_active_user
 from app.models.user import User
+from app.models.audit_consolidated import AuditAction
 from app.services.entity_service import EntityService
 from app.services.inventory_service import InventoryService
+from app.services.audit_service import AuditService
 from app.schemas.inventory import (
     InventoryItemCreate,
     InventoryItemUpdate,
@@ -275,6 +277,15 @@ async def update_inventory_item(
             detail="Inventory item not found",
         )
     
+    # Store old values for audit
+    old_values = {
+        "sku": existing.sku,
+        "name": existing.name,
+        "unit_cost": float(existing.unit_cost),
+        "unit_price": float(existing.unit_price),
+        "quantity_on_hand": existing.quantity_on_hand,
+    }
+    
     update_data = request.model_dump(exclude_unset=True)
     
     try:
@@ -284,6 +295,18 @@ async def update_inventory_item(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    
+    # Audit log for inventory item update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="inventory_item",
+        entity_id=str(item.id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        old_values=old_values,
+        new_values=update_data,
+    )
     
     return InventoryItemResponse(
         id=item.id,
@@ -331,7 +354,26 @@ async def delete_inventory_item(
             detail="Inventory item not found",
         )
     
+    # Store inventory item data for audit before deletion
+    deleted_values = {
+        "sku": existing.sku,
+        "name": existing.name,
+        "quantity_on_hand": existing.quantity_on_hand,
+    }
+    deleted_id = str(existing.id)
+    
     await service.delete_item(item_id)
+    
+    # Audit log for inventory item deletion
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="inventory_item",
+        entity_id=deleted_id,
+        action=AuditAction.DELETE,
+        user_id=current_user.id,
+        old_values=deleted_values,
+    )
     
     return MessageResponse(message="Inventory item deactivated successfully")
 

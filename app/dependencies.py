@@ -8,10 +8,11 @@ This module provides dependency injection for:
 2. Current user authentication
 3. Role-based access control for platform staff
 4. Permission-based access control for organization users
+5. Feature gating based on SKU tier
 """
 
 import uuid
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -22,6 +23,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_async_session
 from app.models.user import User, UserRole, UserEntityAccess, PlatformRole
 from app.models.organization import Organization
+from app.models.sku import Feature, SKUTier, UsageMetricType
 from app.utils.security import verify_access_token
 from app.utils.permissions import (
     PlatformPermission,
@@ -371,6 +373,37 @@ def require_admin_or_above():
     return require_platform_role([PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN])
 
 
+async def get_current_platform_admin(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    """
+    Get current user and verify they are a platform admin (ADMIN or SUPER_ADMIN).
+    
+    This is a direct dependency (not a factory) for simpler usage in routers.
+    
+    Usage:
+        @router.get("/admin/endpoint")
+        async def admin_endpoint(user: User = Depends(get_current_platform_admin)):
+            ...
+    
+    Raises:
+        HTTPException: If user is not a platform admin
+    """
+    if not current_user.is_platform_staff:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin access required",
+        )
+    
+    if current_user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient platform permissions. Required: Admin or Super Admin",
+        )
+    
+    return current_user
+
+
 # ===========================================
 # ORGANIZATION USER RBAC DEPENDENCIES
 # ===========================================
@@ -486,3 +519,259 @@ async def get_optional_user(
         return await get_current_user(credentials, db)
     except HTTPException:
         return None
+
+
+# ===========================================
+# SKU FEATURE GATING DEPENDENCIES
+# ===========================================
+
+def require_feature(required_features: List[Feature]):
+    """
+    Dependency factory for SKU feature-based access control.
+    
+    Checks if the user's organization has access to the required features
+    based on their SKU tier and any custom overrides.
+    
+    Usage:
+        @router.get("/payroll")
+        async def payroll_endpoint(
+            user: User = Depends(require_feature([Feature.PAYROLL]))
+        ):
+            ...
+    
+    Args:
+        required_features: List of features that must be available
+    
+    Returns:
+        Dependency that validates feature access and returns the user
+    """
+    async def feature_checker(
+        request: Request,
+        current_user: User = Depends(get_current_active_user),
+        db: AsyncSession = Depends(get_async_session),
+    ) -> User:
+        from app.services.feature_flags import FeatureFlagService, FeatureAccessDenied
+        
+        # Platform staff bypass feature checks
+        if current_user.is_platform_staff:
+            return current_user
+        
+        if not current_user.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not associated with an organization",
+            )
+        
+        feature_service = FeatureFlagService(db)
+        
+        # Build request context for logging
+        request_context: Dict[str, Any] = {
+            "endpoint": str(request.url.path),
+            "ip_address": request.client.host if request.client else None,
+            "user_agent": request.headers.get("user-agent"),
+        }
+        
+        # Check each required feature
+        for feature in required_features:
+            try:
+                await feature_service.require_feature(
+                    organization_id=current_user.organization_id,
+                    feature=feature,
+                    user_id=current_user.id,
+                    request_context=request_context,
+                )
+            except FeatureAccessDenied as e:
+                # Get upgrade recommendation
+                recommendation = await feature_service.get_upgrade_recommendation(
+                    organization_id=current_user.organization_id,
+                    denied_feature=feature,
+                )
+                
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "feature_not_available",
+                        "message": str(e),
+                        "feature": feature.value,
+                        "upgrade_recommendation": recommendation,
+                    },
+                )
+        
+        return current_user
+    
+    return feature_checker
+
+
+def require_within_usage_limit(metric: UsageMetricType):
+    """
+    Dependency factory for checking usage limits before allowing an action.
+    
+    Usage:
+        @router.post("/transactions")
+        async def create_transaction(
+            user: User = Depends(require_within_usage_limit(UsageMetricType.TRANSACTIONS))
+        ):
+            ...
+    
+    Args:
+        metric: The usage metric to check limits for
+    
+    Returns:
+        Dependency that validates usage is within limits
+    """
+    async def limit_checker(
+        current_user: User = Depends(get_current_active_user),
+        db: AsyncSession = Depends(get_async_session),
+    ) -> User:
+        from app.services.feature_flags import FeatureFlagService, UsageLimitExceeded
+        from app.services.metering_service import MeteringService
+        
+        # Platform staff bypass limit checks
+        if current_user.is_platform_staff:
+            return current_user
+        
+        if not current_user.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not associated with an organization",
+            )
+        
+        feature_service = FeatureFlagService(db)
+        metering_service = MeteringService(db)
+        
+        # Get current usage for the metric
+        current_usage = await metering_service.get_current_usage(
+            organization_id=current_user.organization_id,
+            metric=metric,
+        )
+        
+        try:
+            await feature_service.require_within_limit(
+                organization_id=current_user.organization_id,
+                metric=metric,
+                current_usage=current_usage,
+            )
+        except UsageLimitExceeded as e:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "usage_limit_exceeded",
+                    "message": str(e),
+                    "metric": metric.value,
+                    "current_usage": current_usage,
+                    "limit": e.limit,
+                    "upgrade_message": "Contact sales to increase your limits or upgrade your plan.",
+                },
+            )
+        
+        return current_user
+    
+    return limit_checker
+
+
+async def get_tenant_sku_context(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+) -> Dict[str, Any]:
+    """
+    Get the SKU context for the current user's organization.
+    
+    Returns a dictionary with:
+    - tier: Current SKU tier
+    - intelligence_addon: Intelligence add-on level
+    - enabled_features: Set of enabled feature names
+    - limits: Dictionary of usage limits
+    
+    Useful for UI rendering to show/hide features.
+    """
+    from app.services.feature_flags import FeatureFlagService
+    
+    if current_user.is_platform_staff:
+        # Platform staff see all features
+        return {
+            "tier": "platform_staff",
+            "intelligence_addon": "full",
+            "enabled_features": [f.value for f in Feature],
+            "limits": {},
+            "is_platform_staff": True,
+        }
+    
+    if not current_user.organization_id:
+        return {
+            "tier": None,
+            "intelligence_addon": None,
+            "enabled_features": [],
+            "limits": {},
+            "error": "No organization associated",
+        }
+    
+    feature_service = FeatureFlagService(db)
+    
+    tier = await feature_service.get_effective_tier(current_user.organization_id)
+    intel_addon = await feature_service.get_intelligence_addon(current_user.organization_id)
+    enabled_features = await feature_service.get_enabled_features(current_user.organization_id)
+    
+    # Get limits for key metrics
+    limits = {}
+    for metric in UsageMetricType:
+        limit = await feature_service.get_limit(current_user.organization_id, metric)
+        limits[metric.value] = limit
+    
+    return {
+        "tier": tier.value,
+        "intelligence_addon": intel_addon.value,
+        "enabled_features": [f.value for f in enabled_features],
+        "limits": limits,
+        "is_platform_staff": False,
+    }
+
+
+# Shortcut dependencies for common feature requirements
+def require_payroll():
+    """Require payroll feature (Professional tier or above)."""
+    return require_feature([Feature.PAYROLL])
+
+
+def require_bank_reconciliation():
+    """Require bank reconciliation feature (Professional tier or above)."""
+    return require_feature([Feature.BANK_RECONCILIATION])
+
+
+def require_advanced_reports():
+    """Require advanced reports feature (Professional tier or above)."""
+    return require_feature([Feature.ADVANCED_REPORTS])
+
+
+def require_worm_vault():
+    """Require WORM vault feature (Enterprise tier only)."""
+    return require_feature([Feature.WORM_VAULT])
+
+
+def require_multi_entity():
+    """Require multi-entity feature (Enterprise tier only)."""
+    return require_feature([Feature.MULTI_ENTITY])
+
+
+def require_intercompany():
+    """Require intercompany feature (Enterprise tier only)."""
+    return require_feature([Feature.INTERCOMPANY])
+
+
+def require_ml_features():
+    """Require ML features (Intelligence add-on required)."""
+    return require_feature([Feature.ML_ANOMALY_DETECTION])
+
+
+def require_benfords_law():
+    """Require Benford's Law analysis (Intelligence add-on required)."""
+    return require_feature([Feature.BENFORDS_LAW])
+
+
+def require_ocr():
+    """Require OCR feature (Intelligence add-on required)."""
+    return require_feature([Feature.OCR_EXTRACTION])
+
+
+def require_api_access():
+    """Require API access (Enterprise tier for full access)."""
+    return require_feature([Feature.FULL_API_ACCESS])

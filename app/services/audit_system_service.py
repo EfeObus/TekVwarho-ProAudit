@@ -341,6 +341,14 @@ class ReproducibleAuditService:
     
     # Current rule versions
     RULE_VERSIONS = {
+        # Compliance Audits
+        AuditRunType.TAX_COMPLIANCE: "tax-v2026.1",
+        AuditRunType.FINANCIAL_STATEMENT: "financial-v2.0.0",
+        AuditRunType.VAT_AUDIT: "vat-v2026.1",
+        AuditRunType.WHT_AUDIT: "wht-v2026.1",
+        AuditRunType.PAYE_AUDIT: "paye-v2026.1",
+        
+        # Forensic Analysis
         AuditRunType.BENFORDS_LAW: "benford-v2.1.0",
         AuditRunType.ZSCORE_ANOMALY: "zscore-v1.3.0",
         AuditRunType.NRS_GAP_ANALYSIS: "nrs-v2026.1",
@@ -349,10 +357,80 @@ class ReproducibleAuditService:
         AuditRunType.FULL_FORENSIC: "forensic-v3.0.0",
         AuditRunType.COMPLIANCE_REPLAY: "replay-v2.0.0",
         AuditRunType.BEHAVIORAL_ANALYTICS: "behavioral-v1.2.0",
+        
+        # Custom
+        AuditRunType.CUSTOM: "custom-v1.0.0",
     }
     
     def __init__(self, db: AsyncSession):
         self.db = db
+    
+    def _generate_run_id(self, run_type: AuditRunType) -> str:
+        """Generate a human-readable run ID."""
+        prefix_map = {
+            AuditRunType.TAX_COMPLIANCE: "TAX",
+            AuditRunType.FINANCIAL_STATEMENT: "FIN",
+            AuditRunType.VAT_AUDIT: "VAT",
+            AuditRunType.WHT_AUDIT: "WHT",
+            AuditRunType.PAYE_AUDIT: "PAYE",
+            AuditRunType.BENFORDS_LAW: "BEN",
+            AuditRunType.ZSCORE_ANOMALY: "ZSCR",
+            AuditRunType.NRS_GAP_ANALYSIS: "NRS",
+            AuditRunType.THREE_WAY_MATCHING: "3WM",
+            AuditRunType.HASH_CHAIN_INTEGRITY: "HASH",
+            AuditRunType.FULL_FORENSIC: "FOR",
+            AuditRunType.COMPLIANCE_REPLAY: "RPL",
+            AuditRunType.BEHAVIORAL_ANALYTICS: "BEH",
+            AuditRunType.CUSTOM: "CUS",
+        }
+        prefix = prefix_map.get(run_type, "AUD")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        random_suffix = uuid.uuid4().hex[:6].upper()
+        return f"{prefix}-{timestamp}-{random_suffix}"
+    
+    async def create_audit_run(
+        self,
+        entity_id: uuid.UUID,
+        run_type: AuditRunType,
+        title: str,
+        date_range_start: date,
+        date_range_end: date,
+        created_by_id: uuid.UUID,
+        description: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> AuditRun:
+        """
+        Create a new reproducible audit run with title and description.
+        
+        This is the main method for creating audit runs from the UI.
+        """
+        rule_version = self.RULE_VERSIONS.get(run_type, "custom-v1.0.0")
+        run_id = self._generate_run_id(run_type)
+        
+        # Merge parameters into rule_config
+        rule_config = parameters or {}
+        
+        audit_run = AuditRun(
+            run_id=run_id,
+            title=title,
+            description=description,
+            entity_id=entity_id,
+            run_type=run_type,
+            status=AuditRunStatus.PENDING,
+            period_start=date_range_start,
+            period_end=date_range_end,
+            rule_version=rule_version,
+            rule_config=rule_config,
+            executed_by=created_by_id,
+            result_summary={},
+            run_hash="pending",  # Will be calculated on completion
+        )
+        
+        self.db.add(audit_run)
+        await self.db.flush()
+        await self.db.refresh(audit_run)
+        
+        return audit_run
     
     async def start_audit_run(
         self,
@@ -361,6 +439,8 @@ class ReproducibleAuditService:
         period_start: date,
         period_end: date,
         executed_by: uuid.UUID,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         data_snapshot_id: Optional[str] = None,
     ) -> AuditRun:
@@ -369,6 +449,11 @@ class ReproducibleAuditService:
         """
         rule_version = self.RULE_VERSIONS.get(run_type, "custom-v1.0.0")
         rule_config = config or {}
+        run_id = self._generate_run_id(run_type)
+        
+        # Generate default title if not provided
+        if not title:
+            title = f"{run_type.value.replace('_', ' ').title()} - {period_start} to {period_end}"
         
         # Calculate data snapshot hash if snapshot provided
         data_snapshot_hash = None
@@ -376,6 +461,9 @@ class ReproducibleAuditService:
             data_snapshot_hash = hashlib.sha256(data_snapshot_id.encode()).hexdigest()
         
         audit_run = AuditRun(
+            run_id=run_id,
+            title=title,
+            description=description,
             entity_id=entity_id,
             run_type=run_type,
             status=AuditRunStatus.PENDING,
@@ -817,6 +905,65 @@ class AdvancedAuditSystemService:
         AuditorRoleEnforcer.enforce_read_only(user, action)
         return True
     
+    async def create_audit_run(
+        self,
+        entity_id: uuid.UUID,
+        run_type: AuditRunType,
+        title: str,
+        date_range_start: date,
+        date_range_end: date,
+        created_by_id: uuid.UUID,
+        description: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> AuditRun:
+        """
+        Create a new reproducible audit run.
+        
+        Delegates to the ReproducibleAuditService.
+        """
+        return await self.audit_service.create_audit_run(
+            entity_id=entity_id,
+            run_type=run_type,
+            title=title,
+            date_range_start=date_range_start,
+            date_range_end=date_range_end,
+            created_by_id=created_by_id,
+            description=description,
+            parameters=parameters,
+        )
+    
+    async def execute_audit_run(self, run_id: str) -> Optional[AuditRun]:
+        """
+        Execute an audit run by its run_id.
+        """
+        stmt = select(AuditRun).where(AuditRun.run_id == run_id)
+        result = await self.db.execute(stmt)
+        audit_run = result.scalar_one_or_none()
+        
+        if not audit_run:
+            return None
+        
+        # Mark as running
+        audit_run.status = AuditRunStatus.RUNNING
+        audit_run.started_at = datetime.now()
+        await self.db.flush()
+        
+        # Execute the audit based on run_type
+        try:
+            # For now, just mark as completed
+            # In a real implementation, this would run the actual audit
+            audit_run.status = AuditRunStatus.COMPLETED
+            audit_run.completed_at = datetime.now()
+            audit_run.run_hash = audit_run.calculate_hash()
+            await self.db.flush()
+            
+            return audit_run
+        except Exception as e:
+            audit_run.status = AuditRunStatus.FAILED
+            audit_run.result_summary = {"error": str(e)}
+            await self.db.flush()
+            raise
+    
     async def run_full_audit(
         self,
         entity_id: uuid.UUID,
@@ -886,6 +1033,81 @@ class AdvancedAuditSystemService:
             audit_run.result_summary = {"error": str(e)}
             await self.db.flush()
             raise AuditRunError(f"Audit run failed: {e}")
+    
+    async def reproduce_audit_run(
+        self,
+        run_id: str,
+        executed_by_id: uuid.UUID,
+    ) -> Optional[AuditRun]:
+        """
+        Reproduce a previous audit run with the same parameters.
+        
+        Creates a new run with identical settings to verify results can be reproduced.
+        This is critical for audit reproducibility compliance.
+        
+        Args:
+            run_id: The run_id of the original audit run to reproduce
+            executed_by_id: The user ID who is reproducing the run
+            
+        Returns:
+            The new AuditRun or None if original not found
+        """
+        # Find the original run
+        stmt = select(AuditRun).where(AuditRun.run_id == run_id)
+        result = await self.db.execute(stmt)
+        original_run = result.scalar_one_or_none()
+        
+        if not original_run:
+            return None
+        
+        # Create new run with same parameters
+        new_run = await self.audit_service.create_audit_run(
+            entity_id=original_run.entity_id,
+            run_type=original_run.run_type,
+            title=f"[Reproduced] {original_run.title}",
+            date_range_start=original_run.period_start,
+            date_range_end=original_run.period_end,
+            created_by_id=executed_by_id,
+            description=f"Reproduced from {run_id} on {datetime.now().strftime('%Y-%m-%d %H:%M')}. Original description: {original_run.description or 'N/A'}",
+            parameters=original_run.rule_config,
+        )
+        
+        # Store reference to original in result_summary
+        new_run.result_summary = {
+            "reproduced_from": run_id,
+            "original_completed_at": original_run.completed_at.isoformat() if original_run.completed_at else None,
+            "original_findings": {
+                "critical": original_run.critical_findings or 0,
+                "high": original_run.high_findings or 0,
+                "medium": original_run.medium_findings or 0,
+                "low": original_run.low_findings or 0,
+            }
+        }
+        
+        await self.db.flush()
+        
+        return new_run
+    
+    async def enforce_auditor_readonly(
+        self,
+        user: User,
+        action: str,
+        resource_type: str,
+        resource_id: Optional[str] = None,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Enforce auditor read-only permissions.
+        
+        Returns (is_allowed, denial_reason)
+        """
+        if user.role != UserRole.AUDITOR:
+            return True, None  # Non-auditors use normal permissions
+        
+        # Check if action is forbidden for auditors
+        if action in AuditorRoleEnforcer.FORBIDDEN_ACTIONS:
+            return False, f"Auditor role is read-only. Action '{action}' is forbidden."
+        
+        return True, None
     
     async def get_audit_dashboard(
         self,

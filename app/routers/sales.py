@@ -24,6 +24,8 @@ from app.models.user import User
 from app.models.invoice import VATTreatment
 from app.services.sales_service import SalesService, SaleLineItem
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 
 router = APIRouter()
@@ -290,6 +292,21 @@ async def quick_add_customer(
         address=request.address,
     )
     
+    # Audit logging
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="customer",
+        entity_id=str(customer.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "name": customer.name,
+            "email": customer.email,
+            "source": "quick_add_sales",
+        }
+    )
+    
     await db.commit()
     
     return QuickCustomerResponse(
@@ -366,6 +383,23 @@ async def record_sale(
         
         total_amount = sum(item.total for item in line_items)
         vat_amount = sum(item.vat_amount for item in line_items) if vat_treatment == VATTreatment.STANDARD else Decimal("0")
+        
+        # Audit logging
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="sale",
+            entity_id=str(invoice.id) if invoice else None,
+            action=AuditAction.CREATE,
+            user_id=current_user.id,
+            new_values={
+                "invoice_number": invoice.invoice_number if invoice else None,
+                "total_amount": str(total_amount),
+                "vat_amount": str(vat_amount),
+                "items_count": len(line_items),
+                "customer_id": str(request.customer_id) if request.customer_id else None,
+            }
+        )
         
         return SaleResponse(
             success=True,

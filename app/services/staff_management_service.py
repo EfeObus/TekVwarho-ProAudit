@@ -475,7 +475,9 @@ class StaffManagementService:
         """
         from app.models.entity import BusinessEntity, BusinessType
         from app.models.organization import OrganizationType, SubscriptionTier
-        
+        from app.models.sku import TenantSKU, SKUTier, IntelligenceAddon
+        from datetime import date
+
         # Check if demo org exists
         result = await self.db.execute(
             select(Organization).where(Organization.slug == self.PLATFORM_ORG_SLUG)
@@ -490,11 +492,25 @@ class StaffManagementService:
                 organization_type=OrganizationType.SME,
                 email="demo@tekvwarho.com",
                 phone="+234-800-DEMO",
-                subscription_tier=SubscriptionTier.ENTERPRISE,
+                subscription_tier=SubscriptionTier.ENTERPRISE,  # Legacy field
                 verification_status=VerificationStatus.VERIFIED,
             )
             self.db.add(demo_org)
             await self.db.flush()  # Get the ID
+            
+            # Create TenantSKU for demo org - Enterprise with Advanced Intelligence
+            today = date.today()
+            demo_sku = TenantSKU(
+                organization_id=demo_org.id,
+                tier=SKUTier.ENTERPRISE,
+                intelligence_addon=IntelligenceAddon.ADVANCED,
+                billing_cycle="annual",
+                is_active=True,
+                current_period_start=today,
+                current_period_end=date(today.year + 1, today.month, today.day),
+                notes="Demo organization for platform staff testing - all features enabled",
+            )
+            self.db.add(demo_sku)
         
         # Check if demo entity exists
         entity_result = await self.db.execute(

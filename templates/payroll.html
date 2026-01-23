@@ -3644,9 +3644,9 @@ function payrollPage() {
                     this.ghostDetections = this.ghostScanResult.detections || [];
                     
                     if (this.ghostScanResult.detections_found === 0) {
-                        alert('✅ Scan Complete\n\nNo ghost workers detected. All employee records appear to be unique.');
+                        alert('Yes Scan Complete\n\nNo ghost workers detected. All employee records appear to be unique.');
                     } else {
-                        alert(`⚠️ Scan Complete\n\nFound ${this.ghostScanResult.detections_found} potential issues:\n- ${this.ghostScanResult.critical_detections} critical\n\nPlease review the detections below.`);
+                        alert(`Warning: Scan Complete\n\nFound ${this.ghostScanResult.detections_found} potential issues:\n- ${this.ghostScanResult.critical_detections} critical\n\nPlease review the detections below.`);
                     }
                 }
             } catch (error) {

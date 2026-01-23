@@ -1,4 +1,4 @@
-# 🏢 Efe Obus Furniture Manufacturing LTD
+#  Efe Obus Furniture Manufacturing LTD
 
 ## Company Documentation for Testing
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 📋 Table of Contents
+##  Table of Contents
 
 1. [Company Overview](#company-overview)
 2. [Owner Information](#owner-information)
@@ -37,7 +37,7 @@
 | **Industry** | Furniture Manufacturing |
 | **Founded** | 2015 |
 | **Subscription Tier** | Enterprise |
-| **Verification Status** | Verified ✅ |
+| **Verification Status** | Verified Yes |
 
 ### Contact Information
 
@@ -56,7 +56,7 @@
 
 | Field | Value |
 |-------|-------|
-| **VAT Registered** | Yes ✅ |
+| **VAT Registered** | Yes Yes |
 | **VAT Registration Date** | January 15, 2020 |
 | **Business Type** | Limited Company (CIT) |
 | **Fiscal Year Start** | January |
@@ -84,18 +84,18 @@
 ### Owner RBAC Permissions
 
 As per the RBAC documentation, the Owner has:
-- ✅ Full access to all organization features
-- ✅ User management (invite, modify, remove users)
-- ✅ Entity management (create, modify, delete)
-- ✅ Financial data access (all transactions, reports)
-- ✅ Tax filing and submissions
-- ✅ Payroll management
-- ✅ Inventory management
-- ✅ Fixed assets management
-- ✅ Audit log access
-- ✅ Settings and configurations
-- ✅ NRS e-invoicing (cancel submissions within 72-hour window)
-- ✅ API access and integrations
+- Yes Full access to all organization features
+- Yes User management (invite, modify, remove users)
+- Yes Entity management (create, modify, delete)
+- Yes Financial data access (all transactions, reports)
+- Yes Tax filing and submissions
+- Yes Payroll management
+- Yes Inventory management
+- Yes Fixed assets management
+- Yes Audit log access
+- Yes Settings and configurations
+- Yes NRS e-invoicing (cancel submissions within 72-hour window)
+- Yes API access and integrations
 
 ---
 
@@ -334,19 +334,19 @@ As per the RBAC documentation, the Owner has:
 
 | Feature | Access Level |
 |---------|--------------|
-| Dashboard | ✅ Full Access |
-| Transactions | ✅ Create, Read, Update, Delete |
-| Invoices | ✅ Create, Submit to NRS, Cancel |
-| Customers | ✅ Full Management |
-| Vendors | ✅ Full Management |
-| Inventory | ✅ Full Management |
-| Fixed Assets | ✅ Full Management |
-| Employees/Payroll | ✅ Full Management |
-| Reports | ✅ All Reports |
-| Tax Filing | ✅ Submit to FIRS |
-| Audit Logs | ✅ View All |
-| Settings | ✅ Full Configuration |
-| User Management | ✅ Invite, Modify, Remove |
+| Dashboard | Yes Full Access |
+| Transactions | Yes Create, Read, Update, Delete |
+| Invoices | Yes Create, Submit to NRS, Cancel |
+| Customers | Yes Full Management |
+| Vendors | Yes Full Management |
+| Inventory | Yes Full Management |
+| Fixed Assets | Yes Full Management |
+| Employees/Payroll | Yes Full Management |
+| Reports | Yes All Reports |
+| Tax Filing | Yes Submit to FIRS |
+| Audit Logs | Yes View All |
+| Settings | Yes Full Configuration |
+| User Management | Yes Invite, Modify, Remove |
 
 ---
 

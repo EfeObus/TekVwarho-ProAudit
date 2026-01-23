@@ -24,10 +24,10 @@ from app.services.audit_vault_service import AuditVaultService
 from app.models.user import User
 from app.models.audit_consolidated import AuditAction
 
-router = APIRouter(prefix="/audit", tags=["Audit Trail"])
+router = APIRouter(tags=["Audit Trail"])
 
 
-@router.get("/{entity_id}/logs")
+@router.get("/{entity_id}/audit/logs")
 async def get_audit_logs(
     entity_id: uuid.UUID,
     target_entity_type: Optional[str] = Query(None, description="Filter by entity type"),
@@ -62,7 +62,7 @@ async def get_audit_logs(
             )
     
     service = AuditService(db)
-    logs = await service.get_audit_logs(
+    logs, total = await service.get_audit_logs(
         entity_id=entity_id,
         target_entity_type=target_entity_type,
         target_entity_id=target_entity_id,
@@ -72,6 +72,7 @@ async def get_audit_logs(
         end_date=end_date,
         skip=skip,
         limit=limit,
+        return_total=True,
     )
     
     return {
@@ -80,20 +81,21 @@ async def get_audit_logs(
                 "id": str(log.id),
                 "timestamp": log.created_at.isoformat(),
                 "target_entity_type": log.target_entity_type,
-                "target_entity_id": log.target_entity_id,
-                "action": log.action.value,
+                "target_entity_id": str(log.target_entity_id) if log.target_entity_id else None,
+                "action": log.action if isinstance(log.action, str) else log.action.value,
                 "user_id": str(log.user_id) if log.user_id else None,
                 "changes": log.changes,
                 "ip_address": log.ip_address,
             }
             for log in logs
         ],
+        "total": total,
         "skip": skip,
         "limit": limit,
     }
 
 
-@router.get("/{entity_id}/history/{target_entity_type}/{target_entity_id}")
+@router.get("/{entity_id}/audit/history/{target_entity_type}/{target_entity_id}")
 async def get_entity_history(
     entity_id: uuid.UUID,
     target_entity_type: str,
@@ -121,7 +123,7 @@ async def get_entity_history(
     }
 
 
-@router.get("/{entity_id}/user-activity/{user_id}")
+@router.get("/{entity_id}/audit/user-activity/{user_id}")
 async def get_user_activity(
     entity_id: uuid.UUID,
     user_id: uuid.UUID,
@@ -146,7 +148,7 @@ async def get_user_activity(
     return activity
 
 
-@router.get("/{entity_id}/summary")
+@router.get("/{entity_id}/audit/summary")
 async def get_audit_summary(
     entity_id: uuid.UUID,
     start_date: date = Query(..., description="Report period start"),
@@ -173,8 +175,8 @@ async def get_audit_summary(
     return summary
 
 
-@router.get("/actions")
-async def list_audit_actions():
+@router.get("/{entity_id}/audit/actions")
+async def list_audit_actions(entity_id: uuid.UUID):
     """List all available audit action types."""
     return {
         "actions": [
@@ -210,8 +212,8 @@ def _get_action_description(action: AuditAction) -> str:
 # AUDIT VAULT ENDPOINTS (NTAA 2025 Compliant)
 # ===========================================
 
-@router.get("/vault/info")
-async def get_vault_info():
+@router.get("/{entity_id}/audit/vault/info")
+async def get_vault_info(entity_id: uuid.UUID):
     """
     Get Audit Vault information and capabilities.
     
@@ -243,7 +245,7 @@ async def get_vault_info():
     }
 
 
-@router.get("/{entity_id}/vault/statistics")
+@router.get("/{entity_id}/audit/vault/statistics")
 async def get_vault_statistics(
     entity_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -276,12 +278,13 @@ async def get_vault_statistics(
     }
 
 
-@router.get("/{entity_id}/vault/records")
+@router.get("/{entity_id}/audit/vault/records")
 async def get_vault_records(
     entity_id: uuid.UUID,
     fiscal_year: Optional[int] = Query(None, description="Filter by fiscal year"),
     document_type: Optional[str] = Query(None, description="Filter by document type"),
     retention_status: Optional[str] = Query(None, description="Filter by status: active, archived, pending_purge"),
+    search: Optional[str] = Query(None, description="Search in description, document type, or reference ID"),
     start_date: Optional[date] = Query(None, description="Filter from date"),
     end_date: Optional[date] = Query(None, description="Filter to date"),
     skip: int = Query(0, ge=0),
@@ -297,6 +300,7 @@ async def get_vault_records(
     - Document type
     - Retention status
     - Date range
+    - Search term (searches description, document type, reference ID)
     """
     service = AuditVaultService(db)
     records, total = await service.get_vault_records(
@@ -304,6 +308,7 @@ async def get_vault_records(
         fiscal_year=fiscal_year,
         document_type=document_type,
         retention_status=retention_status,
+        search_term=search,
         start_date=start_date,
         end_date=end_date,
         skip=skip,
@@ -318,7 +323,7 @@ async def get_vault_records(
     }
 
 
-@router.get("/{entity_id}/vault/records/{record_id}")
+@router.get("/{entity_id}/audit/vault/records/{record_id}")
 async def get_vault_record_detail(
     entity_id: uuid.UUID,
     record_id: uuid.UUID,
@@ -346,7 +351,7 @@ async def get_vault_record_detail(
     return record
 
 
-@router.get("/{entity_id}/vault/retention-policy")
+@router.get("/{entity_id}/audit/vault/retention-policy")
 async def get_retention_policy(
     entity_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -361,7 +366,7 @@ async def get_retention_policy(
     return await service.get_retention_policy()
 
 
-@router.get("/{entity_id}/vault/retention-timeline")
+@router.get("/{entity_id}/audit/vault/retention-timeline")
 async def get_retention_timeline(
     entity_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -382,7 +387,7 @@ async def get_retention_timeline(
     }
 
 
-@router.get("/{entity_id}/vault/export/{fiscal_year}")
+@router.get("/{entity_id}/audit/vault/export/{fiscal_year}")
 async def export_vault_records(
     entity_id: uuid.UUID,
     fiscal_year: int,
@@ -413,7 +418,7 @@ async def export_vault_records(
     return export_data
 
 
-@router.get("/{entity_id}/vault/compliance-report/{fiscal_year}")
+@router.get("/{entity_id}/audit/vault/compliance-report/{fiscal_year}")
 async def get_compliance_report(
     entity_id: uuid.UUID,
     fiscal_year: int,
@@ -435,7 +440,7 @@ async def get_compliance_report(
     return report
 
 
-@router.post("/{entity_id}/vault/verify/{record_id}")
+@router.post("/{entity_id}/audit/vault/verify/{record_id}")
 async def verify_record_integrity(
     entity_id: uuid.UUID,
     record_id: uuid.UUID,
@@ -459,7 +464,7 @@ async def verify_record_integrity(
     return result
 
 
-@router.post("/{entity_id}/vault/verify-year/{fiscal_year}")
+@router.post("/{entity_id}/audit/vault/verify-year/{fiscal_year}")
 async def verify_fiscal_year_integrity(
     entity_id: uuid.UUID,
     fiscal_year: int,
@@ -478,7 +483,7 @@ async def verify_fiscal_year_integrity(
     return result
 
 
-@router.get("/{entity_id}/vault/fiscal-years")
+@router.get("/{entity_id}/audit/vault/fiscal-years")
 async def get_available_fiscal_years(
     entity_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -503,3 +508,36 @@ async def get_available_fiscal_years(
         ],
     }
 
+
+@router.post("/{entity_id}/audit/vault/legal-hold/{record_id}")
+async def set_legal_hold(
+    entity_id: uuid.UUID,
+    record_id: uuid.UUID,
+    enable: bool = Query(True, description="Enable or disable legal hold"),
+    reason: Optional[str] = Query(None, description="Reason for legal hold"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Set or remove legal hold on a vault record.
+    
+    Records under legal hold:
+    - Cannot be automatically purged
+    - Have extended retention periods
+    - Are flagged for regulatory review
+    """
+    service = AuditVaultService(db)
+    result = await service.set_legal_hold(
+        entity_id=entity_id,
+        record_id=record_id,
+        enable=enable,
+        reason=reason,
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result.get("error", "Failed to set legal hold"),
+        )
+    
+    return result

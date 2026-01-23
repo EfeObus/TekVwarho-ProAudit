@@ -35,6 +35,7 @@ Routers:
 - forensic_audit: World-class forensic audit (Benford's Law, Z-score, NRS Gap Analysis, WORM)
 - advanced_audit: Enterprise audit (Explainability, Replay, Confidence Scoring, Attestation, Export, Behavioral)
 - audit_system: Advanced Audit System (Immutable Evidence, Reproducible Runs, Auditor Read-Only, Human-Readable Findings)
+- admin_sku: Platform admin SKU management (tier pricing in Naira, trials, usage analytics)
 """
 
 from app.routers import (
@@ -75,6 +76,10 @@ from app.routers import (
     bank_reconciliation,
     expense_claims,
     ml_ai,
+    evidence_routes,
+    accounting,
+    admin_sku,
+    billing,
 )
 
 __all__ = [
@@ -115,4 +120,8 @@ __all__ = [
     "bank_reconciliation",
     "expense_claims",
     "ml_ai",
+    "evidence_routes",
+    "accounting",
+    "admin_sku",
+    "billing",
 ]

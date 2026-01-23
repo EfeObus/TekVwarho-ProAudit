@@ -6,6 +6,9 @@ API endpoints for transaction (expense/income) recording.
 NTAA 2025 Compliance:
 - Maker-Checker Segregation of Duties for WREN verification
 - Proper RBAC permission enforcement
+
+SKU Usage Metering:
+- Transaction creation is metered for SKU tier limits
 """
 
 from datetime import date
@@ -25,9 +28,12 @@ from app.dependencies import (
 )
 from app.models.user import User, UserRole
 from app.models.transaction import TransactionType, WRENStatus
+from app.models.audit_consolidated import AuditAction
 from app.schemas.auth import MessageResponse
 from app.services.transaction_service import TransactionService
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
+from app.services.metering_service import MeteringService
 from app.utils.permissions import OrganizationPermission, has_organization_permission
 
 
@@ -227,6 +233,34 @@ async def create_transaction(
             detail=str(e),
         )
     
+    # Audit log for transaction creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="transaction",
+        entity_id=str(transaction.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "transaction_type": request.transaction_type.value,
+            "amount": float(request.amount),
+            "vat_amount": float(request.vat_amount),
+            "description": request.description,
+            "reference": request.reference,
+            "transaction_date": str(request.transaction_date),
+        },
+    )
+    
+    # Record usage metering for SKU tier limits
+    if current_user.organization_id:
+        metering_service = MeteringService(db)
+        await metering_service.record_transaction(
+            organization_id=current_user.organization_id,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            transaction_id=str(transaction.id),
+        )
+    
     transaction = await transaction_service.get_transaction_by_id(transaction.id, entity_id)
     
     return TransactionResponse(
@@ -380,8 +414,29 @@ async def update_transaction(
             detail="Transaction not found",
         )
     
+    # Store old values for audit
+    old_values = {
+        "amount": float(transaction.amount),
+        "vat_amount": float(transaction.vat_amount),
+        "description": transaction.description,
+        "reference": transaction.reference,
+        "transaction_date": str(transaction.transaction_date),
+    }
+    
     update_data = request.model_dump(exclude_unset=True)
     transaction = await transaction_service.update_transaction(transaction, **update_data)
+    
+    # Audit log for transaction update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="transaction",
+        entity_id=str(transaction.id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        old_values=old_values,
+        new_values=update_data,
+    )
     
     # Reload with relationships
     transaction = await transaction_service.get_transaction_by_id(transaction.id, entity_id)
@@ -452,7 +507,29 @@ async def delete_transaction(
             detail="Transaction not found",
         )
     
+    # Store transaction data for audit before deletion
+    deleted_values = {
+        "transaction_type": transaction.transaction_type.value,
+        "amount": float(transaction.amount),
+        "vat_amount": float(transaction.vat_amount),
+        "description": transaction.description,
+        "reference": transaction.reference,
+        "transaction_date": str(transaction.transaction_date),
+    }
+    deleted_id = str(transaction.id)
+    
     await transaction_service.delete_transaction(transaction)
+    
+    # Audit log for transaction deletion
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="transaction",
+        entity_id=deleted_id,
+        action=AuditAction.DELETE,
+        user_id=current_user.id,
+        old_values=deleted_values,
+    )
     
     return MessageResponse(
         message="Transaction deleted successfully",

@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+
+{% block title %}Pricing - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">
+                Simple, Transparent Pricing
+            </h1>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                Choose the plan that fits your business. All prices in Nigerian Naira (₦).
+            </p>
+            {% if sku and sku.is_trial %}
+            <div class="mt-4 inline-flex items-center px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                </svg>
+                <span>{{ sku.trial_days_remaining }} days left in your trial</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Pricing Toggle (Monthly/Annual) -->
+        <div class="flex justify-center mb-10">
+            <div class="bg-white rounded-lg p-1 flex shadow-sm" id="billing-toggle">
+                <button class="px-6 py-2 text-sm font-medium rounded-md bg-blue-600 text-white" data-billing="monthly">
+                    Monthly
+                </button>
+                <button class="px-6 py-2 text-sm font-medium rounded-md text-gray-500 hover:text-gray-700" data-billing="annual">
+                    Annual <span class="text-green-600 text-xs ml-1">Save 20%</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Pricing Cards -->
+        <div class="grid md:grid-cols-3 gap-8 mb-16">
+            <!-- Core Tier -->
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden {% if sku and sku.tier.value == 'core' %}ring-2 ring-blue-500{% endif %}">
+                {% if sku and sku.tier.value == 'core' %}
+                <div class="bg-blue-500 text-white text-center py-2 text-sm font-medium">
+                    Current Plan
+                </div>
+                {% endif %}
+                <div class="p-8">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Core</h3>
+                    <p class="text-gray-600 mb-6">Essential accounting for growing businesses</p>
+                    
+                    <div class="mb-8">
+                        <span class="text-4xl font-bold text-gray-900 monthly-price">₦50,000</span>
+                        <span class="text-4xl font-bold text-gray-900 annual-price hidden">₦480,000</span>
+                        <span class="text-gray-500 monthly-label">/month</span>
+                        <span class="text-gray-500 annual-label hidden">/year</span>
+                        <div class="text-sm text-gray-500 mt-1 annual-savings hidden">
+                            Save ₦120,000 annually
+                        </div>
+                    </div>
+                    
+                    {% if not sku or sku.tier.value != 'core' %}
+                    <button class="w-full bg-gray-100 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-200 transition">
+                        Get Started
+                    </button>
+                    {% else %}
+                    <button class="w-full bg-gray-100 text-gray-500 py-3 rounded-lg font-semibold cursor-not-allowed" disabled>
+                        Current Plan
+                    </button>
+                    {% endif %}
+                    
+                    <ul class="mt-8 space-y-4">
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">General Ledger</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Accounts Payable & Receivable</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Invoicing</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Basic Audit Trail</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Up to 5 users</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Email support</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Professional Tier -->
+            <div class="bg-white rounded-2xl shadow-xl border-2 border-blue-500 overflow-hidden transform scale-105 {% if sku and sku.tier.value == 'professional' %}ring-2 ring-green-500{% endif %}">
+                <div class="bg-blue-500 text-white text-center py-2 text-sm font-medium">
+                    {% if sku and sku.tier.value == 'professional' %}Current Plan{% else %}Most Popular{% endif %}
+                </div>
+                <div class="p-8">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Professional</h3>
+                    <p class="text-gray-600 mb-6">Full-featured for established businesses</p>
+                    
+                    <div class="mb-8">
+                        <span class="text-4xl font-bold text-gray-900 monthly-price">₦250,000</span>
+                        <span class="text-4xl font-bold text-gray-900 annual-price hidden">₦2,400,000</span>
+                        <span class="text-gray-500 monthly-label">/month</span>
+                        <span class="text-gray-500 annual-label hidden">/year</span>
+                        <div class="text-sm text-gray-500 mt-1 annual-savings hidden">
+                            Save ₦600,000 annually
+                        </div>
+                    </div>
+                    
+                    {% if sku and sku.tier.value == 'professional' %}
+                    <button class="w-full bg-blue-100 text-blue-600 py-3 rounded-lg font-semibold cursor-not-allowed" disabled>
+                        Current Plan
+                    </button>
+                    {% elif sku and sku.tier.value == 'enterprise' %}
+                    <button class="w-full bg-gray-100 text-gray-500 py-3 rounded-lg font-semibold cursor-not-allowed" disabled>
+                        Downgrade
+                    </button>
+                    {% else %}
+                    <button class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                        Upgrade Now
+                    </button>
+                    {% endif %}
+                    
+                    <ul class="mt-8 space-y-4">
+                        <li class="flex items-start text-gray-600">
+                            <svg class="w-5 h-5 text-blue-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span><strong>Everything in Core</strong>, plus:</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Payroll Management</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Bank Reconciliation</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Fixed Asset Management</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Expense Claims</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Up to 25 users</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Priority support</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Enterprise Tier -->
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden {% if sku and sku.tier.value == 'enterprise' %}ring-2 ring-purple-500{% endif %}">
+                {% if sku and sku.tier.value == 'enterprise' %}
+                <div class="bg-purple-500 text-white text-center py-2 text-sm font-medium">
+                    Current Plan
+                </div>
+                {% endif %}
+                <div class="p-8">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
+                    <p class="text-gray-600 mb-6">Complete solution for large organizations</p>
+                    
+                    <div class="mb-8">
+                        <span class="text-4xl font-bold text-gray-900 monthly-price">₦2,000,000</span>
+                        <span class="text-4xl font-bold text-gray-900 annual-price hidden">₦19,200,000</span>
+                        <span class="text-gray-500 monthly-label">/month</span>
+                        <span class="text-gray-500 annual-label hidden">/year</span>
+                        <div class="text-sm text-gray-500 mt-1 annual-savings hidden">
+                            Save ₦4,800,000 annually
+                        </div>
+                    </div>
+                    
+                    {% if sku and sku.tier.value == 'enterprise' %}
+                    <button class="w-full bg-purple-100 text-purple-600 py-3 rounded-lg font-semibold cursor-not-allowed" disabled>
+                        Current Plan
+                    </button>
+                    {% else %}
+                    <button class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                        Contact Sales
+                    </button>
+                    {% endif %}
+                    
+                    <ul class="mt-8 space-y-4">
+                        <li class="flex items-start text-gray-600">
+                            <svg class="w-5 h-5 text-purple-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span><strong>Everything in Professional</strong>, plus:</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Multi-Entity Support</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Intercompany Transactions</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">WORM Compliance Vault</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Consolidated Reporting</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Unlimited users</span>
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-gray-600">Dedicated support</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Intelligence Add-on -->
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-xl p-8 text-white mb-16">
+            <div class="grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                    <h2 class="text-3xl font-bold mb-4">
+                        🤖 Intelligence Add-on
+                    </h2>
+                    <p class="text-indigo-100 mb-6">
+                        Supercharge your audit with AI-powered analytics, anomaly detection, 
+                        and document processing.
+                    </p>
+                    <ul class="space-y-3 mb-6">
+                        <li class="flex items-center">
+                            <svg class="w-5 h-5 text-indigo-200 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            ML Anomaly Detection
+                        </li>
+                        <li class="flex items-center">
+                            <svg class="w-5 h-5 text-indigo-200 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Benford's Law Analysis
+                        </li>
+                        <li class="flex items-center">
+                            <svg class="w-5 h-5 text-indigo-200 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            OCR Document Extraction
+                        </li>
+                        <li class="flex items-center">
+                            <svg class="w-5 h-5 text-indigo-200 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            Predictive Analytics
+                        </li>
+                    </ul>
+                </div>
+                <div class="bg-white/10 rounded-xl p-6 backdrop-blur">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="text-center p-4 rounded-lg bg-white/10">
+                            <div class="text-sm text-indigo-200 mb-1">Standard</div>
+                            <div class="text-2xl font-bold">₦350,000</div>
+                            <div class="text-xs text-indigo-200">/month</div>
+                        </div>
+                        <div class="text-center p-4 rounded-lg bg-white/10">
+                            <div class="text-sm text-indigo-200 mb-1">Advanced</div>
+                            <div class="text-2xl font-bold">₦750,000</div>
+                            <div class="text-xs text-indigo-200">/month</div>
+                        </div>
+                    </div>
+                    <button class="w-full mt-6 bg-white text-indigo-600 py-3 rounded-lg font-semibold hover:bg-indigo-50 transition">
+                        Add Intelligence
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Comparison Table -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-900">Feature Comparison</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="text-left py-4 px-6 font-semibold text-gray-900">Feature</th>
+                            <th class="text-center py-4 px-6 font-semibold text-gray-900">Core</th>
+                            <th class="text-center py-4 px-6 font-semibold text-blue-600">Professional</th>
+                            <th class="text-center py-4 px-6 font-semibold text-purple-600">Enterprise</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <tr>
+                            <td class="py-4 px-6 text-gray-600">General Ledger</td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td class="py-4 px-6 text-gray-600">Accounts Payable/Receivable</td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-6 text-gray-600">Invoicing</td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td class="py-4 px-6 text-gray-600">Basic Audit Trail</td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-6 text-gray-600 font-medium">Payroll Management</td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td class="py-4 px-6 text-gray-600 font-medium">Bank Reconciliation</td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-6 text-gray-600 font-medium">Fixed Asset Management</td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td class="py-4 px-6 text-gray-600 font-medium">Expense Claims</td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-6 text-gray-600 font-medium">Multi-Entity Support</td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td class="py-4 px-6 text-gray-600 font-medium">Intercompany Transactions</td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-6 text-gray-600 font-medium">WORM Compliance Vault</td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-gray-300">—</span></td>
+                            <td class="py-4 px-6 text-center"><span class="text-green-500">✓</span></td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td class="py-4 px-6 text-gray-600">Users Included</td>
+                            <td class="py-4 px-6 text-center">5</td>
+                            <td class="py-4 px-6 text-center">25</td>
+                            <td class="py-4 px-6 text-center">Unlimited</td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-6 text-gray-600">Support</td>
+                            <td class="py-4 px-6 text-center">Email</td>
+                            <td class="py-4 px-6 text-center">Priority</td>
+                            <td class="py-4 px-6 text-center">Dedicated</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- FAQ Section -->
+        <div class="mt-16">
+            <h2 class="text-2xl font-bold text-gray-900 text-center mb-8">Frequently Asked Questions</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="bg-white rounded-xl p-6 shadow-sm">
+                    <h3 class="font-semibold text-gray-900 mb-2">Can I change plans at any time?</h3>
+                    <p class="text-gray-600">Yes! You can upgrade your plan at any time. Upgrades take effect immediately. Downgrades will be applied at the end of your current billing period.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-sm">
+                    <h3 class="font-semibold text-gray-900 mb-2">Is there a free trial?</h3>
+                    <p class="text-gray-600">Yes! All new accounts start with a 14-day free trial of the Core plan with full access to all features. No credit card required.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-sm">
+                    <h3 class="font-semibold text-gray-900 mb-2">What payment methods do you accept?</h3>
+                    <p class="text-gray-600">We accept payments via bank transfer, debit cards, and Paystack. For Enterprise plans, we also offer invoicing with NET-30 terms.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-sm">
+                    <h3 class="font-semibold text-gray-900 mb-2">Do you offer discounts for annual billing?</h3>
+                    <p class="text-gray-600">Yes! You save 20% when you choose annual billing. That's like getting 2+ months free.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Sales CTA -->
+        <div class="mt-16 text-center">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Need a custom solution?</h2>
+            <p class="text-gray-600 mb-6 max-w-2xl mx-auto">
+                For businesses with unique requirements, we offer custom packages with tailored features, 
+                dedicated support, and flexible pricing.
+            </p>
+            <a href="mailto:sales@tekvwarho.com" class="inline-flex items-center px-6 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                Contact Sales
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Billing toggle functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleButtons = document.querySelectorAll('#billing-toggle button');
+    const monthlyElements = document.querySelectorAll('.monthly-price, .monthly-label');
+    const annualElements = document.querySelectorAll('.annual-price, .annual-label, .annual-savings');
+    
+    toggleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const billing = this.dataset.billing;
+            
+            // Update button styles
+            toggleButtons.forEach(btn => {
+                if (btn.dataset.billing === billing) {
+                    btn.classList.add('bg-blue-600', 'text-white');
+                    btn.classList.remove('text-gray-500', 'hover:text-gray-700');
+                } else {
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('text-gray-500', 'hover:text-gray-700');
+                }
+            });
+            
+            // Toggle price display
+            if (billing === 'annual') {
+                monthlyElements.forEach(el => el.classList.add('hidden'));
+                annualElements.forEach(el => el.classList.remove('hidden'));
+            } else {
+                monthlyElements.forEach(el => el.classList.remove('hidden'));
+                annualElements.forEach(el => el.classList.add('hidden'));
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

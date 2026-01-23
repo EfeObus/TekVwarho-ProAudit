@@ -24,6 +24,8 @@ from app.dependencies import get_current_active_user
 from app.models.user import User
 from app.services.self_assessment_service import SelfAssessmentService
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 
 router = APIRouter(prefix="/self-assessment", tags=["Self-Assessment"])
@@ -409,6 +411,22 @@ async def generate_cit_assessment(
             detail=str(e),
         )
     
+    # Audit logging for CIT assessment generation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="cit_assessment",
+        entity_id=f"{entity_id}-{request.fiscal_year}",
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "fiscal_year": request.fiscal_year,
+            "assessable_profit": assessment.get("assessable_profit"),
+            "cit_liability": assessment.get("cit_liability"),
+            "development_levy": assessment.get("development_levy"),
+        }
+    )
+    
     return CITAssessmentResponse(**assessment)
 
 
@@ -480,6 +498,23 @@ async def generate_vat_assessment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    
+    # Audit logging for VAT assessment generation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="vat_assessment",
+        entity_id=f"{entity_id}-{request.year}-{request.month:02d}",
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "year": request.year,
+            "month": request.month,
+            "output_vat": assessment.get("output_vat"),
+            "input_vat": assessment.get("input_vat"),
+            "net_payable": assessment.get("net_payable"),
+        }
+    )
     
     return VATAssessmentResponse(**assessment)
 
@@ -557,6 +592,23 @@ async def generate_annual_returns(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    
+    # Audit logging for annual returns generation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="annual_returns",
+        entity_id=f"{entity_id}-{request.fiscal_year}",
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "fiscal_year": request.fiscal_year,
+            "fiscal_year_end": str(request.fiscal_year_end) if request.fiscal_year_end else None,
+            "include_financial_statements": request.include_financial_statements,
+            "include_tax_schedules": request.include_tax_schedules,
+            "include_nrs_summary": request.include_nrs_summary,
+        }
+    )
     
     return AnnualReturnsResponse(**returns)
 

@@ -29,6 +29,8 @@ from app.services.vat_recovery_service import VATRecoveryService
 from app.services.development_levy_service import DevelopmentLevyService
 from app.services.pit_relief_service import PITReliefService
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.services.tin_validation_service import (
     TINValidationService,
     TINEntityType,
@@ -512,6 +514,21 @@ async def process_buyer_response(
             accepted=request.accepted,
             rejection_reason=request.rejection_reason,
         )
+        
+        # Audit logging for buyer response
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="buyer_review",
+            entity_id=str(invoice_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            new_values={
+                "accepted": request.accepted,
+                "rejection_reason": request.rejection_reason,
+            }
+        )
+        
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -634,6 +651,22 @@ async def record_vat_recovery(
         description=request.description,
         vendor_name=request.vendor_name,
         vendor_tin=request.vendor_tin,
+    )
+    
+    # Audit logging for VAT recovery
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="vat_recovery",
+        entity_id=str(record.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "vat_amount": float(record.vat_amount),
+            "recovery_type": record.recovery_type.value,
+            "is_recoverable": record.is_recoverable,
+            "vendor_irn": record.vendor_irn,
+        }
     )
     
     return VATRecoveryResponse(
@@ -1359,6 +1392,22 @@ async def save_development_levy(
         fixed_assets=request.fixed_assets,
     )
     
+    # Audit logging for development levy creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="development_levy",
+        entity_id=str(record.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "fiscal_year": record.fiscal_year,
+            "levy_amount": float(record.levy_amount),
+            "is_exempt": record.is_exempt,
+            "assessable_profit": float(request.assessable_profit),
+        }
+    )
+    
     return {
         "id": str(record.id),
         "fiscal_year": record.fiscal_year,
@@ -1461,6 +1510,22 @@ async def create_pit_relief(
         annual_rent=request.annual_rent,
     )
     
+    # Audit logging for PIT relief creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="pit_relief",
+        entity_id=str(document.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "relief_type": document.relief_type.value,
+            "fiscal_year": document.fiscal_year,
+            "claimed_amount": float(document.claimed_amount),
+            "status": document.status.value,
+        }
+    )
+    
     return PITReliefResponse(
         id=document.id,
         relief_type=document.relief_type.value,
@@ -1536,6 +1601,22 @@ async def verify_pit_relief(
             verified_by=current_user.id,
             approved=request.approved,
             notes=request.notes,
+        )
+        
+        # Audit logging for PIT relief verification
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="pit_relief",
+            entity_id=str(relief_id),
+            action=AuditAction.APPROVE if request.approved else AuditAction.REJECT,
+            user_id=current_user.id,
+            new_values={
+                "approved": request.approved,
+                "notes": request.notes,
+                "status": document.status.value,
+                "verified_at": document.verified_at.isoformat() if document.verified_at else None,
+            }
         )
         
         return {

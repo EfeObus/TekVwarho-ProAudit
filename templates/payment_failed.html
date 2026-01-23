@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Failed - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-red-50 to-rose-100 flex items-center justify-center py-12">
+    <div class="max-w-lg mx-auto px-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 text-center">
+            <!-- Error Icon -->
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </div>
+            
+            <!-- Error Message -->
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Payment Failed</h1>
+            <p class="text-gray-600 mb-6">
+                We couldn't process your payment. Don't worry, you haven't been charged.
+            </p>
+            
+            <!-- Error Details -->
+            {% if error_message %}
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-left">
+                <h3 class="font-semibold text-red-900 mb-2">Error Details</h3>
+                <p class="text-sm text-red-800">{{ error_message }}</p>
+            </div>
+            {% endif %}
+            
+            <!-- Common Issues -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+                <h3 class="font-semibold text-gray-900 mb-2">Common Issues</h3>
+                <ul class="text-sm text-gray-600 space-y-2">
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 text-gray-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Insufficient funds in your account</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 text-gray-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Card transaction limit exceeded</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 text-gray-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Card not enabled for online transactions</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 text-gray-400 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Network or connectivity issues</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Actions -->
+            <div class="space-y-3">
+                <a href="/checkout{% if tier %}?tier={{ tier }}{% endif %}" 
+                   class="block w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
+                    Try Again
+                </a>
+                <a href="/pricing" 
+                   class="block w-full py-3 bg-white text-gray-700 font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition">
+                    View Pricing
+                </a>
+                <a href="/dashboard" 
+                   class="block w-full py-2 text-gray-500 text-sm hover:text-gray-700 transition">
+                    Return to Dashboard
+                </a>
+            </div>
+            
+            <!-- Support -->
+            <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                <p class="text-sm text-blue-800">
+                    <strong>Need help?</strong> Contact our support team at 
+                    <a href="mailto:support@tekvwarho.com" class="underline">support@tekvwarho.com</a>
+                    or call <a href="tel:+2348000000000" class="underline">+234 800 000 0000</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

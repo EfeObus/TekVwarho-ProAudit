@@ -6,7 +6,7 @@ Business logic for user authentication and registration.
 
 import uuid
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
 from sqlalchemy import select
@@ -205,6 +205,41 @@ class AuthService:
             can_delete=True,
         )
         self.db.add(entity_access)
+        
+        # Create TenantSKU record - all new registrations start on Core tier
+        # This enables the commercial SKU system for feature gating
+        from app.models.sku import TenantSKU, SKUTier
+        from datetime import date as date_type
+        
+        today = date_type.today()
+        # 14-day trial of Core tier
+        trial_end = datetime.utcnow() + timedelta(days=14)
+        # Calculate next month for billing period end
+        if today.month == 12:
+            period_end = date_type(today.year + 1, 1, today.day)
+        else:
+            # Handle months with fewer days
+            try:
+                period_end = date_type(today.year, today.month + 1, today.day)
+            except ValueError:
+                # Day doesn't exist in next month (e.g., Jan 31 -> Feb 28)
+                if today.month + 1 == 2:
+                    period_end = date_type(today.year, 2, 28)
+                else:
+                    period_end = date_type(today.year, today.month + 1, 28)
+        
+        tenant_sku = TenantSKU(
+            organization_id=organization.id,
+            tier=SKUTier.CORE,
+            intelligence_addon=None,
+            is_active=True,
+            billing_cycle="monthly",
+            trial_ends_at=trial_end,
+            current_period_start=today,
+            current_period_end=period_end,
+            notes=f"Auto-created during registration. Account type: {account_type}",
+        )
+        self.db.add(tenant_sku)
         
         await self.db.commit()
         await self.db.refresh(user)

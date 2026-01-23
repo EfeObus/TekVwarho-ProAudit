@@ -19,6 +19,8 @@ from app.models.category import CategoryType, VATTreatment
 from app.schemas.auth import MessageResponse
 from app.services.category_service import CategoryService
 from app.services.entity_service import EntityService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 
 router = APIRouter()
@@ -162,6 +164,21 @@ async def get_category(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Category not found",
         )
+        # Audit logging for category creation
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="category",
+        entity_id=str(category.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "name": category.name,
+            "code": category.code,
+            "category_type": category.category_type.value,
+            "vat_treatment": category.vat_treatment.value,
+        }
+    )
     
     return CategoryResponse(
         id=category.id,
@@ -315,6 +332,16 @@ async def update_category(
                 detail=f"Invalid vat_treatment. Must be one of: {[t.value for t in VATTreatment]}",
             )
     
+    # Capture old values for audit
+    old_values = {
+        "name": category.name,
+        "code": category.code,
+        "description": category.description,
+        "category_type": category.category_type.value if category.category_type else None,
+        "vat_treatment": category.vat_treatment.value if category.vat_treatment else None,
+        "is_active": category.is_active,
+    }
+    
     try:
         category = await category_service.update_category(category, **update_data)
     except ValueError as e:
@@ -322,6 +349,25 @@ async def update_category(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    
+    # Audit logging for category update
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="category",
+        entity_id=str(category.id),
+        action=AuditAction.UPDATE,
+        user_id=current_user.id,
+        old_values=old_values,
+        new_values={
+            "name": category.name,
+            "code": category.code,
+            "description": category.description,
+            "category_type": category.category_type.value if category.category_type else None,
+            "vat_treatment": category.vat_treatment.value if category.vat_treatment else None,
+            "is_active": category.is_active,
+        }
+    )
     
     return CategoryResponse(
         id=category.id,
@@ -377,6 +423,13 @@ async def delete_category(
             detail="Category not found",
         )
     
+    # Capture values for audit before deletion
+    deleted_category_data = {
+        "name": category.name,
+        "code": category.code,
+        "category_type": category.category_type.value if category.category_type else None,
+    }
+    
     try:
         await category_service.delete_category(category)
     except ValueError as e:
@@ -384,6 +437,17 @@ async def delete_category(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    
+    # Audit logging for category deletion
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="category",
+        entity_id=str(category_id),
+        action=AuditAction.DELETE,
+        user_id=current_user.id,
+        old_values=deleted_category_data
+    )
     
     return MessageResponse(
         message="Category deleted successfully",

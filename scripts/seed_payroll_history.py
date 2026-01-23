@@ -156,7 +156,7 @@ async def get_entity_and_employees(session: AsyncSession) -> tuple:
     entity = result.scalar_one_or_none()
     
     if not entity:
-        print("❌ Efe Obus Furniture entity not found!")
+        print("[FAIL] Efe Obus Furniture entity not found!")
         return None, []
     
     # Get all active employees (use is_active flag instead of enum comparison)
@@ -694,9 +694,9 @@ async def seed_payroll_history():
             await session.commit()
             
             print("\n" + "=" * 70)
-            print("  ✅ PAYROLL HISTORY SEEDING COMPLETE!")
+            print("  [OK] PAYROLL HISTORY SEEDING COMPLETE!")
             print("=" * 70)
-            print(f"\n  📊 Summary:")
+            print(f"\n   Summary:")
             print(f"     • Payroll Runs Created: {total_runs}")
             print(f"     • Payslips Generated: {total_payslips}")
             print(f"     • Period: {start_year} - {end_year}")
@@ -704,7 +704,7 @@ async def seed_payroll_history():
             
         except Exception as e:
             await session.rollback()
-            print(f"\n❌ Error seeding payroll history: {e}")
+            print(f"\n[FAIL] Error seeding payroll history: {e}")
             import traceback
             traceback.print_exc()
             raise

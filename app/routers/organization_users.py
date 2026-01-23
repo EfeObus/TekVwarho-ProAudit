@@ -27,6 +27,8 @@ from app.dependencies import (
 )
 from app.models.user import User, UserRole
 from app.services.organization_user_service import OrganizationUserService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 from app.utils.permissions import OrganizationPermission
 
 
@@ -223,6 +225,23 @@ async def invite_user(
             phone_number=request.phone_number,
             entity_ids=request.entity_ids,
         )
+        
+        # Audit logging for user invitation
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=org_id,
+            entity_type="user",
+            entity_id=str(new_user.id),
+            action=AuditAction.CREATE,
+            user_id=current_user.id,
+            new_values={
+                "email": new_user.email,
+                "first_name": new_user.first_name,
+                "last_name": new_user.last_name,
+                "role": role.value,
+                "invited_by": current_user.email,
+            }
+        )
     except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -277,6 +296,21 @@ async def update_user_role(
             target_user_id=user_id,
             new_role=new_role,
         )
+        
+        # Audit logging for role change
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=org_id,
+            entity_type="user",
+            entity_id=str(user_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"role": "previous_role"},
+            new_values={
+                "role": new_role.value,
+                "changed_by": current_user.email,
+            }
+        )
     except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -317,6 +351,21 @@ async def deactivate_user(
             requesting_user=current_user,
             target_user_id=user_id,
         )
+        
+        # Audit logging for user deactivation
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=org_id,
+            entity_type="user",
+            entity_id=str(user_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"is_active": True},
+            new_values={
+                "is_active": False,
+                "deactivated_by": current_user.email,
+            }
+        )
     except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -356,6 +405,21 @@ async def reactivate_user(
         await service.reactivate_user(
             requesting_user=current_user,
             target_user_id=user_id,
+        )
+        
+        # Audit logging for user reactivation
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=org_id,
+            entity_type="user",
+            entity_id=str(user_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"is_active": False},
+            new_values={
+                "is_active": True,
+                "reactivated_by": current_user.email,
+            }
         )
     except PermissionError as e:
         raise HTTPException(

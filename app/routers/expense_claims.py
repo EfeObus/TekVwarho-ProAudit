@@ -20,6 +20,8 @@ from app.models.expense_claims import ExpenseCategory, ClaimStatus, PaymentMetho
 from app.services.expense_claims_service import (
     ExpenseClaimsService, get_expense_claims_service
 )
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 router = APIRouter(prefix="/expense-claims", tags=["Expense Claims"])
 
@@ -135,6 +137,21 @@ async def create_expense_claim(
         cost_center=request.cost_center,
         department=request.department,
         created_by_id=current_user.id,
+    )
+    
+    # Audit logging
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="expense_claim",
+        entity_id=str(claim.id),
+        action=AuditAction.CREATE,
+        user_id=current_user.id,
+        new_values={
+            "claim_number": claim.claim_number,
+            "title": claim.title,
+            "employee_id": str(employee_id),
+        }
     )
     
     return _claim_to_response(claim)
@@ -272,6 +289,23 @@ async def submit_expense_claim(
     
     try:
         claim = await service.submit_claim(claim_id)
+        
+        # Audit logging
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=entity_id,
+            entity_type="expense_claim",
+            entity_id=str(claim_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"status": "draft"},
+            new_values={
+                "status": "submitted",
+                "claim_number": claim.claim_number,
+                "total_amount": str(claim.total_amount),
+            }
+        )
+        
         return _claim_to_response(claim)
     except ValueError as e:
         raise HTTPException(
@@ -308,6 +342,23 @@ async def approve_expense_claim(
             approval_notes=request.approval_notes,
             item_adjustments=item_adjustments,
         )
+        
+        # Audit logging
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=claim.entity_id,
+            entity_type="expense_claim",
+            entity_id=str(claim_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"status": "submitted"},
+            new_values={
+                "status": "approved",
+                "approved_amount": str(claim.approved_amount),
+                "approval_notes": request.approval_notes,
+            }
+        )
+        
         return _claim_to_response(claim)
     except ValueError as e:
         raise HTTPException(
@@ -336,6 +387,22 @@ async def reject_expense_claim(
             rejected_by_id=current_user.id,
             rejection_reason=request.rejection_reason,
         )
+        
+        # Audit logging
+        audit_service = AuditService(db)
+        await audit_service.log_action(
+            business_entity_id=claim.entity_id,
+            entity_type="expense_claim",
+            entity_id=str(claim_id),
+            action=AuditAction.UPDATE,
+            user_id=current_user.id,
+            old_values={"status": "submitted"},
+            new_values={
+                "status": "rejected",
+                "rejection_reason": request.rejection_reason,
+            }
+        )
+        
         return _claim_to_response(claim)
     except ValueError as e:
         raise HTTPException(

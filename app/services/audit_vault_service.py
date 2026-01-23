@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-from sqlalchemy import select, func, and_, or_, case, desc
+from sqlalchemy import select, func, and_, or_, case, desc, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_consolidated import AuditLog, AuditAction
@@ -168,12 +168,26 @@ class AuditVaultService:
         # Estimate storage (rough estimate: 2KB per record)
         storage_mb = (total * 2) / 1024
         
+        # Count records with legal hold enabled
+        # Legal hold is stored in the 'changes' JSON field as _legal_hold.enabled = true
+        legal_hold_count = await self.db.scalar(
+            select(func.count(AuditLog.id))
+            .where(AuditLog.entity_id == entity_id)
+            .where(AuditLog.changes.isnot(None))
+            .where(
+                func.cast(AuditLog.changes, String).like('%"_legal_hold"%')
+            )
+            .where(
+                func.cast(AuditLog.changes, String).like('%"enabled": true%')
+            )
+        ) or 0
+        
         return VaultStatistics(
             total_records=total,
             active_records=active_count,
             archived_records=archived_count,
             pending_purge=pending_purge,
-            legal_hold=0,  # Would need separate tracking
+            legal_hold=legal_hold_count,
             oldest_record=oldest_date,
             by_fiscal_year=by_fiscal_year,
             by_document_type=by_document_type,
@@ -226,6 +240,24 @@ class AuditVaultService:
         if end_date:
             query = query.where(func.date(AuditLog.created_at) <= end_date)
             count_query = count_query.where(func.date(AuditLog.created_at) <= end_date)
+        
+        # Search filter - searches description, target_entity_type, and target_entity_id
+        if search_term:
+            search_pattern = f"%{search_term}%"
+            query = query.where(
+                or_(
+                    AuditLog.description.ilike(search_pattern),
+                    AuditLog.target_entity_type.ilike(search_pattern),
+                    AuditLog.target_entity_id.ilike(search_pattern),
+                )
+            )
+            count_query = count_query.where(
+                or_(
+                    AuditLog.description.ilike(search_pattern),
+                    AuditLog.target_entity_type.ilike(search_pattern),
+                    AuditLog.target_entity_id.ilike(search_pattern),
+                )
+            )
         
         # Filter by retention status
         today = date.today()
@@ -284,7 +316,7 @@ class AuditVaultService:
                 "id": str(log.id),
                 "document_type": log.target_entity_type,
                 "reference_id": log.target_entity_id,
-                "action": log.action.value,
+                "action": log.action if isinstance(log.action, str) else log.action.value,
                 "created_at": log.created_at.isoformat(),
                 "fiscal_year": log.created_at.year,
                 "retention_until": retention_until.isoformat(),
@@ -331,7 +363,7 @@ class AuditVaultService:
         integrity_data = {
             "id": str(log.id),
             "entity_id": str(log.entity_id),
-            "action": log.action.value,
+            "action": log.action if isinstance(log.action, str) else log.action.value,
             "target": f"{log.target_entity_type}:{log.target_entity_id}",
             "timestamp": log.created_at.isoformat(),
         }
@@ -343,7 +375,7 @@ class AuditVaultService:
             "id": str(log.id),
             "document_type": log.target_entity_type,
             "reference_id": log.target_entity_id,
-            "action": log.action.value,
+            "action": log.action if isinstance(log.action, str) else log.action.value,
             "created_at": log.created_at.isoformat(),
             "fiscal_year": log.created_at.year,
             "retention_until": retention_until.isoformat(),
@@ -459,7 +491,7 @@ class AuditVaultService:
         type_summary = {}
         
         for log in logs:
-            action_key = log.action.value
+            action_key = log.action if isinstance(log.action, str) else log.action.value
             type_key = log.target_entity_type
             
             action_summary[action_key] = action_summary.get(action_key, 0) + 1
@@ -468,7 +500,7 @@ class AuditVaultService:
             record = {
                 "id": str(log.id),
                 "timestamp": log.created_at.isoformat(),
-                "action": log.action.value,
+                "action": log.action if isinstance(log.action, str) else log.action.value,
                 "entity_type": log.target_entity_type,
                 "entity_id": log.target_entity_id,
                 "user_id": str(log.user_id) if log.user_id else None,
@@ -533,26 +565,26 @@ class AuditVaultService:
             .where(func.extract('year', AuditLog.created_at) == fiscal_year)
         ) or 0
         
-        # NRS submissions
+        # NRS submissions - cast action to string for comparison
         nrs_count = await self.db.scalar(
             select(func.count(AuditLog.id))
             .where(AuditLog.entity_id == entity_id)
             .where(func.extract('year', AuditLog.created_at) == fiscal_year)
-            .where(AuditLog.action == AuditAction.NRS_SUBMIT)
+            .where(func.cast(AuditLog.action, String) == 'NRS_SUBMIT')
         ) or 0
         
         # Action breakdown
         action_counts = await self.db.execute(
             select(
-                AuditLog.action,
+                func.cast(AuditLog.action, String).label('action'),
                 func.count(AuditLog.id).label('count')
             )
             .where(AuditLog.entity_id == entity_id)
             .where(func.extract('year', AuditLog.created_at) == fiscal_year)
-            .group_by(AuditLog.action)
+            .group_by(func.cast(AuditLog.action, String))
         )
         
-        by_action = {row.action.value: row.count for row in action_counts}
+        by_action = {row.action: row.count for row in action_counts}
         
         # Monthly breakdown
         monthly_counts = await self.db.execute(
@@ -637,7 +669,7 @@ class AuditVaultService:
         integrity_data = {
             "id": str(log.id),
             "entity_id": str(log.entity_id),
-            "action": log.action.value,
+            "action": log.action if isinstance(log.action, str) else log.action.value,
             "target": f"{log.target_entity_type}:{log.target_entity_id}",
             "timestamp": log.created_at.isoformat(),
         }
@@ -651,7 +683,7 @@ class AuditVaultService:
             "integrity_hash": integrity_hash,
             "timestamp": log.created_at.isoformat(),
             "record_type": log.target_entity_type,
-            "action": log.action.value,
+            "action": log.action if isinstance(log.action, str) else log.action.value,
             "verification_time": datetime.utcnow().isoformat(),
         }
     
@@ -701,4 +733,57 @@ class AuditVaultService:
             "first_record": logs[0].created_at.isoformat(),
             "last_record": logs[-1].created_at.isoformat(),
             "verification_time": datetime.utcnow().isoformat(),
+        }
+
+    async def set_legal_hold(
+        self,
+        entity_id: uuid.UUID,
+        record_id: uuid.UUID,
+        enable: bool,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Set or remove legal hold on a record.
+        
+        Note: Since audit logs are immutable by design, legal hold status
+        is stored in the 'changes' JSON field which is used for metadata.
+        """
+        result = await self.db.execute(
+            select(AuditLog)
+            .where(AuditLog.id == record_id)
+            .where(AuditLog.entity_id == entity_id)
+        )
+        log = result.scalar_one_or_none()
+        
+        if not log:
+            return {
+                "success": False,
+                "error": "Record not found in vault",
+            }
+        
+        # Store legal hold status in the changes JSON field
+        changes = log.changes or {}
+        
+        if enable:
+            changes["_legal_hold"] = {
+                "enabled": True,
+                "set_at": datetime.utcnow().isoformat(),
+                "reason": reason or "Legal compliance requirement",
+            }
+            action = "enabled"
+        else:
+            if "_legal_hold" in changes:
+                changes["_legal_hold"]["enabled"] = False
+                changes["_legal_hold"]["removed_at"] = datetime.utcnow().isoformat()
+            action = "disabled"
+        
+        log.changes = changes
+        await self.db.commit()
+        
+        return {
+            "success": True,
+            "record_id": str(record_id),
+            "legal_hold": enable,
+            "action": action,
+            "reason": reason,
+            "timestamp": datetime.utcnow().isoformat(),
         }

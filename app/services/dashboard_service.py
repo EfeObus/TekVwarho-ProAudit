@@ -767,7 +767,7 @@ class DashboardService:
         return [
             {
                 "id": str(error.id),
-                "action": error.action.value,
+                "action": error.action if isinstance(error.action, str) else error.action.value,
                 "entity_type": error.target_entity_type,
                 "user_id": str(error.user_id) if error.user_id else None,
                 "ip_address": str(error.ip_address) if error.ip_address else None,

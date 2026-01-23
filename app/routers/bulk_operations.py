@@ -23,6 +23,8 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.vendor import Vendor
 from app.models.customer import Customer
 from app.models.inventory import InventoryItem
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 router = APIRouter(
     prefix="/api/v1/{entity_id}/bulk",
@@ -115,6 +117,22 @@ async def bulk_import_transactions(
     
     if successful > 0:
         await db.commit()
+    
+    # Audit logging for bulk transaction import
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="bulk_import",
+        entity_id=f"transactions-{date.today().isoformat()}",
+        action=AuditAction.IMPORT,
+        user_id=current_user.id,
+        new_values={
+            "import_type": "transactions",
+            "total_rows": total_rows,
+            "successful": successful,
+            "failed": failed,
+        }
+    )
     
     return BulkImportResult(
         total_rows=total_rows,
@@ -244,6 +262,22 @@ async def bulk_import_vendors(
     if successful > 0:
         await db.commit()
     
+    # Audit logging for bulk vendor import
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="bulk_import",
+        entity_id=f"vendors-{date.today().isoformat()}",
+        action=AuditAction.IMPORT,
+        user_id=current_user.id,
+        new_values={
+            "import_type": "vendors",
+            "total_rows": total_rows,
+            "successful": successful,
+            "failed": failed,
+        }
+    )
+    
     return BulkImportResult(
         total_rows=total_rows,
         successful=successful,
@@ -360,6 +394,22 @@ async def bulk_import_customers(
     if successful > 0:
         await db.commit()
     
+    # Audit logging for bulk customer import
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="bulk_import",
+        entity_id=f"customers-{date.today().isoformat()}",
+        action=AuditAction.IMPORT,
+        user_id=current_user.id,
+        new_values={
+            "import_type": "customers",
+            "total_rows": total_rows,
+            "successful": successful,
+            "failed": failed,
+        }
+    )
+    
     return BulkImportResult(
         total_rows=total_rows,
         successful=successful,
@@ -475,6 +525,22 @@ async def bulk_import_inventory(
     
     if successful > 0:
         await db.commit()
+    
+    # Audit logging for bulk inventory import
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="bulk_import",
+        entity_id=f"inventory-{date.today().isoformat()}",
+        action=AuditAction.IMPORT,
+        user_id=current_user.id,
+        new_values={
+            "import_type": "inventory",
+            "total_rows": total_rows,
+            "successful": successful,
+            "failed": failed,
+        }
+    )
     
     return BulkImportResult(
         total_rows=total_rows,

@@ -20,6 +20,8 @@ from app.database import get_async_session
 from app.dependencies import get_current_active_user, verify_entity_access
 from app.models.user import User
 from app.services.reports_service import ReportsService
+from app.services.audit_service import AuditService
+from app.models.audit_consolidated import AuditAction
 
 router = APIRouter(
     prefix="/api/v1/{entity_id}/exports",
@@ -70,6 +72,22 @@ async def export_profit_loss(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate report: {str(e)}",
         )
+    
+    # Audit logging for report export
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        business_entity_id=entity_id,
+        entity_type="report_export",
+        entity_id=f"profit_loss_{start_date}_{end_date}",
+        action=AuditAction.EXPORT,
+        user_id=current_user.id,
+        new_values={
+            "report_type": "profit_loss",
+            "format": format,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+        }
+    )
     
     if format == "json":
         return report_data

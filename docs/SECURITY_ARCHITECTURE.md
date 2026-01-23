@@ -81,12 +81,12 @@ await erasure_service.process_request(request, db_session)
 **What Gets Deleted vs Retained:**
 | Data Category | Deletable | Reason |
 |---------------|-----------|--------|
-| Personal Profile | ✅ Yes | User consent |
-| Contact Info | ✅ Yes | User consent |
-| Bank Accounts | ✅ Yes | User consent |
-| Tax Records (6 years) | ❌ No | NRS Statutory |
-| VAT Returns | ❌ No | FIRS Requirement |
-| Audit Logs | ❌ No | Compliance |
+| Personal Profile | Yes Yes | User consent |
+| Contact Info | Yes Yes | User consent |
+| Bank Accounts | Yes Yes | User consent |
+| Tax Records (6 years) | No No | NRS Statutory |
+| VAT Returns | No No | FIRS Requirement |
+| Audit Logs | No No | Compliance |
 
 ---
 
