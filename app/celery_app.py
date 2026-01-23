@@ -107,6 +107,34 @@ celery_app.conf.update(
             'task': 'app.tasks.celery_tasks.generate_monthly_tax_summary_task',
             'schedule': crontab(day_of_month=1, hour=6, minute=0),  # 1st of month 6 AM
         },
+        
+        # ===========================================
+        # BILLING & SUBSCRIPTION TASKS
+        # ===========================================
+        
+        # Check for expired trials every day at 7 AM
+        'check-trial-expirations': {
+            'task': 'app.tasks.celery_tasks.check_trial_expirations_task',
+            'schedule': crontab(hour=7, minute=0),
+        },
+        
+        # Process subscription renewals daily at 6 AM
+        'process-subscription-renewals': {
+            'task': 'app.tasks.celery_tasks.process_subscription_renewals_task',
+            'schedule': crontab(hour=6, minute=0),
+        },
+        
+        # Retry failed payments every 6 hours
+        'retry-failed-payments': {
+            'task': 'app.tasks.celery_tasks.retry_failed_payments_task',
+            'schedule': crontab(hour='*/6', minute=30),
+        },
+        
+        # Send payment reminders daily at 9 AM
+        'send-payment-reminders': {
+            'task': 'app.tasks.celery_tasks.send_payment_reminders_task',
+            'schedule': crontab(hour=9, minute=0),
+        },
     },
 )
 
@@ -115,5 +143,9 @@ celery_app.conf.update(
 celery_app.conf.task_routes = {
     'app.tasks.celery_tasks.send_email_*': {'queue': 'email'},
     'app.tasks.celery_tasks.nrs_*': {'queue': 'nrs'},
+    'app.tasks.celery_tasks.check_trial_*': {'queue': 'billing'},
+    'app.tasks.celery_tasks.process_subscription_*': {'queue': 'billing'},
+    'app.tasks.celery_tasks.retry_failed_*': {'queue': 'billing'},
+    'app.tasks.celery_tasks.send_payment_*': {'queue': 'billing'},
     'app.tasks.celery_tasks.*': {'queue': 'default'},
 }

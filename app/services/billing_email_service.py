@@ -1,0 +1,913 @@
+"""
+TekVwarho ProAudit - Billing Email Service
+
+Handles all billing-related email notifications.
+Supports transactional emails for:
+- Payment confirmations
+- Invoice notifications
+- Trial expiry warnings
+- Subscription renewals
+- Dunning escalations
+- Account status changes
+"""
+
+import logging
+from datetime import datetime, date
+from typing import Any, Dict, List, Optional
+from decimal import Decimal
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.email_service import EmailService, EmailMessage
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class BillingEmailService:
+    """Service for sending billing-related transactional emails."""
+    
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.email_service = EmailService()
+        self.company_name = "TekVwarho ProAudit"
+        self.support_email = getattr(settings, 'support_email', 'support@tekvwarho.com')
+        self.billing_email = getattr(settings, 'billing_email', 'billing@tekvwarho.com')
+    
+    def _format_naira(self, amount: int) -> str:
+        """Format amount as Nigerian Naira."""
+        return f"₦{amount:,}"
+    
+    def _get_base_html_template(self, content: str) -> str:
+        """Get base HTML email template with consistent styling."""
+        return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{self.company_name}</title>
+    <style>
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }}
+        .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; padding: 20px; }}
+        .header {{ background: #1a365d; color: white; padding: 20px; text-align: center; }}
+        .header h1 {{ margin: 0; font-size: 24px; }}
+        .content {{ padding: 30px 20px; }}
+        .highlight {{ background: #f0f7ff; border-left: 4px solid #1a365d; padding: 15px; margin: 20px 0; }}
+        .amount {{ font-size: 28px; font-weight: bold; color: #1a365d; }}
+        .button {{ display: inline-block; background: #1a365d; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .button:hover {{ background: #2d4a7c; }}
+        .warning {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }}
+        .danger {{ background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0; }}
+        .success {{ background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; }}
+        .footer {{ background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; }}
+        .footer a {{ color: #1a365d; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+        th {{ background: #f8f9fa; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{self.company_name}</h1>
+        </div>
+        <div class="content">
+            {content}
+        </div>
+        <div class="footer">
+            <p>&copy; {datetime.now().year} {self.company_name}. All rights reserved.</p>
+            <p>
+                <a href="mailto:{self.support_email}">Contact Support</a> |
+                <a href="mailto:{self.billing_email}">Billing Inquiries</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    # ===========================================
+    # PAYMENT CONFIRMATION EMAILS
+    # ===========================================
+    
+    async def send_payment_success(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        amount_naira: int,
+        reference: str,
+        payment_date: datetime,
+        next_billing_date: Optional[date] = None,
+    ) -> bool:
+        """Send payment success confirmation email."""
+        subject = f"Payment Confirmed - {self.company_name}"
+        
+        content = f"""
+        <h2>Payment Successful!</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Thank you for your payment. Your subscription has been activated.</p>
+        
+        <div class="success">
+            <p class="amount">{self._format_naira(amount_naira)}</p>
+            <p>Payment Reference: <strong>{reference}</strong></p>
+        </div>
+        
+        <table>
+            <tr>
+                <th>Details</th>
+                <th>Information</th>
+            </tr>
+            <tr>
+                <td>Organization</td>
+                <td>{organization_name}</td>
+            </tr>
+            <tr>
+                <td>Plan</td>
+                <td>ProAudit {tier.title()}</td>
+            </tr>
+            <tr>
+                <td>Amount Paid</td>
+                <td>{self._format_naira(amount_naira)}</td>
+            </tr>
+            <tr>
+                <td>Payment Date</td>
+                <td>{payment_date.strftime('%B %d, %Y at %I:%M %p')}</td>
+            </tr>
+            {"<tr><td>Next Billing Date</td><td>" + next_billing_date.strftime('%B %d, %Y') + "</td></tr>" if next_billing_date else ""}
+        </table>
+        
+        <p>
+            <a href="/dashboard" class="button">Go to Dashboard</a>
+        </p>
+        
+        <p>If you have any questions about your payment, please contact our billing team.</p>
+        """
+        
+        body_text = f"""
+Payment Successful!
+
+Dear {organization_name} Team,
+
+Thank you for your payment of {self._format_naira(amount_naira)}.
+
+Payment Reference: {reference}
+Plan: ProAudit {tier.title()}
+Payment Date: {payment_date.strftime('%B %d, %Y')}
+
+Your subscription is now active.
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_payment_failed(
+        self,
+        email: str,
+        organization_name: str,
+        amount_naira: int,
+        reason: str,
+        retry_url: Optional[str] = None,
+    ) -> bool:
+        """Send payment failure notification email."""
+        subject = f"Payment Failed - Action Required - {self.company_name}"
+        
+        content = f"""
+        <h2>Payment Failed</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>We were unable to process your payment. Please update your payment method to continue your subscription.</p>
+        
+        <div class="danger">
+            <p><strong>Amount:</strong> {self._format_naira(amount_naira)}</p>
+            <p><strong>Reason:</strong> {reason}</p>
+        </div>
+        
+        <p>
+            <a href="{retry_url or '/billing'}" class="button">Update Payment Method</a>
+        </p>
+        
+        <p>If you believe this is an error, please contact your bank or our support team.</p>
+        """
+        
+        body_text = f"""
+Payment Failed - Action Required
+
+Dear {organization_name} Team,
+
+We were unable to process your payment of {self._format_naira(amount_naira)}.
+
+Reason: {reason}
+
+Please update your payment method to continue your subscription.
+
+Visit: {retry_url or '/billing'}
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    # ===========================================
+    # TRIAL EMAILS
+    # ===========================================
+    
+    async def send_trial_expiring_warning(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        days_remaining: int,
+        trial_ends_at: datetime,
+    ) -> bool:
+        """Send trial expiration warning email."""
+        subject = f"Your Trial Expires in {days_remaining} Day{'s' if days_remaining != 1 else ''} - {self.company_name}"
+        
+        content = f"""
+        <h2>Your Trial is Ending Soon</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your free trial of ProAudit {tier.title()} will expire in <strong>{days_remaining} day{'s' if days_remaining != 1 else ''}</strong>.</p>
+        
+        <div class="warning">
+            <p><strong>Trial Ends:</strong> {trial_ends_at.strftime('%B %d, %Y')}</p>
+            <p>Don't lose access to your accounting data!</p>
+        </div>
+        
+        <p>To continue using all features, please subscribe before your trial ends.</p>
+        
+        <p>
+            <a href="/pricing" class="button">Subscribe Now</a>
+        </p>
+        
+        <p>If you have any questions, our team is here to help.</p>
+        """
+        
+        body_text = f"""
+Your Trial is Ending Soon
+
+Dear {organization_name} Team,
+
+Your free trial of ProAudit {tier.title()} will expire in {days_remaining} day(s).
+
+Trial Ends: {trial_ends_at.strftime('%B %d, %Y')}
+
+To continue using all features, please subscribe before your trial ends.
+
+Visit: /pricing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_trial_expired(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        grace_period_days: int,
+    ) -> bool:
+        """Send trial expired notification with grace period info."""
+        subject = f"Trial Expired - {grace_period_days} Day Grace Period - {self.company_name}"
+        
+        content = f"""
+        <h2>Your Trial Has Expired</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your free trial of ProAudit {tier.title()} has expired.</p>
+        
+        <div class="danger">
+            <p><strong>Grace Period:</strong> {grace_period_days} days</p>
+            <p>Your account will be downgraded after the grace period ends.</p>
+        </div>
+        
+        <p>Subscribe now to maintain access to all {tier.title()} features and your data.</p>
+        
+        <p>
+            <a href="/pricing" class="button">Subscribe Now</a>
+        </p>
+        """
+        
+        body_text = f"""
+Your Trial Has Expired
+
+Dear {organization_name} Team,
+
+Your free trial of ProAudit {tier.title()} has expired.
+
+You have a {grace_period_days}-day grace period to subscribe.
+
+After the grace period, your account will be downgraded.
+
+Visit: /pricing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_trial_ended_downgrade(
+        self,
+        email: str,
+        organization_name: str,
+        previous_tier: str,
+    ) -> bool:
+        """Send notification that trial ended and account was downgraded."""
+        subject = f"Account Downgraded - Trial Ended - {self.company_name}"
+        
+        content = f"""
+        <h2>Account Downgraded</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your trial period has ended and your account has been downgraded to the Core plan.</p>
+        
+        <div class="highlight">
+            <p><strong>Previous Plan:</strong> ProAudit {previous_tier.title()}</p>
+            <p><strong>Current Plan:</strong> ProAudit Core</p>
+        </div>
+        
+        <p>Some features may no longer be available. You can upgrade at any time to restore full access.</p>
+        
+        <p>
+            <a href="/pricing" class="button">Upgrade Now</a>
+        </p>
+        
+        <p>Your data is safe and will be available when you upgrade.</p>
+        """
+        
+        body_text = f"""
+Account Downgraded
+
+Dear {organization_name} Team,
+
+Your trial period has ended and your account has been downgraded to the Core plan.
+
+Previous Plan: ProAudit {previous_tier.title()}
+Current Plan: ProAudit Core
+
+You can upgrade at any time to restore full access.
+
+Visit: /pricing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    # ===========================================
+    # RENEWAL EMAILS
+    # ===========================================
+    
+    async def send_renewal_upcoming(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        amount_naira: int,
+        renewal_date: date,
+        days_until: int,
+    ) -> bool:
+        """Send upcoming renewal notice."""
+        subject = f"Subscription Renewal in {days_until} Days - {self.company_name}"
+        
+        content = f"""
+        <h2>Upcoming Subscription Renewal</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your ProAudit {tier.title()} subscription will automatically renew in <strong>{days_until} days</strong>.</p>
+        
+        <div class="highlight">
+            <p class="amount">{self._format_naira(amount_naira)}</p>
+            <p><strong>Renewal Date:</strong> {renewal_date.strftime('%B %d, %Y')}</p>
+        </div>
+        
+        <p>Your payment method on file will be charged automatically. No action is needed to continue your subscription.</p>
+        
+        <p>
+            <a href="/billing" class="button">Manage Subscription</a>
+        </p>
+        """
+        
+        body_text = f"""
+Upcoming Subscription Renewal
+
+Dear {organization_name} Team,
+
+Your ProAudit {tier.title()} subscription will automatically renew in {days_until} days.
+
+Amount: {self._format_naira(amount_naira)}
+Renewal Date: {renewal_date.strftime('%B %d, %Y')}
+
+Your payment method will be charged automatically.
+
+Visit /billing to manage your subscription.
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_renewal_reminder(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        amount_naira: int,
+        renewal_date: date,
+    ) -> bool:
+        """Send renewal reminder (3 days before)."""
+        subject = f"Payment Reminder - Renewal in 3 Days - {self.company_name}"
+        
+        content = f"""
+        <h2>Payment Reminder</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>This is a reminder that your subscription payment of <strong>{self._format_naira(amount_naira)}</strong> will be processed on <strong>{renewal_date.strftime('%B %d, %Y')}</strong>.</p>
+        
+        <div class="highlight">
+            <p><strong>Plan:</strong> ProAudit {tier.title()}</p>
+            <p><strong>Amount:</strong> {self._format_naira(amount_naira)}</p>
+        </div>
+        
+        <p>Please ensure your payment method is up to date to avoid service interruption.</p>
+        
+        <p>
+            <a href="/billing" class="button">Review Payment Method</a>
+        </p>
+        """
+        
+        body_text = f"""
+Payment Reminder
+
+Dear {organization_name} Team,
+
+Your subscription payment of {self._format_naira(amount_naira)} will be processed on {renewal_date.strftime('%B %d, %Y')}.
+
+Plan: ProAudit {tier.title()}
+
+Please ensure your payment method is up to date.
+
+Visit /billing to review.
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_renewal_final_notice(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        amount_naira: int,
+        renewal_date: date,
+    ) -> bool:
+        """Send final renewal notice (1 day before)."""
+        subject = f"Final Notice - Payment Tomorrow - {self.company_name}"
+        
+        content = f"""
+        <h2>Final Payment Notice</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your subscription payment will be processed <strong>tomorrow</strong>.</p>
+        
+        <div class="warning">
+            <p><strong>Plan:</strong> ProAudit {tier.title()}</p>
+            <p><strong>Amount:</strong> {self._format_naira(amount_naira)}</p>
+            <p><strong>Charge Date:</strong> {renewal_date.strftime('%B %d, %Y')}</p>
+        </div>
+        
+        <p>If you need to update your payment method, please do so now.</p>
+        
+        <p>
+            <a href="/billing" class="button">Update Payment Method</a>
+        </p>
+        """
+        
+        body_text = f"""
+Final Payment Notice
+
+Dear {organization_name} Team,
+
+Your subscription payment will be processed tomorrow.
+
+Plan: ProAudit {tier.title()}
+Amount: {self._format_naira(amount_naira)}
+Charge Date: {renewal_date.strftime('%B %d, %Y')}
+
+Update your payment method now if needed: /billing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_renewal_invoice(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+        amount_naira: int,
+        payment_url: str,
+        due_date: datetime,
+    ) -> bool:
+        """Send renewal invoice with payment link."""
+        subject = f"Invoice - Subscription Renewal - {self.company_name}"
+        
+        content = f"""
+        <h2>Subscription Renewal Invoice</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Please find your subscription renewal invoice below.</p>
+        
+        <div class="highlight">
+            <p class="amount">{self._format_naira(amount_naira)}</p>
+            <p><strong>Plan:</strong> ProAudit {tier.title()}</p>
+            <p><strong>Due Date:</strong> {due_date.strftime('%B %d, %Y')}</p>
+        </div>
+        
+        <p>
+            <a href="{payment_url}" class="button">Pay Now</a>
+        </p>
+        
+        <p>Payment is due by {due_date.strftime('%B %d, %Y')}. Late payments may result in service interruption.</p>
+        """
+        
+        body_text = f"""
+Subscription Renewal Invoice
+
+Dear {organization_name} Team,
+
+Your subscription renewal invoice:
+
+Plan: ProAudit {tier.title()}
+Amount: {self._format_naira(amount_naira)}
+Due Date: {due_date.strftime('%B %d, %Y')}
+
+Pay now: {payment_url}
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    # ===========================================
+    # DUNNING EMAILS
+    # ===========================================
+    
+    async def send_payment_retry_notice(
+        self,
+        email: str,
+        organization_name: str,
+        attempt_number: int,
+        amount_naira: int,
+        days_until_suspension: int,
+    ) -> bool:
+        """Send payment retry notification."""
+        subject = f"Payment Retry Required - Attempt {attempt_number} - {self.company_name}"
+        
+        content = f"""
+        <h2>Payment Retry Required</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>We attempted to process your payment but it was unsuccessful. This is retry attempt #{attempt_number}.</p>
+        
+        <div class="warning">
+            <p><strong>Amount Due:</strong> {self._format_naira(amount_naira)}</p>
+            <p><strong>Days Until Suspension:</strong> {days_until_suspension}</p>
+        </div>
+        
+        <p>Please update your payment method to avoid service interruption.</p>
+        
+        <p>
+            <a href="/billing" class="button">Update Payment Method</a>
+        </p>
+        """
+        
+        body_text = f"""
+Payment Retry Required
+
+Dear {organization_name} Team,
+
+We attempted to process your payment but it was unsuccessful.
+This is retry attempt #{attempt_number}.
+
+Amount Due: {self._format_naira(amount_naira)}
+Days Until Suspension: {days_until_suspension}
+
+Please update your payment method: /billing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_dunning_escalation(
+        self,
+        email: str,
+        organization_name: str,
+        dunning_level: str,
+        amount_naira: int,
+    ) -> bool:
+        """Send dunning escalation notification."""
+        urgency_map = {
+            "warning": ("Action Required", "warning"),
+            "urgent": ("Urgent: Immediate Action Required", "danger"),
+            "final": ("Final Notice: Account Will Be Suspended", "danger"),
+        }
+        
+        title, style = urgency_map.get(dunning_level, ("Payment Required", "warning"))
+        subject = f"{title} - {self.company_name}"
+        
+        content = f"""
+        <h2>{title}</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your account has an outstanding balance that requires immediate attention.</p>
+        
+        <div class="{style}">
+            <p><strong>Amount Due:</strong> {self._format_naira(amount_naira)}</p>
+            <p><strong>Status:</strong> {dunning_level.title()} Notice</p>
+        </div>
+        
+        <p>Please make payment immediately to avoid service interruption.</p>
+        
+        <p>
+            <a href="/billing" class="button">Pay Now</a>
+        </p>
+        
+        <p>If you have already made payment, please disregard this notice.</p>
+        """
+        
+        body_text = f"""
+{title}
+
+Dear {organization_name} Team,
+
+Your account has an outstanding balance of {self._format_naira(amount_naira)}.
+
+Status: {dunning_level.title()} Notice
+
+Please make payment immediately: /billing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_account_suspended(
+        self,
+        email: str,
+        organization_name: str,
+        reason: str,
+        amount_naira: int,
+    ) -> bool:
+        """Send account suspension notification."""
+        subject = f"Account Suspended - Payment Required - {self.company_name}"
+        
+        content = f"""
+        <h2>Account Suspended</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your account has been suspended due to non-payment.</p>
+        
+        <div class="danger">
+            <p><strong>Reason:</strong> {reason}</p>
+            <p><strong>Amount Due:</strong> {self._format_naira(amount_naira)}</p>
+        </div>
+        
+        <p>Your data is safe and will be available once payment is made. To reactivate your account, please pay the outstanding balance.</p>
+        
+        <p>
+            <a href="/billing" class="button">Reactivate Account</a>
+        </p>
+        
+        <p>If you have questions, please contact our billing team at {self.billing_email}.</p>
+        """
+        
+        body_text = f"""
+Account Suspended
+
+Dear {organization_name} Team,
+
+Your account has been suspended due to non-payment.
+
+Reason: {reason}
+Amount Due: {self._format_naira(amount_naira)}
+
+Your data is safe. To reactivate, please pay the outstanding balance.
+
+Visit: /billing
+
+Contact billing: {self.billing_email}
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_account_reactivated(
+        self,
+        email: str,
+        organization_name: str,
+        tier: str,
+    ) -> bool:
+        """Send account reactivation confirmation."""
+        subject = f"Account Reactivated - Welcome Back! - {self.company_name}"
+        
+        content = f"""
+        <h2>Account Reactivated!</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Great news! Your account has been reactivated.</p>
+        
+        <div class="success">
+            <p><strong>Plan:</strong> ProAudit {tier.title()}</p>
+            <p>All your data and features are now available.</p>
+        </div>
+        
+        <p>
+            <a href="/dashboard" class="button">Go to Dashboard</a>
+        </p>
+        
+        <p>Thank you for being a valued customer!</p>
+        """
+        
+        body_text = f"""
+Account Reactivated!
+
+Dear {organization_name} Team,
+
+Your account has been reactivated.
+
+Plan: ProAudit {tier.title()}
+
+All your data and features are now available.
+
+Visit: /dashboard
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    # ===========================================
+    # INVOICE EMAILS
+    # ===========================================
+    
+    async def send_invoice_created(
+        self,
+        email: str,
+        organization_name: str,
+        invoice_number: str,
+        amount_naira: int,
+        due_date: date,
+        invoice_url: str,
+        pdf_attachment: Optional[bytes] = None,
+    ) -> bool:
+        """Send invoice created notification with optional PDF attachment."""
+        subject = f"Invoice {invoice_number} - {self.company_name}"
+        
+        content = f"""
+        <h2>Invoice {invoice_number}</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Please find your invoice attached.</p>
+        
+        <div class="highlight">
+            <p><strong>Invoice Number:</strong> {invoice_number}</p>
+            <p><strong>Amount:</strong> {self._format_naira(amount_naira)}</p>
+            <p><strong>Due Date:</strong> {due_date.strftime('%B %d, %Y')}</p>
+        </div>
+        
+        <p>
+            <a href="{invoice_url}" class="button">View Invoice</a>
+        </p>
+        """
+        
+        body_text = f"""
+Invoice {invoice_number}
+
+Dear {organization_name} Team,
+
+Invoice Number: {invoice_number}
+Amount: {self._format_naira(amount_naira)}
+Due Date: {due_date.strftime('%B %d, %Y')}
+
+View invoice: {invoice_url}
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        attachments = None
+        if pdf_attachment:
+            attachments = [{
+                "filename": f"{invoice_number}.pdf",
+                "content": pdf_attachment,
+                "content_type": "application/pdf",
+            }]
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+            attachments=attachments,
+        ))

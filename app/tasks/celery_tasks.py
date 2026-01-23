@@ -533,3 +533,527 @@ async def _send_email(to: List[str], subject: str, body_text: str, body_html: st
         body_text=body_text,
         body_html=body_html,
     ))
+
+
+# ===========================================
+# BILLING & SUBSCRIPTION TASKS
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.check_trial_expirations_task')
+def check_trial_expirations_task() -> Dict[str, Any]:
+    """
+    Check for expired trials and transition them to appropriate state.
+    
+    - Trials with payment method: Attempt first charge
+    - Trials without payment method: Downgrade to free/disabled
+    - Send notifications before and on expiry
+    """
+    return run_async(_check_trial_expirations())
+
+
+async def _check_trial_expirations() -> Dict[str, Any]:
+    """Async implementation of trial expiration check."""
+    from app.models.sku import TenantSKU, SKUTier
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.services.billing_email_service import BillingEmailService
+    from app.services.dunning_service import DunningService
+    from sqlalchemy import select, and_
+    
+    async with async_session_factory() as db:
+        now = datetime.utcnow()
+        
+        # Find trials expiring today or already expired (within grace period)
+        grace_period_days = 3
+        grace_cutoff = now - timedelta(days=grace_period_days)
+        
+        result = await db.execute(
+            select(TenantSKU)
+            .where(TenantSKU.is_active == True)
+            .where(TenantSKU.trial_ends_at != None)
+            .where(TenantSKU.trial_ends_at <= now)
+            .where(TenantSKU.trial_ends_at >= grace_cutoff)
+        )
+        
+        expiring_trials = result.scalars().all()
+        
+        trials_expired = 0
+        trials_converted = 0
+        trials_warned = 0
+        trials_disabled = 0
+        
+        billing_email_service = BillingEmailService(db)
+        dunning_service = DunningService(db)
+        
+        for tenant_sku in expiring_trials:
+            # Get organization and admin user
+            org_result = await db.execute(
+                select(Organization).where(Organization.id == tenant_sku.organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            if not org:
+                continue
+            
+            # Get admin user for notifications
+            admin_result = await db.execute(
+                select(User)
+                .where(User.organization_id == tenant_sku.organization_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            days_since_expiry = (now - tenant_sku.trial_ends_at).days
+            
+            if days_since_expiry == 0:
+                # Trial just expired - send final warning
+                if admin_user and admin_user.email:
+                    await billing_email_service.send_trial_expired(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        tier=tenant_sku.tier.value,
+                        grace_period_days=grace_period_days,
+                    )
+                trials_expired += 1
+                
+            elif days_since_expiry >= grace_period_days:
+                # Grace period over - disable or downgrade
+                tenant_sku.tier = SKUTier.CORE
+                tenant_sku.trial_ends_at = None
+                tenant_sku.is_active = True  # Keep active but downgrade
+                tenant_sku.notes = f"Trial expired, downgraded to Core on {now.isoformat()}"
+                
+                if admin_user and admin_user.email:
+                    await billing_email_service.send_trial_ended_downgrade(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        previous_tier=tenant_sku.tier.value,
+                    )
+                trials_disabled += 1
+        
+        # Also check for trials expiring soon (3 days, 1 day warnings)
+        warning_days = [3, 1]
+        for days_until in warning_days:
+            warning_date = now + timedelta(days=days_until)
+            warning_start = warning_date.replace(hour=0, minute=0, second=0)
+            warning_end = warning_date.replace(hour=23, minute=59, second=59)
+            
+            upcoming_result = await db.execute(
+                select(TenantSKU)
+                .where(TenantSKU.is_active == True)
+                .where(TenantSKU.trial_ends_at != None)
+                .where(TenantSKU.trial_ends_at >= warning_start)
+                .where(TenantSKU.trial_ends_at <= warning_end)
+            )
+            
+            upcoming_trials = upcoming_result.scalars().all()
+            
+            for tenant_sku in upcoming_trials:
+                org_result = await db.execute(
+                    select(Organization).where(Organization.id == tenant_sku.organization_id)
+                )
+                org = org_result.scalar_one_or_none()
+                if not org:
+                    continue
+                
+                admin_result = await db.execute(
+                    select(User)
+                    .where(User.organization_id == tenant_sku.organization_id)
+                    .where(User.is_active == True)
+                    .order_by(User.created_at)
+                    .limit(1)
+                )
+                admin_user = admin_result.scalar_one_or_none()
+                
+                if admin_user and admin_user.email:
+                    await billing_email_service.send_trial_expiring_warning(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        tier=tenant_sku.tier.value,
+                        days_remaining=days_until,
+                        trial_ends_at=tenant_sku.trial_ends_at,
+                    )
+                trials_warned += 1
+        
+        await db.commit()
+        
+        logger.info(f"Trial expiration check: {trials_expired} expired, {trials_disabled} disabled, {trials_warned} warned")
+        return {
+            "trials_expired": trials_expired,
+            "trials_converted": trials_converted,
+            "trials_warned": trials_warned,
+            "trials_disabled": trials_disabled,
+        }
+
+
+@shared_task(name='app.tasks.celery_tasks.process_subscription_renewals_task')
+def process_subscription_renewals_task() -> Dict[str, Any]:
+    """
+    Process subscription renewals for recurring billing.
+    
+    - Find subscriptions due for renewal
+    - Initiate payment charges via Paystack
+    - Update subscription periods
+    - Handle failures with dunning
+    """
+    return run_async(_process_subscription_renewals())
+
+
+async def _process_subscription_renewals() -> Dict[str, Any]:
+    """Async implementation of subscription renewal processing."""
+    from app.models.sku import TenantSKU, SKUTier, PaymentTransaction
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.services.billing_service import BillingService, BillingCycle
+    from app.services.billing_email_service import BillingEmailService
+    from app.services.dunning_service import DunningService
+    from app.config.sku_config import TIER_PRICING
+    from sqlalchemy import select
+    
+    async with async_session_factory() as db:
+        now = datetime.utcnow()
+        today = now.date()
+        
+        # Find subscriptions where current_period_end is today or past
+        # and they're not on trial
+        result = await db.execute(
+            select(TenantSKU)
+            .where(TenantSKU.is_active == True)
+            .where(TenantSKU.trial_ends_at == None)  # Not on trial
+            .where(TenantSKU.current_period_end != None)
+            .where(TenantSKU.current_period_end <= today)
+            .where(TenantSKU.tier != SKUTier.CORE)  # Core tier is free/doesn't renew
+        )
+        
+        due_subscriptions = result.scalars().all()
+        
+        renewed = 0
+        failed = 0
+        skipped = 0
+        
+        billing_service = BillingService(db)
+        billing_email_service = BillingEmailService(db)
+        dunning_service = DunningService(db)
+        
+        for tenant_sku in due_subscriptions:
+            # Get organization and admin
+            org_result = await db.execute(
+                select(Organization).where(Organization.id == tenant_sku.organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            if not org:
+                skipped += 1
+                continue
+            
+            admin_result = await db.execute(
+                select(User)
+                .where(User.organization_id == tenant_sku.organization_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            if not admin_user or not admin_user.email:
+                skipped += 1
+                continue
+            
+            # Calculate renewal amount
+            billing_cycle = BillingCycle(tenant_sku.billing_cycle) if tenant_sku.billing_cycle else BillingCycle.MONTHLY
+            
+            amount = billing_service.calculate_subscription_price(
+                tier=tenant_sku.tier,
+                billing_cycle=billing_cycle,
+                intelligence_addon=tenant_sku.intelligence_addon,
+            )
+            
+            try:
+                # Create payment intent for renewal
+                payment_intent = await billing_service.create_payment_intent(
+                    organization_id=tenant_sku.organization_id,
+                    tier=tenant_sku.tier,
+                    billing_cycle=billing_cycle,
+                    admin_email=admin_user.email,
+                    intelligence_addon=tenant_sku.intelligence_addon,
+                    callback_url=f"/billing/renewal-callback",
+                    user_id=admin_user.id,
+                )
+                
+                # Send renewal invoice email
+                await billing_email_service.send_renewal_invoice(
+                    email=admin_user.email,
+                    organization_name=org.name,
+                    tier=tenant_sku.tier.value,
+                    amount_naira=amount,
+                    payment_url=payment_intent.authorization_url,
+                    due_date=now + timedelta(days=7),
+                )
+                
+                renewed += 1
+                logger.info(f"Renewal initiated for org {org.id}: {tenant_sku.tier.value}")
+                
+            except Exception as e:
+                logger.error(f"Renewal failed for org {tenant_sku.organization_id}: {e}")
+                
+                # Record failure for dunning
+                await dunning_service.record_payment_failure(
+                    organization_id=tenant_sku.organization_id,
+                    reason=str(e),
+                    amount_naira=amount,
+                )
+                
+                failed += 1
+        
+        await db.commit()
+        
+        logger.info(f"Subscription renewals: {renewed} initiated, {failed} failed, {skipped} skipped")
+        return {
+            "renewed": renewed,
+            "failed": failed,
+            "skipped": skipped,
+        }
+
+
+@shared_task(name='app.tasks.celery_tasks.retry_failed_payments_task')
+def retry_failed_payments_task() -> Dict[str, Any]:
+    """
+    Retry failed payments with dunning escalation.
+    
+    - Find failed payments within retry window
+    - Attempt retry based on dunning schedule
+    - Escalate if max retries reached
+    - Suspend accounts if payment not recovered
+    """
+    return run_async(_retry_failed_payments())
+
+
+async def _retry_failed_payments() -> Dict[str, Any]:
+    """Async implementation of payment retry/dunning."""
+    from app.models.sku import PaymentTransaction, TenantSKU, SKUTier
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.services.billing_service import BillingService, PaystackProvider
+    from app.services.billing_email_service import BillingEmailService
+    from app.services.dunning_service import DunningService, DunningLevel
+    from sqlalchemy import select, and_
+    
+    async with async_session_factory() as db:
+        now = datetime.utcnow()
+        
+        dunning_service = DunningService(db)
+        billing_email_service = BillingEmailService(db)
+        payment_provider = PaystackProvider()
+        
+        # Get organizations in dunning state
+        dunning_records = await dunning_service.get_active_dunning_records()
+        
+        retried = 0
+        recovered = 0
+        escalated = 0
+        suspended = 0
+        
+        for record in dunning_records:
+            org_id = record.organization_id
+            
+            # Check if it's time to retry based on dunning level
+            should_retry, next_action = await dunning_service.should_retry_payment(org_id)
+            
+            if not should_retry:
+                continue
+            
+            # Get organization and admin
+            org_result = await db.execute(
+                select(Organization).where(Organization.id == org_id)
+            )
+            org = org_result.scalar_one_or_none()
+            if not org:
+                continue
+            
+            admin_result = await db.execute(
+                select(User)
+                .where(User.organization_id == org_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            if next_action == "retry":
+                # Attempt payment retry
+                try:
+                    # Send reminder email with payment link
+                    if admin_user and admin_user.email:
+                        await billing_email_service.send_payment_retry_notice(
+                            email=admin_user.email,
+                            organization_name=org.name,
+                            attempt_number=record.retry_count + 1,
+                            amount_naira=record.amount_naira,
+                            days_until_suspension=record.days_until_suspension,
+                        )
+                    
+                    await dunning_service.record_retry_attempt(org_id)
+                    retried += 1
+                    
+                except Exception as e:
+                    logger.error(f"Payment retry failed for org {org_id}: {e}")
+                    
+            elif next_action == "escalate":
+                # Escalate dunning level
+                new_level = await dunning_service.escalate_dunning_level(org_id)
+                
+                if admin_user and admin_user.email:
+                    await billing_email_service.send_dunning_escalation(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        dunning_level=new_level.value,
+                        amount_naira=record.amount_naira,
+                    )
+                escalated += 1
+                
+            elif next_action == "suspend":
+                # Suspend account
+                tenant_sku_result = await db.execute(
+                    select(TenantSKU).where(TenantSKU.organization_id == org_id)
+                )
+                tenant_sku = tenant_sku_result.scalar_one_or_none()
+                
+                if tenant_sku:
+                    tenant_sku.suspended_at = now
+                    tenant_sku.suspension_reason = "Payment failed - dunning exhausted"
+                    tenant_sku.is_active = False
+                    
+                    if admin_user and admin_user.email:
+                        await billing_email_service.send_account_suspended(
+                            email=admin_user.email,
+                            organization_name=org.name,
+                            reason="Payment failed after multiple attempts",
+                            amount_naira=record.amount_naira,
+                        )
+                    suspended += 1
+        
+        await db.commit()
+        
+        logger.info(f"Payment retry: {retried} retried, {recovered} recovered, {escalated} escalated, {suspended} suspended")
+        return {
+            "retried": retried,
+            "recovered": recovered,
+            "escalated": escalated,
+            "suspended": suspended,
+        }
+
+
+@shared_task(name='app.tasks.celery_tasks.send_payment_reminders_task')
+def send_payment_reminders_task() -> Dict[str, Any]:
+    """
+    Send payment reminder emails before subscription renewal.
+    
+    - 7 days before: Upcoming renewal notice
+    - 3 days before: Payment reminder
+    - 1 day before: Final reminder
+    """
+    return run_async(_send_payment_reminders())
+
+
+async def _send_payment_reminders() -> Dict[str, Any]:
+    """Async implementation of payment reminders."""
+    from app.models.sku import TenantSKU, SKUTier
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.services.billing_service import BillingService, BillingCycle
+    from app.services.billing_email_service import BillingEmailService
+    from sqlalchemy import select, and_
+    
+    async with async_session_factory() as db:
+        now = datetime.utcnow()
+        today = now.date()
+        
+        billing_service = BillingService(db)
+        billing_email_service = BillingEmailService(db)
+        
+        # Reminder schedule: days before renewal -> reminder type
+        reminder_schedule = {
+            7: "upcoming",
+            3: "reminder",
+            1: "final",
+        }
+        
+        reminders_sent = 0
+        
+        for days_before, reminder_type in reminder_schedule.items():
+            target_date = today + timedelta(days=days_before)
+            
+            # Find subscriptions renewing on target date
+            result = await db.execute(
+                select(TenantSKU)
+                .where(TenantSKU.is_active == True)
+                .where(TenantSKU.trial_ends_at == None)  # Not on trial
+                .where(TenantSKU.current_period_end == target_date)
+                .where(TenantSKU.tier != SKUTier.CORE)
+            )
+            
+            due_subscriptions = result.scalars().all()
+            
+            for tenant_sku in due_subscriptions:
+                # Get organization
+                org_result = await db.execute(
+                    select(Organization).where(Organization.id == tenant_sku.organization_id)
+                )
+                org = org_result.scalar_one_or_none()
+                if not org:
+                    continue
+                
+                # Get admin user
+                admin_result = await db.execute(
+                    select(User)
+                    .where(User.organization_id == tenant_sku.organization_id)
+                    .where(User.is_active == True)
+                    .order_by(User.created_at)
+                    .limit(1)
+                )
+                admin_user = admin_result.scalar_one_or_none()
+                
+                if not admin_user or not admin_user.email:
+                    continue
+                
+                # Calculate amount
+                billing_cycle = BillingCycle(tenant_sku.billing_cycle) if tenant_sku.billing_cycle else BillingCycle.MONTHLY
+                amount = billing_service.calculate_subscription_price(
+                    tier=tenant_sku.tier,
+                    billing_cycle=billing_cycle,
+                    intelligence_addon=tenant_sku.intelligence_addon,
+                )
+                
+                # Send appropriate reminder
+                if reminder_type == "upcoming":
+                    await billing_email_service.send_renewal_upcoming(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        tier=tenant_sku.tier.value,
+                        amount_naira=amount,
+                        renewal_date=tenant_sku.current_period_end,
+                        days_until=days_before,
+                    )
+                elif reminder_type == "reminder":
+                    await billing_email_service.send_renewal_reminder(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        tier=tenant_sku.tier.value,
+                        amount_naira=amount,
+                        renewal_date=tenant_sku.current_period_end,
+                    )
+                elif reminder_type == "final":
+                    await billing_email_service.send_renewal_final_notice(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        tier=tenant_sku.tier.value,
+                        amount_naira=amount,
+                        renewal_date=tenant_sku.current_period_end,
+                    )
+                
+                reminders_sent += 1
+        
+        await db.commit()
+        
+        logger.info(f"Payment reminders sent: {reminders_sent}")
+        return {"reminders_sent": reminders_sent}

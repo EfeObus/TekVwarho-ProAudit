@@ -982,17 +982,283 @@ class BillingService:
         self,
         payload: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Handle subscription created webhook."""
-        # Stub implementation
-        return {"handled": True, "event": "subscription.create"}
+        """
+        Handle subscription created webhook.
+        
+        This is triggered when a customer subscribes to a plan via Paystack.
+        Updates TenantSKU with subscription details.
+        """
+        data = payload.get("data", {})
+        customer = data.get("customer", {})
+        plan = data.get("plan", {})
+        
+        subscription_code = data.get("subscription_code")
+        email_token = data.get("email_token")
+        customer_email = customer.get("email")
+        plan_code = plan.get("plan_code")
+        
+        logger.info(f"Processing subscription.create webhook: {subscription_code}")
+        
+        # Extract organization ID from metadata or customer email
+        metadata = data.get("metadata", {})
+        organization_id_str = metadata.get("organization_id")
+        
+        if not organization_id_str:
+            # Try to find organization by customer email
+            from app.models.user import User
+            from app.models.organization import Organization
+            
+            user_result = await self.db.execute(
+                select(User).where(User.email == customer_email)
+            )
+            user = user_result.scalar_one_or_none()
+            
+            if user and user.organization_id:
+                organization_id_str = str(user.organization_id)
+            else:
+                logger.warning(f"Could not find organization for subscription: {subscription_code}")
+                return {"handled": False, "error": "Organization not found"}
+        
+        try:
+            org_id = UUID(organization_id_str)
+            
+            # Determine tier from plan code or metadata
+            tier_str = metadata.get("tier")
+            if not tier_str and plan_code:
+                # Extract tier from plan code (e.g., "proaudit_professional_monthly")
+                if "professional" in plan_code.lower():
+                    tier_str = "professional"
+                elif "enterprise" in plan_code.lower():
+                    tier_str = "enterprise"
+                else:
+                    tier_str = "core"
+            
+            tier = SKUTier(tier_str) if tier_str else SKUTier.CORE
+            
+            # Get billing cycle from plan
+            billing_cycle = "monthly"
+            if plan.get("interval") == "annually":
+                billing_cycle = "annual"
+            
+            # Update TenantSKU with subscription details
+            result = await self.db.execute(
+                select(TenantSKU).where(
+                    and_(
+                        TenantSKU.organization_id == org_id,
+                        TenantSKU.is_active == True,
+                    )
+                )
+            )
+            tenant_sku = result.scalar_one_or_none()
+            
+            now = datetime.utcnow()
+            
+            if tenant_sku:
+                # Update existing SKU
+                tenant_sku.tier = tier
+                tenant_sku.billing_cycle = billing_cycle
+                tenant_sku.trial_ends_at = None  # No longer on trial
+                tenant_sku.current_period_start = now
+                
+                # Set period end based on billing cycle
+                if billing_cycle == "annual":
+                    tenant_sku.current_period_end = now + timedelta(days=365)
+                else:
+                    tenant_sku.current_period_end = now + timedelta(days=30)
+                
+                # Store subscription details in metadata
+                metadata_update = tenant_sku.custom_metadata or {}
+                metadata_update["paystack_subscription"] = {
+                    "subscription_code": subscription_code,
+                    "email_token": email_token,
+                    "plan_code": plan_code,
+                    "customer_code": customer.get("customer_code"),
+                    "created_at": now.isoformat(),
+                }
+                tenant_sku.custom_metadata = metadata_update
+                
+                # Clear any dunning status
+                if "dunning" in metadata_update:
+                    del metadata_update["dunning"]
+                    tenant_sku.custom_metadata = metadata_update
+                
+            else:
+                # Create new SKU
+                tenant_sku = TenantSKU(
+                    organization_id=org_id,
+                    tier=tier,
+                    billing_cycle=billing_cycle,
+                    is_active=True,
+                    trial_ends_at=None,
+                    current_period_start=now,
+                    current_period_end=now + timedelta(days=30 if billing_cycle == "monthly" else 365),
+                    custom_metadata={
+                        "paystack_subscription": {
+                            "subscription_code": subscription_code,
+                            "email_token": email_token,
+                            "plan_code": plan_code,
+                            "customer_code": customer.get("customer_code"),
+                            "created_at": now.isoformat(),
+                        }
+                    },
+                )
+                self.db.add(tenant_sku)
+            
+            await self.db.flush()
+            
+            # Send confirmation email
+            from app.services.billing_email_service import BillingEmailService
+            from app.models.organization import Organization
+            
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.id == org_id)
+            )
+            org = org_result.scalar_one_or_none()
+            
+            if customer_email and org:
+                billing_email_service = BillingEmailService(self.db)
+                amount = self.calculate_subscription_price(
+                    tier=tier,
+                    billing_cycle=BillingCycle(billing_cycle),
+                )
+                await billing_email_service.send_payment_success(
+                    email=customer_email,
+                    organization_name=org.name,
+                    tier=tier.value,
+                    amount_naira=amount,
+                    reference=subscription_code,
+                    payment_date=now,
+                    next_billing_date=tenant_sku.current_period_end,
+                )
+            
+            logger.info(f"Subscription created for org {org_id}: {tier.value}")
+            
+            return {
+                "handled": True,
+                "event": "subscription.create",
+                "organization_id": organization_id_str,
+                "tier": tier.value,
+                "subscription_code": subscription_code,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing subscription.create: {e}")
+            return {"handled": False, "error": str(e)}
     
     async def _handle_subscription_cancelled(
         self,
         payload: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Handle subscription cancelled webhook."""
-        # Would downgrade to Core tier or deactivate
-        return {"handled": True, "event": "subscription.disable"}
+        """
+        Handle subscription cancelled/disabled webhook.
+        
+        This is triggered when a subscription is cancelled.
+        Handles end-of-period access and downgrade logic.
+        """
+        data = payload.get("data", {})
+        subscription_code = data.get("subscription_code")
+        customer = data.get("customer", {})
+        
+        logger.info(f"Processing subscription.disable webhook: {subscription_code}")
+        
+        # Find TenantSKU by subscription code in metadata
+        from app.models.organization import Organization
+        from app.models.user import User
+        
+        result = await self.db.execute(
+            select(TenantSKU).where(TenantSKU.is_active == True)
+        )
+        tenant_skus = result.scalars().all()
+        
+        target_sku = None
+        for sku in tenant_skus:
+            subscription_data = (sku.custom_metadata or {}).get("paystack_subscription", {})
+            if subscription_data.get("subscription_code") == subscription_code:
+                target_sku = sku
+                break
+        
+        if not target_sku:
+            # Try finding by customer email
+            customer_email = customer.get("email")
+            if customer_email:
+                user_result = await self.db.execute(
+                    select(User).where(User.email == customer_email)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                if user and user.organization_id:
+                    sku_result = await self.db.execute(
+                        select(TenantSKU).where(TenantSKU.organization_id == user.organization_id)
+                    )
+                    target_sku = sku_result.scalar_one_or_none()
+        
+        if not target_sku:
+            logger.warning(f"Could not find SKU for cancelled subscription: {subscription_code}")
+            return {"handled": False, "error": "Subscription not found"}
+        
+        now = datetime.utcnow()
+        org_id = target_sku.organization_id
+        previous_tier = target_sku.tier.value
+        
+        # Mark subscription as cancelled but allow access until period end
+        metadata = target_sku.custom_metadata or {}
+        metadata["subscription_cancelled"] = {
+            "cancelled_at": now.isoformat(),
+            "previous_tier": previous_tier,
+            "reason": data.get("status", "cancelled"),
+            "access_until": target_sku.current_period_end.isoformat() if target_sku.current_period_end else now.isoformat(),
+        }
+        
+        # Remove active subscription data
+        if "paystack_subscription" in metadata:
+            metadata["previous_subscription"] = metadata.pop("paystack_subscription")
+        
+        target_sku.custom_metadata = metadata
+        target_sku.notes = f"Subscription cancelled on {now.strftime('%Y-%m-%d')}. Access until {target_sku.current_period_end.strftime('%Y-%m-%d') if target_sku.current_period_end else 'now'}."
+        
+        # If past period end, immediately downgrade
+        if target_sku.current_period_end and target_sku.current_period_end <= now:
+            target_sku.tier = SKUTier.CORE
+            target_sku.intelligence_addon = None
+            logger.info(f"Immediately downgraded org {org_id} to Core (period ended)")
+        
+        await self.db.flush()
+        
+        # Send cancellation confirmation email
+        from app.services.billing_email_service import BillingEmailService
+        
+        org_result = await self.db.execute(
+            select(Organization).where(Organization.id == org_id)
+        )
+        org = org_result.scalar_one_or_none()
+        
+        admin_result = await self.db.execute(
+            select(User)
+            .where(User.organization_id == org_id)
+            .where(User.is_active == True)
+            .order_by(User.created_at)
+            .limit(1)
+        )
+        admin_user = admin_result.scalar_one_or_none()
+        
+        if admin_user and admin_user.email and org:
+            billing_email_service = BillingEmailService(self.db)
+            # Use trial_ended_downgrade as a proxy for cancellation notification
+            await billing_email_service.send_trial_ended_downgrade(
+                email=admin_user.email,
+                organization_name=org.name,
+                previous_tier=previous_tier,
+            )
+        
+        logger.info(f"Subscription cancelled for org {org_id}: {subscription_code}")
+        
+        return {
+            "handled": True,
+            "event": "subscription.disable",
+            "organization_id": str(org_id),
+            "previous_tier": previous_tier,
+            "subscription_code": subscription_code,
+        }
     
     async def _handle_payment_failed(
         self,
@@ -1099,14 +1365,9 @@ class BillingService:
         if not tenant_sku:
             return None
         
-        # Determine status
+        # Determine status with grace period logic
         now = datetime.utcnow()
-        if tenant_sku.trial_ends_at and tenant_sku.trial_ends_at > now:
-            status = "trial"
-        elif tenant_sku.current_period_end and tenant_sku.current_period_end < now:
-            status = "past_due"
-        else:
-            status = "active"
+        status = self._determine_subscription_status(tenant_sku, now)
         
         # Calculate amount
         amount = self.calculate_subscription_price(
@@ -1129,6 +1390,157 @@ class BillingService:
             next_billing_date=tenant_sku.current_period_end,
             payment_method=None,  # Would come from Paystack customer data
         )
+    
+    def _determine_subscription_status(
+        self,
+        tenant_sku: TenantSKU,
+        now: Optional[datetime] = None,
+    ) -> str:
+        """
+        Determine subscription status with grace period logic.
+        
+        Status flow:
+        - trial: In trial period
+        - active: Paid and current
+        - past_due: Period ended but within grace period
+        - suspended: Grace period expired, account suspended
+        - cancelled: User cancelled subscription
+        
+        Grace period configuration:
+        - 7 days after period end before marking as past_due
+        - 21 days total before suspension
+        """
+        from app.config.sku_config import SKUTier
+        
+        if now is None:
+            now = datetime.utcnow()
+        
+        # Check for suspension
+        if tenant_sku.suspended_at:
+            return "suspended"
+        
+        # Check if cancelled
+        metadata = tenant_sku.custom_metadata or {}
+        if "subscription_cancelled" in metadata:
+            return "cancelled"
+        
+        # Check for trial
+        if tenant_sku.trial_ends_at:
+            if tenant_sku.trial_ends_at > now:
+                return "trial"
+            else:
+                # Trial expired - check grace period (3 days)
+                trial_grace_days = 3
+                grace_end = tenant_sku.trial_ends_at + timedelta(days=trial_grace_days)
+                if now < grace_end:
+                    return "trial_expired"
+                # After trial grace, should be downgraded
+                return "trial_ended"
+        
+        # Check period end with grace period
+        if tenant_sku.current_period_end:
+            period_end = tenant_sku.current_period_end
+            if isinstance(period_end, date) and not isinstance(period_end, datetime):
+                period_end = datetime.combine(period_end, datetime.min.time())
+            
+            if now < period_end:
+                return "active"
+            
+            # Past period end - check grace period
+            # Grace period: 7 days soft (past_due), 21 days hard (suspended)
+            soft_grace_days = 7
+            hard_grace_days = 21
+            
+            days_past_due = (now - period_end).days
+            
+            if days_past_due <= soft_grace_days:
+                return "grace_period"
+            elif days_past_due <= hard_grace_days:
+                return "past_due"
+            else:
+                return "suspended"
+        
+        # Default to active if no period set
+        return "active"
+    
+    async def check_subscription_access(
+        self,
+        organization_id: UUID,
+    ) -> Dict[str, Any]:
+        """
+        Check if organization has valid subscription access.
+        
+        Returns dict with:
+        - has_access: bool
+        - status: subscription status
+        - tier: current tier
+        - message: human-readable status message
+        - days_remaining: days until access expires (if applicable)
+        - grace_period_remaining: days remaining in grace period (if applicable)
+        """
+        result = await self.db.execute(
+            select(TenantSKU).where(
+                and_(
+                    TenantSKU.organization_id == organization_id,
+                )
+            )
+        )
+        tenant_sku = result.scalar_one_or_none()
+        
+        if not tenant_sku:
+            return {
+                "has_access": False,
+                "status": "no_subscription",
+                "tier": None,
+                "message": "No subscription found. Please subscribe to continue.",
+                "days_remaining": 0,
+            }
+        
+        now = datetime.utcnow()
+        status = self._determine_subscription_status(tenant_sku, now)
+        
+        access_granted_statuses = ["active", "trial", "grace_period", "trial_expired"]
+        has_access = status in access_granted_statuses and tenant_sku.is_active
+        
+        # Calculate days remaining
+        days_remaining = 0
+        grace_period_remaining = 0
+        
+        if tenant_sku.trial_ends_at and tenant_sku.trial_ends_at > now:
+            days_remaining = (tenant_sku.trial_ends_at - now).days
+        elif tenant_sku.current_period_end:
+            period_end = tenant_sku.current_period_end
+            if isinstance(period_end, date) and not isinstance(period_end, datetime):
+                period_end = datetime.combine(period_end, datetime.min.time())
+            
+            if period_end > now:
+                days_remaining = (period_end - now).days
+            else:
+                # In grace period
+                days_past = (now - period_end).days
+                grace_period_remaining = max(0, 21 - days_past)
+        
+        # Generate message based on status
+        messages = {
+            "active": "Your subscription is active.",
+            "trial": f"You have {days_remaining} days remaining in your trial.",
+            "trial_expired": "Your trial has expired. Please subscribe to continue.",
+            "trial_ended": "Your trial has ended. Please subscribe to continue.",
+            "grace_period": f"Your payment is overdue. You have {grace_period_remaining} days to pay before service interruption.",
+            "past_due": f"Your account is past due. Please pay immediately to avoid suspension. {grace_period_remaining} days remaining.",
+            "suspended": "Your account has been suspended due to non-payment. Please contact billing.",
+            "cancelled": "Your subscription has been cancelled.",
+        }
+        
+        return {
+            "has_access": has_access,
+            "status": status,
+            "tier": tenant_sku.tier.value if tenant_sku.tier else None,
+            "message": messages.get(status, "Unknown subscription status"),
+            "days_remaining": days_remaining,
+            "grace_period_remaining": grace_period_remaining,
+            "is_trial": tenant_sku.trial_ends_at is not None and tenant_sku.trial_ends_at > now,
+        }
     
     async def cancel_subscription(
         self,
