@@ -200,6 +200,61 @@
                     </div>
                 </div>
             </template>
+            
+            <!-- Scheduled Cancellation/Downgrade Notice -->
+            <template x-if="subscription.cancel_at_period_end">
+                <div class="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start">
+                            <svg class="w-5 h-5 text-orange-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-orange-800" x-text="subscription.scheduled_downgrade_tier ? 'Downgrade Scheduled' : 'Cancellation Scheduled'"></p>
+                                <p class="text-sm text-orange-700 mt-1">
+                                    <span x-text="subscription.scheduled_downgrade_tier 
+                                        ? 'Your subscription will downgrade to ' + subscription.scheduled_downgrade_tier + ' tier on ' + formatDate(subscription.current_period_end)
+                                        : 'Your subscription will be cancelled on ' + formatDate(subscription.current_period_end)"></span>
+                                </p>
+                            </div>
+                        </div>
+                        <button @click="reactivateSubscription()" 
+                                class="ml-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium whitespace-nowrap"
+                                :disabled="subscriptionAction.loading">
+                            <span x-show="!subscriptionAction.loading">Keep Subscription</span>
+                            <span x-show="subscriptionAction.loading" class="flex items-center">
+                                <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Processing...
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- Subscription Management Actions -->
+            <template x-if="!subscription.loading && subscription.status === 'active' && !subscription.is_trial && !subscription.cancel_at_period_end">
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <h3 class="text-sm font-medium text-gray-700 mb-4">Subscription Management</h3>
+                    <div class="flex flex-wrap gap-3">
+                        <!-- Downgrade Button (only for Pro/Enterprise) -->
+                        <template x-if="subscription.tier !== 'core'">
+                            <button @click="showDowngradeModal = true" 
+                                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                                Downgrade Plan
+                            </button>
+                        </template>
+                        
+                        <!-- Cancel Button -->
+                        <button @click="showCancelModal = true" 
+                                class="px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50">
+                            Cancel Subscription
+                        </button>
+                    </div>
+                </div>
+            </template>
         </div>
         
         <!-- Dunning Status (if in dunning) -->
@@ -837,6 +892,255 @@
     </div>
 </div>
 
+<!-- Cancel Subscription Modal -->
+<div x-show="showCancelModal" 
+     x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto" 
+     aria-labelledby="cancel-modal-title" 
+     role="dialog" 
+     aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div x-show="showCancelModal" 
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
+             @click="showCancelModal = false"></div>
+        
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        
+        <div x-show="showCancelModal"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div>
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div class="mt-3 text-center sm:mt-5">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900" id="cancel-modal-title">
+                        Cancel Subscription
+                    </h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-500">
+                            Are you sure you want to cancel your subscription? You'll be downgraded to the Core tier.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Reason for cancellation (optional)</label>
+                    <textarea x-model="cancelForm.reason" 
+                              rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                              placeholder="Help us improve by sharing why you're cancelling..."></textarea>
+                </div>
+                
+                <div class="flex items-center">
+                    <input type="checkbox" 
+                           x-model="cancelForm.immediate" 
+                           id="immediate-cancel"
+                           class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded">
+                    <label for="immediate-cancel" class="ml-2 block text-sm text-gray-700">
+                        Cancel immediately (no refund)
+                    </label>
+                </div>
+                
+                <p class="text-sm text-gray-500" x-show="!cancelForm.immediate">
+                    Your subscription will remain active until <strong x-text="formatDate(subscription.current_period_end)"></strong>
+                </p>
+                
+                <template x-if="subscriptionAction.error">
+                    <div class="p-3 bg-red-50 text-red-700 rounded-lg text-sm" x-text="subscriptionAction.error"></div>
+                </template>
+            </div>
+            
+            <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                <button type="button" 
+                        @click="cancelSubscription()"
+                        :disabled="subscriptionAction.loading"
+                        class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm disabled:opacity-50">
+                    <span x-show="!subscriptionAction.loading">Cancel Subscription</span>
+                    <span x-show="subscriptionAction.loading" class="flex items-center">
+                        <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                    </span>
+                </button>
+                <button type="button" 
+                        @click="showCancelModal = false; subscriptionAction.error = null; cancelForm.reason = ''; cancelForm.immediate = false;"
+                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm">
+                    Keep Subscription
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Downgrade Subscription Modal -->
+<div x-show="showDowngradeModal" 
+     x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto" 
+     aria-labelledby="downgrade-modal-title" 
+     role="dialog" 
+     aria-modal="true"
+     x-init="$watch('showDowngradeModal', value => { if(value) validateDowngrade() })">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div x-show="showDowngradeModal" 
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
+             @click="showDowngradeModal = false"></div>
+        
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        
+        <div x-show="showDowngradeModal"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+            <div>
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+                    <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+                    </svg>
+                </div>
+                <div class="mt-3 text-center sm:mt-5">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900" id="downgrade-modal-title">
+                        Downgrade Subscription
+                    </h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-500">
+                            Select a lower tier to downgrade to. The change will take effect at the end of your current billing period.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Target Tier</label>
+                    <select x-model="downgradeForm.targetTier" 
+                            @change="validateDowngrade()"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        <template x-if="subscription.tier === 'enterprise'">
+                            <option value="professional">Professional</option>
+                        </template>
+                        <option value="core">Core (Free Tier)</option>
+                    </select>
+                </div>
+                
+                <!-- Loading validation -->
+                <template x-if="subscriptionAction.loading">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="ml-2 text-gray-600">Validating...</span>
+                    </div>
+                </template>
+                
+                <!-- Validation result -->
+                <template x-if="!subscriptionAction.loading && downgradeForm.validation">
+                    <div>
+                        <!-- Can downgrade -->
+                        <template x-if="downgradeForm.validation.can_downgrade">
+                            <div class="p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+                                <span class="font-medium">✓ You can downgrade to this tier.</span>
+                                <p class="mt-1" x-text="downgradeForm.validation.message"></p>
+                            </div>
+                        </template>
+                        
+                        <!-- Cannot downgrade - exceeded limits -->
+                        <template x-if="!downgradeForm.validation.can_downgrade && downgradeForm.validation.exceeded_limits">
+                            <div class="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                                <span class="font-medium">⚠ Cannot downgrade - usage exceeds target tier limits:</span>
+                                <ul class="mt-2 space-y-1 list-disc list-inside">
+                                    <template x-for="limit in downgradeForm.validation.exceeded_limits" :key="limit.metric">
+                                        <li x-text="limit.display_name + ': ' + limit.current_usage + ' used (limit: ' + limit.target_limit + ')'"></li>
+                                    </template>
+                                </ul>
+                                
+                                <div class="mt-3 flex items-center">
+                                    <input type="checkbox" 
+                                           x-model="downgradeForm.force" 
+                                           id="force-downgrade"
+                                           class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
+                                    <label for="force-downgrade" class="ml-2 block text-sm text-red-700">
+                                        Force downgrade anyway (you may lose access to some data)
+                                    </label>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <!-- Warnings -->
+                        <template x-if="downgradeForm.validation.warnings && downgradeForm.validation.warnings.length > 0">
+                            <div class="p-3 bg-yellow-50 text-yellow-700 rounded-lg text-sm mt-2">
+                                <span class="font-medium">⚠ Warnings:</span>
+                                <ul class="mt-1 space-y-1 list-disc list-inside">
+                                    <template x-for="warn in downgradeForm.validation.warnings" :key="warn.metric">
+                                        <li x-text="warn.display_name + ': ' + Math.round(warn.percentage) + '% of new limit used'"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                
+                <p class="text-sm text-gray-500">
+                    Effective: <strong x-text="formatDate(subscription.current_period_end)"></strong>
+                </p>
+                
+                <template x-if="subscriptionAction.error">
+                    <div class="p-3 bg-red-50 text-red-700 rounded-lg text-sm" x-text="subscriptionAction.error"></div>
+                </template>
+            </div>
+            
+            <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                <button type="button" 
+                        @click="requestDowngrade()"
+                        :disabled="subscriptionAction.loading || (!downgradeForm.validation?.can_downgrade && !downgradeForm.force)"
+                        class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-yellow-600 text-base font-medium text-white hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!subscriptionAction.loading">Schedule Downgrade</span>
+                    <span x-show="subscriptionAction.loading" class="flex items-center">
+                        <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                    </span>
+                </button>
+                <button type="button" 
+                        @click="showDowngradeModal = false; subscriptionAction.error = null; downgradeForm.validation = null; downgradeForm.force = false;"
+                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:col-start-1 sm:text-sm">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function settingsPage() {
     return {
@@ -879,7 +1183,9 @@ function settingsPage() {
             is_trial: false,
             trial_days_remaining: 0,
             next_billing_date: null,
-            current_period_end: null
+            current_period_end: null,
+            cancel_at_period_end: false,
+            scheduled_downgrade_tier: null
         },
         subscriptionAccess: {
             has_access: true,
@@ -904,6 +1210,22 @@ function settingsPage() {
             has_more: false
         },
         paymentHistoryFilter: '',
+        // Subscription management modals
+        showCancelModal: false,
+        showDowngradeModal: false,
+        subscriptionAction: {
+            loading: false,
+            error: null
+        },
+        cancelForm: {
+            reason: '',
+            immediate: false
+        },
+        downgradeForm: {
+            targetTier: 'core',
+            force: false,
+            validation: null
+        },
         
         async init() {
             // Check URL params for tab navigation
@@ -1043,6 +1365,128 @@ function settingsPage() {
             } catch (e) {
                 console.error('Failed to resend invoice:', e);
                 alert('Failed to resend invoice');
+            }
+        },
+        
+        // Subscription Management Methods
+        async validateDowngrade() {
+            this.subscriptionAction.loading = true;
+            this.subscriptionAction.error = null;
+            try {
+                const response = await authFetch('/api/v1/billing/validate-downgrade', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken() 
+                    },
+                    body: JSON.stringify({ target_tier: this.downgradeForm.targetTier })
+                });
+                if (response.ok) {
+                    this.downgradeForm.validation = await response.json();
+                } else {
+                    const error = await response.json();
+                    this.subscriptionAction.error = error.detail || 'Failed to validate downgrade';
+                }
+            } catch (e) {
+                console.error('Failed to validate downgrade:', e);
+                this.subscriptionAction.error = 'Failed to validate downgrade';
+            } finally {
+                this.subscriptionAction.loading = false;
+            }
+        },
+        
+        async requestDowngrade() {
+            if (!this.downgradeForm.validation?.can_downgrade && !this.downgradeForm.force) {
+                this.subscriptionAction.error = 'Cannot downgrade. Please reduce usage or check "Force Downgrade".';
+                return;
+            }
+            
+            this.subscriptionAction.loading = true;
+            this.subscriptionAction.error = null;
+            try {
+                const response = await authFetch('/api/v1/billing/request-downgrade', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken() 
+                    },
+                    body: JSON.stringify({ 
+                        target_tier: this.downgradeForm.targetTier,
+                        force: this.downgradeForm.force 
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showDowngradeModal = false;
+                    alert(data.message || 'Downgrade scheduled successfully');
+                    await this.loadSubscription();
+                } else {
+                    const error = await response.json();
+                    this.subscriptionAction.error = error.detail || 'Failed to schedule downgrade';
+                }
+            } catch (e) {
+                console.error('Failed to request downgrade:', e);
+                this.subscriptionAction.error = 'Failed to schedule downgrade';
+            } finally {
+                this.subscriptionAction.loading = false;
+            }
+        },
+        
+        async cancelSubscription() {
+            this.subscriptionAction.loading = true;
+            this.subscriptionAction.error = null;
+            try {
+                const response = await authFetch('/api/v1/billing/cancel', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken() 
+                    },
+                    body: JSON.stringify({ 
+                        reason: this.cancelForm.reason,
+                        immediate: this.cancelForm.immediate 
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showCancelModal = false;
+                    alert(data.message || 'Subscription cancelled');
+                    await this.loadSubscription();
+                } else {
+                    const error = await response.json();
+                    this.subscriptionAction.error = error.detail || 'Failed to cancel subscription';
+                }
+            } catch (e) {
+                console.error('Failed to cancel subscription:', e);
+                this.subscriptionAction.error = 'Failed to cancel subscription';
+            } finally {
+                this.subscriptionAction.loading = false;
+            }
+        },
+        
+        async reactivateSubscription() {
+            this.subscriptionAction.loading = true;
+            try {
+                const response = await authFetch('/api/v1/billing/reactivate', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken() 
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(data.message || 'Subscription reactivated');
+                    await this.loadSubscription();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to reactivate subscription');
+                }
+            } catch (e) {
+                console.error('Failed to reactivate subscription:', e);
+                alert('Failed to reactivate subscription');
+            } finally {
+                this.subscriptionAction.loading = false;
             }
         },
         

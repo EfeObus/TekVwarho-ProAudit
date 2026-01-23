@@ -93,6 +93,11 @@ class SubscriptionResponse(BaseModel):
     next_billing_date: Optional[str]
     amount_naira: int
     amount_formatted: str
+    # Cancellation/downgrade fields
+    cancel_at_period_end: bool = False
+    cancellation_requested_at: Optional[str] = None
+    cancellation_reason: Optional[str] = None
+    scheduled_downgrade_tier: Optional[str] = None
 
 
 class WebhookPayload(BaseModel):
@@ -155,6 +160,36 @@ class DunningStatusResponse(BaseModel):
     days_until_suspension: int
     notes: Optional[str]
     is_in_dunning: bool
+
+
+# Request models for new endpoints
+class ValidateDowngradeRequest(BaseModel):
+    """Request to validate a downgrade."""
+    target_tier: SKUTier = Field(..., description="Target tier to downgrade to")
+
+
+class RequestDowngradeRequest(BaseModel):
+    """Request to schedule a downgrade."""
+    target_tier: SKUTier = Field(..., description="Target tier to downgrade to")
+    force: bool = Field(False, description="Force downgrade even if limits exceeded")
+
+
+class CalculateProrationRequest(BaseModel):
+    """Request to calculate upgrade proration."""
+    target_tier: SKUTier = Field(..., description="Target tier to upgrade to")
+    target_intelligence: Optional[IntelligenceAddon] = Field(None, description="Target intelligence addon")
+
+
+class ConvertTrialRequest(BaseModel):
+    """Request to convert trial to paid."""
+    tier: Optional[SKUTier] = Field(None, description="Target tier (defaults to current)")
+    billing_cycle: Optional[str] = Field("monthly", description="Billing cycle")
+
+
+class CancelSubscriptionRequest(BaseModel):
+    """Request to cancel subscription."""
+    reason: Optional[str] = Field(None, max_length=500, description="Cancellation reason")
+    immediate: bool = Field(False, description="If true, cancel immediately; if false, cancel at period end")
 
 
 # =============================================================================
@@ -342,6 +377,10 @@ async def get_current_subscription(
         next_billing_date=info.next_billing_date.isoformat() if info.next_billing_date else None,
         amount_naira=info.amount_naira,
         amount_formatted=f"₦{info.amount_naira:,}",
+        cancel_at_period_end=info.cancel_at_period_end or False,
+        cancellation_requested_at=info.cancellation_requested_at.isoformat() if info.cancellation_requested_at else None,
+        cancellation_reason=info.cancellation_reason,
+        scheduled_downgrade_tier=info.scheduled_downgrade_tier.value if info.scheduled_downgrade_tier else None,
     )
 
 
@@ -581,6 +620,7 @@ async def verify_payment(
     summary="Cancel subscription",
 )
 async def cancel_subscription(
+    request_body: Optional[CancelSubscriptionRequest] = None,
     reason: Optional[str] = Query(None, max_length=500),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -588,8 +628,61 @@ async def cancel_subscription(
     """
     Cancel the current subscription.
     
-    The subscription will remain active until the end of the current
-    billing period, then downgrade to Core tier.
+    If immediate=True, cancels immediately (no refund).
+    If immediate=False (default), cancels at end of current billing period.
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    # Get reason and immediate flag from body or query param
+    cancel_reason = reason
+    immediate = False
+    if request_body:
+        cancel_reason = request_body.reason or reason
+        immediate = request_body.immediate
+    
+    service = BillingService(db)
+    
+    result = await service.cancel_subscription(
+        organization_id=current_user.organization_id,
+        reason=cancel_reason,
+        immediate=immediate,
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("message", "Failed to cancel subscription"),
+        )
+    
+    await db.commit()
+    
+    return result
+
+
+# =============================================================================
+# SUBSCRIPTION MANAGEMENT ENDPOINTS
+# =============================================================================
+
+@router.post(
+    "/validate-downgrade",
+    summary="Validate downgrade eligibility",
+)
+async def validate_downgrade(
+    request_body: ValidateDowngradeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Validate if the organization can downgrade to a target tier.
+    
+    Checks current usage against target tier limits and returns:
+    - Whether downgrade is possible
+    - Which limits would be exceeded
+    - Recommendations for reducing usage
     """
     if not current_user.organization_id:
         raise HTTPException(
@@ -599,15 +692,205 @@ async def cancel_subscription(
     
     service = BillingService(db)
     
-    result = await service.cancel_subscription(
+    result = await service.validate_downgrade(
         organization_id=current_user.organization_id,
-        reason=reason,
+        target_tier=request_body.target_tier,
+    )
+    
+    return result
+
+
+@router.post(
+    "/request-downgrade",
+    summary="Request subscription downgrade",
+)
+async def request_downgrade(
+    request_body: RequestDowngradeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Request a downgrade to a lower tier.
+    
+    The downgrade will take effect at the end of the current billing period.
+    If force=True, schedules the downgrade even if current usage exceeds
+    target tier limits (a warning will be included in the response).
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    service = BillingService(db)
+    
+    result = await service.request_downgrade(
+        organization_id=current_user.organization_id,
+        target_tier=request_body.target_tier,
+        force=request_body.force,
     )
     
     if not result.get("success"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("message", "Failed to cancel subscription"),
+            detail=result.get("message", "Failed to schedule downgrade"),
+        )
+    
+    await db.commit()
+    
+    return result
+
+
+@router.post(
+    "/reactivate",
+    summary="Reactivate cancelled subscription",
+)
+async def reactivate_subscription(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Reactivate a subscription that was scheduled for cancellation.
+    
+    This can only be done before the current billing period ends.
+    Cancels any pending cancellation or downgrade.
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    service = BillingService(db)
+    
+    result = await service.reactivate_subscription(
+        organization_id=current_user.organization_id,
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("message", "Failed to reactivate subscription"),
+        )
+    
+    await db.commit()
+    
+    return result
+
+
+@router.post(
+    "/calculate-proration",
+    summary="Calculate upgrade proration",
+)
+async def calculate_proration(
+    request_body: CalculateProrationRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Calculate the prorated cost for upgrading to a higher tier.
+    
+    Returns breakdown of:
+    - Current subscription value
+    - New subscription value
+    - Prorated amount to pay now
+    - Full amount for next billing cycle
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    service = BillingService(db)
+    
+    result = await service.calculate_upgrade_proration(
+        organization_id=current_user.organization_id,
+        new_tier=request_body.target_tier,
+        new_intelligence=request_body.target_intelligence,
+    )
+    
+    if result.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error"),
+        )
+    
+    return result
+
+
+@router.get(
+    "/validate-trial-conversion",
+    summary="Validate trial to paid conversion",
+)
+async def validate_trial_conversion(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Validate that the organization can convert from trial to paid.
+    
+    Checks:
+    - Organization has an active trial
+    - Trial hasn't expired
+    - Valid payment method on file
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    service = BillingService(db)
+    
+    result = await service.validate_trial_to_paid_conversion(
+        organization_id=current_user.organization_id,
+    )
+    
+    return result
+
+
+@router.post(
+    "/convert-trial",
+    summary="Convert trial to paid subscription",
+)
+async def convert_trial_to_paid(
+    request_body: Optional[ConvertTrialRequest] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Convert a trial subscription to a paid subscription.
+    
+    Charges the saved payment method and starts the paid subscription.
+    Optionally specify a different tier or billing cycle.
+    """
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    service = BillingService(db)
+    
+    # Parse optional parameters
+    tier = None
+    billing_cycle = None
+    if request_body:
+        tier = request_body.tier
+        if request_body.billing_cycle:
+            billing_cycle = BillingCycle.ANNUAL if request_body.billing_cycle == "annual" else BillingCycle.MONTHLY
+    
+    result = await service.convert_trial_to_paid(
+        organization_id=current_user.organization_id,
+        tier=tier,
+        billing_cycle=billing_cycle,
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("message", "Failed to convert trial"),
         )
     
     await db.commit()

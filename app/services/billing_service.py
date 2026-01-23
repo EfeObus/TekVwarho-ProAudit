@@ -121,6 +121,11 @@ class SubscriptionInfo:
     trial_ends_at: Optional[datetime]
     next_billing_date: Optional[datetime]
     payment_method: Optional[str]
+    # Cancellation/downgrade fields
+    cancel_at_period_end: bool = False
+    cancellation_requested_at: Optional[datetime] = None
+    cancellation_reason: Optional[str] = None
+    scheduled_downgrade_tier: Optional[SKUTier] = None
 
 
 # =============================================================================
@@ -2237,6 +2242,11 @@ class BillingService:
             trial_ends_at=tenant_sku.trial_ends_at,
             next_billing_date=tenant_sku.current_period_end,
             payment_method=None,  # Would come from Paystack customer data
+            # Cancellation/downgrade fields
+            cancel_at_period_end=tenant_sku.cancel_at_period_end or False,
+            cancellation_requested_at=tenant_sku.cancellation_requested_at,
+            cancellation_reason=tenant_sku.cancellation_reason,
+            scheduled_downgrade_tier=tenant_sku.scheduled_downgrade_tier,
         )
     
     def _determine_subscription_status(

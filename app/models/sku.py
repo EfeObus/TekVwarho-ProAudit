@@ -257,6 +257,13 @@ class TenantSKU(BaseModel):
     
     # Notes
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    @property
+    def is_trial(self) -> bool:
+        """Check if subscription is currently in trial period."""
+        if self.trial_ends_at:
+            return self.trial_ends_at > datetime.now()
+        return False
 
 
 class UsageRecord(BaseModel):
