@@ -1,7 +1,7 @@
 """Add refund and invoice fields to payment_transactions
 
 Revision ID: 20260123_2100
-Revises: 20260123_1844
+Revises: 0563e1dd3aeb
 Create Date: 2026-01-23 21:00:00.000000
 
 Adds columns to support:
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '20260123_2100'
-down_revision: Union[str, None] = '20260123_1844'
+down_revision: Union[str, None] = '0563e1dd3aeb'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

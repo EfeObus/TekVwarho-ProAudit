@@ -365,9 +365,9 @@ class UsageRecord(BaseModel):
         back_populates="usage_records",
     )
     
-    # Period
-    period_start: Mapped[date] = mapped_column(Date, nullable=False)
-    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    # Period - with indexes for date range queries (#42)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     
     # Usage counts
     transactions_count: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -605,16 +605,19 @@ class PaymentTransaction(BaseModel):
         nullable=True,
     )
     
-    # Timestamps
+    # Timestamps - with indexes for date range queries (#43)
     initiated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         default=datetime.utcnow,
+        index=True,
+        comment="When payment was initiated - indexed for reporting"
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime,
         nullable=True,
-        comment="When payment was confirmed"
+        index=True,
+        comment="When payment was confirmed - indexed for reporting"
     )
     expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime,

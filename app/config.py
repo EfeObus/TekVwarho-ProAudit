@@ -148,6 +148,10 @@ class Settings(BaseSettings):
     paystack_sandbox_mode: bool = True
     paystack_base_url: str = "https://api.paystack.co"
     
+    # Paystack API configuration (#41: Configurable timeout)
+    paystack_timeout_seconds: int = 30  # Request timeout in seconds
+    paystack_max_retries: int = 3  # Max retry attempts for transient failures (#38)
+    
     @property
     def paystack_is_live(self) -> bool:
         """Check if using live Paystack keys (sk_live_*)."""

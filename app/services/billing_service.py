@@ -30,6 +30,155 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# BILLING ERROR CODES (#46)
+# =============================================================================
+
+class BillingErrorCode(str, Enum):
+    """
+    Structured error codes for billing failures.
+    
+    Similar to NRSErrorCode, provides machine-readable codes for:
+    - Frontend error handling
+    - Logging and analytics
+    - Customer support troubleshooting
+    """
+    # Success
+    SUCCESS = "B000"
+    
+    # Network/Connection Errors (B1xx)
+    NETWORK_ERROR = "B100"
+    TIMEOUT_ERROR = "B101"
+    CONNECTION_REFUSED = "B102"
+    SSL_ERROR = "B103"
+    
+    # Validation Errors (B2xx)
+    INVALID_AMOUNT = "B200"
+    AMOUNT_TOO_LOW = "B201"
+    AMOUNT_TOO_HIGH = "B202"
+    INVALID_EMAIL = "B203"
+    INVALID_REFERENCE = "B204"
+    INVALID_CURRENCY = "B205"
+    INVALID_TIER = "B206"
+    
+    # Payment Errors (B3xx)
+    PAYMENT_FAILED = "B300"
+    CARD_DECLINED = "B301"
+    INSUFFICIENT_FUNDS = "B302"
+    EXPIRED_CARD = "B303"
+    INVALID_CARD = "B304"
+    CARD_NOT_SUPPORTED = "B305"
+    BANK_ERROR = "B306"
+    TRANSACTION_DECLINED = "B307"
+    
+    # Authorization Errors (B4xx)
+    UNAUTHORIZED = "B400"
+    INVALID_API_KEY = "B401"
+    WEBHOOK_VERIFICATION_FAILED = "B402"
+    
+    # Transaction Errors (B5xx)
+    TRANSACTION_NOT_FOUND = "B500"
+    DUPLICATE_TRANSACTION = "B501"
+    TRANSACTION_EXPIRED = "B502"
+    ALREADY_PROCESSED = "B503"
+    REFUND_FAILED = "B504"
+    PARTIAL_REFUND_NOT_ALLOWED = "B505"
+    
+    # Subscription Errors (B6xx)
+    SUBSCRIPTION_NOT_FOUND = "B600"
+    SUBSCRIPTION_CANCELLED = "B601"
+    SUBSCRIPTION_EXPIRED = "B602"
+    PLAN_NOT_FOUND = "B603"
+    DOWNGRADE_NOT_ALLOWED = "B604"
+    
+    # Provider Errors (B7xx)
+    PROVIDER_ERROR = "B700"
+    PROVIDER_UNAVAILABLE = "B701"
+    RATE_LIMITED = "B702"
+    
+    # Internal Errors (B9xx)
+    INTERNAL_ERROR = "B900"
+    DATABASE_ERROR = "B901"
+    CONFIGURATION_ERROR = "B902"
+    UNEXPECTED_ERROR = "B999"
+
+
+# Mapping of error codes to user-friendly messages
+BILLING_ERROR_MESSAGES = {
+    BillingErrorCode.SUCCESS: "Payment successful",
+    BillingErrorCode.NETWORK_ERROR: "Network error occurred. Please try again.",
+    BillingErrorCode.TIMEOUT_ERROR: "Request timed out. Please try again.",
+    BillingErrorCode.CONNECTION_REFUSED: "Could not connect to payment provider.",
+    BillingErrorCode.SSL_ERROR: "Secure connection error.",
+    BillingErrorCode.INVALID_AMOUNT: "Invalid payment amount.",
+    BillingErrorCode.AMOUNT_TOO_LOW: "Payment amount is below minimum allowed.",
+    BillingErrorCode.AMOUNT_TOO_HIGH: "Payment amount exceeds maximum allowed.",
+    BillingErrorCode.INVALID_EMAIL: "Invalid email address.",
+    BillingErrorCode.INVALID_REFERENCE: "Invalid payment reference.",
+    BillingErrorCode.INVALID_CURRENCY: "Currency not supported.",
+    BillingErrorCode.INVALID_TIER: "Invalid subscription tier.",
+    BillingErrorCode.PAYMENT_FAILED: "Payment failed. Please try again.",
+    BillingErrorCode.CARD_DECLINED: "Card was declined. Please use a different card.",
+    BillingErrorCode.INSUFFICIENT_FUNDS: "Insufficient funds. Please use a different payment method.",
+    BillingErrorCode.EXPIRED_CARD: "Card has expired. Please use a different card.",
+    BillingErrorCode.INVALID_CARD: "Invalid card details.",
+    BillingErrorCode.CARD_NOT_SUPPORTED: "Card type not supported.",
+    BillingErrorCode.BANK_ERROR: "Bank error occurred. Please try again.",
+    BillingErrorCode.TRANSACTION_DECLINED: "Transaction was declined.",
+    BillingErrorCode.UNAUTHORIZED: "Unauthorized access.",
+    BillingErrorCode.INVALID_API_KEY: "Invalid API key.",
+    BillingErrorCode.WEBHOOK_VERIFICATION_FAILED: "Webhook verification failed.",
+    BillingErrorCode.TRANSACTION_NOT_FOUND: "Transaction not found.",
+    BillingErrorCode.DUPLICATE_TRANSACTION: "Duplicate transaction detected.",
+    BillingErrorCode.TRANSACTION_EXPIRED: "Transaction has expired.",
+    BillingErrorCode.ALREADY_PROCESSED: "Transaction already processed.",
+    BillingErrorCode.REFUND_FAILED: "Refund failed.",
+    BillingErrorCode.PARTIAL_REFUND_NOT_ALLOWED: "Partial refund not allowed.",
+    BillingErrorCode.SUBSCRIPTION_NOT_FOUND: "Subscription not found.",
+    BillingErrorCode.SUBSCRIPTION_CANCELLED: "Subscription has been cancelled.",
+    BillingErrorCode.SUBSCRIPTION_EXPIRED: "Subscription has expired.",
+    BillingErrorCode.PLAN_NOT_FOUND: "Subscription plan not found.",
+    BillingErrorCode.DOWNGRADE_NOT_ALLOWED: "Downgrade not allowed at this time.",
+    BillingErrorCode.PROVIDER_ERROR: "Payment provider error.",
+    BillingErrorCode.PROVIDER_UNAVAILABLE: "Payment provider temporarily unavailable.",
+    BillingErrorCode.RATE_LIMITED: "Too many requests. Please wait and try again.",
+    BillingErrorCode.INTERNAL_ERROR: "Internal error occurred.",
+    BillingErrorCode.DATABASE_ERROR: "Database error occurred.",
+    BillingErrorCode.CONFIGURATION_ERROR: "Configuration error.",
+    BillingErrorCode.UNEXPECTED_ERROR: "An unexpected error occurred.",
+}
+
+
+def get_error_message(code: BillingErrorCode) -> str:
+    """Get user-friendly message for an error code."""
+    return BILLING_ERROR_MESSAGES.get(code, "An error occurred.")
+
+
+@dataclass
+class BillingError:
+    """Structured billing error with code and message."""
+    code: BillingErrorCode
+    message: str
+    details: Optional[Dict[str, Any]] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "error_code": self.code.value,
+            "error_name": self.code.name,
+            "message": self.message,
+            "details": self.details,
+        }
+
+
+# =============================================================================
+# BILLING CONFIGURATION CONSTANTS
+# =============================================================================
+
+# Amount validation limits (in Naira)
+MIN_PAYMENT_AMOUNT = 100  # Minimum ₦100
+MAX_PAYMENT_AMOUNT = 50_000_000  # Maximum ₦50 million
+
+
+# =============================================================================
 # ENUMS AND DATA CLASSES
 # =============================================================================
 
@@ -231,7 +380,7 @@ class PaystackProvider(PaymentProvider):
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Make an HTTP request to Paystack API.
+        Make an HTTP request to Paystack API with retry logic.
         
         Args:
             method: HTTP method (GET, POST, etc.)
@@ -240,58 +389,124 @@ class PaystackProvider(PaymentProvider):
             params: Query parameters for GET
             
         Returns:
-            Parsed JSON response
+            Parsed JSON response with error_code field
             
         Raises:
             PaystackAPIError: On API errors
         """
         import httpx
+        from app.config import settings
         
         url = f"{self.base_url}{endpoint}"
+        timeout = getattr(settings, 'paystack_timeout_seconds', 30)
+        max_retries = getattr(settings, 'paystack_max_retries', 3)
         
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.request(
-                    method=method,
-                    url=url,
-                    headers=self._get_headers(),
-                    json=data,
-                    params=params,
-                )
-                
-                result = response.json()
-                
-                # Log the response (without sensitive data)
-                logger.debug(f"Paystack {method} {endpoint}: status={response.status_code}")
-                
-                if response.status_code >= 400:
-                    logger.error(f"Paystack API error: {result.get('message', 'Unknown error')}")
-                    return {
-                        "status": False,
-                        "message": result.get("message", f"HTTP {response.status_code}"),
-                        "data": result.get("data"),
-                    }
-                
-                return result
-                
-        except httpx.TimeoutException:
-            logger.error(f"Paystack API timeout: {method} {endpoint}")
-            return {
-                "status": False,
-                "message": "Request timed out. Please try again.",
-            }
-        except httpx.RequestError as e:
-            logger.error(f"Paystack API request error: {e}")
-            return {
-                "status": False,
-                "message": f"Network error: {str(e)}",
-            }
-        except Exception as e:
-            logger.error(f"Paystack API unexpected error: {e}")
-            return {
-                "status": False,
-                "message": f"Unexpected error: {str(e)}",
-            }
+        last_error = None
+        
+        # Retry loop with exponential backoff (#38)
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=float(timeout)) as client:
+                    response = await client.request(
+                        method=method,
+                        url=url,
+                        headers=self._get_headers(),
+                        json=data,
+                        params=params,
+                    )
+                    
+                    result = response.json()
+                    
+                    # Log the response (without sensitive data)
+                    logger.debug(f"Paystack {method} {endpoint}: status={response.status_code}")
+                    
+                    if response.status_code >= 400:
+                        error_code = self._map_http_error_code(response.status_code, result)
+                        logger.error(f"Paystack API error [{error_code.value}]: {result.get('message', 'Unknown error')}")
+                        return {
+                            "status": False,
+                            "error_code": error_code.value,
+                            "error_name": error_code.name,
+                            "message": result.get("message", f"HTTP {response.status_code}"),
+                            "data": result.get("data"),
+                        }
+                    
+                    # Success - add success code
+                    result["error_code"] = BillingErrorCode.SUCCESS.value
+                    return result
+                    
+            except httpx.TimeoutException:
+                last_error = BillingErrorCode.TIMEOUT_ERROR
+                logger.warning(f"Paystack API timeout (attempt {attempt + 1}/{max_retries}): {method} {endpoint}")
+                if attempt < max_retries - 1:
+                    import asyncio
+                    backoff = (2 ** attempt) * 10  # 10s, 20s, 40s
+                    logger.info(f"Retrying in {backoff} seconds...")
+                    await asyncio.sleep(backoff)
+                    continue
+                    
+            except httpx.ConnectError:
+                last_error = BillingErrorCode.CONNECTION_REFUSED
+                logger.warning(f"Paystack connection error (attempt {attempt + 1}/{max_retries}): {method} {endpoint}")
+                if attempt < max_retries - 1:
+                    import asyncio
+                    backoff = (2 ** attempt) * 10
+                    await asyncio.sleep(backoff)
+                    continue
+                    
+            except httpx.RequestError as e:
+                last_error = BillingErrorCode.NETWORK_ERROR
+                logger.warning(f"Paystack request error (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    import asyncio
+                    backoff = (2 ** attempt) * 10
+                    await asyncio.sleep(backoff)
+                    continue
+                    
+            except Exception as e:
+                last_error = BillingErrorCode.UNEXPECTED_ERROR
+                logger.error(f"Paystack unexpected error: {e}")
+                break  # Don't retry unexpected errors
+        
+        # All retries exhausted
+        error_code = last_error or BillingErrorCode.NETWORK_ERROR
+        logger.error(f"Paystack API failed after {max_retries} attempts [{error_code.value}]")
+        return {
+            "status": False,
+            "error_code": error_code.value,
+            "error_name": error_code.name,
+            "message": get_error_message(error_code),
+        }
+    
+    def _map_http_error_code(self, status_code: int, result: Dict[str, Any]) -> BillingErrorCode:
+        """Map HTTP status code and response to BillingErrorCode."""
+        message = result.get("message", "").lower()
+        
+        # Check for specific error messages from Paystack
+        if "invalid" in message and "amount" in message:
+            return BillingErrorCode.INVALID_AMOUNT
+        if "declined" in message:
+            return BillingErrorCode.CARD_DECLINED
+        if "insufficient" in message:
+            return BillingErrorCode.INSUFFICIENT_FUNDS
+        if "expired" in message:
+            return BillingErrorCode.EXPIRED_CARD
+        if "duplicate" in message:
+            return BillingErrorCode.DUPLICATE_TRANSACTION
+        
+        # Map by status code
+        if status_code == 400:
+            return BillingErrorCode.INVALID_AMOUNT
+        elif status_code == 401:
+            return BillingErrorCode.UNAUTHORIZED
+        elif status_code == 404:
+            return BillingErrorCode.TRANSACTION_NOT_FOUND
+        elif status_code == 429:
+            return BillingErrorCode.RATE_LIMITED
+        elif status_code >= 500:
+            return BillingErrorCode.PROVIDER_ERROR
+        else:
+            return BillingErrorCode.PAYMENT_FAILED
     
     async def initialize_payment(
         self,
@@ -1608,6 +1823,42 @@ class BillingService:
             amount = amount - discount_amount
             logger.info(f"Applied {discount_percent}% discount: -{discount_amount} NGN, new amount: {amount}")
         
+        # =====================================================================
+        # AMOUNT VALIDATION (#39: Validate amount against SKU config)
+        # =====================================================================
+        if amount < MIN_PAYMENT_AMOUNT:
+            logger.error(f"Payment amount {amount} below minimum {MIN_PAYMENT_AMOUNT}")
+            raise ValueError(
+                f"Payment amount ₦{amount:,} is below minimum allowed ₦{MIN_PAYMENT_AMOUNT:,}. "
+                f"Error code: {BillingErrorCode.AMOUNT_TOO_LOW.value}"
+            )
+        
+        if amount > MAX_PAYMENT_AMOUNT:
+            logger.error(f"Payment amount {amount} exceeds maximum {MAX_PAYMENT_AMOUNT}")
+            raise ValueError(
+                f"Payment amount ₦{amount:,} exceeds maximum allowed ₦{MAX_PAYMENT_AMOUNT:,}. "
+                f"Error code: {BillingErrorCode.AMOUNT_TOO_HIGH.value}"
+            )
+        
+        # Validate against expected SKU pricing to prevent charging wrong amount
+        expected_base_price = self.calculate_subscription_price(
+            tier=tier,
+            billing_cycle=billing_cycle,
+            intelligence_addon=intelligence_addon,
+            additional_users=additional_users,
+        )
+        
+        # Allow for prorated amounts and discounts, but amount should not exceed base price
+        if not is_prorated and discount_percent == 0 and amount != expected_base_price:
+            logger.error(f"Amount mismatch: calculated={amount}, expected={expected_base_price}")
+            raise ValueError(
+                f"Amount validation failed: calculated amount doesn't match SKU pricing. "
+                f"Error code: {BillingErrorCode.INVALID_AMOUNT.value}"
+            )
+        
+        logger.info(f"Amount validated: {amount} NGN for {tier.value} ({billing_cycle.value})")
+        # =====================================================================
+        
         # Handle multi-currency (#36: Multi-currency checkout)
         # Paystack accepts NGN, so we store both original and converted amounts
         original_amount_ngn = amount
@@ -1693,6 +1944,9 @@ class BillingService:
         
         This is typically called after customer completes payment
         on Paystack checkout page. Updates the PaymentTransaction record.
+        
+        Includes amount validation (#39) to cross-check verified amount
+        against the expected amount stored in PaymentTransaction.
         """
         # Look up existing transaction record
         tx_result = await self.db.execute(
@@ -1712,16 +1966,53 @@ class BillingService:
                 payment_tx.completed_at = datetime.utcnow()
                 payment_tx.failure_reason = result.message
                 payment_tx.gateway_response = result.message
+                payment_tx.error_code = BillingErrorCode.PAYMENT_FAILED.value
                 if result.metadata:
                     payment_tx.paystack_response = result.metadata
             
             return result
+        
+        # =====================================================================
+        # AMOUNT VALIDATION (#39: Cross-check verified amount against expected)
+        # =====================================================================
+        if payment_tx:
+            expected_amount_kobo = payment_tx.amount_kobo
+            verified_amount_kobo = result.amount_naira * 100 if result.amount_naira else 0
+            
+            # Allow small variance (e.g., rounding differences) but catch major mismatches
+            amount_difference = abs(verified_amount_kobo - expected_amount_kobo)
+            max_allowed_difference = 100  # 1 Naira tolerance for rounding
+            
+            if amount_difference > max_allowed_difference:
+                logger.error(
+                    f"Amount mismatch for {reference}: "
+                    f"expected={expected_amount_kobo} kobo, "
+                    f"verified={verified_amount_kobo} kobo, "
+                    f"difference={amount_difference} kobo"
+                )
+                
+                payment_tx.status = "failed"
+                payment_tx.completed_at = datetime.utcnow()
+                payment_tx.failure_reason = f"Amount mismatch: expected {expected_amount_kobo}, got {verified_amount_kobo}"
+                payment_tx.error_code = BillingErrorCode.INVALID_AMOUNT.value
+                
+                return PaymentResult(
+                    success=False,
+                    reference=reference,
+                    status=PaymentStatus.FAILED,
+                    amount_naira=result.amount_naira,
+                    message=f"Amount verification failed. Error code: {BillingErrorCode.INVALID_AMOUNT.value}",
+                )
+            
+            logger.info(f"Amount verified for {reference}: {verified_amount_kobo} kobo matches expected")
+        # =====================================================================
         
         # Update transaction record with success details
         if payment_tx:
             payment_tx.status = "success"
             payment_tx.completed_at = result.paid_at or datetime.utcnow()
             payment_tx.gateway_response = result.message
+            payment_tx.error_code = BillingErrorCode.SUCCESS.value
             
             if result.metadata:
                 payment_tx.paystack_response = result.metadata
