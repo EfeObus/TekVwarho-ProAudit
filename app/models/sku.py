@@ -258,12 +258,81 @@ class TenantSKU(BaseModel):
     # Notes
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
+    # ==========================================================================
+    # Issue #31: Billing Cycle Alignment
+    # ==========================================================================
+    billing_anchor_day: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Day of month for billing (1-28). Null = subscription start date"
+    )
+    align_to_calendar_month: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="If true, align billing to 1st of month"
+    )
+    prorated_first_period: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        comment="If true, prorate first billing period"
+    )
+    
+    # ==========================================================================
+    # Issue #32: Subscription Pause/Resume
+    # ==========================================================================
+    paused_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When subscription was paused (null if not paused)"
+    )
+    pause_reason: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Reason for pausing subscription"
+    )
+    pause_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When to automatically resume (max 90 days from pause)"
+    )
+    pause_credits_days: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        comment="Days credited when paused (extends subscription)"
+    )
+    total_paused_days: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        comment="Total cumulative days subscription has been paused"
+    )
+    
+    # ==========================================================================
+    # Issue #36: Multi-Currency Support
+    # ==========================================================================
+    preferred_currency: Mapped[str] = mapped_column(
+        String(3),
+        default="NGN",
+        comment="Preferred billing currency (NGN, USD, EUR, GBP)"
+    )
+    locked_exchange_rate: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(12, 6),
+        nullable=True,
+        comment="Locked exchange rate for this subscription (null = use current)"
+    )
+    
     @property
     def is_trial(self) -> bool:
         """Check if subscription is currently in trial period."""
         if self.trial_ends_at:
             return self.trial_ends_at > datetime.now()
         return False
+    
+    @property
+    def is_paused(self) -> bool:
+        """Check if subscription is currently paused."""
+        return self.paused_at is not None and (
+            self.pause_until is None or self.pause_until > datetime.now()
+        )
 
 
 class UsageRecord(BaseModel):
@@ -581,6 +650,42 @@ class PaymentTransaction(BaseModel):
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
+    # Refund tracking
+    refunded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True,
+        comment="When refund was processed"
+    )
+    refund_amount_kobo: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        nullable=True,
+        comment="Refund amount in kobo"
+    )
+    refund_reference: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        comment="Paystack refund/transfer reference"
+    )
+    refund_reason: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Reason for refund"
+    )
+    
+    # Paystack invoice tracking (for subscription billing)
+    paystack_invoice_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        comment="Paystack invoice ID for subscription payments"
+    )
+    paystack_invoice_status: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Paystack invoice status (pending, paid, failed)"
+    )
+    
     @property
     def amount_naira(self) -> int:
         """Get amount in Naira (integer)."""
@@ -674,3 +779,574 @@ INTELLIGENCE_LIMITS = {
         UsageMetricType.ML_INFERENCES: 50_000,  # per day
     },
 }
+
+
+# =============================================================================
+# ISSUE #33: SERVICE CREDITS MODEL
+# =============================================================================
+
+class ServiceCredit(BaseModel):
+    """
+    Service credits for SLA breaches, goodwill gestures, or promotions.
+    Credits can be applied to future invoices.
+    """
+    __tablename__ = "service_credits"
+    
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    
+    # Credit details
+    credit_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="sla_breach, goodwill, promotion, referral_reward"
+    )
+    amount_ngn: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Credit amount in Naira"
+    )
+    amount_usd: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        comment="Credit amount in USD (for multi-currency)"
+    )
+    currency: Mapped[str] = mapped_column(
+        String(3),
+        default="NGN",
+    )
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    
+    # SLA breach details (if applicable)
+    incident_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Reference to incident/outage"
+    )
+    incident_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    downtime_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    availability_percentage: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(5, 2),
+        nullable=True
+    )
+    
+    # Status
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="pending",
+        comment="pending, approved, applied, expired, rejected"
+    )
+    approved_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True
+    )
+    approved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    
+    # Application
+    applied_to_invoice_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Invoice where credit was applied"
+    )
+    applied_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    amount_applied_ngn: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Actual amount applied"
+    )
+    
+    # Expiry
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Credit expires after 12 months"
+    )
+    
+    # Notes
+    admin_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    @property
+    def is_expired(self) -> bool:
+        """Check if credit has expired."""
+        if self.expires_at:
+            return self.expires_at < datetime.now()
+        return False
+    
+    @property
+    def is_available(self) -> bool:
+        """Check if credit is available for use."""
+        return (
+            self.status == "approved" and
+            not self.is_expired and
+            self.applied_at is None
+        )
+
+
+# =============================================================================
+# ISSUE #34: DISCOUNT CODES MODEL
+# =============================================================================
+
+class DiscountCode(BaseModel):
+    """
+    Discount and referral codes for billing.
+    """
+    __tablename__ = "discount_codes"
+    
+    # Code details
+    code: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        unique=True,
+        index=True,
+        comment="Unique discount code (e.g., WELCOME20)"
+    )
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Display name for the discount"
+    )
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Discount type and value
+    discount_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="percentage, fixed_amount, free_months"
+    )
+    discount_value: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        comment="Percentage (0-100), amount in Naira, or months"
+    )
+    max_discount_ngn: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Cap on discount amount (for percentage discounts)"
+    )
+    
+    # Applicability
+    applies_to_tiers: Mapped[Optional[List[str]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment='Null = all tiers, or ["core", "professional"]'
+    )
+    applies_to_billing_cycles: Mapped[Optional[List[str]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment='Null = all, or ["monthly", "annual"]'
+    )
+    min_subscription_months: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Minimum commitment for discount"
+    )
+    first_payment_only: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+    )
+    
+    # Usage limits
+    max_uses_total: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Null = unlimited"
+    )
+    max_uses_per_org: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+    )
+    current_uses: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+    )
+    
+    # Validity period
+    valid_from: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+    valid_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Null = never expires"
+    )
+    
+    # Referral link (if this is a referral code)
+    is_referral_code: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+    referrer_organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Org that owns this referral code"
+    )
+    referrer_reward_type: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="credit, percentage, free_months"
+    )
+    referrer_reward_value: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True
+    )
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True
+    )
+    
+    @property
+    def is_valid(self) -> bool:
+        """Check if discount code is currently valid."""
+        now = datetime.now()
+        if not self.is_active:
+            return False
+        if self.valid_from > now:
+            return False
+        if self.valid_until and self.valid_until < now:
+            return False
+        if self.max_uses_total and self.current_uses >= self.max_uses_total:
+            return False
+        return True
+    
+    @property
+    def remaining_uses(self) -> Optional[int]:
+        """Get remaining uses (None if unlimited)."""
+        if self.max_uses_total is None:
+            return None
+        return max(0, self.max_uses_total - self.current_uses)
+
+
+class DiscountCodeUsage(BaseModel):
+    """
+    Track usage of discount codes.
+    """
+    __tablename__ = "discount_code_usages"
+    
+    discount_code_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("discount_codes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True
+    )
+    
+    # Usage details
+    payment_reference: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True
+    )
+    original_amount_ngn: Mapped[int] = mapped_column(Integer, nullable=False)
+    discount_amount_ngn: Mapped[int] = mapped_column(Integer, nullable=False)
+    final_amount_ngn: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    # Referrer reward (if applicable)
+    referrer_reward_issued: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False
+    )
+    referrer_credit_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True
+    )
+
+
+# =============================================================================
+# ISSUE #35: VOLUME DISCOUNT RULES MODEL
+# =============================================================================
+
+class VolumeDiscountRule(BaseModel):
+    """
+    Dynamic volume-based discount rules.
+    """
+    __tablename__ = "volume_discount_rules"
+    
+    # Rule identification
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Rule type
+    rule_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        comment="user_count, entity_count, commitment_months, combined"
+    )
+    
+    # Thresholds
+    min_users: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Minimum users for this discount"
+    )
+    max_users: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Maximum users (null = unlimited)"
+    )
+    min_entities: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    max_entities: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    min_commitment_months: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="12, 24, 36 month commitments"
+    )
+    
+    # Discount
+    discount_percentage: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2),
+        nullable=False,
+        comment="Percentage off base price"
+    )
+    
+    # Applicability
+    applies_to_tier: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Null = all tiers"
+    )
+    applies_to_currency: Mapped[Optional[str]] = mapped_column(
+        String(3),
+        nullable=True,
+        comment="Null = all currencies"
+    )
+    
+    # Priority (higher = applied first)
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    stackable: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="Can combine with other volume discounts"
+    )
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
+    effective_until: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    
+    @property
+    def is_effective(self) -> bool:
+        """Check if rule is currently effective."""
+        today = date.today()
+        if not self.is_active:
+            return False
+        if self.effective_from > today:
+            return False
+        if self.effective_until and self.effective_until < today:
+            return False
+        return True
+
+
+# =============================================================================
+# ISSUE #36: EXCHANGE RATES MODEL
+# =============================================================================
+
+class ExchangeRate(BaseModel):
+    """
+    Exchange rates for multi-currency billing.
+    """
+    __tablename__ = "exchange_rates"
+    
+    from_currency: Mapped[str] = mapped_column(
+        String(3),
+        nullable=False,
+        comment="Source currency (e.g., USD)"
+    )
+    to_currency: Mapped[str] = mapped_column(
+        String(3),
+        nullable=False,
+        comment="Target currency (e.g., NGN)"
+    )
+    rate: Mapped[Decimal] = mapped_column(
+        Numeric(18, 6),
+        nullable=False,
+        comment="1 from_currency = rate to_currency"
+    )
+    rate_date: Mapped[date] = mapped_column(Date, nullable=False)
+    source: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="CBN, manual, api"
+    )
+    is_billing_rate: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="Rate used for billing (more stable)"
+    )
+
+
+# =============================================================================
+# ISSUE #30: SCHEDULED USAGE REPORTS MODEL
+# =============================================================================
+
+class ScheduledUsageReport(BaseModel):
+    """
+    Scheduled usage report configuration.
+    """
+    __tablename__ = "scheduled_usage_reports"
+    
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True
+    )
+    
+    # Schedule
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    frequency: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="daily, weekly, monthly, quarterly"
+    )
+    day_of_week: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="0-6 for weekly reports"
+    )
+    day_of_month: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="1-28 for monthly reports"
+    )
+    
+    # Report configuration
+    report_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        comment="usage_summary, detailed_usage, billing_history"
+    )
+    format: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        comment="csv, pdf, excel"
+    )
+    include_charts: Mapped[bool] = mapped_column(Boolean, default=True)
+    date_range_months: Mapped[int] = mapped_column(Integer, default=1)
+    
+    # Delivery
+    delivery_method: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="email, download, both"
+    )
+    email_recipients: Mapped[Optional[List[str]]] = mapped_column(
+        JSON,
+        nullable=True
+    )
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    next_run_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class UsageReportHistory(BaseModel):
+    """
+    History of generated usage reports.
+    """
+    __tablename__ = "usage_report_history"
+    
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    scheduled_report_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Null if ad-hoc report"
+    )
+    generated_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True
+    )
+    
+    # Report details
+    report_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    format: Mapped[str] = mapped_column(String(10), nullable=False)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    
+    # File
+    file_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    download_count: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Delivery status
+    email_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    email_recipients: Mapped[Optional[List[str]]] = mapped_column(
+        JSON,
+        nullable=True
+    )
+    
+    # Expiry (auto-delete after 90 days)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+
+# Update __all__ to include new models
+__all__ = [
+    'SKUTier',
+    'IntelligenceAddon', 
+    'Feature',
+    'UsageMetricType',
+    'BillingCycle',
+    'SKUPricing',
+    'TenantSKU',
+    'UsageRecord',
+    'UsageEvent',
+    'FeatureAccessLog',
+    'PaymentTransaction',
+    'ServiceCredit',
+    'DiscountCode',
+    'DiscountCodeUsage',
+    'VolumeDiscountRule',
+    'ExchangeRate',
+    'ScheduledUsageReport',
+    'UsageReportHistory',
+    'TIER_LIMITS',
+    'INTELLIGENCE_LIMITS',
+]

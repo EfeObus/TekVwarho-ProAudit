@@ -63,11 +63,11 @@
                                    @click="selectTier('core')">
                                 <input type="radio" name="tier" value="core" x-model="selectedTier" class="sr-only">
                                 <div class="flex-1">
-                                    <span class="font-semibold text-gray-900">Core</span>
-                                    <span class="text-gray-500 text-sm ml-2">Essential accounting</span>
+                                    <span class="font-semibold text-gray-900" x-text="pricingData.core?.name || 'Core'"></span>
+                                    <span class="text-gray-500 text-sm ml-2" x-text="pricingData.core?.tagline || 'Essential accounting'"></span>
                                 </div>
                                 <div class="text-right">
-                                    <span class="font-bold text-gray-900" x-text="billingCycle === 'monthly' ? '₦50,000' : '₦480,000'"></span>
+                                    <span class="font-bold text-gray-900" x-text="billingCycle === 'monthly' ? pricingData.core?.monthly_formatted : pricingData.core?.annual_formatted"></span>
                                     <span class="text-gray-500 text-sm" x-text="billingCycle === 'monthly' ? '/month' : '/year'"></span>
                                 </div>
                             </label>
@@ -81,11 +81,11 @@
                                 </div>
                                 <input type="radio" name="tier" value="professional" x-model="selectedTier" class="sr-only">
                                 <div class="flex-1">
-                                    <span class="font-semibold text-gray-900">Professional</span>
-                                    <span class="text-gray-500 text-sm ml-2">Growing businesses</span>
+                                    <span class="font-semibold text-gray-900" x-text="pricingData.professional?.name || 'Professional'"></span>
+                                    <span class="text-gray-500 text-sm ml-2" x-text="pricingData.professional?.tagline || 'Growing businesses'"></span>
                                 </div>
                                 <div class="text-right">
-                                    <span class="font-bold text-gray-900" x-text="billingCycle === 'monthly' ? '₦200,000' : '₦1,920,000'"></span>
+                                    <span class="font-bold text-gray-900" x-text="billingCycle === 'monthly' ? pricingData.professional?.monthly_formatted : pricingData.professional?.annual_formatted"></span>
                                     <span class="text-gray-500 text-sm" x-text="billingCycle === 'monthly' ? '/month' : '/year'"></span>
                                 </div>
                             </label>
@@ -96,11 +96,11 @@
                                    @click="selectTier('enterprise')">
                                 <input type="radio" name="tier" value="enterprise" x-model="selectedTier" class="sr-only">
                                 <div class="flex-1">
-                                    <span class="font-semibold text-gray-900">Enterprise</span>
-                                    <span class="text-gray-500 text-sm ml-2">Large organizations</span>
+                                    <span class="font-semibold text-gray-900" x-text="pricingData.enterprise?.name || 'Enterprise'"></span>
+                                    <span class="text-gray-500 text-sm ml-2" x-text="pricingData.enterprise?.tagline || 'Large organizations'"></span>
                                 </div>
                                 <div class="text-right">
-                                    <span class="font-bold text-gray-900" x-text="billingCycle === 'monthly' ? '₦2,000,000' : '₦19,200,000'"></span>
+                                    <span class="font-bold text-gray-900" x-text="billingCycle === 'monthly' ? pricingData.enterprise?.monthly_formatted : pricingData.enterprise?.annual_formatted"></span>
                                     <span class="text-gray-500 text-sm" x-text="billingCycle === 'monthly' ? '/month' : '/year'"></span>
                                 </div>
                             </label>
@@ -265,11 +265,15 @@
                     </div>
                     
                     <!-- Checkout Button -->
-                    <button @click="proceedToPayment()"
-                            :disabled="isLoading"
+                    <button @click="showConfirmation()"
+                            :disabled="isLoading || pricingLoading"
                             class="w-full py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2">
-                        <span x-show="!isLoading">Proceed to Payment</span>
-                        <span x-show="isLoading" class="flex items-center">
+                        <span x-show="!isLoading && !pricingLoading">Review & Proceed to Payment</span>
+                        <span x-show="pricingLoading" class="flex items-center">
+                            <div class="loading-spinner mr-2"></div>
+                            <span>Loading pricing...</span>
+                        </span>
+                        <span x-show="isLoading && !pricingLoading" class="flex items-center">
                             <div class="loading-spinner mr-2"></div>
                             <span>Processing...</span>
                         </span>
@@ -316,6 +320,147 @@
             </div>
         </div>
     </div>
+    
+    <!-- Upgrade Confirmation Modal -->
+    <div x-show="showUpgradeModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         x-transition:enter="ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Background overlay -->
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showUpgradeModal = false"></div>
+            
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <!-- Modal content -->
+            <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+                
+                <!-- Loading state -->
+                <template x-if="prorationLoading">
+                    <div class="flex items-center justify-center py-8">
+                        <svg class="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="ml-2 text-gray-600">Calculating...</span>
+                    </div>
+                </template>
+                
+                <!-- Confirmation content -->
+                <template x-if="!prorationLoading">
+                    <div>
+                        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                            <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="mt-3 text-center sm:mt-5">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">
+                                Confirm Your Subscription
+                            </h3>
+                            <div class="mt-4 text-left">
+                                <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">Plan</span>
+                                        <span class="font-semibold" x-text="getTierName()"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">Billing Cycle</span>
+                                        <span class="font-semibold capitalize" x-text="billingCycle"></span>
+                                    </div>
+                                    <template x-if="intelligenceAddon">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Intelligence Add-on</span>
+                                            <span class="font-semibold capitalize" x-text="intelligenceAddon"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="additionalUsers > 0">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Additional Users</span>
+                                            <span class="font-semibold" x-text="additionalUsers"></span>
+                                        </div>
+                                    </template>
+                                    
+                                    <hr class="border-gray-200">
+                                    
+                                    <!-- Proration details (if upgrading) -->
+                                    <template x-if="prorationData?.is_upgrade">
+                                        <div class="space-y-2 text-sm">
+                                            <div class="flex justify-between text-gray-500">
+                                                <span>Current Plan Credit</span>
+                                                <span x-text="'-' + (prorationData.remaining_credit_formatted || formatPrice(0))"></span>
+                                            </div>
+                                            <div class="flex justify-between text-gray-500">
+                                                <span>New Plan (prorated)</span>
+                                                <span x-text="prorationData.prorated_new_formatted || formatPrice(getTotalPrice())"></span>
+                                            </div>
+                                            <div class="flex justify-between font-semibold text-blue-600">
+                                                <span>Due Today (Prorated)</span>
+                                                <span x-text="prorationData.amount_due_formatted || formatPrice(prorationData.amount_due_naira || getTotalPrice())"></span>
+                                            </div>
+                                            <p class="text-xs text-gray-500 mt-2">
+                                                * Prorated amount calculated based on remaining days in your current billing cycle
+                                            </p>
+                                        </div>
+                                    </template>
+                                    
+                                    <!-- Regular payment (new subscription or no proration) -->
+                                    <template x-if="!prorationData?.is_upgrade">
+                                        <div class="flex justify-between text-lg font-bold">
+                                            <span>Total Due</span>
+                                            <span x-text="formatPrice(getTotalPrice())"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                                
+                                <!-- Terms notice -->
+                                <p class="mt-4 text-xs text-gray-500 text-center">
+                                    By proceeding, you agree to our 
+                                    <a href="/legal/terms" class="text-blue-600 hover:underline">Terms of Service</a> 
+                                    and <a href="/legal/privacy" class="text-blue-600 hover:underline">Privacy Policy</a>.
+                                    <span x-show="billingCycle === 'annual'">
+                                        Annual subscriptions are non-refundable after 30 days.
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                            <button type="button"
+                                    @click="proceedToPayment()"
+                                    :disabled="isLoading"
+                                    class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:col-start-2 sm:text-sm disabled:opacity-50">
+                                <span x-show="!isLoading">Confirm & Pay</span>
+                                <span x-show="isLoading" class="flex items-center">
+                                    <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Processing...
+                                </span>
+                            </button>
+                            <button type="button"
+                                    @click="showUpgradeModal = false"
+                                    class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:col-start-1 sm:text-sm">
+                                Go Back
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -327,24 +472,57 @@ function checkoutPage() {
         additionalUsers: 0,
         isLoading: false,
         error: null,
+        pricingLoading: true,
         
-        // Price constants (in Naira)
-        prices: {
-            core: { monthly: 50000, annual: 480000 },
-            professional: { monthly: 200000, annual: 1920000 },
-            enterprise: { monthly: 2000000, annual: 19200000 }
+        // Dynamic pricing data from API
+        pricingData: {
+            core: null,
+            professional: null,
+            enterprise: null
         },
+        
+        // Intelligence add-on prices (fetched separately if needed)
         intelligencePrices: {
             standard: 250000,
             advanced: 500000
         },
         userPrice: 5000,
         
-        init() {
+        // Upgrade confirmation modal
+        showUpgradeModal: false,
+        prorationData: null,
+        prorationLoading: false,
+        
+        async init() {
             // Parse URL params if present
             const params = new URLSearchParams(window.location.search);
             if (params.has('tier')) this.selectedTier = params.get('tier');
             if (params.has('billing')) this.billingCycle = params.get('billing');
+            
+            // Fetch dynamic pricing from API
+            await this.loadPricing();
+        },
+        
+        async loadPricing() {
+            this.pricingLoading = true;
+            try {
+                const response = await fetch('/api/v1/billing/pricing');
+                if (response.ok) {
+                    const data = await response.json();
+                    // Convert array to object keyed by tier
+                    data.forEach(tier => {
+                        this.pricingData[tier.tier] = tier;
+                    });
+                    // Update user price from API data
+                    if (this.pricingData.core) {
+                        this.userPrice = this.pricingData.core.per_user_amount;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load pricing:', e);
+            } finally {
+                this.pricingLoading = false;
+            }
         },
         
         selectTier(tier) {
@@ -352,6 +530,10 @@ function checkoutPage() {
         },
         
         getTierName() {
+            const tier = this.pricingData[this.selectedTier];
+            if (tier) {
+                return tier.name.replace('ProAudit ', '');
+            }
             const names = {
                 'core': 'Core',
                 'professional': 'Professional',
@@ -361,6 +543,10 @@ function checkoutPage() {
         },
         
         getBaseUsers() {
+            const tier = this.pricingData[this.selectedTier];
+            if (tier) {
+                return this.selectedTier === 'enterprise' ? 'Unlimited' : tier.base_users;
+            }
             const users = {
                 'core': 5,
                 'professional': 25,
@@ -370,7 +556,17 @@ function checkoutPage() {
         },
         
         getBasePlanPrice() {
-            const tierPrices = this.prices[this.selectedTier] || this.prices.professional;
+            const tier = this.pricingData[this.selectedTier];
+            if (tier) {
+                return this.billingCycle === 'monthly' ? tier.monthly_amount : tier.annual_amount;
+            }
+            // Fallback to correct values
+            const prices = {
+                core: { monthly: 25000, annual: 255000 },
+                professional: { monthly: 150000, annual: 1530000 },
+                enterprise: { monthly: 1000000, annual: 10200000 }
+            };
+            const tierPrices = prices[this.selectedTier] || prices.professional;
             return this.billingCycle === 'monthly' ? tierPrices.monthly : tierPrices.annual;
         },
         
@@ -381,16 +577,19 @@ function checkoutPage() {
         },
         
         getAdditionalUsersPrice() {
-            const monthly = this.additionalUsers * this.userPrice;
+            const tier = this.pricingData[this.selectedTier];
+            const pricePerUser = tier ? tier.per_user_amount : this.userPrice;
+            const monthly = this.additionalUsers * pricePerUser;
             return this.billingCycle === 'monthly' ? monthly : monthly * 12;
         },
         
         getAnnualDiscount() {
             if (this.billingCycle !== 'annual') return 0;
-            // Annual already has 20% discount baked in, calculate what was saved
-            const tierPrices = this.prices[this.selectedTier] || this.prices.professional;
-            const monthlyTotal = tierPrices.monthly * 12;
-            return monthlyTotal - tierPrices.annual;
+            const tier = this.pricingData[this.selectedTier];
+            if (tier) {
+                return tier.annual_savings || 0;
+            }
+            return 0;
         },
         
         getTotalPrice() {
@@ -401,9 +600,45 @@ function checkoutPage() {
             return '₦' + amount.toLocaleString('en-NG');
         },
         
+        async loadProrationData() {
+            this.prorationLoading = true;
+            try {
+                const response = await authFetch('/api/v1/billing/calculate-proration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken()
+                    },
+                    body: JSON.stringify({
+                        target_tier: this.selectedTier,
+                        target_intelligence: this.intelligenceAddon
+                    })
+                });
+                
+                if (response.ok) {
+                    this.prorationData = await response.json();
+                } else {
+                    // Not an upgrade or no existing subscription - proceed without proration
+                    this.prorationData = null;
+                }
+            } catch (e) {
+                console.error('Failed to load proration:', e);
+                this.prorationData = null;
+            } finally {
+                this.prorationLoading = false;
+            }
+        },
+        
+        async showConfirmation() {
+            // Load proration data to show upgrade details
+            await this.loadProrationData();
+            this.showUpgradeModal = true;
+        },
+        
         async proceedToPayment() {
             this.isLoading = true;
             this.error = null;
+            this.showUpgradeModal = false;
             
             try {
                 const response = await authFetch('/api/v1/billing/checkout', {
@@ -417,7 +652,8 @@ function checkoutPage() {
                         billing_cycle: this.billingCycle,
                         intelligence_addon: this.intelligenceAddon,
                         additional_users: this.additionalUsers,
-                        callback_url: window.location.origin + '/payment-success'
+                        callback_url: window.location.origin + '/payment-success',
+                        is_upgrade: this.prorationData?.is_upgrade || false
                     })
                 });
                 

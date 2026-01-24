@@ -3,7 +3,7 @@
 {% block title %}Pricing - TekVwarho ProAudit{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 py-12">
+<div class="min-h-screen bg-gray-50 py-12" x-data="pricingPage()" x-init="init()">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="text-center mb-12">
@@ -25,18 +25,32 @@
 
         <!-- Pricing Toggle (Monthly/Annual) -->
         <div class="flex justify-center mb-10">
-            <div class="bg-white rounded-lg p-1 flex shadow-sm" id="billing-toggle">
-                <button class="px-6 py-2 text-sm font-medium rounded-md bg-blue-600 text-white" data-billing="monthly">
+            <div class="bg-white rounded-lg p-1 flex shadow-sm">
+                <button @click="billingCycle = 'monthly'"
+                        :class="billingCycle === 'monthly' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'"
+                        class="px-6 py-2 text-sm font-medium rounded-md transition">
                     Monthly
                 </button>
-                <button class="px-6 py-2 text-sm font-medium rounded-md text-gray-500 hover:text-gray-700" data-billing="annual">
+                <button @click="billingCycle = 'annual'"
+                        :class="billingCycle === 'annual' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'"
+                        class="px-6 py-2 text-sm font-medium rounded-md transition">
                     Annual <span class="text-green-600 text-xs ml-1">Save 20%</span>
                 </button>
             </div>
         </div>
+        
+        <!-- Loading state -->
+        <template x-if="loading">
+            <div class="flex items-center justify-center py-16">
+                <svg class="animate-spin h-10 w-10 text-blue-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+        </template>
 
         <!-- Pricing Cards -->
-        <div class="grid md:grid-cols-3 gap-8 mb-16">
+        <div x-show="!loading" class="grid md:grid-cols-3 gap-8 mb-16">
             <!-- Core Tier -->
             <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden {% if sku and sku.tier.value == 'core' %}ring-2 ring-blue-500{% endif %}">
                 {% if sku and sku.tier.value == 'core' %}
@@ -45,23 +59,21 @@
                 </div>
                 {% endif %}
                 <div class="p-8">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Core</h3>
-                    <p class="text-gray-600 mb-6">Essential accounting for growing businesses</p>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2" x-text="pricing.core?.name?.replace('ProAudit ', '') || 'Core'"></h3>
+                    <p class="text-gray-600 mb-6" x-text="pricing.core?.tagline || 'Essential accounting for growing businesses'"></p>
                     
                     <div class="mb-8">
-                        <span class="text-4xl font-bold text-gray-900 monthly-price">₦50,000</span>
-                        <span class="text-4xl font-bold text-gray-900 annual-price hidden">₦480,000</span>
-                        <span class="text-gray-500 monthly-label">/month</span>
-                        <span class="text-gray-500 annual-label hidden">/year</span>
-                        <div class="text-sm text-gray-500 mt-1 annual-savings hidden">
-                            Save ₦120,000 annually
+                        <span class="text-4xl font-bold text-gray-900" x-text="billingCycle === 'monthly' ? pricing.core?.monthly_formatted : pricing.core?.annual_formatted"></span>
+                        <span class="text-gray-500" x-text="billingCycle === 'monthly' ? '/month' : '/year'"></span>
+                        <div class="text-sm text-gray-500 mt-1" x-show="billingCycle === 'annual'">
+                            Save <span x-text="pricing.core?.annual_savings_formatted"></span> annually
                         </div>
                     </div>
                     
                     {% if not sku or sku.tier.value != 'core' %}
-                    <button class="w-full bg-gray-100 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-200 transition">
+                    <a href="/checkout?tier=core" class="block w-full bg-gray-100 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-200 transition text-center">
                         Get Started
-                    </button>
+                    </a>
                     {% else %}
                     <button class="w-full bg-gray-100 text-gray-500 py-3 rounded-lg font-semibold cursor-not-allowed" disabled>
                         Current Plan
@@ -115,16 +127,14 @@
                     {% if sku and sku.tier.value == 'professional' %}Current Plan{% else %}Most Popular{% endif %}
                 </div>
                 <div class="p-8">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Professional</h3>
-                    <p class="text-gray-600 mb-6">Full-featured for established businesses</p>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2" x-text="pricing.professional?.name?.replace('ProAudit ', '') || 'Professional'"></h3>
+                    <p class="text-gray-600 mb-6" x-text="pricing.professional?.tagline || 'Full-featured for established businesses'"></p>
                     
                     <div class="mb-8">
-                        <span class="text-4xl font-bold text-gray-900 monthly-price">₦250,000</span>
-                        <span class="text-4xl font-bold text-gray-900 annual-price hidden">₦2,400,000</span>
-                        <span class="text-gray-500 monthly-label">/month</span>
-                        <span class="text-gray-500 annual-label hidden">/year</span>
-                        <div class="text-sm text-gray-500 mt-1 annual-savings hidden">
-                            Save ₦600,000 annually
+                        <span class="text-4xl font-bold text-gray-900" x-text="billingCycle === 'monthly' ? pricing.professional?.monthly_formatted : pricing.professional?.annual_formatted"></span>
+                        <span class="text-gray-500" x-text="billingCycle === 'monthly' ? '/month' : '/year'"></span>
+                        <div class="text-sm text-gray-500 mt-1" x-show="billingCycle === 'annual'">
+                            Save <span x-text="pricing.professional?.annual_savings_formatted"></span> annually
                         </div>
                     </div>
                     
@@ -137,9 +147,9 @@
                         Downgrade
                     </button>
                     {% else %}
-                    <button class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                    <a href="/checkout?tier=professional" class="block w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-center">
                         Upgrade Now
-                    </button>
+                    </a>
                     {% endif %}
                     
                     <ul class="mt-8 space-y-4">
@@ -197,16 +207,14 @@
                 </div>
                 {% endif %}
                 <div class="p-8">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
-                    <p class="text-gray-600 mb-6">Complete solution for large organizations</p>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2" x-text="pricing.enterprise?.name?.replace('ProAudit ', '') || 'Enterprise'"></h3>
+                    <p class="text-gray-600 mb-6" x-text="pricing.enterprise?.tagline || 'Complete solution for large organizations'"></p>
                     
                     <div class="mb-8">
-                        <span class="text-4xl font-bold text-gray-900 monthly-price">₦2,000,000</span>
-                        <span class="text-4xl font-bold text-gray-900 annual-price hidden">₦19,200,000</span>
-                        <span class="text-gray-500 monthly-label">/month</span>
-                        <span class="text-gray-500 annual-label hidden">/year</span>
-                        <div class="text-sm text-gray-500 mt-1 annual-savings hidden">
-                            Save ₦4,800,000 annually
+                        <span class="text-4xl font-bold text-gray-900" x-text="billingCycle === 'monthly' ? pricing.enterprise?.monthly_formatted : pricing.enterprise?.annual_formatted"></span>
+                        <span class="text-gray-500" x-text="billingCycle === 'monthly' ? '/month' : '/year'"></span>
+                        <div class="text-sm text-gray-500 mt-1" x-show="billingCycle === 'annual'">
+                            Save <span x-text="pricing.enterprise?.annual_savings_formatted"></span> annually
                         </div>
                     </div>
                     
@@ -215,9 +223,9 @@
                         Current Plan
                     </button>
                     {% else %}
-                    <button class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                    <a href="/checkout?tier=enterprise" class="block w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition text-center">
                         Contact Sales
-                    </button>
+                    </a>
                     {% endif %}
                     
                     <ul class="mt-8 space-y-4">
@@ -466,37 +474,62 @@
 </div>
 
 <script>
-// Billing toggle functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const toggleButtons = document.querySelectorAll('#billing-toggle button');
-    const monthlyElements = document.querySelectorAll('.monthly-price, .monthly-label');
-    const annualElements = document.querySelectorAll('.annual-price, .annual-label, .annual-savings');
-    
-    toggleButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const billing = this.dataset.billing;
-            
-            // Update button styles
-            toggleButtons.forEach(btn => {
-                if (btn.dataset.billing === billing) {
-                    btn.classList.add('bg-blue-600', 'text-white');
-                    btn.classList.remove('text-gray-500', 'hover:text-gray-700');
-                } else {
-                    btn.classList.remove('bg-blue-600', 'text-white');
-                    btn.classList.add('text-gray-500', 'hover:text-gray-700');
+function pricingPage() {
+    return {
+        billingCycle: 'monthly',
+        loading: true,
+        pricing: {
+            core: null,
+            professional: null,
+            enterprise: null
+        },
+        
+        async init() {
+            await this.loadPricing();
+        },
+        
+        async loadPricing() {
+            this.loading = true;
+            try {
+                const response = await fetch('/api/v1/billing/pricing');
+                if (response.ok) {
+                    const data = await response.json();
+                    // Convert array to object keyed by tier
+                    data.forEach(tier => {
+                        this.pricing[tier.tier] = tier;
+                    });
                 }
-            });
-            
-            // Toggle price display
-            if (billing === 'annual') {
-                monthlyElements.forEach(el => el.classList.add('hidden'));
-                annualElements.forEach(el => el.classList.remove('hidden'));
-            } else {
-                monthlyElements.forEach(el => el.classList.remove('hidden'));
-                annualElements.forEach(el => el.classList.add('hidden'));
+            } catch (e) {
+                console.error('Failed to load pricing:', e);
+                // Set fallback values from sku_config.py
+                this.pricing = {
+                    core: {
+                        name: 'ProAudit Core',
+                        tagline: 'Essential accounting for Nigerian SMEs',
+                        monthly_formatted: '₦25,000',
+                        annual_formatted: '₦255,000',
+                        annual_savings_formatted: '₦45,000'
+                    },
+                    professional: {
+                        name: 'ProAudit Professional',
+                        tagline: 'Full-featured solution for growing businesses',
+                        monthly_formatted: '₦150,000',
+                        annual_formatted: '₦1,530,000',
+                        annual_savings_formatted: '₦270,000'
+                    },
+                    enterprise: {
+                        name: 'ProAudit Enterprise',
+                        tagline: 'Compliance-ready platform for large organizations',
+                        monthly_formatted: '₦1,000,000',
+                        annual_formatted: '₦10,200,000',
+                        annual_savings_formatted: '₦1,800,000'
+                    }
+                };
+            } finally {
+                this.loading = false;
             }
-        });
-    });
-});
+        }
+    };
+}
 </script>
 {% endblock %}

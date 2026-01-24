@@ -1015,6 +1015,198 @@ Best regards,
             body_html=self._get_base_html_template(content),
         ))
 
+    # ===========================================
+    # REFUND NOTIFICATION EMAILS
+    # ===========================================
+    
+    async def send_refund_processed(
+        self,
+        email: str,
+        organization_name: str,
+        amount_naira: int,
+        original_reference: str,
+        refund_reference: str,
+        reason: Optional[str] = None,
+    ) -> bool:
+        """Send refund confirmation email."""
+        subject = f"Refund Processed - {self._format_naira(amount_naira)}"
+        
+        reason_text = f"<p><strong>Reason:</strong> {reason}</p>" if reason else ""
+        
+        content = f"""
+        <h2>Refund Processed Successfully</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>Your refund has been processed successfully. The funds will be credited to your original payment method within 5-10 business days.</p>
+        
+        <div class="success">
+            <p class="amount">{self._format_naira(amount_naira)}</p>
+            <p style="margin: 5px 0;"><strong>Refund Reference:</strong> {refund_reference}</p>
+            <p style="margin: 5px 0;"><strong>Original Payment:</strong> {original_reference}</p>
+            {reason_text}
+        </div>
+        
+        <h3>What's Next?</h3>
+        <ul>
+            <li>Bank transfers: 1-3 business days</li>
+            <li>Card payments: 5-10 business days (depending on your bank)</li>
+            <li>The exact timing depends on your payment provider</li>
+        </ul>
+        
+        <p>If you have any questions about this refund, please contact our support team.</p>
+        
+        <p>
+            <a href="mailto:{self.support_email}" class="button">Contact Support</a>
+        </p>
+        """
+        
+        body_text = f"""
+Refund Processed Successfully
+
+Dear {organization_name} Team,
+
+Your refund has been processed successfully.
+
+Amount: {self._format_naira(amount_naira)}
+Refund Reference: {refund_reference}
+Original Payment: {original_reference}
+{f"Reason: {reason}" if reason else ""}
+
+The funds will be credited to your original payment method within 5-10 business days.
+
+Questions? Contact us at {self.support_email}
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_refund_failed(
+        self,
+        email: str,
+        organization_name: str,
+        amount_naira: int,
+        original_reference: str,
+        failure_reason: str,
+    ) -> bool:
+        """Send refund failure notification email."""
+        subject = f"Refund Issue - Action Required"
+        
+        content = f"""
+        <h2>Refund Processing Issue</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>We encountered an issue while processing your refund. Our team is looking into this matter.</p>
+        
+        <div class="danger">
+            <p><strong>Refund Amount:</strong> {self._format_naira(amount_naira)}</p>
+            <p style="margin: 5px 0;"><strong>Original Payment:</strong> {original_reference}</p>
+            <p style="margin: 5px 0;"><strong>Issue:</strong> {failure_reason}</p>
+        </div>
+        
+        <h3>What's Happening?</h3>
+        <p>Our billing team has been notified and will manually process this refund within 2-3 business days. You don't need to take any action.</p>
+        
+        <p>If you have urgent concerns, please contact our support team with the reference number above.</p>
+        
+        <p>
+            <a href="mailto:{self.support_email}" class="button">Contact Support</a>
+        </p>
+        """
+        
+        body_text = f"""
+Refund Processing Issue
+
+Dear {organization_name} Team,
+
+We encountered an issue while processing your refund.
+
+Refund Amount: {self._format_naira(amount_naira)}
+Original Payment: {original_reference}
+Issue: {failure_reason}
+
+Our billing team has been notified and will manually process this refund within 2-3 business days.
+
+Questions? Contact us at {self.support_email}
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
+    async def send_paystack_invoice_notification(
+        self,
+        email: str,
+        organization_name: str,
+        invoice_id: str,
+        amount_naira: int,
+        due_date: datetime,
+        description: str = "Subscription payment",
+    ) -> bool:
+        """Send Paystack invoice notification email (for subscription billing)."""
+        subject = f"Invoice #{invoice_id} - {self._format_naira(amount_naira)} Due"
+        due_str = due_date.strftime("%B %d, %Y")
+        
+        content = f"""
+        <h2>New Invoice</h2>
+        
+        <p>Dear {organization_name} Team,</p>
+        
+        <p>A new invoice has been generated for your account.</p>
+        
+        <div class="highlight">
+            <p style="margin: 5px 0;"><strong>Invoice #:</strong> {invoice_id}</p>
+            <p class="amount">{self._format_naira(amount_naira)}</p>
+            <p style="margin: 5px 0;"><strong>Description:</strong> {description}</p>
+            <p style="margin: 5px 0;"><strong>Due Date:</strong> {due_str}</p>
+        </div>
+        
+        <p>If you have automatic payment enabled, this invoice will be charged automatically. Otherwise, please ensure payment is made by the due date to avoid service interruption.</p>
+        
+        <p>
+            <a href="{self.base_url}/billing" class="button">View Invoice</a>
+        </p>
+        """
+        
+        body_text = f"""
+New Invoice Generated
+
+Dear {organization_name} Team,
+
+A new invoice has been generated:
+
+Invoice #: {invoice_id}
+Amount: {self._format_naira(amount_naira)}
+Description: {description}
+Due Date: {due_str}
+
+View your invoice at: {self.base_url}/billing
+
+Best regards,
+{self.company_name} Team
+"""
+        
+        return await self.email_service.send_email(EmailMessage(
+            to=[email],
+            subject=subject,
+            body_text=body_text,
+            body_html=self._get_base_html_template(content),
+        ))
+    
     async def send_scheduled_cancellation(
         self,
         email: str,

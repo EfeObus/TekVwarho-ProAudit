@@ -20,7 +20,7 @@ from uuid import UUID
 from enum import Enum
 from dataclasses import dataclass
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sku import TenantSKU, SKUTier, IntelligenceAddon, PaymentTransaction
@@ -1735,8 +1735,12 @@ class BillingService:
         - charge.success: Payment completed
         - subscription.create: New subscription
         - subscription.disable: Subscription cancelled
-        - invoice.create: New invoice generated
+        - invoice.create: New Paystack invoice generated
+        - invoice.update: Invoice status changed
         - invoice.payment_failed: Payment failed
+        - transfer.success: Refund/payout completed
+        - transfer.failed: Refund/payout failed
+        - refund.processed: Refund completed
         
         Webhook setup: https://dashboard.paystack.com/#/settings/webhooks
         """
@@ -1748,8 +1752,18 @@ class BillingService:
             return await self._handle_subscription_created(payload)
         elif event_type == "subscription.disable":
             return await self._handle_subscription_cancelled(payload)
+        elif event_type == "invoice.create":
+            return await self._handle_invoice_created(payload)
+        elif event_type == "invoice.update":
+            return await self._handle_invoice_updated(payload)
         elif event_type == "invoice.payment_failed":
             return await self._handle_payment_failed(payload)
+        elif event_type == "transfer.success":
+            return await self._handle_transfer_success(payload)
+        elif event_type == "transfer.failed":
+            return await self._handle_transfer_failed(payload)
+        elif event_type == "refund.processed":
+            return await self._handle_refund_processed(payload)
         else:
             logger.debug(f"Unhandled webhook event: {event_type}")
             return {"handled": False, "event": event_type}
@@ -2181,6 +2195,473 @@ class BillingService:
                 logger.error(f"Error handling payment failure notification: {e}")
         
         return {"handled": True, "event": "invoice.payment_failed", "reference": reference}
+    
+    async def _handle_invoice_created(
+        self,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Handle Paystack invoice.create webhook.
+        
+        This is triggered when Paystack generates a new invoice for subscription billing.
+        Tracks the invoice for reconciliation and sends notification.
+        """
+        data = payload.get("data", {})
+        invoice_id = data.get("invoice_code") or data.get("id")
+        subscription = data.get("subscription", {})
+        customer = data.get("customer", {})
+        
+        logger.info(f"Processing invoice.create webhook: {invoice_id}")
+        
+        amount_kobo = data.get("amount", 0)
+        due_date_str = data.get("due_date")
+        description = data.get("description", "Subscription payment")
+        customer_email = customer.get("email")
+        subscription_code = subscription.get("subscription_code") if isinstance(subscription, dict) else subscription
+        
+        # Find organization by subscription code or customer email
+        organization_id = None
+        org_name = None
+        
+        from app.models.organization import Organization
+        from app.models.user import User
+        
+        # Try to find by subscription code in TenantSKU metadata
+        if subscription_code:
+            result = await self.db.execute(
+                select(TenantSKU).where(TenantSKU.is_active == True)
+            )
+            for sku in result.scalars().all():
+                sub_data = (sku.custom_metadata or {}).get("paystack_subscription", {})
+                if sub_data.get("subscription_code") == subscription_code:
+                    organization_id = sku.organization_id
+                    break
+        
+        # Fallback to customer email
+        if not organization_id and customer_email:
+            user_result = await self.db.execute(
+                select(User).where(User.email == customer_email)
+            )
+            user = user_result.scalar_one_or_none()
+            if user and user.organization_id:
+                organization_id = user.organization_id
+        
+        if organization_id:
+            # Get organization name
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.id == organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            org_name = org.name if org else "Customer"
+            
+            # Create or update PaymentTransaction to track this invoice
+            tx_reference = f"INV-{invoice_id}"
+            
+            # Check if transaction already exists
+            existing_result = await self.db.execute(
+                select(PaymentTransaction).where(PaymentTransaction.reference == tx_reference)
+            )
+            existing_tx = existing_result.scalar_one_or_none()
+            
+            if not existing_tx:
+                # Create new transaction record for tracking
+                payment_tx = PaymentTransaction(
+                    organization_id=organization_id,
+                    reference=tx_reference,
+                    paystack_reference=str(invoice_id),
+                    transaction_type="subscription",
+                    status="pending",
+                    amount_kobo=amount_kobo,
+                    currency="NGN",
+                    paystack_invoice_id=str(invoice_id),
+                    paystack_invoice_status="pending",
+                    webhook_received_at=datetime.utcnow(),
+                    paystack_response=data,
+                    custom_metadata={
+                        "subscription_code": subscription_code,
+                        "description": description,
+                    },
+                )
+                self.db.add(payment_tx)
+                await self.db.flush()
+                logger.info(f"Created payment transaction for invoice {invoice_id}")
+            
+            # Send invoice notification email
+            if customer_email and org_name:
+                from app.services.billing_email_service import BillingEmailService
+                
+                billing_email = BillingEmailService(self.db)
+                due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")) if due_date_str else datetime.utcnow()
+                
+                await billing_email.send_paystack_invoice_notification(
+                    email=customer_email,
+                    organization_name=org_name,
+                    invoice_id=str(invoice_id),
+                    amount_naira=amount_kobo // 100,
+                    due_date=due_date,
+                    description=description,
+                )
+                logger.info(f"Sent invoice notification to {customer_email}")
+        
+        return {
+            "handled": True,
+            "event": "invoice.create",
+            "invoice_id": invoice_id,
+            "organization_id": str(organization_id) if organization_id else None,
+        }
+    
+    async def _handle_invoice_updated(
+        self,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Handle Paystack invoice.update webhook.
+        
+        Syncs invoice status changes (pending, paid, failed, etc.) from Paystack.
+        """
+        data = payload.get("data", {})
+        invoice_id = data.get("invoice_code") or data.get("id")
+        invoice_status = data.get("status", "").lower()
+        paid_at_str = data.get("paid_at")
+        
+        logger.info(f"Processing invoice.update webhook: {invoice_id}, status={invoice_status}")
+        
+        # Find the PaymentTransaction by invoice ID
+        tx_reference = f"INV-{invoice_id}"
+        result = await self.db.execute(
+            select(PaymentTransaction).where(
+                or_(
+                    PaymentTransaction.reference == tx_reference,
+                    PaymentTransaction.paystack_invoice_id == str(invoice_id),
+                )
+            )
+        )
+        payment_tx = result.scalar_one_or_none()
+        
+        if payment_tx:
+            # Update invoice status
+            payment_tx.paystack_invoice_status = invoice_status
+            payment_tx.webhook_received_at = datetime.utcnow()
+            
+            # Map Paystack invoice status to our transaction status
+            if invoice_status == "paid" or invoice_status == "success":
+                payment_tx.status = "success"
+                if paid_at_str:
+                    try:
+                        payment_tx.completed_at = datetime.fromisoformat(paid_at_str.replace("Z", "+00:00"))
+                    except:
+                        payment_tx.completed_at = datetime.utcnow()
+                else:
+                    payment_tx.completed_at = datetime.utcnow()
+            elif invoice_status == "failed":
+                payment_tx.status = "failed"
+                payment_tx.failure_reason = data.get("message", "Invoice payment failed")
+            elif invoice_status == "cancelled":
+                payment_tx.status = "cancelled"
+            
+            # Store full response
+            existing_response = payment_tx.paystack_response or {}
+            existing_response["invoice_update"] = data
+            payment_tx.paystack_response = existing_response
+            
+            logger.info(f"Updated payment transaction {payment_tx.id}: status={payment_tx.status}")
+        else:
+            logger.warning(f"No payment transaction found for invoice {invoice_id}")
+        
+        return {
+            "handled": True,
+            "event": "invoice.update",
+            "invoice_id": invoice_id,
+            "status": invoice_status,
+        }
+    
+    async def _handle_transfer_success(
+        self,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Handle Paystack transfer.success webhook.
+        
+        This confirms that a refund or payout has been completed successfully.
+        Updates the original transaction and notifies the customer.
+        """
+        data = payload.get("data", {})
+        transfer_code = data.get("transfer_code")
+        reference = data.get("reference")
+        reason = data.get("reason", "")
+        amount_kobo = data.get("amount", 0)
+        recipient = data.get("recipient", {})
+        
+        logger.info(f"Processing transfer.success webhook: {transfer_code}, ref={reference}")
+        
+        # Check if this is a refund by looking at the reason or reference
+        is_refund = "refund" in reason.lower() if reason else False
+        
+        # Try to find the original payment transaction
+        # Refund references often contain the original reference
+        original_reference = None
+        if reference and reference.startswith("REF-"):
+            # Our refund references format: REF-{original_reference}
+            original_reference = reference.replace("REF-", "")
+        
+        # Look for transaction by refund reference in metadata
+        payment_tx = None
+        if original_reference:
+            result = await self.db.execute(
+                select(PaymentTransaction).where(PaymentTransaction.reference == original_reference)
+            )
+            payment_tx = result.scalar_one_or_none()
+        
+        # Also try to find by transfer_code in metadata
+        if not payment_tx:
+            result = await self.db.execute(
+                select(PaymentTransaction).where(
+                    PaymentTransaction.refund_reference == transfer_code
+                )
+            )
+            payment_tx = result.scalar_one_or_none()
+        
+        if payment_tx:
+            # Update transaction with refund completion
+            payment_tx.status = "refunded"
+            payment_tx.refunded_at = datetime.utcnow()
+            payment_tx.refund_amount_kobo = amount_kobo
+            payment_tx.refund_reference = transfer_code
+            
+            # Store transfer details
+            existing_response = payment_tx.paystack_response or {}
+            existing_response["transfer_success"] = data
+            payment_tx.paystack_response = existing_response
+            
+            logger.info(f"Updated transaction {payment_tx.id} with refund completion")
+            
+            # Send refund confirmation email
+            from app.models.organization import Organization
+            from app.models.user import User
+            from app.services.billing_email_service import BillingEmailService
+            
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.id == payment_tx.organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            
+            # Get admin user for email
+            admin_result = await self.db.execute(
+                select(User)
+                .where(User.organization_id == payment_tx.organization_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            if admin_user and admin_user.email and org:
+                billing_email = BillingEmailService(self.db)
+                await billing_email.send_refund_processed(
+                    email=admin_user.email,
+                    organization_name=org.name,
+                    amount_naira=amount_kobo // 100,
+                    original_reference=payment_tx.reference,
+                    refund_reference=transfer_code,
+                    reason=reason if reason else payment_tx.refund_reason,
+                )
+                logger.info(f"Sent refund confirmation to {admin_user.email}")
+        else:
+            logger.warning(f"No original transaction found for transfer {transfer_code}")
+        
+        return {
+            "handled": True,
+            "event": "transfer.success",
+            "transfer_code": transfer_code,
+            "amount_kobo": amount_kobo,
+        }
+    
+    async def _handle_transfer_failed(
+        self,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Handle Paystack transfer.failed webhook.
+        
+        This indicates a refund or payout has failed.
+        Notifies the customer and admin for manual resolution.
+        """
+        data = payload.get("data", {})
+        transfer_code = data.get("transfer_code")
+        reference = data.get("reference")
+        reason = data.get("reason", "")
+        amount_kobo = data.get("amount", 0)
+        failure_reason = data.get("message") or data.get("gateway_response") or "Transfer failed"
+        
+        logger.info(f"Processing transfer.failed webhook: {transfer_code}, reason={failure_reason}")
+        
+        # Try to find the original payment transaction
+        original_reference = None
+        if reference and reference.startswith("REF-"):
+            original_reference = reference.replace("REF-", "")
+        
+        payment_tx = None
+        if original_reference:
+            result = await self.db.execute(
+                select(PaymentTransaction).where(PaymentTransaction.reference == original_reference)
+            )
+            payment_tx = result.scalar_one_or_none()
+        
+        if not payment_tx:
+            result = await self.db.execute(
+                select(PaymentTransaction).where(
+                    PaymentTransaction.refund_reference == transfer_code
+                )
+            )
+            payment_tx = result.scalar_one_or_none()
+        
+        if payment_tx:
+            # Update transaction with failure info (but don't mark as refunded)
+            payment_tx.failure_reason = f"Refund failed: {failure_reason}"
+            payment_tx.refund_reference = transfer_code
+            
+            # Store transfer failure details
+            existing_response = payment_tx.paystack_response or {}
+            existing_response["transfer_failed"] = data
+            payment_tx.paystack_response = existing_response
+            
+            logger.info(f"Updated transaction {payment_tx.id} with refund failure")
+            
+            # Send failure notification
+            from app.models.organization import Organization
+            from app.models.user import User
+            from app.services.billing_email_service import BillingEmailService
+            
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.id == payment_tx.organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            
+            admin_result = await self.db.execute(
+                select(User)
+                .where(User.organization_id == payment_tx.organization_id)
+                .where(User.is_active == True)
+                .order_by(User.created_at)
+                .limit(1)
+            )
+            admin_user = admin_result.scalar_one_or_none()
+            
+            if admin_user and admin_user.email and org:
+                billing_email = BillingEmailService(self.db)
+                await billing_email.send_refund_failed(
+                    email=admin_user.email,
+                    organization_name=org.name,
+                    amount_naira=amount_kobo // 100,
+                    original_reference=payment_tx.reference,
+                    failure_reason=failure_reason,
+                )
+                logger.info(f"Sent refund failure notification to {admin_user.email}")
+        else:
+            logger.warning(f"No original transaction found for failed transfer {transfer_code}")
+        
+        return {
+            "handled": True,
+            "event": "transfer.failed",
+            "transfer_code": transfer_code,
+            "failure_reason": failure_reason,
+        }
+    
+    async def _handle_refund_processed(
+        self,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Handle Paystack refund.processed webhook.
+        
+        This is the primary refund completion event from Paystack.
+        Updates the transaction status and sends confirmation.
+        """
+        data = payload.get("data", {})
+        refund_id = data.get("id")
+        transaction_reference = data.get("transaction_reference")
+        amount_kobo = data.get("amount", 0)
+        status = data.get("status", "").lower()
+        merchant_note = data.get("merchant_note", "")
+        customer_note = data.get("customer_note", "")
+        
+        logger.info(f"Processing refund.processed webhook: refund_id={refund_id}, tx_ref={transaction_reference}")
+        
+        # Find the original payment transaction by Paystack reference
+        payment_tx = None
+        if transaction_reference:
+            result = await self.db.execute(
+                select(PaymentTransaction).where(
+                    or_(
+                        PaymentTransaction.paystack_reference == transaction_reference,
+                        PaymentTransaction.reference == transaction_reference,
+                    )
+                )
+            )
+            payment_tx = result.scalar_one_or_none()
+        
+        if payment_tx:
+            now = datetime.utcnow()
+            
+            # Update transaction with refund details
+            if status == "processed" or status == "success":
+                payment_tx.status = "refunded"
+                payment_tx.refunded_at = now
+            elif status == "failed":
+                payment_tx.status = "failed"
+                payment_tx.failure_reason = f"Refund failed: {merchant_note or customer_note}"
+            
+            payment_tx.refund_amount_kobo = amount_kobo
+            payment_tx.refund_reference = str(refund_id)
+            payment_tx.refund_reason = merchant_note or customer_note
+            
+            # Store refund details
+            existing_response = payment_tx.paystack_response or {}
+            existing_response["refund_processed"] = data
+            payment_tx.paystack_response = existing_response
+            
+            logger.info(f"Updated transaction {payment_tx.id} with refund: status={payment_tx.status}")
+            
+            # Send refund confirmation if successful
+            if status == "processed" or status == "success":
+                from app.models.organization import Organization
+                from app.models.user import User
+                from app.services.billing_email_service import BillingEmailService
+                
+                org_result = await self.db.execute(
+                    select(Organization).where(Organization.id == payment_tx.organization_id)
+                )
+                org = org_result.scalar_one_or_none()
+                
+                admin_result = await self.db.execute(
+                    select(User)
+                    .where(User.organization_id == payment_tx.organization_id)
+                    .where(User.is_active == True)
+                    .order_by(User.created_at)
+                    .limit(1)
+                )
+                admin_user = admin_result.scalar_one_or_none()
+                
+                if admin_user and admin_user.email and org:
+                    billing_email = BillingEmailService(self.db)
+                    await billing_email.send_refund_processed(
+                        email=admin_user.email,
+                        organization_name=org.name,
+                        amount_naira=amount_kobo // 100,
+                        original_reference=payment_tx.reference,
+                        refund_reference=str(refund_id),
+                        reason=merchant_note or customer_note,
+                    )
+                    logger.info(f"Sent refund confirmation to {admin_user.email}")
+        else:
+            logger.warning(f"No transaction found for refund {refund_id}, tx_ref={transaction_reference}")
+        
+        return {
+            "handled": True,
+            "event": "refund.processed",
+            "refund_id": refund_id,
+            "transaction_reference": transaction_reference,
+            "status": status,
+        }
     
     # ===========================================
     # SUBSCRIPTION MANAGEMENT

@@ -421,6 +421,8 @@ from app.routers import (
     admin_sku,
     # Billing (Subscription Management, Payments, Upgrades)
     billing,
+    # Advanced Billing (Usage Reports, Pause/Resume, Credits, Discounts, Volume, Multi-Currency)
+    advanced_billing,
 )
 
 # View Routes (HTML pages)
@@ -527,6 +529,9 @@ app.include_router(admin_sku.router, prefix="/api/v1", tags=["SKU Management"])
 
 # Billing - Subscription Management, Payments, Upgrades (Paystack Integration)
 app.include_router(billing.router, tags=["Billing"])
+
+# Advanced Billing - Issues #30-36 (Usage Reports, Pause/Resume, Credits, Discounts, Volume, Multi-Currency)
+app.include_router(advanced_billing.router, tags=["Advanced Billing"])
 
 
 if __name__ == "__main__":

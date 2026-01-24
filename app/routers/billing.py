@@ -963,7 +963,11 @@ async def paystack_webhook(
     - charge.failed: Payment failed
     - subscription.create: New subscription
     - subscription.disable: Subscription cancelled
-    - transfer.success: Payout completed
+    - invoice.create: New invoice generated (subscription billing)
+    - invoice.update: Invoice status changed
+    - invoice.payment_failed: Invoice payment failed
+    - transfer.success: Refund/payout completed
+    - transfer.failed: Refund/payout failed
     - refund.processed: Refund completed
     """
     from app.config import settings
@@ -1136,6 +1140,124 @@ async def get_dunning_status(
         days_until_suspension=dunning_record.days_until_suspension,
         notes=dunning_record.notes,
         is_in_dunning=True,
+    )
+
+
+# =============================================================================
+# USER-FACING USAGE ENDPOINT
+# =============================================================================
+
+class UsageMetricResponse(BaseModel):
+    """Response model for a single usage metric."""
+    metric: str
+    display_name: str
+    current: int
+    limit: int | str  # Can be "unlimited"
+    percentage: float
+    status: str  # ok, warning, critical, exceeded
+
+
+class MyUsageResponse(BaseModel):
+    """Response for current user's organization usage."""
+    tier: str
+    tier_display: str
+    period_start: str
+    period_end: str
+    metrics: List[UsageMetricResponse]
+    has_warnings: bool
+    has_critical: bool
+
+
+METRIC_DISPLAY_NAMES = {
+    "transactions": "Monthly Transactions",
+    "users": "Active Users",
+    "entities": "Business Entities",
+    "invoices": "Monthly Invoices",
+    "api_calls": "API Calls (per hour)",
+    "ocr_pages": "OCR Pages",
+    "storage_mb": "Storage (MB)",
+    "ml_inferences": "ML Inferences",
+    "employees": "Employees",
+}
+
+
+@router.get(
+    "/my-usage",
+    response_model=MyUsageResponse,
+    summary="Get current usage for my organization",
+)
+async def get_my_usage(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get current usage metrics for the logged-in user's organization.
+    
+    Returns usage against tier limits with status indicators:
+    - ok: Usage below 75% of limit
+    - warning: Usage between 75-90% of limit
+    - critical: Usage between 90-100% of limit
+    - exceeded: Usage at or above 100% of limit
+    
+    This endpoint is for regular users, not admin-only.
+    """
+    from app.services.metering_service import MeteringService
+    from app.models.sku import TenantSKU
+    
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    # Get metering service and usage summary
+    metering_service = MeteringService(db)
+    usage_summary = await metering_service.get_usage_summary(current_user.organization_id)
+    
+    # Get tenant SKU for tier display name
+    sku_result = await db.execute(
+        select(TenantSKU).where(TenantSKU.organization_id == current_user.organization_id)
+    )
+    tenant_sku = sku_result.scalar_one_or_none()
+    
+    tier_display = "Core"
+    if tenant_sku:
+        tier_display = tenant_sku.tier.value.title()
+    
+    # Format period dates
+    period = usage_summary.get("period", [])
+    period_start = str(period[0]) if period else ""
+    period_end = str(period[1]) if len(period) > 1 else ""
+    
+    # Build metrics list
+    metrics = []
+    has_warnings = False
+    has_critical = False
+    
+    for metric_name, metric_data in usage_summary.get("metrics", {}).items():
+        status = metric_data.get("status", "ok")
+        if status == "warning":
+            has_warnings = True
+        elif status in ("critical", "exceeded"):
+            has_critical = True
+        
+        metrics.append(UsageMetricResponse(
+            metric=metric_name,
+            display_name=METRIC_DISPLAY_NAMES.get(metric_name, metric_name.replace("_", " ").title()),
+            current=metric_data.get("current", 0),
+            limit=metric_data.get("limit", "unlimited"),
+            percentage=metric_data.get("percentage", 0),
+            status=status,
+        ))
+    
+    return MyUsageResponse(
+        tier=usage_summary.get("tier", "core"),
+        tier_display=tier_display,
+        period_start=period_start,
+        period_end=period_end,
+        metrics=metrics,
+        has_warnings=has_warnings,
+        has_critical=has_critical,
     )
 
 
