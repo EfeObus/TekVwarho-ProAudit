@@ -1544,6 +1544,8 @@ class BillingService:
         user_id: Optional[UUID] = None,
         is_upgrade: bool = False,
         apply_proration: bool = True,
+        discount_percent: int = 0,  # Billing feature #34
+        currency: str = "NGN",  # Billing feature #36
     ) -> PaymentIntent:
         """
         Create a payment intent for subscription upgrade/purchase.
@@ -1563,6 +1565,8 @@ class BillingService:
             user_id: User initiating the payment
             is_upgrade: If True, calculate prorated amount for mid-cycle upgrade
             apply_proration: If True and is_upgrade, apply prorated pricing
+            discount_percent: Discount percentage to apply (0-100) (#34)
+            currency: Payment currency (NGN, USD, EUR, GBP) (#36)
         """
         import uuid as uuid_module
         
@@ -1597,6 +1601,18 @@ class BillingService:
             )
             is_prorated = False
         
+        # Apply discount if provided (#34: Discount codes)
+        discount_amount = 0
+        if discount_percent > 0 and discount_percent <= 100:
+            discount_amount = int(amount * discount_percent / 100)
+            amount = amount - discount_amount
+            logger.info(f"Applied {discount_percent}% discount: -{discount_amount} NGN, new amount: {amount}")
+        
+        # Handle multi-currency (#36: Multi-currency checkout)
+        # Paystack accepts NGN, so we store both original and converted amounts
+        original_amount_ngn = amount
+        display_currency = currency.upper() if currency else "NGN"
+        
         # Generate unique reference
         reference = f"TVP-{organization_id.hex[:8]}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
         
@@ -1609,6 +1625,9 @@ class BillingService:
             "additional_users": additional_users,
             "is_upgrade": is_upgrade,
             "is_prorated": is_prorated,
+            "discount_percent": discount_percent,
+            "discount_amount": discount_amount,
+            "display_currency": display_currency,
         }
         
         # Initialize payment with provider

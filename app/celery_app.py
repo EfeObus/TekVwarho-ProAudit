@@ -147,6 +147,28 @@ celery_app.conf.update(
             'task': 'app.tasks.celery_tasks.check_usage_alerts_task',
             'schedule': crontab(hour='*/6', minute=15),
         },
+        
+        # ===========================================
+        # BILLING FEATURES #30-36 TASKS
+        # ===========================================
+        
+        # #32: Auto-resume paused subscriptions hourly at :45
+        'auto-resume-paused-subscriptions': {
+            'task': 'app.tasks.celery_tasks.auto_resume_paused_subscriptions_task',
+            'schedule': crontab(minute=45),  # Every hour at :45
+        },
+        
+        # #36: Update exchange rates daily at 6:30 AM (before business hours)
+        'update-exchange-rates': {
+            'task': 'app.tasks.celery_tasks.update_exchange_rates_task',
+            'schedule': crontab(hour=6, minute=30),
+        },
+        
+        # #30: Process scheduled usage reports daily at 7:30 AM
+        'process-scheduled-usage-reports': {
+            'task': 'app.tasks.celery_tasks.process_scheduled_usage_reports_task',
+            'schedule': crontab(hour=7, minute=30),
+        },
     },
 )
 
@@ -159,5 +181,9 @@ celery_app.conf.task_routes = {
     'app.tasks.celery_tasks.process_subscription_*': {'queue': 'billing'},
     'app.tasks.celery_tasks.retry_failed_*': {'queue': 'billing'},
     'app.tasks.celery_tasks.send_payment_*': {'queue': 'billing'},
+    # Billing features #30-36 routing
+    'app.tasks.celery_tasks.auto_resume_paused_*': {'queue': 'billing'},
+    'app.tasks.celery_tasks.update_exchange_*': {'queue': 'billing'},
+    'app.tasks.celery_tasks.process_scheduled_usage_*': {'queue': 'billing'},
     'app.tasks.celery_tasks.*': {'queue': 'default'},
 }

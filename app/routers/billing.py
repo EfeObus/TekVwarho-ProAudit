@@ -48,6 +48,10 @@ class CreatePaymentIntentRequest(BaseModel):
     additional_users: int = Field(0, ge=0, description="Additional users beyond base")
     callback_url: Optional[str] = Field(None, description="Custom callback URL")
     is_upgrade: bool = Field(False, description="If true, calculates prorated amount for mid-cycle upgrade")
+    # Billing feature #34: Discount codes
+    discount_code: Optional[str] = Field(None, description="Discount/promo code to apply")
+    # Billing feature #36: Multi-currency checkout
+    currency: Optional[str] = Field("NGN", description="Currency for payment (NGN, USD, EUR, GBP)")
 
 
 class PaymentIntentResponse(BaseModel):
@@ -557,6 +561,19 @@ async def create_checkout_session(
     try:
         cycle = BillingCycle.ANNUAL if request.billing_cycle == "annual" else BillingCycle.MONTHLY
         
+        # Calculate discount if code provided (#34)
+        discount_percent = 0
+        if request.discount_code:
+            from app.services.advanced_billing_service import AdvancedBillingService
+            advanced_service = AdvancedBillingService(db)
+            discount_result = await advanced_service.discount_service.validate_discount_code(
+                code=request.discount_code,
+                tier=request.tier,
+                billing_cycle=cycle,
+            )
+            if discount_result.get("valid"):
+                discount_percent = discount_result.get("discount_percent", 0)
+        
         intent = await service.create_payment_intent(
             organization_id=current_user.organization_id,
             tier=request.tier,
@@ -567,6 +584,8 @@ async def create_checkout_session(
             callback_url=request.callback_url,
             is_upgrade=request.is_upgrade,
             apply_proration=request.is_upgrade,  # Apply proration for upgrades
+            discount_percent=discount_percent,  # Apply discount (#34)
+            currency=request.currency or "NGN",  # Multi-currency (#36)
         )
         
         return PaymentIntentResponse(

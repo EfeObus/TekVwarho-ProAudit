@@ -238,6 +238,33 @@ async def update_exchange_rate(
     }
 
 
+@router.get("/currency/preference")
+async def get_preferred_currency(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get preferred billing currency for current organization."""
+    if not current_user.organization_id:
+        raise HTTPException(status_code=400, detail="User not in an organization")
+    
+    from sqlalchemy import select
+    from app.models.sku import TenantSKU
+    
+    result = await db.execute(
+        select(TenantSKU)
+        .where(TenantSKU.organization_id == current_user.organization_id)
+    )
+    tenant_sku = result.scalar_one_or_none()
+    
+    if not tenant_sku:
+        return {"currency": "NGN", "source": "default"}
+    
+    return {
+        "currency": tenant_sku.preferred_currency or "NGN",
+        "source": "subscription"
+    }
+
+
 @router.put("/currency/preference")
 async def set_preferred_currency(
     request: SetPreferredCurrencyRequest,
@@ -527,6 +554,29 @@ async def approve_credit(
 # =============================================================================
 # ISSUE #34: DISCOUNT CODE ENDPOINTS
 # =============================================================================
+
+@router.get("/discount/{code}/validate")
+async def validate_discount_code_get(
+    code: str,
+    tier: str = Query("core", pattern="^(core|professional|enterprise)$"),
+    billing_cycle: str = Query("monthly", pattern="^(monthly|annual)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Validate a discount code (GET method for simpler frontend calls)."""
+    if not current_user.organization_id:
+        raise HTTPException(status_code=400, detail="User not in an organization")
+    
+    service = DiscountCodeService(db)
+    tier_enum = SKUTier(tier)
+    
+    return await service.validate_code(
+        code,
+        current_user.organization_id,
+        tier_enum,
+        billing_cycle,
+    )
+
 
 @router.post("/discount/validate")
 async def validate_discount_code(

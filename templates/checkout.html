@@ -666,7 +666,7 @@ function checkoutPage() {
         
         async loadExchangeRates() {
             try {
-                const response = await fetch('/api/v1/billing/exchange-rates');
+                const response = await fetch('/api/v1/billing/advanced/exchange-rates');
                 if (response.ok) {
                     const data = await response.json();
                     // Update exchange rates from API
@@ -681,7 +681,7 @@ function checkoutPage() {
         
         async loadPreferredCurrency() {
             try {
-                const response = await authFetch('/api/v1/billing/currency/preferred');
+                const response = await authFetch('/api/v1/billing/advanced/currency/preference');
                 if (response.ok) {
                     const data = await response.json();
                     if (data.currency && !new URLSearchParams(window.location.search).has('currency')) {
@@ -705,7 +705,7 @@ function checkoutPage() {
             this.discountError = null;
             
             try {
-                const response = await fetch(`/api/v1/billing/discount/${encodeURIComponent(this.discountCode)}/validate`);
+                const response = await authFetch(`/api/v1/billing/advanced/discount/${encodeURIComponent(this.discountCode)}/validate?tier=${this.selectedTier}&billing_cycle=${this.billingCycle}`);
                 const data = await response.json();
                 
                 if (!response.ok) {

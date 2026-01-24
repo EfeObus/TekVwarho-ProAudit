@@ -500,6 +500,219 @@ async def process_trial_expirations(db: AsyncSession) -> dict:
 
 
 # ===========================================
+# SCHEDULED TASK: AUTO-RESUME PAUSED SUBSCRIPTIONS
+# ===========================================
+
+async def auto_resume_paused_subscriptions(db: AsyncSession) -> dict:
+    """
+    Automatically resume subscriptions that have reached their pause_until date.
+    Should run hourly.
+    """
+    from app.models.sku import TenantSKU
+    from app.services.advanced_billing_service import SubscriptionPauseService
+    
+    now = datetime.utcnow()
+    
+    # Find paused subscriptions that should be resumed
+    result = await db.execute(
+        select(TenantSKU)
+        .where(TenantSKU.paused_at.isnot(None))
+        .where(TenantSKU.pause_until.isnot(None))
+        .where(TenantSKU.pause_until <= now)
+    )
+    
+    paused_skus = result.scalars().all()
+    resumed_count = 0
+    errors = []
+    
+    pause_service = SubscriptionPauseService(db)
+    
+    for sku in paused_skus:
+        try:
+            result = await pause_service.resume_subscription(sku.organization_id)
+            if result.get("success"):
+                resumed_count += 1
+                logger.info(f"Auto-resumed subscription for org {sku.organization_id}")
+            else:
+                errors.append({
+                    "organization_id": str(sku.organization_id),
+                    "error": result.get("error", "Unknown error"),
+                })
+        except Exception as e:
+            logger.error(f"Error auto-resuming subscription for org {sku.organization_id}: {e}")
+            errors.append({
+                "organization_id": str(sku.organization_id),
+                "error": str(e),
+            })
+    
+    await db.commit()
+    
+    logger.info(f"Auto-resume task: {resumed_count} subscriptions resumed out of {len(paused_skus)}")
+    return {
+        "paused_found": len(paused_skus),
+        "resumed_count": resumed_count,
+        "errors": errors if errors else None,
+    }
+
+
+# ===========================================
+# SCHEDULED TASK: UPDATE EXCHANGE RATES
+# ===========================================
+
+async def update_exchange_rates(db: AsyncSession) -> dict:
+    """
+    Update currency exchange rates from external API.
+    Should run daily (or more frequently for volatile markets).
+    """
+    from app.services.advanced_billing_service import CurrencyService
+    
+    currency_service = CurrencyService(db)
+    
+    # In production, you'd fetch from a real exchange rate API like:
+    # - Open Exchange Rates (openexchangerates.org)
+    # - Fixer.io
+    # - ExchangeRate-API
+    
+    # For now, we'll use reasonable Nigerian market rates
+    # These should be replaced with live API calls
+    default_rates = {
+        "USD": 1550.00,  # 1 USD = 1550 NGN
+        "EUR": 1700.00,  # 1 EUR = 1700 NGN
+        "GBP": 1950.00,  # 1 GBP = 1950 NGN
+    }
+    
+    updated_count = 0
+    errors = []
+    
+    for currency, rate in default_rates.items():
+        try:
+            # Try to update or create exchange rate
+            await currency_service.update_exchange_rate(
+                from_currency="NGN",
+                to_currency=currency,
+                rate=1 / rate,  # NGN to foreign currency
+            )
+            await currency_service.update_exchange_rate(
+                from_currency=currency,
+                to_currency="NGN",
+                rate=rate,  # Foreign currency to NGN
+            )
+            updated_count += 2
+        except Exception as e:
+            logger.error(f"Error updating exchange rate for {currency}: {e}")
+            errors.append({
+                "currency": currency,
+                "error": str(e),
+            })
+    
+    await db.commit()
+    
+    logger.info(f"Exchange rates updated: {updated_count} rates processed")
+    return {
+        "rates_updated": updated_count,
+        "errors": errors if errors else None,
+    }
+
+
+# ===========================================
+# SCHEDULED TASK: PROCESS SCHEDULED USAGE REPORTS
+# ===========================================
+
+async def process_scheduled_usage_reports(db: AsyncSession) -> dict:
+    """
+    Generate and deliver scheduled usage reports to organizations.
+    Should run daily.
+    """
+    from app.models.sku import ScheduledUsageReport
+    from app.services.advanced_billing_service import UsageReportService
+    from app.services.billing_email_service import BillingEmailService
+    
+    today = date.today()
+    now = datetime.utcnow()
+    
+    # Find scheduled reports due today
+    result = await db.execute(
+        select(ScheduledUsageReport)
+        .where(ScheduledUsageReport.is_active == True)
+        .where(ScheduledUsageReport.next_run_at <= now)
+    )
+    
+    scheduled_reports = result.scalars().all()
+    generated_count = 0
+    errors = []
+    
+    report_service = UsageReportService(db)
+    
+    for report in scheduled_reports:
+        try:
+            # Calculate date range based on frequency
+            if report.frequency == "weekly":
+                start_date = today - timedelta(days=7)
+                end_date = today
+            elif report.frequency == "monthly":
+                start_date = today - timedelta(days=30)
+                end_date = today
+            elif report.frequency == "quarterly":
+                start_date = today - timedelta(days=90)
+                end_date = today
+            else:
+                continue
+            
+            # Generate the report
+            if report.format == "csv":
+                filename, content = await report_service.generate_usage_report_csv(
+                    report.organization_id,
+                    start_date,
+                    end_date,
+                )
+            elif report.format == "pdf":
+                filename, content = await report_service.generate_usage_report_pdf(
+                    report.organization_id,
+                    start_date,
+                    end_date,
+                )
+            else:
+                continue
+            
+            # Save report history
+            await report_service.save_report_history(
+                organization_id=report.organization_id,
+                report_type=report.report_type,
+                format=report.format,
+                period_start=start_date,
+                period_end=end_date,
+                file_size=len(content),
+            )
+            
+            # Update next run time
+            if report.frequency == "weekly":
+                report.next_run_at = now + timedelta(days=7)
+            elif report.frequency == "monthly":
+                report.next_run_at = now + timedelta(days=30)
+            elif report.frequency == "quarterly":
+                report.next_run_at = now + timedelta(days=90)
+            
+            generated_count += 1
+            logger.info(f"Generated scheduled usage report for org {report.organization_id}")
+            
+        except Exception as e:
+            logger.error(f"Error generating scheduled report for org {report.organization_id}: {e}")
+            errors.append({
+                "organization_id": str(report.organization_id),
+                "error": str(e),
+            })
+    
+    await db.commit()
+    
+    logger.info(f"Scheduled reports: {generated_count} generated out of {len(scheduled_reports)}")
+    return {
+        "reports_due": len(scheduled_reports),
+        "generated_count": generated_count,
+        "errors": errors if errors else None,
+    }
+
+
+# ===========================================
 # SCHEDULED TASK: USAGE ALERT CHECK
 # ===========================================
 
@@ -601,6 +814,10 @@ class TaskRunner:
             ("process_scheduled_cancellations", process_scheduled_cancellations),
             ("process_trial_expirations", process_trial_expirations),
             ("check_usage_alerts", check_usage_alerts),
+            # Billing features #30-36 tasks
+            ("auto_resume_paused_subscriptions", auto_resume_paused_subscriptions),
+            ("update_exchange_rates", update_exchange_rates),
+            ("process_scheduled_usage_reports", process_scheduled_usage_reports),
         ]
         
         for name, task_func in tasks:

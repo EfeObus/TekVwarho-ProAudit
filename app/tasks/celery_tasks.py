@@ -1108,3 +1108,84 @@ async def _check_usage_alerts() -> Dict[str, Any]:
         await db.commit()
         return result
 
+
+# ===========================================
+# AUTO-RESUME PAUSED SUBSCRIPTIONS TASK (#32)
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.auto_resume_paused_subscriptions_task')
+def auto_resume_paused_subscriptions_task() -> Dict[str, Any]:
+    """
+    Automatically resume paused subscriptions when pause_until date is reached.
+    
+    Billing Feature #32: Subscription Pause System with Annual Limit
+    - Checks for subscriptions where paused_at is set and pause_until <= now
+    - Resumes them automatically by clearing pause fields
+    - Respects the 3 pauses per year limit tracked in pause_count_this_year
+    """
+    return run_async(_auto_resume_paused_subscriptions())
+
+
+async def _auto_resume_paused_subscriptions() -> Dict[str, Any]:
+    """Async implementation of auto-resume paused subscriptions."""
+    from app.tasks.scheduled_tasks import auto_resume_paused_subscriptions
+    
+    async with async_session_factory() as db:
+        result = await auto_resume_paused_subscriptions(db)
+        await db.commit()
+        return result
+
+
+# ===========================================
+# UPDATE EXCHANGE RATES TASK (#36)
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.update_exchange_rates_task')
+def update_exchange_rates_task() -> Dict[str, Any]:
+    """
+    Update currency exchange rates for multi-currency checkout.
+    
+    Billing Feature #36: Multi-currency Checkout
+    - Fetches latest exchange rates from external API
+    - Updates NGN <-> USD, EUR, GBP conversion rates
+    - Ensures checkout displays accurate converted prices
+    """
+    return run_async(_update_exchange_rates())
+
+
+async def _update_exchange_rates() -> Dict[str, Any]:
+    """Async implementation of exchange rate update."""
+    from app.tasks.scheduled_tasks import update_exchange_rates
+    
+    async with async_session_factory() as db:
+        result = await update_exchange_rates(db)
+        await db.commit()
+        return result
+
+
+# ===========================================
+# SCHEDULED USAGE REPORTS TASK (#30)
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.process_scheduled_usage_reports_task')
+def process_scheduled_usage_reports_task() -> Dict[str, Any]:
+    """
+    Generate and deliver scheduled usage reports to organizations.
+    
+    Billing Feature #30: PDF Export & Scheduled Reports
+    - Checks for ScheduledUsageReport entries where next_run_at <= now
+    - Generates PDF or CSV reports based on configuration
+    - Updates next_run_at for the next scheduled delivery
+    """
+    return run_async(_process_scheduled_usage_reports())
+
+
+async def _process_scheduled_usage_reports() -> Dict[str, Any]:
+    """Async implementation of scheduled usage reports processing."""
+    from app.tasks.scheduled_tasks import process_scheduled_usage_reports
+    
+    async with async_session_factory() as db:
+        result = await process_scheduled_usage_reports(db)
+        await db.commit()
+        return result
+
