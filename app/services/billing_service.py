@@ -82,6 +82,7 @@ class BillingErrorCode(str, Enum):
     ALREADY_PROCESSED = "B503"
     REFUND_FAILED = "B504"
     PARTIAL_REFUND_NOT_ALLOWED = "B505"
+    DUPLICATE_WEBHOOK = "B506"
     
     # Subscription Errors (B6xx)
     SUBSCRIPTION_NOT_FOUND = "B600"
@@ -89,6 +90,7 @@ class BillingErrorCode(str, Enum):
     SUBSCRIPTION_EXPIRED = "B602"
     PLAN_NOT_FOUND = "B603"
     DOWNGRADE_NOT_ALLOWED = "B604"
+    INVALID_PLAN_CHANGE = "B605"
     
     # Provider Errors (B7xx)
     PROVIDER_ERROR = "B700"
@@ -133,11 +135,13 @@ BILLING_ERROR_MESSAGES = {
     BillingErrorCode.ALREADY_PROCESSED: "Transaction already processed.",
     BillingErrorCode.REFUND_FAILED: "Refund failed.",
     BillingErrorCode.PARTIAL_REFUND_NOT_ALLOWED: "Partial refund not allowed.",
+    BillingErrorCode.DUPLICATE_WEBHOOK: "Duplicate webhook event already processed.",
     BillingErrorCode.SUBSCRIPTION_NOT_FOUND: "Subscription not found.",
     BillingErrorCode.SUBSCRIPTION_CANCELLED: "Subscription has been cancelled.",
     BillingErrorCode.SUBSCRIPTION_EXPIRED: "Subscription has expired.",
     BillingErrorCode.PLAN_NOT_FOUND: "Subscription plan not found.",
     BillingErrorCode.DOWNGRADE_NOT_ALLOWED: "Downgrade not allowed at this time.",
+    BillingErrorCode.INVALID_PLAN_CHANGE: "Invalid plan change requested.",
     BillingErrorCode.PROVIDER_ERROR: "Payment provider error.",
     BillingErrorCode.PROVIDER_UNAVAILABLE: "Payment provider temporarily unavailable.",
     BillingErrorCode.RATE_LIMITED: "Too many requests. Please wait and try again.",
@@ -1284,6 +1288,7 @@ class BillingService:
                 if can_downgrade
                 else f"Cannot downgrade: {len(exceeded_metrics)} usage metric(s) exceed the target tier limits. Please reduce usage first."
             ),
+            "error_code": BillingErrorCode.SUCCESS.value if can_downgrade else BillingErrorCode.DOWNGRADE_NOT_ALLOWED.value,
         }
     
     async def request_downgrade(
@@ -1314,6 +1319,7 @@ class BillingService:
                 "success": False,
                 "message": validation["message"],
                 "exceeded_limits": validation["exceeded_limits"],
+                "error_code": BillingErrorCode.DOWNGRADE_NOT_ALLOWED.value,
             }
         
         # Get current subscription
@@ -1328,7 +1334,11 @@ class BillingService:
         tenant_sku = result.scalar_one_or_none()
         
         if not tenant_sku:
-            return {"success": False, "message": "No active subscription found"}
+            return {
+                "success": False,
+                "message": "No active subscription found",
+                "error_code": BillingErrorCode.SUBSCRIPTION_NOT_FOUND.value,
+            }
         
         # Check tier hierarchy
         tier_order = {SKUTier.CORE: 0, SKUTier.PROFESSIONAL: 1, SKUTier.ENTERPRISE: 2}
@@ -1336,6 +1346,7 @@ class BillingService:
             return {
                 "success": False,
                 "message": f"Target tier ({target_tier.value}) is not lower than current tier ({tenant_sku.tier.value})",
+                "error_code": BillingErrorCode.INVALID_PLAN_CHANGE.value,
             }
         
         now = datetime.utcnow()
@@ -1367,6 +1378,7 @@ class BillingService:
             "effective_date": tenant_sku.current_period_end.isoformat() if tenant_sku.current_period_end else None,
             "exceeded_limits": validation.get("exceeded_limits"),
             "warnings": validation.get("warnings"),
+            "error_code": BillingErrorCode.SUCCESS.value,
         }
     
     async def _send_downgrade_scheduled_email(
@@ -2055,6 +2067,25 @@ class BillingService:
         Webhook setup: https://dashboard.paystack.com/#/settings/webhooks
         """
         logger.info(f"Processing webhook: {event_type}")
+        
+        # IDEMPOTENCY CHECK (#45) - Prevent duplicate webhook processing
+        data = payload.get("data", {})
+        event_id = data.get("id")
+        if event_id:
+            existing_tx = await self.db.execute(
+                select(PaymentTransaction).where(
+                    PaymentTransaction.webhook_event_id == str(event_id)
+                )
+            )
+            if existing_tx.scalar_one_or_none():
+                logger.info(f"Duplicate webhook ignored (idempotency): event_id={event_id}")
+                return {
+                    "handled": False,
+                    "reason": "duplicate",
+                    "event_id": str(event_id),
+                    "error_code": BillingErrorCode.DUPLICATE_WEBHOOK.value,
+                    "message": BILLING_ERROR_MESSAGES[BillingErrorCode.DUPLICATE_WEBHOOK],
+                }
         
         if event_type == "charge.success":
             return await self._handle_charge_success(payload)
