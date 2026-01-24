@@ -1,8 +1,8 @@
 # TekVwarho ProAudit - Commercial SKU Structure
 
-> **Document Version:** 1.1  
+> **Document Version:** 1.2  
 > **Effective Date:** January 22, 2026  
-> **Last Updated:** January 22, 2026  
+> **Last Updated:** January 24, 2026  
 > **Currency:** Nigerian Naira (₦)
 
 ---
@@ -117,6 +117,7 @@ TekVwarho ProAudit is offered in **four distinct product tiers** designed to ser
 - Maximum 5 users
 - Single entity/company
 - 10,000 transactions/month
+- Maximum 10 payroll employees
 - Email support only (48-hour response)
 - No API access
 
@@ -454,21 +455,21 @@ FEATURE_CUSTOM_ML_TRAINING
 ┌─────────────────┐
 │   ProAudit      │
 │     Core        │
-│   $49-149/mo    │
+│ ₦25K-75K/mo     │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐     ┌─────────────────┐
 │   ProAudit      │────▶│   ProAudit      │
 │  Professional   │     │  Intelligence   │
-│   $299-799/mo   │     │  (Add-on)       │
-└────────┬────────┘     │  $500-2,000/mo  │
+│ ₦150K-400K/mo   │     │  (Add-on)       │
+└────────┬────────┘     │ ₦250K-1M/mo     │
          │              └─────────────────┘
          ▼                      ▲
 ┌─────────────────┐             │
 │   ProAudit      │─────────────┘
 │   Enterprise    │
-│  $2,000-10K/mo  │
+│ ₦1M-5M+/mo      │
 └─────────────────┘
 ```
 
@@ -483,8 +484,10 @@ FEATURE_CUSTOM_ML_TRAINING
 | Entities | 1 | 1 | Unlimited |
 | Transactions/month | 10,000 | 100,000 | 1,000,000 |
 | Invoices/month | 100 | 1,000 | Unlimited |
+| Payroll Employees | 10 | 500 | Unlimited |
 | Storage (GB) | 5 | 50 | 500 |
 | API calls/hour | 0 | 1,000 (read-only) | 10,000 |
+| Audit Log Retention | 90 days | 1 year | 7 years |
 | OCR pages/month | 0 | 0 | 0 (Intelligence add-on required) |
 
 ### Overage Handling
@@ -496,20 +499,20 @@ FEATURE_CUSTOM_ML_TRAINING
 
 ## Implementation Priority
 
-### Phase 1: Foundation
+### Phase 1: Foundation ✅
 1. Feature flags infrastructure
 2. SKU configuration model
 3. Tenant tier assignment
 4. Basic metering
 
-### Phase 2: Enforcement
+### Phase 2: Enforcement ✅
 1. UI feature gating
 2. API endpoint restrictions
 3. Rate limiting per tier
 4. Usage tracking
 
-### Phase 3: Billing Integration
-1. Stripe/billing provider integration
+### Phase 3: Billing Integration ✅
+1. Paystack billing provider integration
 2. Usage-based billing
 3. Upgrade/downgrade workflows
 4. Invoice generation

@@ -49,7 +49,7 @@ from app.services.billing_email_service import BillingEmailService
 from app.services.advanced_billing_service import AdvancedBillingService
 from app.services.bank_reconciliation_service import BankReconciliationService
 from app.services.expense_claims_service import ExpenseClaimsService
-from app.services.audit_consolidated_service import AuditConsolidatedService
+from app.services.audit_consolidated_service import UnifiedAuditService
 
 __all__ = [
     # Core Services
@@ -106,5 +106,5 @@ __all__ = [
     "AdvancedBillingService",
     "BankReconciliationService",
     "ExpenseClaimsService",
-    "AuditConsolidatedService",
+    "UnifiedAuditService",
 ]

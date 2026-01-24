@@ -778,6 +778,206 @@ async def check_usage_alerts(db: AsyncSession) -> dict:
 
 
 # ===========================================
+# SCHEDULED TASK: DATA RETENTION CLEANUP (Issue #57)
+# ===========================================
+
+async def cleanup_expired_usage_data(db: AsyncSession) -> dict:
+    """
+    Clean up expired usage data based on retention policy (Issue #57).
+    
+    This task enforces data retention limits on:
+    - usage_records: Billing period usage summaries
+    - usage_events: Granular usage events (shorter retention)
+    - feature_access_logs: Feature gate access logs
+    - payment_transactions: Kept longer for compliance (archived, not deleted)
+    
+    Should run daily at 3 AM (off-peak hours).
+    """
+    from app.config import settings
+    from app.models.sku import UsageRecord, UsageEvent, FeatureAccessLog, PaymentTransaction
+    from sqlalchemy import delete
+    
+    if not settings.enable_data_retention_cleanup:
+        logger.info("Data retention cleanup is disabled via ENABLE_DATA_RETENTION_CLEANUP")
+        return {"status": "disabled"}
+    
+    today = date.today()
+    results = {
+        "usage_records_deleted": 0,
+        "usage_events_deleted": 0,
+        "feature_access_logs_deleted": 0,
+        "payment_transactions_archived": 0,
+        "errors": [],
+    }
+    
+    # 1. Clean up old usage_records
+    try:
+        cutoff_date = today - timedelta(days=settings.usage_records_retention_days)
+        
+        # Count records to be deleted
+        count_result = await db.execute(
+            select(func.count(UsageRecord.id))
+            .where(UsageRecord.period_end < cutoff_date)
+        )
+        records_to_delete = count_result.scalar() or 0
+        
+        if records_to_delete > 0:
+            # Delete in batches to avoid lock contention
+            batch_size = 1000
+            total_deleted = 0
+            
+            while total_deleted < records_to_delete:
+                # Get IDs to delete
+                ids_result = await db.execute(
+                    select(UsageRecord.id)
+                    .where(UsageRecord.period_end < cutoff_date)
+                    .limit(batch_size)
+                )
+                ids_to_delete = [row[0] for row in ids_result.fetchall()]
+                
+                if not ids_to_delete:
+                    break
+                
+                await db.execute(
+                    delete(UsageRecord).where(UsageRecord.id.in_(ids_to_delete))
+                )
+                await db.commit()
+                total_deleted += len(ids_to_delete)
+                
+            results["usage_records_deleted"] = total_deleted
+            logger.info(f"Deleted {total_deleted} expired usage_records (older than {cutoff_date})")
+    
+    except Exception as e:
+        logger.error(f"Error cleaning up usage_records: {e}")
+        results["errors"].append(f"usage_records: {str(e)}")
+    
+    # 2. Clean up old usage_events (shorter retention)
+    try:
+        cutoff_date = today - timedelta(days=settings.usage_events_retention_days)
+        
+        count_result = await db.execute(
+            select(func.count(UsageEvent.id))
+            .where(UsageEvent.created_at < datetime.combine(cutoff_date, datetime.min.time()))
+        )
+        events_to_delete = count_result.scalar() or 0
+        
+        if events_to_delete > 0:
+            batch_size = 5000  # Larger batches for events
+            total_deleted = 0
+            
+            while total_deleted < events_to_delete:
+                ids_result = await db.execute(
+                    select(UsageEvent.id)
+                    .where(UsageEvent.created_at < datetime.combine(cutoff_date, datetime.min.time()))
+                    .limit(batch_size)
+                )
+                ids_to_delete = [row[0] for row in ids_result.fetchall()]
+                
+                if not ids_to_delete:
+                    break
+                
+                await db.execute(
+                    delete(UsageEvent).where(UsageEvent.id.in_(ids_to_delete))
+                )
+                await db.commit()
+                total_deleted += len(ids_to_delete)
+                
+            results["usage_events_deleted"] = total_deleted
+            logger.info(f"Deleted {total_deleted} expired usage_events (older than {cutoff_date})")
+    
+    except Exception as e:
+        logger.error(f"Error cleaning up usage_events: {e}")
+        results["errors"].append(f"usage_events: {str(e)}")
+    
+    # 3. Clean up old feature_access_logs
+    try:
+        cutoff_date = today - timedelta(days=settings.feature_access_logs_retention_days)
+        
+        count_result = await db.execute(
+            select(func.count(FeatureAccessLog.id))
+            .where(FeatureAccessLog.created_at < datetime.combine(cutoff_date, datetime.min.time()))
+        )
+        logs_to_delete = count_result.scalar() or 0
+        
+        if logs_to_delete > 0:
+            batch_size = 5000
+            total_deleted = 0
+            
+            while total_deleted < logs_to_delete:
+                ids_result = await db.execute(
+                    select(FeatureAccessLog.id)
+                    .where(FeatureAccessLog.created_at < datetime.combine(cutoff_date, datetime.min.time()))
+                    .limit(batch_size)
+                )
+                ids_to_delete = [row[0] for row in ids_result.fetchall()]
+                
+                if not ids_to_delete:
+                    break
+                
+                await db.execute(
+                    delete(FeatureAccessLog).where(FeatureAccessLog.id.in_(ids_to_delete))
+                )
+                await db.commit()
+                total_deleted += len(ids_to_delete)
+                
+            results["feature_access_logs_deleted"] = total_deleted
+            logger.info(f"Deleted {total_deleted} expired feature_access_logs (older than {cutoff_date})")
+    
+    except Exception as e:
+        logger.error(f"Error cleaning up feature_access_logs: {e}")
+        results["errors"].append(f"feature_access_logs: {str(e)}")
+    
+    # 4. Archive old payment_transactions (soft delete / archive, not hard delete for compliance)
+    # Payment records are kept for 7 years per Nigerian tax law, but can be archived
+    try:
+        cutoff_date = today - timedelta(days=settings.payment_transactions_retention_days)
+        
+        # Only archive fully processed transactions that are very old
+        count_result = await db.execute(
+            select(func.count(PaymentTransaction.id))
+            .where(PaymentTransaction.created_at < datetime.combine(cutoff_date, datetime.min.time()))
+            .where(PaymentTransaction.status.in_(["success", "refunded", "cancelled"]))
+            .where(PaymentTransaction.is_archived == False)  # Not already archived
+        )
+        to_archive = count_result.scalar() or 0
+        
+        if to_archive > 0:
+            # Archive records (set is_archived flag) instead of deleting
+            from sqlalchemy import update
+            
+            await db.execute(
+                update(PaymentTransaction)
+                .where(PaymentTransaction.created_at < datetime.combine(cutoff_date, datetime.min.time()))
+                .where(PaymentTransaction.status.in_(["success", "refunded", "cancelled"]))
+                .where(PaymentTransaction.is_archived == False)
+                .values(is_archived=True, archived_at=datetime.utcnow())
+            )
+            await db.commit()
+            
+            results["payment_transactions_archived"] = to_archive
+            logger.info(f"Archived {to_archive} old payment_transactions (older than {cutoff_date})")
+    
+    except Exception as e:
+        # If is_archived column doesn't exist, log and continue
+        logger.warning(f"Could not archive payment_transactions (column may not exist): {e}")
+        results["errors"].append(f"payment_transactions: {str(e)}")
+    
+    # Summary
+    total_deleted = (
+        results["usage_records_deleted"] + 
+        results["usage_events_deleted"] + 
+        results["feature_access_logs_deleted"]
+    )
+    
+    logger.info(
+        f"Data retention cleanup complete: {total_deleted} records deleted, "
+        f"{results['payment_transactions_archived']} transactions archived"
+    )
+    
+    return results
+
+
+# ===========================================
 # TASK RUNNER (Development)
 # ===========================================
 
@@ -818,6 +1018,8 @@ class TaskRunner:
             ("auto_resume_paused_subscriptions", auto_resume_paused_subscriptions),
             ("update_exchange_rates", update_exchange_rates),
             ("process_scheduled_usage_reports", process_scheduled_usage_reports),
+            # Issue #57: Data retention cleanup
+            ("cleanup_expired_usage_data", cleanup_expired_usage_data),
         ]
         
         for name, task_func in tasks:

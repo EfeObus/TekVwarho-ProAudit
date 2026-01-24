@@ -166,6 +166,16 @@ class Settings(BaseSettings):
         }
     
     # ===========================================
+    # DATA RETENTION POLICY (Issue #57)
+    # Configure retention periods for billing/usage data
+    # ===========================================
+    usage_records_retention_days: int = 730  # 2 years for usage_records
+    usage_events_retention_days: int = 90  # 90 days for granular usage_events
+    payment_transactions_retention_days: int = 2555  # 7 years for payment records (compliance)
+    feature_access_logs_retention_days: int = 365  # 1 year for feature access logs
+    enable_data_retention_cleanup: bool = True  # Enable automatic cleanup job
+    
+    # ===========================================
     # FILE STORAGE
     # ===========================================
     storage_backend: str = "local"

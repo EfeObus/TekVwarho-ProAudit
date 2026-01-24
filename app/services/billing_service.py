@@ -13,7 +13,7 @@ This is a stub implementation providing the interface for:
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from uuid import UUID
@@ -3138,19 +3138,25 @@ class BillingService:
         if tenant_sku.suspended_at:
             return "suspended"
         
-        # Check if cancelled
-        metadata = tenant_sku.custom_metadata or {}
-        if "subscription_cancelled" in metadata:
+        # Check if cancelled (cancel_at_period_end flag is set)
+        if tenant_sku.cancel_at_period_end and tenant_sku.cancellation_requested_at:
             return "cancelled"
         
-        # Check for trial
+        # Check for trial - handle timezone-aware vs naive comparison
         if tenant_sku.trial_ends_at:
-            if tenant_sku.trial_ends_at > now:
+            trial_ends = tenant_sku.trial_ends_at
+            # Make both datetimes naive for comparison if needed
+            if trial_ends.tzinfo is not None:
+                trial_ends = trial_ends.replace(tzinfo=None)
+            if tenant_sku.trial_ends_at.tzinfo is not None and now.tzinfo is None:
+                now = now.replace(tzinfo=None)
+            
+            if trial_ends > now:
                 return "trial"
             else:
                 # Trial expired - check grace period (3 days)
                 trial_grace_days = 3
-                grace_end = tenant_sku.trial_ends_at + timedelta(days=trial_grace_days)
+                grace_end = trial_ends + timedelta(days=trial_grace_days)
                 if now < grace_end:
                     return "trial_expired"
                 # After trial grace, should be downgraded

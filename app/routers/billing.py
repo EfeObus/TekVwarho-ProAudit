@@ -27,11 +27,62 @@ from app.services.billing_service import (
 from app.services.invoice_pdf_service import InvoicePDFService
 from app.services.dunning_service import DunningService, DunningLevel
 from app.services.billing_email_service import BillingEmailService
-from app.config.sku_config import TIER_PRICING, INTELLIGENCE_PRICING
+from app.config.sku_config import TIER_PRICING, INTELLIGENCE_PRICING, TIER_LIMITS_CONFIG
 from sqlalchemy import select, desc, func
 
 
 logger = logging.getLogger(__name__)
+
+
+def _format_limit(value: int, suffix: str = "") -> str:
+    """Format a limit value for display. -1 means unlimited."""
+    if value == -1:
+        return "Unlimited"
+    elif value == 0:
+        return "No access"
+    elif suffix:
+        return f"{value:,} {suffix}"
+    else:
+        return f"{value:,}"
+
+
+def _get_tier_limits_response(tier: SKUTier) -> "TierLimitsResponse":
+    """Build TierLimitsResponse from TIER_LIMITS_CONFIG (Issue #53)."""
+    limits = TIER_LIMITS_CONFIG.get(tier, TIER_LIMITS_CONFIG[SKUTier.CORE])
+    
+    # Format storage in human-readable format
+    storage_gb = limits.storage_limit_mb / 1000
+    storage_display = f"{int(storage_gb)} GB" if storage_gb >= 1 else f"{limits.storage_limit_mb} MB"
+    
+    # Format retention
+    if limits.audit_log_retention_days >= 365:
+        years = limits.audit_log_retention_days / 365
+        retention_display = f"{years:.0f} year{'s' if years > 1 else ''}"
+    else:
+        retention_display = f"{limits.audit_log_retention_days} days"
+    
+    # Import here to avoid circular import at module level
+    from app.routers.billing import TierLimitsResponse
+    
+    return TierLimitsResponse(
+        max_users=limits.max_users,
+        max_users_display=_format_limit(limits.max_users, "users"),
+        max_entities=limits.max_entities,
+        max_entities_display=_format_limit(limits.max_entities, "entities"),
+        max_transactions_monthly=limits.max_transactions_monthly,
+        max_transactions_display=_format_limit(limits.max_transactions_monthly, "/month"),
+        max_invoices_monthly=limits.max_invoices_monthly,
+        max_invoices_display=_format_limit(limits.max_invoices_monthly, "/month"),
+        max_employees=limits.max_employees,
+        max_employees_display=_format_limit(limits.max_employees, "employees"),
+        api_calls_per_hour=limits.api_calls_per_hour,
+        api_calls_display=_format_limit(limits.api_calls_per_hour, "/hour") + (" (read-only)" if limits.api_read_only and limits.api_calls_per_hour > 0 else ""),
+        api_read_only=limits.api_read_only,
+        storage_limit_mb=limits.storage_limit_mb,
+        storage_limit_display=storage_display,
+        audit_log_retention_days=limits.audit_log_retention_days,
+        audit_retention_display=retention_display,
+    )
 
 router = APIRouter(prefix="/api/v1/billing", tags=["Billing"])
 
@@ -84,6 +135,27 @@ class PricingTierResponse(BaseModel):
     per_user_formatted: str
 
 
+class TierLimitsResponse(BaseModel):
+    """Usage limits for the current tier (Issue #53)."""
+    max_users: int = Field(..., description="Maximum users allowed (-1 = unlimited)")
+    max_users_display: str = Field(..., description="Human-readable max users")
+    max_entities: int = Field(..., description="Maximum entities allowed (-1 = unlimited)")
+    max_entities_display: str = Field(..., description="Human-readable max entities")
+    max_transactions_monthly: int = Field(..., description="Max transactions per month")
+    max_transactions_display: str = Field(..., description="Human-readable max transactions")
+    max_invoices_monthly: int = Field(..., description="Max invoices per month (-1 = unlimited)")
+    max_invoices_display: str = Field(..., description="Human-readable max invoices")
+    max_employees: int = Field(..., description="Max payroll employees (-1 = unlimited)")
+    max_employees_display: str = Field(..., description="Human-readable max employees")
+    api_calls_per_hour: int = Field(..., description="API rate limit per hour (0 = no access)")
+    api_calls_display: str = Field(..., description="Human-readable API limit")
+    api_read_only: bool = Field(..., description="If True, API access is read-only")
+    storage_limit_mb: int = Field(..., description="Storage limit in MB")
+    storage_limit_display: str = Field(..., description="Human-readable storage limit (e.g., '5 GB')")
+    audit_log_retention_days: int = Field(..., description="Audit log retention in days")
+    audit_retention_display: str = Field(..., description="Human-readable retention (e.g., '90 days')")
+
+
 class SubscriptionResponse(BaseModel):
     """Current subscription information."""
     tier: str
@@ -103,6 +175,8 @@ class SubscriptionResponse(BaseModel):
     cancellation_requested_at: Optional[str] = None
     cancellation_reason: Optional[str] = None
     scheduled_downgrade_tier: Optional[str] = None
+    # Issue #53: Tier limits included in response
+    tier_limits: Optional[TierLimitsResponse] = Field(None, description="Usage limits for this tier")
 
 
 class WebhookPayload(BaseModel):
@@ -341,7 +415,7 @@ async def get_current_subscription(
     info = await service.get_subscription_info(current_user.organization_id)
     
     if not info:
-        # Return default Core tier info
+        # Return default Core tier info with limits (Issue #53)
         return SubscriptionResponse(
             tier="core",
             tier_display="Core",
@@ -355,6 +429,7 @@ async def get_current_subscription(
             next_billing_date=None,
             amount_naira=50000,
             amount_formatted="₦50,000",
+            tier_limits=_get_tier_limits_response(SKUTier.CORE),
         )
     
     # Calculate trial days remaining
@@ -386,6 +461,267 @@ async def get_current_subscription(
         cancellation_requested_at=info.cancellation_requested_at.isoformat() if info.cancellation_requested_at else None,
         cancellation_reason=info.cancellation_reason,
         scheduled_downgrade_tier=info.scheduled_downgrade_tier.value if info.scheduled_downgrade_tier else None,
+        tier_limits=_get_tier_limits_response(info.tier),  # Issue #53: Include tier limits
+    )
+
+
+# =============================================================================
+# USAGE VS LIMITS ENDPOINT (Issue #54)
+# =============================================================================
+
+class UsageMetricDetail(BaseModel):
+    """Detail for a single usage metric."""
+    metric: str = Field(..., description="Metric name")
+    metric_display: str = Field(..., description="Human-readable metric name")
+    current: int = Field(..., description="Current usage value")
+    current_display: str = Field(..., description="Formatted current usage")
+    limit: int = Field(..., description="Limit for this metric (-1 = unlimited)")
+    limit_display: str = Field(..., description="Formatted limit")
+    percentage: float = Field(..., description="Percentage of limit used (0-100+)")
+    status: str = Field(..., description="Status: ok, warning, critical, exceeded")
+    remaining: int = Field(..., description="Remaining until limit (-1 if unlimited)")
+    remaining_display: str = Field(..., description="Formatted remaining")
+
+
+class UsageVsLimitsResponse(BaseModel):
+    """Response for current usage vs tier limits (Issue #54)."""
+    organization_id: str
+    tier: str
+    tier_display: str
+    billing_period_start: Optional[str]
+    billing_period_end: Optional[str]
+    metrics: List[UsageMetricDetail]
+    overall_status: str = Field(..., description="Highest severity status across all metrics")
+    alerts: List[str] = Field(default_factory=list, description="Active usage warnings")
+
+
+@router.get(
+    "/subscription/usage",
+    response_model=UsageVsLimitsResponse,
+    summary="Get current usage vs tier limits",
+    description="Returns current usage compared to tier limits for all metered resources. "
+                "Frontend can use this to display usage meters and warnings.",
+)
+async def get_usage_vs_limits(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get current usage compared to tier limits (Issue #54).
+    
+    Returns usage data for all metered metrics including:
+    - Transactions (monthly)
+    - Users
+    - Entities
+    - Invoices (monthly)
+    - Employees
+    - API calls (hourly)
+    - Storage
+    
+    Each metric includes current usage, limit, percentage, and status.
+    Status values: ok (<80%), warning (80-99%), critical (100-119%), exceeded (120%+)
+    """
+    from app.services.metering_service import MeteringService
+    from app.models.sku import TenantSKU
+    
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to an organization",
+        )
+    
+    # Get tenant SKU info
+    result = await db.execute(
+        select(TenantSKU).where(TenantSKU.organization_id == current_user.organization_id)
+    )
+    tenant_sku = result.scalar_one_or_none()
+    
+    # Default to Core tier if no SKU assigned
+    tier = tenant_sku.tier if tenant_sku else SKUTier.CORE
+    limits = TIER_LIMITS_CONFIG.get(tier, TIER_LIMITS_CONFIG[SKUTier.CORE])
+    
+    tier_display = {
+        SKUTier.CORE: "Core",
+        SKUTier.PROFESSIONAL: "Professional", 
+        SKUTier.ENTERPRISE: "Enterprise",
+    }.get(tier, "Core")
+    
+    # Get current usage from metering service
+    metering = MeteringService(db)
+    usage_summary = await metering.get_usage_summary(current_user.organization_id)
+    
+    # Build metrics list
+    metrics = []
+    alerts = []
+    highest_status = "ok"
+    
+    def calc_status(current: int, limit: int) -> tuple[str, float]:
+        """Calculate status and percentage."""
+        if limit == -1:  # Unlimited
+            return "ok", 0.0
+        if limit == 0:
+            return "exceeded" if current > 0 else "ok", 100.0 if current > 0 else 0.0
+        pct = (current / limit) * 100
+        if pct >= 120:
+            return "exceeded", pct
+        elif pct >= 100:
+            return "critical", pct
+        elif pct >= 80:
+            return "warning", pct
+        return "ok", pct
+    
+    def update_highest(status: str):
+        nonlocal highest_status
+        priority = {"ok": 0, "warning": 1, "critical": 2, "exceeded": 3}
+        if priority.get(status, 0) > priority.get(highest_status, 0):
+            highest_status = status
+    
+    # Transactions
+    txn_current = usage_summary.get("transactions", 0)
+    txn_status, txn_pct = calc_status(txn_current, limits.max_transactions_monthly)
+    update_highest(txn_status)
+    if txn_status in ("warning", "critical", "exceeded"):
+        alerts.append(f"Transaction usage is at {txn_pct:.0f}% of monthly limit")
+    metrics.append(UsageMetricDetail(
+        metric="transactions",
+        metric_display="Transactions (monthly)",
+        current=txn_current,
+        current_display=f"{txn_current:,}",
+        limit=limits.max_transactions_monthly,
+        limit_display=_format_limit(limits.max_transactions_monthly),
+        percentage=round(txn_pct, 1),
+        status=txn_status,
+        remaining=max(0, limits.max_transactions_monthly - txn_current) if limits.max_transactions_monthly != -1 else -1,
+        remaining_display=_format_limit(max(0, limits.max_transactions_monthly - txn_current)) if limits.max_transactions_monthly != -1 else "Unlimited",
+    ))
+    
+    # Users
+    user_current = usage_summary.get("users", 1)
+    user_status, user_pct = calc_status(user_current, limits.max_users)
+    update_highest(user_status)
+    if user_status in ("warning", "critical", "exceeded"):
+        alerts.append(f"User count is at {user_pct:.0f}% of limit")
+    metrics.append(UsageMetricDetail(
+        metric="users",
+        metric_display="Users",
+        current=user_current,
+        current_display=f"{user_current:,}",
+        limit=limits.max_users,
+        limit_display=_format_limit(limits.max_users),
+        percentage=round(user_pct, 1),
+        status=user_status,
+        remaining=max(0, limits.max_users - user_current) if limits.max_users != -1 else -1,
+        remaining_display=_format_limit(max(0, limits.max_users - user_current)) if limits.max_users != -1 else "Unlimited",
+    ))
+    
+    # Entities
+    entity_current = usage_summary.get("entities", 1)
+    entity_status, entity_pct = calc_status(entity_current, limits.max_entities)
+    update_highest(entity_status)
+    if entity_status in ("warning", "critical", "exceeded"):
+        alerts.append(f"Entity count is at {entity_pct:.0f}% of limit")
+    metrics.append(UsageMetricDetail(
+        metric="entities",
+        metric_display="Entities/Companies",
+        current=entity_current,
+        current_display=f"{entity_current:,}",
+        limit=limits.max_entities,
+        limit_display=_format_limit(limits.max_entities),
+        percentage=round(entity_pct, 1),
+        status=entity_status,
+        remaining=max(0, limits.max_entities - entity_current) if limits.max_entities != -1 else -1,
+        remaining_display=_format_limit(max(0, limits.max_entities - entity_current)) if limits.max_entities != -1 else "Unlimited",
+    ))
+    
+    # Invoices
+    inv_current = usage_summary.get("invoices", 0)
+    inv_status, inv_pct = calc_status(inv_current, limits.max_invoices_monthly)
+    update_highest(inv_status)
+    if inv_status in ("warning", "critical", "exceeded"):
+        alerts.append(f"Invoice usage is at {inv_pct:.0f}% of monthly limit")
+    metrics.append(UsageMetricDetail(
+        metric="invoices",
+        metric_display="Invoices (monthly)",
+        current=inv_current,
+        current_display=f"{inv_current:,}",
+        limit=limits.max_invoices_monthly,
+        limit_display=_format_limit(limits.max_invoices_monthly),
+        percentage=round(inv_pct, 1),
+        status=inv_status,
+        remaining=max(0, limits.max_invoices_monthly - inv_current) if limits.max_invoices_monthly != -1 else -1,
+        remaining_display=_format_limit(max(0, limits.max_invoices_monthly - inv_current)) if limits.max_invoices_monthly != -1 else "Unlimited",
+    ))
+    
+    # Employees
+    emp_current = usage_summary.get("employees", 0)
+    emp_status, emp_pct = calc_status(emp_current, limits.max_employees)
+    update_highest(emp_status)
+    if emp_status in ("warning", "critical", "exceeded"):
+        alerts.append(f"Employee count is at {emp_pct:.0f}% of limit")
+    metrics.append(UsageMetricDetail(
+        metric="employees",
+        metric_display="Payroll Employees",
+        current=emp_current,
+        current_display=f"{emp_current:,}",
+        limit=limits.max_employees,
+        limit_display=_format_limit(limits.max_employees),
+        percentage=round(emp_pct, 1),
+        status=emp_status,
+        remaining=max(0, limits.max_employees - emp_current) if limits.max_employees != -1 else -1,
+        remaining_display=_format_limit(max(0, limits.max_employees - emp_current)) if limits.max_employees != -1 else "Unlimited",
+    ))
+    
+    # Storage
+    storage_current = usage_summary.get("storage_mb", 0)
+    storage_status, storage_pct = calc_status(storage_current, limits.storage_limit_mb)
+    update_highest(storage_status)
+    if storage_status in ("warning", "critical", "exceeded"):
+        alerts.append(f"Storage usage is at {storage_pct:.0f}% of limit")
+    storage_gb = storage_current / 1000
+    storage_display = f"{storage_gb:.1f} GB" if storage_gb >= 1 else f"{storage_current} MB"
+    limit_gb = limits.storage_limit_mb / 1000
+    limit_display = f"{int(limit_gb)} GB" if limit_gb >= 1 else f"{limits.storage_limit_mb} MB"
+    metrics.append(UsageMetricDetail(
+        metric="storage",
+        metric_display="Storage",
+        current=storage_current,
+        current_display=storage_display,
+        limit=limits.storage_limit_mb,
+        limit_display=limit_display,
+        percentage=round(storage_pct, 1),
+        status=storage_status,
+        remaining=max(0, limits.storage_limit_mb - storage_current),
+        remaining_display=f"{max(0, limits.storage_limit_mb - storage_current) / 1000:.1f} GB",
+    ))
+    
+    # API calls (current hour)
+    api_current = usage_summary.get("api_calls_hour", 0)
+    api_status, api_pct = calc_status(api_current, limits.api_calls_per_hour)
+    update_highest(api_status)
+    if api_status in ("warning", "critical", "exceeded"):
+        alerts.append(f"API calls are at {api_pct:.0f}% of hourly limit")
+    metrics.append(UsageMetricDetail(
+        metric="api_calls",
+        metric_display="API Calls (hourly)",
+        current=api_current,
+        current_display=f"{api_current:,}",
+        limit=limits.api_calls_per_hour,
+        limit_display=_format_limit(limits.api_calls_per_hour) + (" (read-only)" if limits.api_read_only and limits.api_calls_per_hour > 0 else ""),
+        percentage=round(api_pct, 1),
+        status=api_status,
+        remaining=max(0, limits.api_calls_per_hour - api_current) if limits.api_calls_per_hour > 0 else 0,
+        remaining_display=_format_limit(max(0, limits.api_calls_per_hour - api_current)) if limits.api_calls_per_hour > 0 else "No access",
+    ))
+    
+    return UsageVsLimitsResponse(
+        organization_id=str(current_user.organization_id),
+        tier=tier.value,
+        tier_display=tier_display,
+        billing_period_start=tenant_sku.current_period_start.isoformat() if tenant_sku and tenant_sku.current_period_start else None,
+        billing_period_end=tenant_sku.current_period_end.isoformat() if tenant_sku and tenant_sku.current_period_end else None,
+        metrics=metrics,
+        overall_status=highest_status,
+        alerts=alerts,
     )
 
 
