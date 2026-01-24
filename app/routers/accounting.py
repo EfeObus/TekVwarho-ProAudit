@@ -16,12 +16,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_within_usage_limit
 from app.models.user import User
 from app.models.accounting import (
     AccountType, JournalEntryStatus, JournalEntryType, FiscalPeriodStatus
 )
 from app.models.audit_consolidated import AuditAction
+from app.models.sku import UsageMetricType
 from app.schemas.accounting import (
     ChartOfAccountsCreate, ChartOfAccountsUpdate, ChartOfAccountsResponse,
     ChartOfAccountsTree,
@@ -352,6 +353,7 @@ async def create_journal_entry(
     data: JournalEntryCreate = ...,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.TRANSACTIONS)),
 ):
     """Create a new journal entry."""
     service = AccountingService(db)

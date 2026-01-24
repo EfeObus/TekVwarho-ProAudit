@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id, record_usage_event
+from app.dependencies import get_current_user, get_current_entity_id, record_usage_event, require_within_usage_limit
 from app.models.user import User
 from app.models.expense_claims import ExpenseCategory, ClaimStatus, PaymentMethod
 from app.models.sku import UsageMetricType
@@ -123,6 +123,7 @@ async def create_expense_claim(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     entity_id: uuid.UUID = Depends(get_current_entity_id),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.TRANSACTIONS)),
 ):
     """Create a new expense claim."""
     service = get_expense_claims_service(db)

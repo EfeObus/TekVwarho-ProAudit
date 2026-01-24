@@ -534,16 +534,21 @@ async def check_usage_alerts(db: AsyncSession) -> dict:
         try:
             organizations_checked += 1
             
-            # Check and send alerts for this organization
-            result = await alert_service.check_and_alert(
+            # Check for usage alerts
+            alerts = await alert_service.check_usage_alerts(
                 organization_id=sku.organization_id,
-                notify_email=True,
-                notify_in_app=True,
             )
             
-            if result.get("alerts_generated", 0) > 0:
-                total_alerts += result["alerts_generated"]
-                logger.info(f"Generated {result['alerts_generated']} usage alerts for org {sku.organization_id}")
+            if alerts:
+                # Send notifications for alerts
+                from app.services.usage_alert_service import AlertChannel
+                notify_result = await alert_service.notify_alerts(
+                    alerts=alerts,
+                    channels=[AlertChannel.EMAIL, AlertChannel.IN_APP],
+                )
+                
+                total_alerts += len(alerts)
+                logger.info(f"Generated {len(alerts)} usage alerts for org {sku.organization_id}, notified: {notify_result}")
             
         except Exception as e:
             logger.error(f"Error checking usage alerts for org {sku.organization_id}: {e}")

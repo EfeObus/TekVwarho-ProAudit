@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user, require_role, record_usage_event
+from app.dependencies import get_current_active_user, require_role, record_usage_event, require_within_usage_limit
 from app.models.user import User, UserRole
 from app.models.sku import UsageMetricType
 from app.schemas.entity import (
@@ -90,6 +90,7 @@ async def create_entity(
     request: EntityCreateRequest,
     current_user: User = Depends(require_role([UserRole.OWNER, UserRole.ADMIN])),
     db: AsyncSession = Depends(get_async_session),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.ENTITIES)),
 ):
     """Create a new business entity."""
     entity_service = EntityService(db)

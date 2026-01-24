@@ -12,9 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, require_within_usage_limit, record_usage_event
 from app.models.user import User
 from app.models.audit_consolidated import AuditAction
+from app.models.sku import UsageMetricType
 from app.services.entity_service import EntityService
 from app.services.inventory_service import InventoryService
 from app.services.audit_service import AuditService
@@ -154,6 +155,7 @@ async def create_inventory_item(
     request: InventoryItemCreate,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_async_session),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.TRANSACTIONS)),
 ):
     """Create a new inventory item."""
     await verify_entity_access(entity_id, current_user, db)
@@ -181,6 +183,18 @@ async def create_inventory_item(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
+        )
+    
+    # Record usage metering for inventory item creation
+    if current_user.organization_id:
+        await record_usage_event(
+            db=db,
+            organization_id=current_user.organization_id,
+            metric_type=UsageMetricType.TRANSACTIONS,
+            entity_id=entity_id,
+            user_id=current_user.id,
+            resource_type="inventory_item",
+            resource_id=str(item.id),
         )
     
     return InventoryItemResponse(

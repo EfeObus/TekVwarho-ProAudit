@@ -47,6 +47,7 @@ class CreatePaymentIntentRequest(BaseModel):
     intelligence_addon: Optional[IntelligenceAddon] = Field(None, description="Intelligence add-on")
     additional_users: int = Field(0, ge=0, description="Additional users beyond base")
     callback_url: Optional[str] = Field(None, description="Custom callback URL")
+    is_upgrade: bool = Field(False, description="If true, calculates prorated amount for mid-cycle upgrade")
 
 
 class PaymentIntentResponse(BaseModel):
@@ -564,6 +565,8 @@ async def create_checkout_session(
             intelligence_addon=request.intelligence_addon,
             additional_users=request.additional_users,
             callback_url=request.callback_url,
+            is_upgrade=request.is_upgrade,
+            apply_proration=request.is_upgrade,  # Apply proration for upgrades
         )
         
         return PaymentIntentResponse(

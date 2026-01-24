@@ -25,10 +25,12 @@ from app.database import get_async_session
 from app.dependencies import (
     get_current_active_user,
     require_organization_permission,
+    require_within_usage_limit,
 )
 from app.models.user import User, UserRole
 from app.models.transaction import TransactionType, WRENStatus
 from app.models.audit_consolidated import AuditAction
+from app.models.sku import UsageMetricType
 from app.schemas.auth import MessageResponse
 from app.services.transaction_service import TransactionService
 from app.services.entity_service import EntityService
@@ -192,6 +194,7 @@ async def create_transaction(
     request: TransactionCreateRequest,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_async_session),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.TRANSACTIONS)),
 ):
     """Create a new transaction."""
     entity_service = EntityService(db)

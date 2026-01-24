@@ -20,9 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, require_within_usage_limit
 from app.models.user import User, UserRole
 from app.models.invoice import InvoiceStatus, VATTreatment
+from app.models.sku import UsageMetricType
 from app.services.invoice_service import InvoiceService
 from app.services.entity_service import EntityService
 from app.services.metering_service import MeteringService
@@ -320,6 +321,7 @@ async def create_invoice(
     request: InvoiceCreateRequest,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_async_session),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.INVOICES)),
 ):
     """
     Create a new invoice.

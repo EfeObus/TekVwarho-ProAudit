@@ -1542,6 +1542,8 @@ class BillingService:
         additional_users: int = 0,
         callback_url: Optional[str] = None,
         user_id: Optional[UUID] = None,
+        is_upgrade: bool = False,
+        apply_proration: bool = True,
     ) -> PaymentIntent:
         """
         Create a payment intent for subscription upgrade/purchase.
@@ -1549,16 +1551,51 @@ class BillingService:
         This initializes a payment with Paystack and returns
         the authorization URL for the customer to complete payment.
         Also creates a PaymentTransaction record in the database.
+        
+        Args:
+            organization_id: Organization making the payment
+            tier: Target SKU tier
+            billing_cycle: Monthly or annual
+            admin_email: Email for Paystack
+            intelligence_addon: Optional intelligence tier
+            additional_users: Extra user seats
+            callback_url: URL to redirect after payment
+            user_id: User initiating the payment
+            is_upgrade: If True, calculate prorated amount for mid-cycle upgrade
+            apply_proration: If True and is_upgrade, apply prorated pricing
         """
         import uuid as uuid_module
         
-        # Calculate price
-        amount = self.calculate_subscription_price(
-            tier=tier,
-            billing_cycle=billing_cycle,
-            intelligence_addon=intelligence_addon,
-            additional_users=additional_users,
-        )
+        # Calculate price - check if this is a mid-cycle upgrade
+        if is_upgrade and apply_proration:
+            proration_result = await self.calculate_upgrade_proration(
+                organization_id=organization_id,
+                new_tier=tier,
+                new_intelligence=intelligence_addon,
+            )
+            
+            if proration_result.get("is_upgrade") and proration_result.get("prorated_amount", 0) > 0:
+                # Use prorated amount for mid-cycle upgrade
+                amount = proration_result["prorated_amount"]
+                is_prorated = True
+            else:
+                # Fall back to full price
+                amount = self.calculate_subscription_price(
+                    tier=tier,
+                    billing_cycle=billing_cycle,
+                    intelligence_addon=intelligence_addon,
+                    additional_users=additional_users,
+                )
+                is_prorated = False
+        else:
+            # Standard full price calculation
+            amount = self.calculate_subscription_price(
+                tier=tier,
+                billing_cycle=billing_cycle,
+                intelligence_addon=intelligence_addon,
+                additional_users=additional_users,
+            )
+            is_prorated = False
         
         # Generate unique reference
         reference = f"TVP-{organization_id.hex[:8]}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
@@ -1570,6 +1607,8 @@ class BillingService:
             "billing_cycle": billing_cycle.value,
             "intelligence_addon": intelligence_addon.value if intelligence_addon else None,
             "additional_users": additional_users,
+            "is_upgrade": is_upgrade,
+            "is_prorated": is_prorated,
         }
         
         # Initialize payment with provider

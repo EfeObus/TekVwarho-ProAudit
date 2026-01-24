@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user, record_usage_event
+from app.dependencies import get_current_active_user, record_usage_event, require_within_usage_limit
 from app.models.user import User
 from app.models.audit_consolidated import AuditAction
 from app.models.sku import UsageMetricType
@@ -109,6 +109,7 @@ async def create_vendor(
     request: VendorCreateRequest,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_async_session),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.TRANSACTIONS)),
 ):
     """Create a new vendor."""
     # Verify entity access and write permission

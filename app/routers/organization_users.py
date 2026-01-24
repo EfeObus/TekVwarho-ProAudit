@@ -24,10 +24,13 @@ from app.database import get_async_session
 from app.dependencies import (
     get_current_active_user,
     require_organization_permission,
+    require_within_usage_limit,
+    record_usage_event,
 )
 from app.models.user import User, UserRole
 from app.services.organization_user_service import OrganizationUserService
 from app.services.audit_service import AuditService
+from app.services.metering_service import UsageMetricType
 from app.models.audit_consolidated import AuditAction
 from app.utils.permissions import OrganizationPermission
 
@@ -196,6 +199,7 @@ async def invite_user(
     request: InviteUserRequest,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_organization_permission([OrganizationPermission.MANAGE_USERS])),
+    _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.USERS)),
 ):
     """Invite a new user to the organization."""
     # Verify org_id matches current user's org
@@ -225,6 +229,17 @@ async def invite_user(
             phone_number=request.phone_number,
             entity_ids=request.entity_ids,
         )
+        
+        # Record usage metric for new user
+        if current_user.organization_id:
+            await record_usage_event(
+                db=db,
+                organization_id=current_user.organization_id,
+                metric_type=UsageMetricType.USERS,
+                user_id=current_user.id,
+                resource_type="user",
+                resource_id=str(new_user.id),
+            )
         
         # Audit logging for user invitation
         audit_service = AuditService(db)
