@@ -84,6 +84,19 @@ def upgrade() -> None:
         nullable=False,
         comment='Total cumulative days subscription has been paused'
     ))
+    op.add_column('tenant_skus', sa.Column(
+        'pause_count_this_year',
+        sa.Integer(),
+        server_default='0',
+        nullable=False,
+        comment='Number of times paused this calendar year (max 2 allowed)'
+    ))
+    op.add_column('tenant_skus', sa.Column(
+        'last_pause_year',
+        sa.Integer(),
+        nullable=True,
+        comment='Calendar year of pause count tracking (resets annually)'
+    ))
     
     # #36: Multi-currency support
     op.add_column('tenant_skus', sa.Column(
@@ -528,6 +541,8 @@ def downgrade() -> None:
     # Remove columns from tenant_skus
     op.drop_column('tenant_skus', 'locked_exchange_rate')
     op.drop_column('tenant_skus', 'preferred_currency')
+    op.drop_column('tenant_skus', 'last_pause_year')
+    op.drop_column('tenant_skus', 'pause_count_this_year')
     op.drop_column('tenant_skus', 'total_paused_days')
     op.drop_column('tenant_skus', 'pause_credits_days')
     op.drop_column('tenant_skus', 'pause_until')

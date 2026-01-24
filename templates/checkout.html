@@ -192,7 +192,7 @@
                             <div class="flex-1">
                                 <p class="text-gray-700">
                                     <span x-text="getBaseUsers()"></span> users included in your plan.
-                                    Additional users: <strong>₦5,000/user/month</strong>
+                                    Additional users: <strong x-text="formatPrice(userPrice) + '/user/month'"></strong>
                                 </p>
                             </div>
                             <div class="flex items-center space-x-2">
@@ -208,6 +208,99 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                    
+                    <!-- Step 5: Discount Code (Issue #34) -->
+                    <div class="mb-8">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-sm flex items-center justify-center mr-2">5</span>
+                            Discount Code
+                            <span class="text-gray-400 text-sm font-normal ml-2">(Optional)</span>
+                        </h2>
+                        
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <input type="text" 
+                                       x-model="discountCode"
+                                       placeholder="Enter discount or referral code"
+                                       class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                       :disabled="discountApplied">
+                                <button @click="validateDiscountCode()"
+                                        :disabled="!discountCode || discountValidating || discountApplied"
+                                        class="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <span x-show="!discountValidating && !discountApplied">Apply</span>
+                                    <span x-show="discountValidating" class="flex items-center">
+                                        <svg class="animate-spin h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                        </svg>
+                                        Validating...
+                                    </span>
+                                    <span x-show="discountApplied">✓ Applied</span>
+                                </button>
+                                <button x-show="discountApplied"
+                                        @click="removeDiscountCode()"
+                                        class="px-3 py-2 text-red-600 hover:text-red-700 font-medium">
+                                    Remove
+                                </button>
+                            </div>
+                            
+                            <!-- Discount validation result -->
+                            <div x-show="discountError" class="mt-2 text-red-600 text-sm flex items-center">
+                                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                                </svg>
+                                <span x-text="discountError"></span>
+                            </div>
+                            
+                            <!-- Applied discount details -->
+                            <div x-show="discountApplied && discountDetails" 
+                                 class="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <div class="flex items-center text-green-700">
+                                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span class="font-medium" x-text="discountDetails?.description || 'Discount applied!'"></span>
+                                </div>
+                                <p class="mt-1 text-sm text-green-600">
+                                    <span x-show="discountDetails?.discount_type === 'percentage'">
+                                        <span x-text="discountDetails?.discount_value + '%'"></span> off your order
+                                    </span>
+                                    <span x-show="discountDetails?.discount_type === 'fixed'">
+                                        <span x-text="formatPriceInCurrency(discountDetails?.discount_value)"></span> off your order
+                                    </span>
+                                    <span x-show="discountDetails?.free_months > 0">
+                                        + <span x-text="discountDetails?.free_months"></span> month(s) free
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 6: Currency Selection (Issue #36) -->
+                    <div class="mb-8">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-sm flex items-center justify-center mr-2">6</span>
+                            Payment Currency
+                        </h2>
+                        
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <template x-for="curr in availableCurrencies" :key="curr.code">
+                                <label class="flex flex-col items-center p-3 border-2 rounded-lg cursor-pointer transition"
+                                       :class="selectedCurrency === curr.code ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
+                                       @click="selectCurrency(curr.code)">
+                                    <input type="radio" name="currency" :value="curr.code" x-model="selectedCurrency" class="sr-only">
+                                    <span class="text-2xl mb-1" x-text="curr.symbol"></span>
+                                    <span class="font-semibold text-gray-900" x-text="curr.code"></span>
+                                    <span class="text-xs text-gray-500" x-text="curr.name"></span>
+                                </label>
+                            </template>
+                        </div>
+                        
+                        <p class="mt-2 text-xs text-gray-500">
+                            <span x-show="selectedCurrency === 'NGN'">💳 Pay with Paystack (Nigerian cards, bank transfer)</span>
+                            <span x-show="selectedCurrency !== 'NGN'">💳 Pay with Stripe (international cards)</span>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -232,35 +325,48 @@
                                 <span x-text="getTierName()"></span> Plan
                                 <span class="text-gray-400" x-text="billingCycle === 'monthly' ? '(Monthly)' : '(Annual)'"></span>
                             </span>
-                            <span class="font-medium" x-text="formatPrice(getBasePlanPrice())"></span>
+                            <span class="font-medium" x-text="formatPriceInCurrency(getBasePlanPrice())"></span>
                         </div>
                         
                         <div class="flex justify-between" x-show="intelligenceAddon">
                             <span class="text-gray-600" x-text="intelligenceAddon === 'standard' ? 'Standard Intelligence' : 'Advanced Intelligence'"></span>
-                            <span class="font-medium" x-text="formatPrice(getIntelligencePrice())"></span>
+                            <span class="font-medium" x-text="formatPriceInCurrency(getIntelligencePrice())"></span>
                         </div>
                         
                         <div class="flex justify-between" x-show="additionalUsers > 0">
                             <span class="text-gray-600">
                                 <span x-text="additionalUsers"></span> Additional Users
                             </span>
-                            <span class="font-medium" x-text="formatPrice(getAdditionalUsersPrice())"></span>
+                            <span class="font-medium" x-text="formatPriceInCurrency(getAdditionalUsersPrice())"></span>
                         </div>
                         
                         <div class="flex justify-between text-green-600" x-show="billingCycle === 'annual'">
                             <span>Annual Discount (20%)</span>
-                            <span x-text="'-' + formatPrice(getAnnualDiscount())"></span>
+                            <span x-text="'-' + formatPriceInCurrency(getAnnualDiscount())"></span>
+                        </div>
+                        
+                        <!-- Discount Code Applied (Issue #34) -->
+                        <div class="flex justify-between text-green-600" x-show="discountApplied && discountDetails">
+                            <span>
+                                Discount (<span x-text="discountCode"></span>)
+                            </span>
+                            <span x-text="'-' + formatPriceInCurrency(getDiscountAmount())"></span>
                         </div>
                         
                         <hr class="border-gray-200">
                         
                         <div class="flex justify-between text-lg font-bold">
                             <span class="text-gray-900">Total</span>
-                            <span class="text-gray-900" x-text="formatPrice(getTotalPrice())"></span>
+                            <span class="text-gray-900" x-text="formatPriceInCurrency(getTotalPrice())"></span>
                         </div>
                         
+                        <!-- Currency conversion notice (Issue #36) -->
+                        <p class="text-xs text-gray-500" x-show="selectedCurrency !== 'NGN'">
+                            Converted from NGN at rate: 1 <span x-text="selectedCurrency"></span> = <span x-text="formatPrice(exchangeRates[selectedCurrency] || 1)"></span> NGN
+                        </p>
+                        
                         <p class="text-xs text-gray-500" x-show="billingCycle === 'annual'">
-                            Billed annually. Equivalent to <span x-text="formatPrice(getTotalPrice() / 12)"></span>/month
+                            Billed annually. Equivalent to <span x-text="formatPriceInCurrency(getTotalPrice() / 12)"></span>/month
                         </p>
                     </div>
                     
@@ -474,6 +580,28 @@ function checkoutPage() {
         error: null,
         pricingLoading: true,
         
+        // Discount code functionality (Issue #34)
+        discountCode: '',
+        discountApplied: false,
+        discountValidating: false,
+        discountError: null,
+        discountDetails: null,
+        
+        // Multi-currency support (Issue #36)
+        selectedCurrency: '{{ preferred_currency|default("NGN") }}',
+        availableCurrencies: [
+            { code: 'NGN', symbol: '₦', name: 'Nigerian Naira' },
+            { code: 'USD', symbol: '$', name: 'US Dollar' },
+            { code: 'EUR', symbol: '€', name: 'Euro' },
+            { code: 'GBP', symbol: '£', name: 'British Pound' }
+        ],
+        exchangeRates: {
+            'NGN': 1,
+            'USD': 1550,
+            'EUR': 1700,
+            'GBP': 1950
+        },
+        
         // Dynamic pricing data from API
         pricingData: {
             core: null,
@@ -498,9 +626,20 @@ function checkoutPage() {
             const params = new URLSearchParams(window.location.search);
             if (params.has('tier')) this.selectedTier = params.get('tier');
             if (params.has('billing')) this.billingCycle = params.get('billing');
+            if (params.has('currency')) this.selectedCurrency = params.get('currency');
+            if (params.has('code')) {
+                this.discountCode = params.get('code');
+                await this.validateDiscountCode();
+            }
             
             // Fetch dynamic pricing from API
             await this.loadPricing();
+            
+            // Fetch exchange rates
+            await this.loadExchangeRates();
+            
+            // Load preferred currency from user settings
+            await this.loadPreferredCurrency();
         },
         
         async loadPricing() {
@@ -523,6 +662,87 @@ function checkoutPage() {
             } finally {
                 this.pricingLoading = false;
             }
+        },
+        
+        async loadExchangeRates() {
+            try {
+                const response = await fetch('/api/v1/billing/exchange-rates');
+                if (response.ok) {
+                    const data = await response.json();
+                    // Update exchange rates from API
+                    data.forEach(rate => {
+                        this.exchangeRates[rate.currency] = rate.rate;
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load exchange rates:', e);
+            }
+        },
+        
+        async loadPreferredCurrency() {
+            try {
+                const response = await authFetch('/api/v1/billing/currency/preferred');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.currency && !new URLSearchParams(window.location.search).has('currency')) {
+                        this.selectedCurrency = data.currency;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load preferred currency:', e);
+            }
+        },
+        
+        selectCurrency(currency) {
+            this.selectedCurrency = currency;
+        },
+        
+        // Discount code methods (Issue #34)
+        async validateDiscountCode() {
+            if (!this.discountCode.trim()) return;
+            
+            this.discountValidating = true;
+            this.discountError = null;
+            
+            try {
+                const response = await fetch(`/api/v1/billing/discount/${encodeURIComponent(this.discountCode)}/validate`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    this.discountError = data.detail || 'Invalid discount code';
+                    this.discountApplied = false;
+                    this.discountDetails = null;
+                } else {
+                    this.discountApplied = true;
+                    this.discountDetails = data;
+                    this.discountError = null;
+                }
+            } catch (e) {
+                console.error('Failed to validate discount code:', e);
+                this.discountError = 'Failed to validate discount code. Please try again.';
+            } finally {
+                this.discountValidating = false;
+            }
+        },
+        
+        removeDiscountCode() {
+            this.discountCode = '';
+            this.discountApplied = false;
+            this.discountDetails = null;
+            this.discountError = null;
+        },
+        
+        getDiscountAmount() {
+            if (!this.discountApplied || !this.discountDetails) return 0;
+            
+            const subtotal = this.getBasePlanPrice() + this.getIntelligencePrice() + this.getAdditionalUsersPrice();
+            
+            if (this.discountDetails.discount_type === 'percentage') {
+                return Math.round(subtotal * (this.discountDetails.discount_value / 100));
+            } else if (this.discountDetails.discount_type === 'fixed') {
+                return Math.min(this.discountDetails.discount_value, subtotal);
+            }
+            return 0;
         },
         
         selectTier(tier) {
@@ -593,11 +813,34 @@ function checkoutPage() {
         },
         
         getTotalPrice() {
-            return this.getBasePlanPrice() + this.getIntelligencePrice() + this.getAdditionalUsersPrice();
+            const subtotal = this.getBasePlanPrice() + this.getIntelligencePrice() + this.getAdditionalUsersPrice();
+            const discount = this.getDiscountAmount();
+            return Math.max(0, subtotal - discount);
         },
         
+        // Format price in NGN (base currency)
         formatPrice(amount) {
             return '₦' + amount.toLocaleString('en-NG');
+        },
+        
+        // Format price in selected currency (Issue #36)
+        formatPriceInCurrency(amountInNGN) {
+            const rate = this.exchangeRates[this.selectedCurrency] || 1;
+            const convertedAmount = amountInNGN / rate;
+            
+            const symbols = {
+                'NGN': '₦',
+                'USD': '$',
+                'EUR': '€',
+                'GBP': '£'
+            };
+            const symbol = symbols[this.selectedCurrency] || '₦';
+            
+            if (this.selectedCurrency === 'NGN') {
+                return symbol + Math.round(amountInNGN).toLocaleString('en-NG');
+            } else {
+                return symbol + convertedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
         },
         
         async loadProrationData() {
@@ -653,7 +896,9 @@ function checkoutPage() {
                         intelligence_addon: this.intelligenceAddon,
                         additional_users: this.additionalUsers,
                         callback_url: window.location.origin + '/payment-success',
-                        is_upgrade: this.prorationData?.is_upgrade || false
+                        is_upgrade: this.prorationData?.is_upgrade || false,
+                        discount_code: this.discountApplied ? this.discountCode : null,
+                        currency: this.selectedCurrency
                     })
                 });
                 
@@ -663,7 +908,7 @@ function checkoutPage() {
                     throw new Error(data.detail || 'Failed to create checkout session');
                 }
                 
-                // Redirect to Paystack checkout
+                // Redirect to Paystack (NGN) or Stripe (other currencies) checkout
                 if (data.authorization_url) {
                     window.location.href = data.authorization_url;
                 } else {

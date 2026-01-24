@@ -172,6 +172,30 @@ class TestSubscriptionPauseService:
     def test_annual_pause_limit_constant(self, service):
         """Test that annual pause limit exists."""
         assert hasattr(service, 'ANNUAL_PAUSE_LIMIT') or hasattr(service, 'MAX_PAUSE_DAYS')
+    
+    def test_max_pauses_per_year_constant(self, service):
+        """Test that max pauses per year is 2 (Issue #32 fix)."""
+        assert service.MAX_PAUSES_PER_YEAR == 2
+    
+    def test_get_pause_count_for_year_new_year(self, service):
+        """Test pause count resets for new year."""
+        mock_sku = MagicMock()
+        mock_sku.last_pause_year = 2024
+        mock_sku.pause_count_this_year = 2
+        
+        # Should return 0 for a different year
+        count = service._get_pause_count_for_year(mock_sku, 2025)
+        assert count == 0
+    
+    def test_get_pause_count_for_year_same_year(self, service):
+        """Test pause count persists within same year."""
+        mock_sku = MagicMock()
+        mock_sku.last_pause_year = 2025
+        mock_sku.pause_count_this_year = 1
+        
+        # Should return the existing count for same year
+        count = service._get_pause_count_for_year(mock_sku, 2025)
+        assert count == 1
 
 
 class TestServiceCreditService:
@@ -279,6 +303,68 @@ class TestUsageReportService:
         """Create a UsageReportService with a mocked database session."""
         mock_db = AsyncMock()
         return UsageReportService(mock_db)
+    
+    def test_service_has_csv_method(self, service):
+        """Test that CSV generation method exists."""
+        assert hasattr(service, 'generate_usage_report_csv')
+        assert callable(service.generate_usage_report_csv)
+    
+    def test_service_has_pdf_method(self, service):
+        """Test that PDF generation method exists (Issue #30 fix)."""
+        assert hasattr(service, 'generate_usage_report_pdf')
+        assert callable(service.generate_usage_report_pdf)
+    
+    def test_generate_report_html_method_exists(self, service):
+        """Test that HTML generation method exists for PDF."""
+        assert hasattr(service, '_generate_report_html')
+    
+    def test_create_simple_pdf_method_exists(self, service):
+        """Test that simple PDF fallback method exists."""
+        assert hasattr(service, '_create_simple_pdf')
+    
+    def test_html_report_generation(self, service):
+        """Test HTML report content generation."""
+        html = service._generate_report_html(
+            organization_name="Test Org",
+            organization_id="test-id-123",
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            records=[],
+            summary={
+                "total_transactions": 100,
+                "total_invoices": 50,
+                "peak_users": 10,
+                "total_api_calls": 5000,
+                "total_ocr_pages": 200,
+                "peak_storage_mb": 150.5,
+            }
+        )
+        assert "Test Org" in html
+        assert "TekVwarho ProAudit" in html
+        assert "Usage Report" in html
+        assert "100" in html  # total_transactions
+    
+    def test_simple_pdf_fallback(self, service):
+        """Test simple PDF generation without external libraries."""
+        pdf_bytes = service._create_simple_pdf(
+            organization_name="Test Org",
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            records=[],
+            summary={
+                "total_transactions": 100,
+                "total_invoices": 50,
+                "peak_users": 10,
+                "total_api_calls": 5000,
+                "total_ocr_pages": 200,
+                "peak_storage_mb": 150.5,
+            }
+        )
+        # Should return valid PDF bytes
+        assert pdf_bytes is not None
+        assert len(pdf_bytes) > 0
+        # PDF files start with %PDF
+        assert pdf_bytes.startswith(b'%PDF') or b'PDF' in pdf_bytes[:100]
 
 
 class TestSKUTierEnum:

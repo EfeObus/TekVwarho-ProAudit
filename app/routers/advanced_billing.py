@@ -790,6 +790,32 @@ async def generate_usage_report(
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     
+    elif request.format == "pdf":
+        # Issue #30: PDF export support
+        filename, content = await service.generate_usage_report_pdf(
+            current_user.organization_id,
+            start_date,
+            end_date,
+        )
+        
+        # Save to history
+        await service.save_report_history(
+            current_user.organization_id,
+            request.report_type,
+            request.format,
+            start_date,
+            end_date,
+            generated_by_id=current_user.id,
+            file_size=len(content),
+        )
+        await db.commit()
+        
+        return StreamingResponse(
+            iter([content]),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    
     elif request.format == "json":
         summary = await service.generate_usage_summary(
             current_user.organization_id,
@@ -810,7 +836,7 @@ async def generate_usage_report(
         return summary
     
     else:
-        raise HTTPException(status_code=400, detail=f"Format {request.format} not supported yet")
+        raise HTTPException(status_code=400, detail=f"Format {request.format} not supported. Use csv, pdf, or json.")
 
 
 @router.get("/reports/summary")

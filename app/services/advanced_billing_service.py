@@ -444,9 +444,17 @@ class SubscriptionPauseService:
     
     MAX_PAUSE_DAYS = 90  # Maximum pause duration
     MAX_ANNUAL_PAUSE_DAYS = 180  # Maximum annual pause allowance
+    MAX_PAUSES_PER_YEAR = 2  # Maximum number of pauses allowed per year (Issue #32)
     
     def __init__(self, db: AsyncSession):
         self.db = db
+    
+    def _get_pause_count_for_year(self, tenant_sku: TenantSKU, year: int) -> int:
+        """Get the pause count for a specific year, resetting if needed."""
+        if tenant_sku.last_pause_year != year:
+            # Reset count for new year
+            return 0
+        return tenant_sku.pause_count_this_year or 0
     
     async def pause_subscription(
         self,
@@ -485,6 +493,7 @@ class SubscriptionPauseService:
         
         # Validate pause_until
         now = datetime.utcnow()
+        current_year = now.year
         max_pause_date = now + timedelta(days=self.MAX_PAUSE_DAYS)
         
         if pause_until:
@@ -496,11 +505,21 @@ class SubscriptionPauseService:
             # Default to 30 days
             pause_until = now + timedelta(days=30)
         
-        # Check annual pause limit
+        # Check annual pause limit (days)
         if tenant_sku.total_paused_days >= self.MAX_ANNUAL_PAUSE_DAYS:
             return {
                 "success": False,
                 "error": f"Annual pause limit of {self.MAX_ANNUAL_PAUSE_DAYS} days exceeded"
+            }
+        
+        # Issue #32: Check pause count limit (2 per year)
+        pause_count = self._get_pause_count_for_year(tenant_sku, current_year)
+        if pause_count >= self.MAX_PAUSES_PER_YEAR:
+            return {
+                "success": False,
+                "error": f"Maximum {self.MAX_PAUSES_PER_YEAR} pauses per year allowed. You have used all your pauses for {current_year}.",
+                "pauses_used": pause_count,
+                "pauses_allowed": self.MAX_PAUSES_PER_YEAR,
             }
         
         # Pause the subscription
@@ -508,8 +527,17 @@ class SubscriptionPauseService:
         tenant_sku.pause_reason = reason
         tenant_sku.pause_until = pause_until
         
+        # Update pause count tracking
+        if tenant_sku.last_pause_year != current_year:
+            # Reset count for new year
+            tenant_sku.pause_count_this_year = 1
+            tenant_sku.last_pause_year = current_year
+        else:
+            tenant_sku.pause_count_this_year = (tenant_sku.pause_count_this_year or 0) + 1
+        
         # Calculate days being paused
         pause_days = (pause_until - now).days
+        pauses_remaining = self.MAX_PAUSES_PER_YEAR - tenant_sku.pause_count_this_year
         
         return {
             "success": True,
@@ -517,7 +545,9 @@ class SubscriptionPauseService:
             "pause_until": pause_until.isoformat(),
             "pause_reason": reason,
             "pause_days": pause_days,
-            "message": f"Subscription paused until {pause_until.strftime('%B %d, %Y')}"
+            "pauses_used_this_year": tenant_sku.pause_count_this_year,
+            "pauses_remaining_this_year": pauses_remaining,
+            "message": f"Subscription paused until {pause_until.strftime('%B %d, %Y')}. You have {pauses_remaining} pause(s) remaining this year."
         }
     
     async def resume_subscription(
@@ -589,6 +619,9 @@ class SubscriptionPauseService:
             return {"error": "Subscription not found"}
         
         remaining_annual_pause = self.MAX_ANNUAL_PAUSE_DAYS - tenant_sku.total_paused_days
+        current_year = datetime.utcnow().year
+        pause_count = self._get_pause_count_for_year(tenant_sku, current_year)
+        pauses_remaining = max(0, self.MAX_PAUSES_PER_YEAR - pause_count)
         
         return {
             "is_paused": tenant_sku.paused_at is not None,
@@ -599,9 +632,15 @@ class SubscriptionPauseService:
             "remaining_pause_days": max(0, remaining_annual_pause),
             "max_pause_days": self.MAX_PAUSE_DAYS,
             "max_annual_pause_days": self.MAX_ANNUAL_PAUSE_DAYS,
+            # Issue #32: Pause count tracking
+            "pauses_used_this_year": pause_count,
+            "pauses_remaining_this_year": pauses_remaining,
+            "max_pauses_per_year": self.MAX_PAUSES_PER_YEAR,
+            "current_year": current_year,
             "can_pause": (
                 tenant_sku.paused_at is None and
                 remaining_annual_pause > 0 and
+                pauses_remaining > 0 and  # Also check pause count
                 tenant_sku.is_active and
                 not tenant_sku.is_trial
             ),
@@ -1356,6 +1395,395 @@ class UsageReportService:
         filename = f"usage_report_{organization_id}_{start_date}_{end_date}.csv"
         
         return filename, csv_content
+    
+    async def generate_usage_report_pdf(
+        self,
+        organization_id: UUID,
+        start_date: date,
+        end_date: date,
+    ) -> Tuple[str, bytes]:
+        """
+        Generate a PDF usage report using HTML to PDF conversion.
+        
+        Returns:
+            Tuple of (filename, pdf_content)
+        """
+        # Fetch usage records
+        result = await self.db.execute(
+            select(UsageRecord)
+            .where(
+                and_(
+                    UsageRecord.organization_id == organization_id,
+                    UsageRecord.period_start >= start_date,
+                    UsageRecord.period_end <= end_date,
+                )
+            )
+            .order_by(UsageRecord.period_start.asc())
+        )
+        records = list(result.scalars().all())
+        
+        # Get organization name
+        from app.models import Organization
+        org_result = await self.db.execute(
+            select(Organization).where(Organization.id == organization_id)
+        )
+        org = org_result.scalar_one_or_none()
+        org_name = org.name if org else "Unknown Organization"
+        
+        # Calculate summary
+        summary = {
+            "total_transactions": sum(r.transactions_count for r in records),
+            "total_invoices": sum(r.invoices_count for r in records),
+            "total_api_calls": sum(r.api_calls_count for r in records),
+            "total_ocr_pages": sum(r.ocr_pages_count for r in records),
+            "peak_users": max(r.users_count for r in records) if records else 0,
+            "peak_storage_mb": float(max(r.storage_used_mb for r in records)) if records else 0,
+            "total_periods": len(records),
+        }
+        
+        # Generate HTML content
+        html_content = self._generate_report_html(
+            organization_name=org_name,
+            organization_id=str(organization_id),
+            start_date=start_date,
+            end_date=end_date,
+            records=records,
+            summary=summary,
+        )
+        
+        # Convert HTML to PDF using weasyprint or fallback to HTML bytes
+        try:
+            from weasyprint import HTML
+            pdf_bytes = HTML(string=html_content).write_pdf()
+        except ImportError:
+            # If weasyprint is not installed, return HTML as base64-encoded PDF placeholder
+            # In production, you'd want to ensure weasyprint is installed
+            pdf_bytes = self._create_simple_pdf(
+                organization_name=org_name,
+                start_date=start_date,
+                end_date=end_date,
+                records=records,
+                summary=summary,
+            )
+        
+        filename = f"usage_report_{organization_id}_{start_date}_{end_date}.pdf"
+        return filename, pdf_bytes
+    
+    def _generate_report_html(
+        self,
+        organization_name: str,
+        organization_id: str,
+        start_date: date,
+        end_date: date,
+        records: List,
+        summary: Dict,
+    ) -> str:
+        """Generate HTML content for the PDF report."""
+        rows_html = ""
+        for r in records:
+            rows_html += f"""
+            <tr>
+                <td>{r.period_start.strftime('%Y-%m-%d')}</td>
+                <td>{r.period_end.strftime('%Y-%m-%d')}</td>
+                <td>{r.transactions_count:,}</td>
+                <td>{r.users_count:,}</td>
+                <td>{r.invoices_count:,}</td>
+                <td>{r.api_calls_count:,}</td>
+                <td>{r.ocr_pages_count:,}</td>
+                <td>{float(r.storage_used_mb):.2f}</td>
+            </tr>
+            """
+        
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Usage Report - {organization_name}</title>
+            <style>
+                body {{
+                    font-family: 'Helvetica Neue', Arial, sans-serif;
+                    margin: 40px;
+                    color: #333;
+                }}
+                .header {{
+                    text-align: center;
+                    margin-bottom: 40px;
+                    border-bottom: 2px solid #2563eb;
+                    padding-bottom: 20px;
+                }}
+                .logo {{
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #2563eb;
+                }}
+                h1 {{
+                    color: #1f2937;
+                    margin: 10px 0;
+                }}
+                .meta {{
+                    color: #6b7280;
+                    font-size: 14px;
+                }}
+                .summary {{
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 20px;
+                    margin: 30px 0;
+                }}
+                .summary-card {{
+                    background: #f3f4f6;
+                    padding: 20px;
+                    border-radius: 8px;
+                    min-width: 150px;
+                    text-align: center;
+                }}
+                .summary-card .value {{
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #2563eb;
+                }}
+                .summary-card .label {{
+                    font-size: 12px;
+                    color: #6b7280;
+                    margin-top: 5px;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 30px;
+                }}
+                th, td {{
+                    border: 1px solid #e5e7eb;
+                    padding: 12px 8px;
+                    text-align: left;
+                }}
+                th {{
+                    background: #2563eb;
+                    color: white;
+                    font-weight: 600;
+                }}
+                tr:nth-child(even) {{
+                    background: #f9fafb;
+                }}
+                .footer {{
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #e5e7eb;
+                    font-size: 12px;
+                    color: #6b7280;
+                    text-align: center;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="logo">TekVwarho ProAudit</div>
+                <h1>Usage Report</h1>
+                <div class="meta">
+                    <p><strong>{organization_name}</strong></p>
+                    <p>Period: {start_date.strftime('%B %d, %Y')} - {end_date.strftime('%B %d, %Y')}</p>
+                    <p>Generated: {datetime.utcnow().strftime('%B %d, %Y at %H:%M UTC')}</p>
+                </div>
+            </div>
+            
+            <h2>Summary</h2>
+            <div class="summary">
+                <div class="summary-card">
+                    <div class="value">{summary['total_transactions']:,}</div>
+                    <div class="label">Total Transactions</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value">{summary['total_invoices']:,}</div>
+                    <div class="label">Total Invoices</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value">{summary['peak_users']:,}</div>
+                    <div class="label">Peak Users</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value">{summary['total_api_calls']:,}</div>
+                    <div class="label">API Calls</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value">{summary['total_ocr_pages']:,}</div>
+                    <div class="label">OCR Pages</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value">{summary['peak_storage_mb']:.1f} MB</div>
+                    <div class="label">Peak Storage</div>
+                </div>
+            </div>
+            
+            <h2>Detailed Usage by Period</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Period Start</th>
+                        <th>Period End</th>
+                        <th>Transactions</th>
+                        <th>Users</th>
+                        <th>Invoices</th>
+                        <th>API Calls</th>
+                        <th>OCR Pages</th>
+                        <th>Storage (MB)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html if rows_html else '<tr><td colspan="8" style="text-align:center;">No usage records found</td></tr>'}
+                </tbody>
+            </table>
+            
+            <div class="footer">
+                <p>This report was automatically generated by TekVwarho ProAudit.</p>
+                <p>Organization ID: {organization_id}</p>
+            </div>
+        </body>
+        </html>
+        """
+    
+    def _create_simple_pdf(
+        self,
+        organization_name: str,
+        start_date: date,
+        end_date: date,
+        records: List,
+        summary: Dict,
+    ) -> bytes:
+        """
+        Create a simple PDF without external dependencies.
+        Uses reportlab if available, otherwise creates minimal PDF.
+        """
+        try:
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib import colors
+            
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = getSampleStyleSheet()
+            elements = []
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                spaceAfter=20,
+                alignment=1,  # Center
+            )
+            elements.append(Paragraph("TekVwarho ProAudit - Usage Report", title_style))
+            elements.append(Paragraph(f"<b>{organization_name}</b>", styles['Normal']))
+            elements.append(Paragraph(f"Period: {start_date} to {end_date}", styles['Normal']))
+            elements.append(Spacer(1, 20))
+            
+            # Summary section
+            elements.append(Paragraph("<b>Summary</b>", styles['Heading2']))
+            summary_data = [
+                ["Metric", "Value"],
+                ["Total Transactions", f"{summary['total_transactions']:,}"],
+                ["Total Invoices", f"{summary['total_invoices']:,}"],
+                ["Peak Users", f"{summary['peak_users']:,}"],
+                ["Total API Calls", f"{summary['total_api_calls']:,}"],
+                ["Peak Storage", f"{summary['peak_storage_mb']:.1f} MB"],
+            ]
+            summary_table = Table(summary_data, colWidths=[3*inch, 2*inch])
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563eb')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f9fafb')),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb')),
+            ]))
+            elements.append(summary_table)
+            elements.append(Spacer(1, 20))
+            
+            # Detailed records
+            if records:
+                elements.append(Paragraph("<b>Detailed Usage</b>", styles['Heading2']))
+                detail_data = [["Start", "End", "Txns", "Users", "Invoices", "API", "Storage"]]
+                for r in records[:20]:  # Limit to 20 rows for PDF
+                    detail_data.append([
+                        r.period_start.strftime('%Y-%m-%d'),
+                        r.period_end.strftime('%Y-%m-%d'),
+                        f"{r.transactions_count:,}",
+                        f"{r.users_count:,}",
+                        f"{r.invoices_count:,}",
+                        f"{r.api_calls_count:,}",
+                        f"{float(r.storage_used_mb):.1f}",
+                    ])
+                
+                detail_table = Table(detail_data, colWidths=[1*inch, 1*inch, 0.7*inch, 0.7*inch, 0.8*inch, 0.7*inch, 0.8*inch])
+                detail_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563eb')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9fafb')]),
+                ]))
+                elements.append(detail_table)
+            
+            doc.build(elements)
+            return buffer.getvalue()
+            
+        except ImportError:
+            # Absolute fallback: create minimal valid PDF
+            # This is a very basic PDF structure
+            pdf_content = b"""%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]
+/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 200 >>
+stream
+BT
+/F1 16 Tf
+50 750 Td
+(TekVwarho ProAudit - Usage Report) Tj
+0 -30 Td
+/F1 12 Tf
+(Organization: """ + organization_name.encode() + b""") Tj
+0 -20 Td
+(Period: """ + str(start_date).encode() + b""" to """ + str(end_date).encode() + b""") Tj
+0 -20 Td
+(Total Transactions: """ + str(summary['total_transactions']).encode() + b""") Tj
+0 -20 Td
+(PDF export requires reportlab or weasyprint library.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000268 00000 n 
+0000000520 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+599
+%%EOF"""
+            return pdf_content
     
     async def generate_usage_summary(
         self,

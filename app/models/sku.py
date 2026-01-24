@@ -305,6 +305,16 @@ class TenantSKU(BaseModel):
         default=0,
         comment="Total cumulative days subscription has been paused"
     )
+    pause_count_this_year: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        comment="Number of times paused this calendar year (max 2 allowed)"
+    )
+    last_pause_year: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Calendar year of pause count tracking (resets annually)"
+    )
     
     # ==========================================================================
     # Issue #36: Multi-Currency Support
