@@ -80,6 +80,7 @@ from app.routers import (
     accounting,
     admin_sku,
     billing,
+    advanced_billing,
 )
 
 __all__ = [
@@ -124,4 +125,5 @@ __all__ = [
     "accounting",
     "admin_sku",
     "billing",
+    "advanced_billing",
 ]

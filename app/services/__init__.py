@@ -43,6 +43,14 @@ from app.services.tax_calculators.wht_service import WHTCalculator, WHTService
 from app.services.tax_calculators.cit_service import CITCalculator, CITService
 from app.services.tax_calculators.minimum_etr_cgt_service import MinimumETRCalculator, CGTCalculator
 
+# Billing & SKU Services
+from app.services.billing_service import BillingService
+from app.services.billing_email_service import BillingEmailService
+from app.services.advanced_billing_service import AdvancedBillingService
+from app.services.bank_reconciliation_service import BankReconciliationService
+from app.services.expense_claims_service import ExpenseClaimsService
+from app.services.audit_consolidated_service import AuditConsolidatedService
+
 __all__ = [
     # Core Services
     "AuthService",
@@ -92,4 +100,11 @@ __all__ = [
     "CITService",
     "MinimumETRCalculator",
     "CGTCalculator",
+    # Billing & SKU Services
+    "BillingService",
+    "BillingEmailService",
+    "AdvancedBillingService",
+    "BankReconciliationService",
+    "ExpenseClaimsService",
+    "AuditConsolidatedService",
 ]

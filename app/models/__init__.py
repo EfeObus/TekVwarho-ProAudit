@@ -26,6 +26,15 @@ from app.models.sku import (
     FeatureAccessLog,
     TIER_LIMITS,
     INTELLIGENCE_LIMITS,
+    # Billing features #30-36
+    PaymentTransaction,
+    ServiceCredit,
+    DiscountCode,
+    DiscountCodeUsage,
+    VolumeDiscountRule,
+    ExchangeRate,
+    ScheduledUsageReport,
+    UsageReportHistory,
 )
 from app.models.entity import BusinessEntity
 from app.models.category import Category, CategoryType
@@ -149,6 +158,14 @@ from app.models.advanced_accounting import (
     WHTCreditStatus,
     ApprovalStatus,
     BudgetPeriodType,
+)
+# Expense Claims
+from app.models.expense_claims import (
+    ExpenseClaim,
+    ExpenseClaimItem,
+    ExpenseCategory,
+    ClaimStatus,
+    PaymentMethod,
 )
 
 __all__ = [
@@ -295,4 +312,19 @@ __all__ = [
     "AdjustmentType",
     "UnmatchedItemType",
     "ChargeDetectionMethod",
+    # Billing Features #30-36
+    "PaymentTransaction",
+    "ServiceCredit",
+    "DiscountCode",
+    "DiscountCodeUsage",
+    "VolumeDiscountRule",
+    "ExchangeRate",
+    "ScheduledUsageReport",
+    "UsageReportHistory",
+    # Expense Claims
+    "ExpenseClaim",
+    "ExpenseClaimItem",
+    "ExpenseCategory",
+    "ClaimStatus",
+    "PaymentMethod",
 ]

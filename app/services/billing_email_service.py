@@ -31,6 +31,7 @@ class BillingEmailService:
         self.db = db
         self.email_service = EmailService()
         self.company_name = "TekVwarho ProAudit"
+        self.base_url = getattr(settings, 'base_url', 'http://localhost:5120')
         self.support_email = getattr(settings, 'support_email', 'support@tekvwarho.com')
         self.billing_email = getattr(settings, 'billing_email', 'billing@tekvwarho.com')
     
