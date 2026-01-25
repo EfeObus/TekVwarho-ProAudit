@@ -711,7 +711,7 @@ class DashboardService:
             {
                 "id": str(log.id),
                 "action": log.action,
-                "resource_type": log.resource_type,
+                "resource_type": log.table_name or log.target_entity_type or "unknown",
                 "created_at": log.created_at.isoformat() if log.created_at else None,
             }
             for log in logs
