@@ -629,6 +629,12 @@ from app.routers import (
     billing,
     # Advanced Billing (Usage Reports, Pause/Resume, Credits, Discounts, Volume, Multi-Currency)
     advanced_billing,
+    # Super Admin Dashboard APIs
+    legal_holds,
+    risk_signals,
+    ml_jobs,
+    upsell,
+    support_tickets,
 )
 
 # View Routes (HTML pages)
@@ -738,6 +744,25 @@ app.include_router(billing.router, tags=["Billing"])
 
 # Advanced Billing - Issues #30-36 (Usage Reports, Pause/Resume, Credits, Discounts, Volume, Multi-Currency)
 app.include_router(advanced_billing.router, tags=["Advanced Billing"])
+
+# ===========================================
+# SUPER ADMIN DASHBOARD APIs
+# ===========================================
+
+# Legal Holds (Compliance & Data Preservation)
+app.include_router(legal_holds.router, prefix="/api/v1", tags=["Legal Holds"])
+
+# Risk Signals (Platform Monitoring & Early Warning)
+app.include_router(risk_signals.router, prefix="/api/v1", tags=["Risk Signals"])
+
+# ML Jobs & Models (Platform ML Operations)
+app.include_router(ml_jobs.router, prefix="/api/v1", tags=["ML Jobs"])
+
+# Upsell Opportunities (Revenue Expansion)
+app.include_router(upsell.router, prefix="/api/v1", tags=["Upsell"])
+
+# Support Tickets (Customer Service)
+app.include_router(support_tickets.router, prefix="/api/v1", tags=["Support Tickets"])
 
 
 if __name__ == "__main__":

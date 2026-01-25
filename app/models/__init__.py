@@ -167,6 +167,46 @@ from app.models.expense_claims import (
     ClaimStatus,
     PaymentMethod,
 )
+# Super Admin Dashboard Models
+from app.models.legal_hold import (
+    LegalHold,
+    LegalHoldNotification,
+    LegalHoldStatus,
+    LegalHoldType,
+    DataScope,
+)
+from app.models.risk_signal import (
+    RiskSignal,
+    RiskSignalComment,
+    RiskSeverity,
+    RiskCategory,
+    RiskStatus,
+    RiskSignalType,
+)
+from app.models.ml_job import (
+    MLJob,
+    MLModel,
+    MLJobType,
+    MLJobStatus,
+    MLJobPriority,
+)
+from app.models.upsell import (
+    UpsellOpportunity,
+    UpsellActivity,
+    UpsellType,
+    UpsellStatus,
+    UpsellPriority,
+    UpsellSignal,
+)
+from app.models.support_ticket import (
+    SupportTicket,
+    TicketComment,
+    TicketAttachment,
+    TicketCategory,
+    TicketPriority,
+    TicketStatus,
+    TicketSource,
+)
 
 __all__ = [
     # Base
@@ -327,4 +367,38 @@ __all__ = [
     "ExpenseCategory",
     "ClaimStatus",
     "PaymentMethod",
+    # Super Admin Dashboard - Legal Holds
+    "LegalHold",
+    "LegalHoldNotification",
+    "LegalHoldStatus",
+    "LegalHoldType",
+    "DataScope",
+    # Super Admin Dashboard - Risk Signals
+    "RiskSignal",
+    "RiskSignalComment",
+    "RiskSeverity",
+    "RiskCategory",
+    "RiskStatus",
+    "RiskSignalType",
+    # Super Admin Dashboard - ML Jobs
+    "MLJob",
+    "MLModel",
+    "MLJobType",
+    "MLJobStatus",
+    "MLJobPriority",
+    # Super Admin Dashboard - Upsell
+    "UpsellOpportunity",
+    "UpsellActivity",
+    "UpsellType",
+    "UpsellStatus",
+    "UpsellPriority",
+    "UpsellSignal",
+    # Super Admin Dashboard - Support Tickets
+    "SupportTicket",
+    "TicketComment",
+    "TicketAttachment",
+    "TicketCategory",
+    "TicketPriority",
+    "TicketStatus",
+    "TicketSource",
 ]

@@ -38,6 +38,13 @@ from app.utils.permissions import (
     get_organization_permissions,
 )
 
+# Import new services for Super Admin Dashboard
+from app.services.legal_hold_service import LegalHoldService
+from app.services.risk_signal_service import RiskSignalService
+from app.services.ml_job_service import MLJobService
+from app.services.upsell_service import UpsellService
+from app.services.support_ticket_service import SupportTicketService
+
 
 # ===========================================
 # NTAA 2025 TAX CONSTANTS
@@ -95,6 +102,11 @@ class DashboardService:
         3. Security & Audit Controls
         4. Support & Maintenance Tools
         5. Financial Overview (Platform Level)
+        6. Legal Holds & Compliance
+        7. Risk Signals & Monitoring
+        8. ML Jobs & Models
+        9. Upsell Opportunities
+        10. Support Tickets
         """
         if not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
             raise PermissionError("Super Admin access required")
@@ -141,6 +153,29 @@ class DashboardService:
         # Filing status reports
         filing_status = await self._get_platform_filing_status()
         
+        # ===== 5. NEW SUPER ADMIN FEATURES =====
+        # Legal Holds
+        legal_hold_service = LegalHoldService(self.db)
+        legal_holds_stats = await legal_hold_service.get_legal_holds_stats()
+        
+        # Risk Signals
+        risk_signal_service = RiskSignalService(self.db)
+        risk_signals_stats = await risk_signal_service.get_risk_signals_stats()
+        recent_risk_signals = await risk_signal_service.get_recent_risk_signals(days=7, limit=5)
+        
+        # ML Jobs
+        ml_job_service = MLJobService(self.db)
+        ml_jobs_stats = await ml_job_service.get_ml_jobs_stats()
+        ml_models_stats = await ml_job_service.get_models_stats()
+        
+        # Upsell Opportunities
+        upsell_service = UpsellService(self.db)
+        upsell_stats = await upsell_service.get_upsell_stats()
+        
+        # Support Tickets
+        support_service = SupportTicketService(self.db)
+        support_stats = await support_service.get_tickets_stats()
+        
         return {
             "dashboard_type": "super_admin",
             "user": {
@@ -175,6 +210,33 @@ class DashboardService:
             "platform_revenue": platform_revenue,
             "filing_status": filing_status,
             
+            # Section 5: Legal Holds & Compliance
+            "legal_holds": legal_holds_stats,
+            
+            # Section 6: Risk Signals & Monitoring
+            "risk_signals": risk_signals_stats,
+            "recent_risk_signals": [
+                {
+                    "id": str(s.id),
+                    "signal_code": s.signal_code,
+                    "title": s.title,
+                    "severity": s.severity.value if s.severity else None,
+                    "status": s.status.value if s.status else None,
+                    "detected_at": s.detected_at.isoformat() if s.detected_at else None,
+                }
+                for s in recent_risk_signals
+            ],
+            
+            # Section 7: ML Jobs & Models
+            "ml_jobs": ml_jobs_stats,
+            "ml_models": ml_models_stats,
+            
+            # Section 8: Upsell Opportunities
+            "upsell": upsell_stats,
+            
+            # Section 9: Support Tickets
+            "support_tickets": support_stats,
+            
             "permissions": [p.value for p in get_platform_permissions(PlatformRole.SUPER_ADMIN)],
             "quick_actions": [
                 {"label": "Onboard Staff", "url": "/admin/staff/onboard", "icon": "user-plus", "description": "Add Admin, IT, CSR, or Marketing staff"},
@@ -184,7 +246,11 @@ class DashboardService:
                 {"label": "API Keys (NRS/JTB)", "url": "/admin/api-keys", "icon": "key", "description": "Manage government gateway keys"},
                 {"label": "Security Audit", "url": "/admin/security", "icon": "shield-alt", "description": "View security logs and alerts"},
                 {"label": "Workflow Automation", "url": "/admin/automation", "icon": "robot", "description": "Configure automated tasks"},
-                {"label": "Support Tickets", "url": "/admin/support", "icon": "headset", "description": "View escalated issues"},
+                {"label": "Support Tickets", "url": "/admin/support", "icon": "headset", "description": f"{support_stats.get('open', 0)} open tickets"},
+                {"label": "Risk Signals", "url": "/admin/risk-signals", "icon": "exclamation-triangle", "description": f"{risk_signals_stats.get('critical', 0)} critical signals"},
+                {"label": "Legal Holds", "url": "/admin/legal-holds", "icon": "gavel", "description": f"{legal_holds_stats.get('active', 0)} active holds"},
+                {"label": "ML Operations", "url": "/admin/ml-jobs", "icon": "brain", "description": f"{ml_jobs_stats.get('running', 0)} running jobs"},
+                {"label": "Upsell Pipeline", "url": "/admin/upsell", "icon": "chart-line", "description": f"₦{upsell_stats.get('pipeline_value', 0):,.0f} pipeline"},
             ],
         }
     

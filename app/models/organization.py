@@ -29,6 +29,10 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.entity import BusinessEntity
     from app.models.sku import TenantSKU, UsageRecord
+    from app.models.legal_hold import LegalHold
+    from app.models.risk_signal import RiskSignal
+    from app.models.upsell import UpsellOpportunity
+    from app.models.support_ticket import SupportTicket
 
 
 class SubscriptionTier(str, Enum):
@@ -190,6 +194,34 @@ class Organization(BaseModel):
     # Usage records relationship
     usage_records: Mapped[List["UsageRecord"]] = relationship(
         "UsageRecord",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    
+    # Legal holds (Super Admin compliance feature)
+    legal_holds: Mapped[List["LegalHold"]] = relationship(
+        "LegalHold",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    
+    # Risk signals (Platform monitoring)
+    risk_signals: Mapped[List["RiskSignal"]] = relationship(
+        "RiskSignal",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    
+    # Upsell opportunities (Revenue growth tracking)
+    upsell_opportunities: Mapped[List["UpsellOpportunity"]] = relationship(
+        "UpsellOpportunity",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    
+    # Support tickets
+    support_tickets: Mapped[List["SupportTicket"]] = relationship(
+        "SupportTicket",
         back_populates="organization",
         cascade="all, delete-orphan",
     )
