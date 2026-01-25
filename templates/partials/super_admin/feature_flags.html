@@ -1,0 +1,199 @@
+<!-- Feature Flags Panel -->
+<!-- Answers: What features are enabled? Per-tenant overrides? -->
+
+<!-- Feature Flag Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="metric-card">
+        <p class="metric-label">Total Feature Flags</p>
+        <p class="metric-value">{{ dashboard.feature_flags.total if dashboard.feature_flags else 24 }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Globally Enabled</p>
+        <p class="metric-value text-ng-green">{{ dashboard.feature_flags.enabled if dashboard.feature_flags else 18 }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Per-Tenant Overrides</p>
+        <p class="metric-value text-blue-600">{{ dashboard.feature_flags.overrides if dashboard.feature_flags else 12 }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">In Beta</p>
+        <p class="metric-value text-purple-600">{{ dashboard.feature_flags.beta if dashboard.feature_flags else 3 }}</p>
+    </div>
+</div>
+
+<!-- Feature Flags by SKU -->
+<div class="mb-8">
+    <div class="section-header mb-4">
+        <h3 class="section-title">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+            Feature Flags by SKU Tier
+        </h3>
+        <button class="btn-primary text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            New Flag
+        </button>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Core Features -->
+        <div class="data-grid">
+            <div class="p-4 border-b border-gray-100 bg-green-50 rounded-t-xl">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="sku-badge core">Core</span>
+                        <span class="text-sm text-gray-500">Base features</span>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 space-y-3">
+                {% for feature in ['Double-Entry Accounting', 'Basic Invoice Generation', 'Chart of Accounts', 'Bank Reconciliation', 'Basic Reports', 'Multi-Currency (5 max)', 'Single User'] %}
+                <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                    <span class="text-sm">{{ feature }}</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-ng-green rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-ng-green"></div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Professional Features -->
+        <div class="data-grid">
+            <div class="p-4 border-b border-gray-100 bg-blue-50 rounded-t-xl">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="sku-badge professional">Professional</span>
+                        <span class="text-sm text-gray-500">+ Core features</span>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 space-y-3">
+                {% for feature in ['Advanced Invoicing', 'Payroll Processing', 'Fixed Asset Management', 'Budgeting Module', 'Advanced Reports', 'Audit Trail', 'Multi-User (10 max)', 'API Access'] %}
+                <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                    <span class="text-sm">{{ feature }}</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-ng-green rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-ng-green"></div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Enterprise Features -->
+        <div class="data-grid">
+            <div class="p-4 border-b border-gray-100 bg-purple-50 rounded-t-xl">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="sku-badge enterprise">Enterprise</span>
+                        <span class="text-sm text-gray-500">+ Professional</span>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 space-y-3">
+                {% for feature in ['Multi-Branch Support', 'Consolidated Reporting', 'Custom Workflows', 'Advanced Security', 'Unlimited Users', 'Priority Support', 'SLA Guarantee', 'White-labeling'] %}
+                <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                    <span class="text-sm">{{ feature }}</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-ng-green rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-ng-green"></div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Intelligence Add-on Features -->
+<div class="metric-card mb-8">
+    <div class="section-header">
+        <div class="flex items-center gap-2">
+            <span class="sku-badge intelligence">Intelligence Add-on</span>
+            <span class="text-sm text-gray-500">ML-powered features (₦25,000/mo)</span>
+        </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {% for feature in ['Anomaly Detection', 'Benford\'s Law Analysis', 'Risk Scoring', 'Predictive Forecasting', 'Journal Clustering', 'Smart Categorization', 'Fraud Detection', 'Audit Insights'] %}
+        <div class="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+            <span class="text-sm font-medium">{{ feature }}</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked class="sr-only peer">
+                <div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Per-Tenant Overrides -->
+<div class="data-grid">
+    <div class="p-4 border-b border-gray-100">
+        <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-ng-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                Per-Tenant Feature Overrides
+            </h3>
+            <button class="btn-secondary text-sm">Add Override</button>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Tenant</th>
+                <th>Feature</th>
+                <th>Override Type</th>
+                <th>Reason</th>
+                <th>Expires</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for override in dashboard.feature_overrides if dashboard.feature_overrides %}
+            <tr>
+                <td class="font-medium">{{ override.tenant_name }}</td>
+                <td>{{ override.feature_name }}</td>
+                <td>
+                    <span class="status-badge {% if override.type == 'enable' %}active{% else %}suspended{% endif %}">
+                        {{ override.type.title() }}
+                    </span>
+                </td>
+                <td class="text-gray-500 text-sm">{{ override.reason }}</td>
+                <td class="text-gray-500 text-sm">{{ override.expires_at or 'Never' }}</td>
+                <td>
+                    <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <!-- Sample overrides for demo -->
+            <tr>
+                <td class="font-medium">Efe Obu's Furniture</td>
+                <td>Multi-Branch Support</td>
+                <td><span class="status-badge active">Enable</span></td>
+                <td class="text-gray-500 text-sm">Beta testing</td>
+                <td class="text-gray-500 text-sm">2025-03-01</td>
+                <td>
+                    <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </td>
+            </tr>
+            <tr>
+                <td class="font-medium">Lagos Traders Ltd</td>
+                <td>Intelligence Add-on</td>
+                <td><span class="status-badge active">Enable</span></td>
+                <td class="text-gray-500 text-sm">Trial promotion</td>
+                <td class="text-gray-500 text-sm">2025-02-15</td>
+                <td>
+                    <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

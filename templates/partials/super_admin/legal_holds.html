@@ -1,0 +1,189 @@
+<!-- Legal Holds Section -->
+<!-- Answers: What data is under legal preservation? -->
+
+<!-- Legal Holds Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="metric-card">
+        <p class="metric-label">Active Legal Holds</p>
+        <p class="metric-value">{{ dashboard.legal_holds.active if dashboard.legal_holds else 3 }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Tenants Affected</p>
+        <p class="metric-value text-amber-600">{{ dashboard.legal_holds.tenants_affected if dashboard.legal_holds else 2 }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Records Preserved</p>
+        <p class="metric-value text-blue-600">{{ dashboard.legal_holds.records_count if dashboard.legal_holds else '12,458' }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Pending Releases</p>
+        <p class="metric-value text-ng-green">{{ dashboard.legal_holds.pending_release if dashboard.legal_holds else 1 }}</p>
+    </div>
+</div>
+
+<!-- Active Holds Table -->
+<div class="data-grid mb-8">
+    <div class="p-4 border-b border-gray-100">
+        <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-ng-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                Active Legal Holds
+            </h3>
+            <button class="btn-primary text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                New Hold
+            </button>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Hold ID</th>
+                <th>Matter/Case</th>
+                <th>Tenant</th>
+                <th>Type</th>
+                <th>Start Date</th>
+                <th>Records</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="font-mono text-sm">LH-2025-001</td>
+                <td>
+                    <div>
+                        <p class="font-medium">EFCC Investigation</p>
+                        <p class="text-sm text-gray-500">Ref: EFCC/ABJ/2025/001</p>
+                    </div>
+                </td>
+                <td>Lagos Traders Ltd</td>
+                <td><span class="status-badge suspended">Regulatory</span></td>
+                <td class="text-sm text-gray-500">2025-01-15</td>
+                <td class="font-medium">8,234</td>
+                <td><span class="status-badge active">Active</span></td>
+                <td>
+                    <div class="flex items-center gap-2">
+                        <button class="p-1.5 text-gray-400 hover:text-ng-green hover:bg-ng-green-pale rounded-lg" title="View Details">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                        <button class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Export Records">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td class="font-mono text-sm">LH-2025-002</td>
+                <td>
+                    <div>
+                        <p class="font-medium">Tax Audit</p>
+                        <p class="text-sm text-gray-500">FIRS/LG/2025/003</p>
+                    </div>
+                </td>
+                <td>Efe Obu's Furniture</td>
+                <td><span class="status-badge trial">Tax</span></td>
+                <td class="text-sm text-gray-500">2025-01-20</td>
+                <td class="font-medium">3,156</td>
+                <td><span class="status-badge active">Active</span></td>
+                <td>
+                    <div class="flex items-center gap-2">
+                        <button class="p-1.5 text-gray-400 hover:text-ng-green hover:bg-ng-green-pale rounded-lg" title="View Details">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                        <button class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Export Records">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td class="font-mono text-sm">LH-2024-015</td>
+                <td>
+                    <div>
+                        <p class="font-medium">Civil Litigation</p>
+                        <p class="text-sm text-gray-500">HC/ABJ/2024/456</p>
+                    </div>
+                </td>
+                <td>Lagos Traders Ltd</td>
+                <td><span class="status-badge grace">Legal</span></td>
+                <td class="text-sm text-gray-500">2024-11-10</td>
+                <td class="font-medium">1,068</td>
+                <td><span class="status-badge grace">Pending Release</span></td>
+                <td>
+                    <div class="flex items-center gap-2">
+                        <button class="p-1.5 text-gray-400 hover:text-ng-green hover:bg-ng-green-pale rounded-lg" title="View Details">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                        <button class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Release Hold">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Hold Types & Guidelines -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Data Retention Rules -->
+    <div class="metric-card">
+        <div class="section-header">
+            <h3 class="section-title">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Data Retention Under Hold
+            </h3>
+        </div>
+        <div class="space-y-3">
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm font-medium">All Transactions</span>
+                <span class="text-sm text-ng-green font-medium">Preserved</span>
+            </div>
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm font-medium">Journal Entries</span>
+                <span class="text-sm text-ng-green font-medium">Preserved</span>
+            </div>
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm font-medium">Audit Trails</span>
+                <span class="text-sm text-ng-green font-medium">Preserved</span>
+            </div>
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm font-medium">Document Attachments</span>
+                <span class="text-sm text-ng-green font-medium">Preserved</span>
+            </div>
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm font-medium">User Activity Logs</span>
+                <span class="text-sm text-ng-green font-medium">Preserved</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hold Actions -->
+    <div class="metric-card">
+        <div class="section-header">
+            <h3 class="section-title">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Restrictions During Legal Hold
+            </h3>
+        </div>
+        <div class="space-y-3">
+            <div class="p-3 bg-red-50 rounded-lg border-l-4 border-red-500">
+                <p class="font-medium text-red-800">Data Deletion Blocked</p>
+                <p class="text-sm text-red-600">No records can be deleted while under hold</p>
+            </div>
+            <div class="p-3 bg-amber-50 rounded-lg border-l-4 border-amber-500">
+                <p class="font-medium text-amber-800">Modifications Logged</p>
+                <p class="text-sm text-amber-600">All changes are tracked with full audit trail</p>
+            </div>
+            <div class="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                <p class="font-medium text-blue-800">Export Restricted</p>
+                <p class="text-sm text-blue-600">Only authorized personnel can export data</p>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-lg border-l-4 border-gray-400">
+                <p class="font-medium text-gray-800">Tenant Notified</p>
+                <p class="text-sm text-gray-600">Tenant admins are informed of active holds</p>
+            </div>
+        </div>
+    </div>
+</div>

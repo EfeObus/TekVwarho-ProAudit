@@ -1,0 +1,161 @@
+<!-- Audit Logs Section -->
+<!-- Answers: Who did what, when, and where? -->
+
+<!-- Filter Bar -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+    <div class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1 relative">
+            <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder="Search logs by user, action, or resource..." class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-ng-green focus:border-ng-green">
+        </div>
+        <select class="px-4 py-2 border border-gray-200 rounded-lg bg-white">
+            <option value="">All Actions</option>
+            <option value="create">Create</option>
+            <option value="update">Update</option>
+            <option value="delete">Delete</option>
+            <option value="login">Login</option>
+            <option value="export">Export</option>
+        </select>
+        <select class="px-4 py-2 border border-gray-200 rounded-lg bg-white">
+            <option value="">All Resources</option>
+            <option value="user">Users</option>
+            <option value="organization">Organizations</option>
+            <option value="transaction">Transactions</option>
+            <option value="invoice">Invoices</option>
+            <option value="journal">Journal Entries</option>
+        </select>
+        <select class="px-4 py-2 border border-gray-200 rounded-lg bg-white">
+            <option value="">Time Range</option>
+            <option value="1h">Last Hour</option>
+            <option value="24h">Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+        </select>
+        <button class="btn-secondary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Export
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="metric-card">
+        <p class="metric-label">Total Logs (30d)</p>
+        <p class="metric-value">{{ dashboard.audit_stats.total_30d if dashboard.audit_stats else '15,432' }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Create Actions</p>
+        <p class="metric-value text-ng-green">{{ dashboard.audit_stats.creates if dashboard.audit_stats else '3,218' }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Update Actions</p>
+        <p class="metric-value text-blue-600">{{ dashboard.audit_stats.updates if dashboard.audit_stats else '8,945' }}</p>
+    </div>
+    <div class="metric-card">
+        <p class="metric-label">Delete Actions</p>
+        <p class="metric-value text-red-500">{{ dashboard.audit_stats.deletes if dashboard.audit_stats else '1,269' }}</p>
+    </div>
+</div>
+
+<!-- Audit Logs Table -->
+<div class="data-grid">
+    <div class="p-4 border-b border-gray-100">
+        <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-ng-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                Platform Audit Trail
+            </h3>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">Auto-refresh:</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" checked class="sr-only peer">
+                    <div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-ng-green rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-ng-green"></div>
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Tenant</th>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Details</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in dashboard.recent_activity[:20] if dashboard.recent_activity %}
+                <tr class="hover:bg-gray-50">
+                    <td class="text-sm text-gray-500 font-mono">{{ log.created_at[:19] if log.created_at else 'N/A' }}</td>
+                    <td>
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 bg-ng-green-pale rounded-full flex items-center justify-center">
+                                <span class="text-xs font-semibold text-ng-green">{{ (log.user_email[:2] if log.user_email else 'SY').upper() }}</span>
+                            </div>
+                            <span class="text-sm">{{ log.user_email or 'System' }}</span>
+                        </div>
+                    </td>
+                    <td class="text-sm text-gray-500">{{ log.organization_name or 'Platform' }}</td>
+                    <td>
+                        <span class="status-badge {% if 'create' in (log.action|lower) %}active{% elif 'delete' in (log.action|lower) %}suspended{% elif 'update' in (log.action|lower) %}trial{% else %}grace{% endif %}">
+                            {{ log.action }}
+                        </span>
+                    </td>
+                    <td class="text-sm">{{ log.resource_type }}</td>
+                    <td class="text-sm text-gray-500 max-w-xs truncate">{{ log.details or '-' }}</td>
+                    <td class="text-sm font-mono text-gray-500">{{ log.ip_address or '127.0.0.1' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center py-8 text-gray-500">No audit logs found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="p-4 border-t border-gray-100">
+        <div class="flex items-center justify-between">
+            <p class="text-sm text-gray-500">Showing 1-20 of 15,432 logs</p>
+            <div class="flex items-center gap-2">
+                <button class="btn-secondary text-sm" disabled>Previous</button>
+                <span class="px-3 py-1 bg-ng-green text-white rounded-lg text-sm">1</span>
+                <button class="px-3 py-1 hover:bg-gray-100 rounded-lg text-sm">2</button>
+                <button class="px-3 py-1 hover:bg-gray-100 rounded-lg text-sm">3</button>
+                <span class="text-gray-400">...</span>
+                <button class="px-3 py-1 hover:bg-gray-100 rounded-lg text-sm">772</button>
+                <button class="btn-secondary text-sm">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log Retention Settings -->
+<div class="mt-6 metric-card">
+    <div class="section-header">
+        <h3 class="section-title">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Log Retention Policy
+        </h3>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 bg-gray-50 rounded-xl">
+            <p class="text-sm text-gray-500">Standard Logs</p>
+            <p class="text-xl font-semibold">90 Days</p>
+        </div>
+        <div class="p-4 bg-gray-50 rounded-xl">
+            <p class="text-sm text-gray-500">Security Logs</p>
+            <p class="text-xl font-semibold">365 Days</p>
+        </div>
+        <div class="p-4 bg-gray-50 rounded-xl">
+            <p class="text-sm text-gray-500">Compliance Logs</p>
+            <p class="text-xl font-semibold">7 Years</p>
+        </div>
+    </div>
+</div>

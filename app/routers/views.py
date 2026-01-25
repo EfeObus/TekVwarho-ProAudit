@@ -183,9 +183,12 @@ async def dashboard(
     """
     Unified dashboard page.
     Routes to appropriate dashboard based on user type:
+    - Super Admin: Comprehensive super admin dashboard with Nigerian flag theme
     - Platform Staff: Staff dashboard with platform metrics
     - Organization Users: Business dashboard with financial metrics
     """
+    from app.models.user import PlatformRole
+    
     # Use consistent authentication
     user, entity_id, redirect = await require_auth(request, db, require_entity=False)
     if redirect:
@@ -198,6 +201,16 @@ async def dashboard(
         if user.is_platform_staff:
             # Platform staff - use staff dashboard
             dashboard_data = await dashboard_service.get_dashboard(user)
+            
+            # Super Admin gets the comprehensive green-white-green dashboard
+            if user.platform_role == PlatformRole.SUPER_ADMIN:
+                return templates.TemplateResponse("super_admin_dashboard.html", {
+                    "request": request,
+                    "dashboard": dashboard_data,
+                    **get_auth_context(user, None),
+                })
+            
+            # Other platform staff get the standard staff dashboard
             return templates.TemplateResponse("staff_dashboard.html", {
                 "request": request,
                 "dashboard": dashboard_data,
