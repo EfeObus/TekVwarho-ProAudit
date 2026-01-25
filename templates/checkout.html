@@ -669,10 +669,17 @@ function checkoutPage() {
                 const response = await fetch('/api/v1/billing/advanced/exchange-rates');
                 if (response.ok) {
                     const data = await response.json();
-                    // Update exchange rates from API
-                    data.forEach(rate => {
-                        this.exchangeRates[rate.currency] = rate.rate;
-                    });
+                    // Update exchange rates from API - handle nested response format
+                    const rates = data.rates || data || [];
+                    if (Array.isArray(rates)) {
+                        rates.forEach(rate => {
+                            // Support both {currency, rate} and {to, rate} formats
+                            const currency = rate.currency || rate.to;
+                            if (currency && rate.rate) {
+                                this.exchangeRates[currency] = rate.rate;
+                            }
+                        });
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load exchange rates:', e);

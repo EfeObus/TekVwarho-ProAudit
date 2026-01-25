@@ -7,6 +7,9 @@ Provides endpoints for:
 - Growth Radar & tax threshold alerts
 - Inventory write-off with VAT adjustment
 - Multi-location inventory transfers
+
+SKU Tier: PROFESSIONAL (₦150,000+/mo)
+Feature Flag: ADVANCED_REPORTS
 """
 
 from datetime import date
@@ -20,11 +23,18 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models.user import User
+from app.models.sku import Feature
 
 
-router = APIRouter(prefix="/api/v1/business-intelligence", tags=["Business Intelligence"])
+router = APIRouter(
+    prefix="/api/v1/business-intelligence", 
+    tags=["Business Intelligence"],
+    dependencies=[Depends(require_feature([Feature.ADVANCED_REPORTS]))]
+)
+
+# Note: All endpoints in this router require Professional tier (ADVANCED_REPORTS feature)
 
 
 # ============================================================================

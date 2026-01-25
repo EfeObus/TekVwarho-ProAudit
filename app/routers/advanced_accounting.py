@@ -21,8 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models.user import User
+from app.models.sku import Feature
 from app.services.audit_service import AuditService
 from app.models.audit_consolidated import AuditAction
 
@@ -970,7 +971,7 @@ class IntercompanyEliminationRequest(BaseModel):
 # Intercompany Transaction Endpoints
 # ============================================================================
 
-@router.post("/intercompany", response_model=IntercompanyTransactionResponse)
+@router.post("/intercompany", response_model=IntercompanyTransactionResponse, dependencies=[Depends(require_feature([Feature.INTERCOMPANY]))])
 async def create_intercompany_transaction(
     data: IntercompanyTransactionCreate,
     db: AsyncSession = Depends(get_db),
@@ -1045,7 +1046,7 @@ async def create_intercompany_transaction(
     )
 
 
-@router.get("/intercompany")
+@router.get("/intercompany", dependencies=[Depends(require_feature([Feature.INTERCOMPANY]))])
 async def list_intercompany_transactions(
     group_id: Optional[UUID] = None,
     from_entity_id: Optional[UUID] = None,
@@ -1122,7 +1123,7 @@ async def list_intercompany_transactions(
     }
 
 
-@router.post("/intercompany/eliminate")
+@router.post("/intercompany/eliminate", dependencies=[Depends(require_feature([Feature.INTERCOMPANY]))])
 async def eliminate_intercompany_transactions(
     data: IntercompanyEliminationRequest,
     db: AsyncSession = Depends(get_db),
@@ -1161,7 +1162,7 @@ async def eliminate_intercompany_transactions(
     }
 
 
-@router.get("/intercompany/summary")
+@router.get("/intercompany/summary", dependencies=[Depends(require_feature([Feature.INTERCOMPANY]))])
 async def get_intercompany_summary(
     group_id: UUID,
     as_of_date: Optional[date] = None,

@@ -10,6 +10,9 @@ Enterprise Audit API Endpoints:
 6. Behavioral Analytics - Anomaly pattern detection
 
 Nigerian Tax Reform 2026 Compliant
+
+SKU Tier: ENTERPRISE (₦1,000,000+/mo)
+Feature Flags: WORM_VAULT, ATTESTATION, SEGREGATION_OF_DUTIES
 """
 
 import uuid
@@ -22,8 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models.user import User
+from app.models.sku import Feature
 
 from app.services.audit_explainability_service import AuditExplainabilityService
 from app.services.compliance_replay_service import ComplianceReplayEngine, RuleType
@@ -46,7 +50,13 @@ from app.services.behavioral_analytics_service import (
 )
 
 
-router = APIRouter(prefix="/{entity_id}/advanced-audit", tags=["Advanced Audit"])
+router = APIRouter(
+    prefix="/{entity_id}/advanced-audit", 
+    tags=["Advanced Audit"],
+    dependencies=[Depends(require_feature([Feature.WORM_VAULT]))]
+)
+
+# Note: All endpoints in this router require Enterprise tier (WORM_VAULT feature)
 
 # Initialize services
 explainability_service = AuditExplainabilityService()

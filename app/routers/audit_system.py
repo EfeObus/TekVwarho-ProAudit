@@ -9,6 +9,9 @@ Implements 5 critical audit compliance features:
 5. Exportable Audit Output
 
 Nigerian Compliance: NTAA 2025, FIRS, CAMA 2020
+
+SKU Tier: ENTERPRISE (₦1,000,000+/mo)
+Feature Flag: WORM_VAULT
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, UploadFile, File, BackgroundTasks
@@ -25,7 +28,7 @@ import io
 import uuid
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models import (
     User, BusinessEntity, UserRole,
     AuditRun, AuditRunStatus, AuditRunType,
@@ -34,6 +37,7 @@ from app.models import (
     AuditorSession, AuditorActionLog, AuditorActionType,
     AuditLog, AuditAction
 )
+from app.models.sku import Feature
 from app.services.audit_system_service import (
     AuditorRoleEnforcer,
     EvidenceImmutabilityService,
@@ -46,7 +50,13 @@ from app.services.audit_execution_service import AuditExecutionService
 from app.services.audit_export_service import AuditReadyExportService
 from app.utils.permissions import has_organization_permission, OrganizationPermission
 
-router = APIRouter(prefix="/api/audit-system", tags=["Advanced Audit System"])
+router = APIRouter(
+    prefix="/api/audit-system", 
+    tags=["Advanced Audit System"],
+    dependencies=[Depends(require_feature([Feature.WORM_VAULT]))]
+)
+
+# Note: All endpoints in this router require Enterprise tier (WORM_VAULT feature)
 
 
 def require_audit_permission(user: User):

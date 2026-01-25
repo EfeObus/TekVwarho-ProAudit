@@ -565,10 +565,12 @@ class PaymentTransaction(BaseModel):
         comment="Paystack transaction fee in kobo"
     )
     
-    # SKU context
+    # SKU context - using String to match VARCHAR columns in database
+    # (PostgreSQL ENUMs were converted to VARCHAR for flexibility)
     tier: Mapped[Optional[SKUTier]] = mapped_column(
-        SQLEnum(SKUTier),
+        String(50),
         nullable=True,
+        comment="SKU tier: core, professional, enterprise"
     )
     billing_cycle: Mapped[Optional[str]] = mapped_column(
         String(20),
@@ -576,8 +578,9 @@ class PaymentTransaction(BaseModel):
         comment="monthly, annual"
     )
     intelligence_addon: Mapped[Optional[IntelligenceAddon]] = mapped_column(
-        SQLEnum(IntelligenceAddon),
+        String(50),
         nullable=True,
+        comment="Intelligence addon: standard, advanced"
     )
     additional_users: Mapped[int] = mapped_column(
         Integer,

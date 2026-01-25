@@ -2,6 +2,9 @@
 TekVwarho ProAudit - Expense Claims Router
 
 API endpoints for expense claims and reimbursements.
+
+SKU Tier: PROFESSIONAL (₦150,000+/mo)
+Feature Flag: EXPENSE_CLAIMS
 """
 
 import uuid
@@ -14,17 +17,29 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id, record_usage_event, require_within_usage_limit
+from app.dependencies import (
+    get_current_user, 
+    get_current_entity_id, 
+    record_usage_event, 
+    require_within_usage_limit,
+    require_feature,
+)
 from app.models.user import User
 from app.models.expense_claims import ExpenseCategory, ClaimStatus, PaymentMethod
-from app.models.sku import UsageMetricType
+from app.models.sku import Feature, UsageMetricType
 from app.services.expense_claims_service import (
     ExpenseClaimsService, get_expense_claims_service
 )
 from app.services.audit_service import AuditService
 from app.models.audit_consolidated import AuditAction
 
-router = APIRouter(prefix="/expense-claims", tags=["Expense Claims"])
+router = APIRouter(
+    prefix="/expense-claims", 
+    tags=["Expense Claims"],
+    dependencies=[Depends(require_feature([Feature.EXPENSE_CLAIMS]))]
+)
+
+# Note: All endpoints in this router require Professional tier (EXPENSE_CLAIMS feature)
 
 
 # ===========================================

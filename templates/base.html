@@ -184,17 +184,53 @@
                                 <a href="/vendors" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Vendors</a>
                                 <a href="/customers" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Customers</a>
                                 <a href="/inventory" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Inventory</a>
+                                {# Professional Tier Features #}
+                                {% if request.state.sku_features and 'fixed_assets' in request.state.sku_features %}
                                 <a href="/fixed-assets" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Fixed Assets</a>
+                                {% else %}
+                                <a href="/pricing?feature=fixed_assets" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Fixed Assets</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
+                                {% if request.state.sku_features and 'payroll' in request.state.sku_features %}
                                 <a href="/payroll" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Payroll</a>
+                                {% else %}
+                                <a href="/pricing?feature=payroll" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Payroll</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
                                 <a href="/receipts/upload" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Receipt Scanner</a>
                                 <hr class="my-1 border-gray-100">
                                 <p class="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Finance</p>
                                 <a href="/accounting" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Accounting</a>
+                                {% if request.state.sku_features and 'bank_reconciliation' in request.state.sku_features %}
                                 <a href="/bank-reconciliation" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Bank Reconciliation</a>
+                                {% else %}
+                                <a href="/pricing?feature=bank_reconciliation" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Bank Reconciliation</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
+                                {% if request.state.sku_features and 'expense_claims' in request.state.sku_features %}
                                 <a href="/expense-claims" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Expense Claims</a>
+                                {% else %}
+                                <a href="/pricing?feature=expense_claims" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Expense Claims</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
                                 <hr class="my-1 border-gray-100">
                                 <p class="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">AI & Intelligence</p>
+                                {% if request.state.sku_features and 'advanced_reports' in request.state.sku_features %}
                                 <a href="/business-insights" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Business Insights</a>
+                                {% else %}
+                                <a href="/pricing?feature=advanced_reports" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Business Insights</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
                                 <hr class="my-1 border-gray-100">
                                 <a href="/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Settings</a>
                             </div>

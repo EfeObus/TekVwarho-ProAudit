@@ -13,6 +13,9 @@ Nigerian Compliance:
 - B2B invoices require buyer TIN
 - Buyers have 72 hours to dispute submitted invoices
 - B2C transactions > ₦50,000 require 24-hour reporting
+
+SKU Tier: PROFESSIONAL (₦150,000+/mo)
+Feature Flag: NRS_COMPLIANCE
 """
 
 import uuid
@@ -26,9 +29,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models.entity import BusinessEntity
 from app.models.user import User
+from app.models.sku import Feature
 from app.services.nrs_service import (
     NRSApiClient,
     NRSInvoiceResponse,
@@ -39,7 +43,13 @@ from app.services.nrs_service import (
 from app.services.audit_service import AuditService
 from app.models.audit_consolidated import AuditAction
 
-router = APIRouter(prefix="/nrs", tags=["NRS Integration"])
+router = APIRouter(
+    prefix="/nrs", 
+    tags=["NRS Integration"],
+    dependencies=[Depends(require_feature([Feature.NRS_COMPLIANCE]))]
+)
+
+# Note: All endpoints in this router require Professional tier (NRS_COMPLIANCE feature)
 
 
 # ===========================================

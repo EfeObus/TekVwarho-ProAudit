@@ -1908,6 +1908,7 @@ class BillingService:
         data = result.get("data", {})
         
         # Create PaymentTransaction record in database
+        # Note: tier and intelligence_addon columns are VARCHAR, so pass string values
         payment_transaction = PaymentTransaction(
             organization_id=organization_id,
             user_id=user_id,
@@ -1919,9 +1920,9 @@ class BillingService:
             status="pending",
             amount_kobo=amount * 100,  # Convert to kobo
             currency="NGN",
-            tier=tier,
+            tier=tier.value if tier else None,  # Convert enum to string
             billing_cycle=billing_cycle.value,
-            intelligence_addon=intelligence_addon if intelligence_addon else None,
+            intelligence_addon=intelligence_addon.value if intelligence_addon else None,  # Convert enum to string
             additional_users=additional_users,
             custom_metadata={**metadata, "email": admin_email, "callback_url": callback_url},
         )

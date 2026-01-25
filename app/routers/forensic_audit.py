@@ -10,6 +10,9 @@ World-Class Audit API Endpoints:
 6. Match Summary Report
 
 Nigerian Tax Reform 2026 Compliant
+
+SKU Tier: INTELLIGENCE ADD-ON (₦250,000+/mo)
+Feature Flags: BENFORDS_LAW, ZSCORE_ANALYSIS, FRAUD_DETECTION
 """
 
 import uuid
@@ -21,8 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_feature
 from app.models.user import User
+from app.models.sku import Feature
 from app.services.forensic_audit_service import (
     ForensicAuditService,
     BenfordsLawAnalyzer,
@@ -33,7 +37,13 @@ from app.services.forensic_audit_service import (
 from app.services.three_way_matching import three_way_matching_service
 
 
-router = APIRouter(prefix="/{entity_id}/forensic-audit", tags=["Forensic Audit"])
+router = APIRouter(
+    prefix="/{entity_id}/forensic-audit", 
+    tags=["Forensic Audit"],
+    dependencies=[Depends(require_feature([Feature.BENFORDS_LAW]))]
+)
+
+# Note: All endpoints in this router require Intelligence add-on (BENFORDS_LAW feature)
 
 
 # =============================================================================

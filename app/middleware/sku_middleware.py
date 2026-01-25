@@ -38,6 +38,7 @@ class PathFeatureGate:
 
 # Define which paths require which features
 # This is the central configuration - no need to modify endpoints
+# NOTE: Paths with {entity_id} use contains-based matching for sub-routes
 PATH_FEATURE_GATES: List[PathFeatureGate] = [
     # ===========================================
     # PROFESSIONAL TIER FEATURES (₦150,000+/mo)
@@ -55,16 +56,11 @@ PATH_FEATURE_GATES: List[PathFeatureGate] = [
         description="Payroll views require Professional tier",
     ),
     
-    # Bank Reconciliation
-    PathFeatureGate(
-        path_prefix="/api/v1/bank-reconciliation",
-        required_features=[Feature.BANK_RECONCILIATION],
-        description="Bank reconciliation requires Professional tier",
-    ),
+    # Bank Reconciliation - API mounted at /api/v1/entities/{entity_id}/bank-reconciliation
     PathFeatureGate(
         path_prefix="/bank-reconciliation",
         required_features=[Feature.BANK_RECONCILIATION],
-        description="Bank reconciliation views require Professional tier",
+        description="Bank reconciliation requires Professional tier",
     ),
     
     # Fixed Assets
@@ -79,9 +75,9 @@ PATH_FEATURE_GATES: List[PathFeatureGate] = [
         description="Fixed asset views require Professional tier",
     ),
     
-    # Expense Claims
+    # Expense Claims - API mounted at /api/v1/entities/{entity_id}/expense-claims
     PathFeatureGate(
-        path_prefix="/api/v1/expense-claims",
+        path_prefix="/expense-claims",
         required_features=[Feature.EXPENSE_CLAIMS],
         description="Expense claims require Professional tier",
     ),
@@ -91,6 +87,18 @@ PATH_FEATURE_GATES: List[PathFeatureGate] = [
         path_prefix="/api/v1/nrs",
         required_features=[Feature.NRS_COMPLIANCE],
         description="NRS compliance requires Professional tier",
+    ),
+    
+    # Business Intelligence (Professional feature)
+    PathFeatureGate(
+        path_prefix="/api/v1/business-intelligence",
+        required_features=[Feature.ADVANCED_REPORTS],
+        description="Business Intelligence requires Professional tier",
+    ),
+    PathFeatureGate(
+        path_prefix="/business-insights",
+        required_features=[Feature.ADVANCED_REPORTS],
+        description="Business Insights views require Professional tier",
     ),
     
     # ===========================================
@@ -103,10 +111,34 @@ PATH_FEATURE_GATES: List[PathFeatureGate] = [
         required_features=[Feature.WORM_VAULT],
         description="WORM audit vault requires Enterprise tier",
     ),
+    PathFeatureGate(
+        path_prefix="/worm-storage",
+        required_features=[Feature.WORM_VAULT],
+        description="WORM storage views require Enterprise tier",
+    ),
     
-    # Intercompany
+    # Advanced Audit System (Enterprise WORM + SoD features)
+    PathFeatureGate(
+        path_prefix="/api/audit-system",
+        required_features=[Feature.WORM_VAULT],
+        description="Advanced audit system requires Enterprise tier",
+    ),
+    
+    # Advanced Audit - mounted at /api/v1/entities/{entity_id}/advanced-audit
+    PathFeatureGate(
+        path_prefix="/advanced-audit",
+        required_features=[Feature.WORM_VAULT],
+        description="Advanced audit requires Enterprise tier",
+    ),
+    
+    # Intercompany - router uses /api/v1/advanced prefix
     PathFeatureGate(
         path_prefix="/api/v1/intercompany",
+        required_features=[Feature.INTERCOMPANY],
+        description="Intercompany transactions require Enterprise tier",
+    ),
+    PathFeatureGate(
+        path_prefix="/api/v1/advanced/intercompany",
         required_features=[Feature.INTERCOMPANY],
         description="Intercompany transactions require Enterprise tier",
     ),
@@ -116,6 +148,20 @@ PATH_FEATURE_GATES: List[PathFeatureGate] = [
         path_prefix="/api/v1/consolidation",
         required_features=[Feature.CONSOLIDATION],
         description="Financial consolidation requires Enterprise tier",
+    ),
+    
+    # Segregation of Duties
+    PathFeatureGate(
+        path_prefix="/api/v1/sod",
+        required_features=[Feature.SEGREGATION_OF_DUTIES],
+        description="Segregation of Duties requires Enterprise tier",
+    ),
+    
+    # Attestation & Digital Signatures
+    PathFeatureGate(
+        path_prefix="/attestation",
+        required_features=[Feature.ATTESTATION],
+        description="Attestation & signatures require Enterprise tier",
     ),
     
     # ===========================================
@@ -129,9 +175,9 @@ PATH_FEATURE_GATES: List[PathFeatureGate] = [
         description="ML features require Intelligence add-on",
     ),
     
-    # Forensic Audit
+    # Forensic Audit - mounted at /api/v1/entities/{entity_id}/forensic-audit
     PathFeatureGate(
-        path_prefix="/api/v1/forensic",
+        path_prefix="/forensic-audit",
         required_features=[Feature.BENFORDS_LAW],
         description="Forensic audit requires Intelligence add-on",
     ),
@@ -645,11 +691,17 @@ class FeatureGateMiddleware(BaseHTTPMiddleware):
         return False
     
     def _find_applicable_gates(self, path: str, method: str) -> List[PathFeatureGate]:
-        """Find all feature gates that apply to a path."""
+        """Find all feature gates that apply to a path.
+        
+        Uses both prefix matching (for /api/v1/payroll, etc.) and 
+        contains matching (for paths like /api/v1/entities/{entity_id}/bank-reconciliation).
+        """
         applicable = []
         
         for gate in PATH_FEATURE_GATES:
-            if path.startswith(gate.path_prefix):
+            # Use contains matching to handle entity-prefixed routes
+            # e.g., /api/v1/entities/123/bank-reconciliation should match /bank-reconciliation
+            if path.startswith(gate.path_prefix) or gate.path_prefix in path:
                 # Check method restriction
                 if gate.methods is None or method.upper() in gate.methods:
                     applicable.append(gate)

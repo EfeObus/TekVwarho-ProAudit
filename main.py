@@ -147,19 +147,151 @@ templates = Jinja2Templates(directory="templates")
 
 
 # ===========================================
+# HTTP STATUS CODE DESCRIPTIONS
+# ===========================================
+
+HTTP_STATUS_DESCRIPTIONS = {
+    # 3xx Redirection
+    300: ("Multiple Choices", "Multiple options are available for this resource."),
+    301: ("Moved Permanently", "This resource has been permanently moved."),
+    302: ("Found", "This resource has been temporarily moved."),
+    303: ("See Other", "Please see another URI for this resource."),
+    304: ("Not Modified", "The resource has not been modified."),
+    307: ("Temporary Redirect", "Please follow the redirect."),
+    308: ("Permanent Redirect", "This resource has been permanently moved."),
+    
+    # 4xx Client Errors
+    400: ("Bad Request", "The request was invalid or malformed."),
+    401: ("Unauthorized", "Authentication is required to access this resource."),
+    402: ("Payment Required", "Payment is required to access this feature."),
+    403: ("Forbidden", "You don't have permission to access this resource."),
+    404: ("Not Found", "The requested resource could not be found."),
+    405: ("Method Not Allowed", "This HTTP method is not supported for this endpoint."),
+    406: ("Not Acceptable", "The requested content type is not available."),
+    408: ("Request Timeout", "The request took too long to complete."),
+    409: ("Conflict", "The request conflicts with the current state."),
+    410: ("Gone", "This resource is no longer available."),
+    411: ("Length Required", "Content-Length header is required."),
+    412: ("Precondition Failed", "A precondition for this request was not met."),
+    413: ("Payload Too Large", "The request body is too large."),
+    414: ("URI Too Long", "The request URI is too long."),
+    415: ("Unsupported Media Type", "The content type is not supported."),
+    416: ("Range Not Satisfiable", "The requested range cannot be satisfied."),
+    418: ("I'm a Teapot", "🫖 The server refuses to brew coffee."),
+    422: ("Unprocessable Entity", "The request data could not be processed."),
+    423: ("Locked", "The resource is currently locked."),
+    424: ("Failed Dependency", "A dependent request failed."),
+    429: ("Too Many Requests", "You've exceeded the rate limit. Please slow down."),
+    451: ("Unavailable For Legal Reasons", "This content is not available due to legal restrictions."),
+    
+    # 5xx Server Errors
+    500: ("Internal Server Error", "An unexpected error occurred. Our team has been notified."),
+    501: ("Not Implemented", "This feature is not yet implemented."),
+    502: ("Bad Gateway", "Error communicating with an upstream service."),
+    503: ("Service Unavailable", "The service is temporarily unavailable."),
+    504: ("Gateway Timeout", "An upstream service took too long to respond."),
+    507: ("Insufficient Storage", "Insufficient storage space available."),
+}
+
+
+def _wants_html(request: Request) -> bool:
+    """Check if the client prefers HTML over JSON."""
+    accept = request.headers.get("accept", "")
+    # Check for common browser patterns
+    if "text/html" in accept:
+        return True
+    # API calls typically specify application/json
+    if "application/json" in accept:
+        return False
+    # Check if it's a direct browser navigation
+    if request.url.path.startswith("/api/"):
+        return False
+    # Default to HTML for browser-like requests
+    return "Mozilla" in request.headers.get("user-agent", "")
+
+
+def _generate_error_id() -> str:
+    """Generate a unique error ID for support reference."""
+    import uuid
+    return str(uuid.uuid4())[:8].upper()
+
+
+async def _render_error_html(
+    request: Request,
+    status_code: int,
+    message: str | None = None,
+    error_type: str = "http_error",
+    debug_info: dict | None = None,
+) -> Any:
+    """Render an HTML error page."""
+    from fastapi.responses import HTMLResponse
+    
+    title, default_message = HTTP_STATUS_DESCRIPTIONS.get(
+        status_code, ("Error", "An error occurred.")
+    )
+    
+    error_id = _generate_error_id()
+    
+    # Log the error with reference ID
+    logger.error(
+        f"Error {status_code} (Ref: {error_id}): {message or default_message}",
+        extra={"error_id": error_id, "path": request.url.path}
+    )
+    
+    try:
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "error_code": status_code,
+                "error_title": title,
+                "error_message": message or default_message,
+                "error_id": error_id,
+                "debug_info": debug_info if settings.is_development else None,
+            },
+            status_code=status_code,
+        )
+    except Exception:
+        # Fallback to basic HTML if template fails
+        return HTMLResponse(
+            content=f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>{title}</title></head>
+            <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+                <h1>{status_code} - {title}</h1>
+                <p>{message or default_message}</p>
+                <p><a href="/">Go Home</a></p>
+                <p style="font-size: 12px; color: #666;">Ref: {error_id}</p>
+            </body>
+            </html>
+            """,
+            status_code=status_code,
+        )
+
+
+# ===========================================
 # GLOBAL ERROR HANDLERS
 # ===========================================
 
 @app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    """Handle HTTP exceptions with consistent error format."""
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle HTTP exceptions with HTML or JSON based on Accept header."""
+    if _wants_html(request):
+        return await _render_error_html(
+            request,
+            exc.status_code,
+            str(exc.detail) if exc.detail else None,
+            "http_error",
+        )
+    
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "success": False,
             "error": {
                 "code": exc.status_code,
-                "message": exc.detail,
+                "message": str(exc.detail) if exc.detail else HTTP_STATUS_DESCRIPTIONS.get(exc.status_code, ("Error", "An error occurred"))[1],
                 "type": "http_error"
             }
         }
@@ -167,7 +299,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle request validation errors with detailed field info."""
     errors = []
     for error in exc.errors():
@@ -177,6 +309,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "message": error["msg"],
             "type": error["type"]
         })
+    
+    if _wants_html(request):
+        error_details = ", ".join([f"{e['field']}: {e['message']}" for e in errors[:3]])
+        if len(errors) > 3:
+            error_details += f" (+{len(errors) - 3} more)"
+        return await _render_error_html(
+            request,
+            422,
+            f"Validation failed: {error_details}",
+            "validation_error",
+        )
     
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -193,7 +336,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.exception_handler(ValidationError)
-async def pydantic_validation_handler(request: Request, exc: ValidationError) -> JSONResponse:
+async def pydantic_validation_handler(request: Request, exc: ValidationError):
     """Handle Pydantic validation errors."""
     errors = []
     for error in exc.errors():
@@ -203,6 +346,15 @@ async def pydantic_validation_handler(request: Request, exc: ValidationError) ->
             "message": error["msg"],
             "type": error["type"]
         })
+    
+    if _wants_html(request):
+        error_details = ", ".join([f"{e['field']}: {e['message']}" for e in errors[:3]])
+        return await _render_error_html(
+            request,
+            422,
+            f"Data validation failed: {error_details}",
+            "validation_error",
+        )
     
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -219,9 +371,18 @@ async def pydantic_validation_handler(request: Request, exc: ValidationError) ->
 
 
 @app.exception_handler(ValueError)
-async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+async def value_error_handler(request: Request, exc: ValueError):
     """Handle value errors (business logic errors)."""
     logger.warning(f"ValueError: {exc}")
+    
+    if _wants_html(request):
+        return await _render_error_html(
+            request,
+            400,
+            str(exc),
+            "value_error",
+        )
+    
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={
@@ -236,9 +397,18 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
 
 
 @app.exception_handler(PermissionError)
-async def permission_error_handler(request: Request, exc: PermissionError) -> JSONResponse:
+async def permission_error_handler(request: Request, exc: PermissionError):
     """Handle permission errors."""
     logger.warning(f"PermissionError: {exc}")
+    
+    if _wants_html(request):
+        return await _render_error_html(
+            request,
+            403,
+            str(exc) or "You don't have permission to access this resource.",
+            "permission_error",
+        )
+    
     return JSONResponse(
         status_code=status.HTTP_403_FORBIDDEN,
         content={
@@ -253,17 +423,34 @@ async def permission_error_handler(request: Request, exc: PermissionError) -> JS
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def global_exception_handler(request: Request, exc: Exception):
     """Catch-all handler for unhandled exceptions."""
     # Log the full traceback for debugging
+    tb = traceback.format_exc()
     logger.error(f"Unhandled exception: {exc}")
-    logger.error(traceback.format_exc())
+    logger.error(tb)
     
     # Return generic error in production, detailed in development
     if settings.is_development:
         message = f"{type(exc).__name__}: {str(exc)}"
+        debug_info = {
+            "error_type": type(exc).__name__,
+            "path": str(request.url.path),
+            "method": request.method,
+            "traceback": tb,
+        }
     else:
         message = "An unexpected error occurred. Please try again later."
+        debug_info = None
+    
+    if _wants_html(request):
+        return await _render_error_html(
+            request,
+            500,
+            message,
+            "internal_error",
+            debug_info,
+        )
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -279,12 +466,21 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 
 @app.exception_handler(AppException)
-async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+async def app_exception_handler(request: Request, exc: AppException):
     """Handle custom application exceptions with standardized format."""
     logger.error(
         f"AppException: {exc.code.value} - {exc.message}",
         extra={"code": exc.code.value, "path": request.url.path}
     )
+    
+    if _wants_html(request):
+        return await _render_error_html(
+            request,
+            exc.status_code,
+            exc.message,
+            exc.code.value,
+        )
+    
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -295,7 +491,7 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 
 
 @app.exception_handler(SQLAlchemyError)
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     """Handle SQLAlchemy database errors."""
     from sqlalchemy.exc import IntegrityError, OperationalError, DataError
     
@@ -317,14 +513,24 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -
             error_message = "Data integrity constraint violated"
             error_type = "integrity_error"
     elif isinstance(exc, OperationalError):
-        error_message = "Database connection or operation failed"
+        error_message = "Database connection or operation failed. Please try again."
         error_type = "connection_error"
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     elif isinstance(exc, DataError):
         error_message = "Invalid data format for database field"
         status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
         error_type = "data_error"
     
     logger.error(f"SQLAlchemyError ({error_type}): {str(exc)}", exc_info=True)
+    
+    if _wants_html(request):
+        return await _render_error_html(
+            request,
+            status_code,
+            error_message,
+            error_type,
+            {"error_type": type(exc).__name__, "path": str(request.url.path), "method": request.method} if settings.is_development else None,
+        )
     
     return JSONResponse(
         status_code=status_code,

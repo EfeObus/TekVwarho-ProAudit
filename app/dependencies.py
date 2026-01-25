@@ -779,6 +779,60 @@ def require_api_access():
 
 
 # =============================================================================
+# ADDITIONAL SHORTCUT DEPENDENCIES (SKU Tier Enforcement)
+# =============================================================================
+
+def require_fixed_assets():
+    """Require Fixed Assets feature (Professional tier)."""
+    return require_feature([Feature.FIXED_ASSETS])
+
+
+def require_expense_claims():
+    """Require Expense Claims feature (Professional tier)."""
+    return require_feature([Feature.EXPENSE_CLAIMS])
+
+
+def require_nrs_compliance():
+    """Require NRS Compliance feature (Professional tier)."""
+    return require_feature([Feature.NRS_COMPLIANCE])
+
+
+def require_bank_reconciliation():
+    """Require Bank Reconciliation feature (Professional tier)."""
+    return require_feature([Feature.BANK_RECONCILIATION])
+
+
+def require_advanced_reports():
+    """Require Advanced Reports feature (Professional tier)."""
+    return require_feature([Feature.ADVANCED_REPORTS])
+
+
+def require_forensic_audit():
+    """Require Forensic Audit features (Intelligence add-on required)."""
+    return require_feature([Feature.BENFORDS_LAW, Feature.ZSCORE_ANALYSIS])
+
+
+def require_advanced_audit():
+    """Require Advanced Audit features (Enterprise tier)."""
+    return require_feature([Feature.WORM_VAULT, Feature.ATTESTATION])
+
+
+def require_segregation_of_duties():
+    """Require Segregation of Duties feature (Enterprise tier)."""
+    return require_feature([Feature.SEGREGATION_OF_DUTIES])
+
+
+def require_predictive_forecasting():
+    """Require Predictive Forecasting feature (Intelligence add-on)."""
+    return require_feature([Feature.PREDICTIVE_FORECASTING])
+
+
+def require_fraud_detection():
+    """Require Fraud Detection feature (Intelligence add-on)."""
+    return require_feature([Feature.FRAUD_DETECTION])
+
+
+# =============================================================================
 # METERING HELPER FUNCTIONS
 # =============================================================================
 

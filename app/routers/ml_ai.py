@@ -10,6 +10,9 @@ Comprehensive API endpoints for:
 - Model Management
 
 Nigerian Tax Reform 2026 Compliant
+
+SKU Tier: INTELLIGENCE ADD-ON (₦250,000+/mo)
+Feature Flags: ML_ANOMALY_DETECTION, PREDICTIVE_FORECASTING, OCR_EXTRACTION, NLP_PROCESSING
 """
 
 from datetime import date, datetime, timedelta
@@ -24,10 +27,11 @@ from sqlalchemy import select, func, and_, extract, case
 from pydantic import BaseModel, Field
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, require_feature
 from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.entity import BusinessEntity
+from app.models.sku import Feature
 from app.services.ml_engine import ml_engine, ModelType, PredictionType
 from app.services.advanced_ocr_service import (
     advanced_ocr_service, 
@@ -36,7 +40,12 @@ from app.services.advanced_ocr_service import (
 )
 
 
-router = APIRouter(tags=["Machine Learning & AI"])
+router = APIRouter(
+    tags=["Machine Learning & AI"],
+    dependencies=[Depends(require_feature([Feature.ML_ANOMALY_DETECTION]))]
+)
+
+# Note: All endpoints in this router require Intelligence add-on (ML_ANOMALY_DETECTION feature)
 
 
 # =============================================================================

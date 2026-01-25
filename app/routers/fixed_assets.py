@@ -7,6 +7,9 @@ Fixed Assets Router - API endpoints for Fixed Asset Register.
 - VAT recovery on qualifying capital assets via IRN
 - Integration with Development Levy threshold calculation
 
+SKU Tier: PROFESSIONAL (₦150,000+/mo)
+Feature Flag: FIXED_ASSETS
+
 Author: TekVwarho ProAudit
 """
 
@@ -20,9 +23,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_active_user, require_organization_permission, record_usage_event
+from app.dependencies import (
+    get_current_active_user, 
+    require_organization_permission, 
+    record_usage_event,
+    require_feature,
+)
 from app.models.user import User, UserRole
-from app.models.sku import UsageMetricType
+from app.models.sku import Feature, UsageMetricType
 from app.utils.permissions import OrganizationPermission
 from app.models.fixed_asset import (
     AssetCategory,
@@ -34,7 +42,13 @@ from app.services.fixed_asset_service import FixedAssetService
 from app.services.audit_service import AuditService
 from app.models.audit_consolidated import AuditAction
 
-router = APIRouter(prefix="/api/v1/fixed-assets", tags=["Fixed Assets"])
+router = APIRouter(
+    prefix="/api/v1/fixed-assets", 
+    tags=["Fixed Assets"],
+    dependencies=[Depends(require_feature([Feature.FIXED_ASSETS]))]
+)
+
+# Note: All endpoints in this router require Professional tier (FIXED_ASSETS feature)
 
 
 # ===========================================
