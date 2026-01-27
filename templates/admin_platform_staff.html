@@ -1,0 +1,830 @@
+{% extends "base.html" %}
+
+{% block title %}Platform Staff Management - Super Admin - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="platformStaffManager()" x-init="init()" class="min-h-screen bg-gray-100">
+    <!-- Page Header -->
+    <div class="bg-gradient-to-r from-[#008751] to-[#006741] text-white py-6 px-6 shadow-lg">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold">Platform Staff Management</h1>
+                    <p class="text-green-100 mt-1">Manage internal TekVwarho staff accounts</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/admin/dashboard" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                        ← Back to Dashboard
+                    </a>
+                    <button @click="showCreateModal = true" 
+                            class="bg-white text-[#008751] px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                        Add Staff
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <!-- Total Staff -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-[#008751]">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Staff</p>
+                        <p class="text-2xl font-bold text-gray-900" x-text="stats.total_staff || 0"></p>
+                    </div>
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-[#008751]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Staff -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Active</p>
+                        <p class="text-2xl font-bold text-gray-900" x-text="stats.active_staff || 0"></p>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inactive Staff -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Inactive</p>
+                        <p class="text-2xl font-bold text-gray-900" x-text="stats.inactive_staff || 0"></p>
+                    </div>
+                    <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Super Admins -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Super Admins</p>
+                        <p class="text-2xl font-bold text-gray-900" x-text="stats.staff_by_role?.super_admin || 0"></p>
+                    </div>
+                    <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Additions -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">New (30 days)</p>
+                        <p class="text-2xl font-bold text-gray-900" x-text="stats.recent_staff_30d || 0"></p>
+                    </div>
+                    <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Search -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input type="text" x-model="filters.query" @input.debounce.300ms="loadStaff()"
+                           placeholder="Email, name..."
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751] focus:border-transparent">
+                </div>
+
+                <!-- Role Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <select x-model="filters.role" @change="loadStaff()"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751] focus:border-transparent">
+                        <option value="">All Roles</option>
+                        <option value="super_admin">Super Admin</option>
+                        <option value="admin">Admin</option>
+                        <option value="it_developer">IT Developer</option>
+                        <option value="customer_service">Customer Service</option>
+                        <option value="marketing">Marketing</option>
+                    </select>
+                </div>
+
+                <!-- Status Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select x-model="filters.is_active" @change="loadStaff()"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751] focus:border-transparent">
+                        <option value="">All Status</option>
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+
+                <!-- Clear Filters -->
+                <div class="flex items-end">
+                    <button @click="clearFilters()" 
+                            class="w-full px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+                        Clear Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Table -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Staff</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-if="loading">
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center">
+                                    <div class="flex justify-center">
+                                        <svg class="animate-spin h-8 w-8 text-[#008751]" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="!loading && staffList.length === 0">
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                    No platform staff found
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-for="member in staffList" :key="member.id">
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 bg-[#008751] rounded-full flex items-center justify-center text-white font-semibold">
+                                            <span x-text="(member.first_name?.[0] || '') + (member.last_name?.[0] || '')"></span>
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900" x-text="member.full_name"></div>
+                                            <div class="text-sm text-gray-500" x-text="member.email"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full"
+                                          :class="getRoleBadgeClass(member.platform_role)"
+                                          x-text="formatRole(member.platform_role)"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full"
+                                          :class="member.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                          x-text="member.is_active ? 'Active' : 'Inactive'"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span x-text="formatDate(member.created_at)"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div class="flex justify-end space-x-2">
+                                        <button @click="viewDetails(member)" class="text-blue-600 hover:text-blue-900" title="View Details">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                            </svg>
+                                        </button>
+                                        <button @click="editStaff(member)" class="text-yellow-600 hover:text-yellow-900" title="Edit">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
+                                        </button>
+                                        <button @click="resetPassword(member)" class="text-purple-600 hover:text-purple-900" title="Reset Password">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                                            </svg>
+                                        </button>
+                                        <button @click="toggleStatus(member)" 
+                                                :class="member.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'"
+                                                :title="member.is_active ? 'Deactivate' : 'Reactivate'">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                      :d="member.is_active ? 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' : 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
+                <div class="text-sm text-gray-700">
+                    Showing <span x-text="((pagination.page - 1) * pagination.page_size) + 1"></span>
+                    to <span x-text="Math.min(pagination.page * pagination.page_size, pagination.total_count)"></span>
+                    of <span x-text="pagination.total_count"></span> staff
+                </div>
+                <div class="flex space-x-2">
+                    <button @click="prevPage()" :disabled="!pagination.has_previous"
+                            class="px-4 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">
+                        Previous
+                    </button>
+                    <button @click="nextPage()" :disabled="!pagination.has_next"
+                            class="px-4 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Staff Modal -->
+    <div x-show="showCreateModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
+            <div x-show="showCreateModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                 class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showCreateModal = false"></div>
+
+            <div x-show="showCreateModal" x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 class="relative bg-white rounded-xl shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+                <div class="bg-[#008751] text-white px-6 py-4 rounded-t-xl">
+                    <h3 class="text-lg font-semibold">Create Platform Staff Account</h3>
+                </div>
+                <form @submit.prevent="createStaff()">
+                    <div class="px-6 py-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                                <input type="text" x-model="newStaff.first_name" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751]">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                                <input type="text" x-model="newStaff.last_name" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751]">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                            <input type="email" x-model="newStaff.email" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751]">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                            <input type="tel" x-model="newStaff.phone_number"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751]">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Platform Role *</label>
+                            <select x-model="newStaff.platform_role" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751]">
+                                <option value="">Select Role</option>
+                                <option value="super_admin">Super Admin</option>
+                                <option value="admin">Admin</option>
+                                <option value="it_developer">IT Developer</option>
+                                <option value="customer_service">Customer Service</option>
+                                <option value="marketing">Marketing</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Custom Password (optional)</label>
+                            <input type="password" x-model="newStaff.custom_password" minlength="8"
+                                   placeholder="Leave blank to auto-generate"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751]">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
+                            <textarea x-model="newStaff.staff_notes" rows="2"
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#008751]"></textarea>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-6 py-4 rounded-b-xl flex justify-end space-x-3">
+                        <button type="button" @click="showCreateModal = false"
+                                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="creating"
+                                class="px-4 py-2 bg-[#008751] text-white rounded-lg hover:bg-[#006741] disabled:opacity-50 flex items-center">
+                            <svg x-show="creating" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Create Staff
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Staff Details Modal -->
+    <div x-show="showDetailsModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
+            <div x-show="showDetailsModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
+                 class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showDetailsModal = false"></div>
+
+            <div x-show="showDetailsModal" x-transition:enter="ease-out duration-300"
+                 class="relative bg-white rounded-xl shadow-xl transform transition-all sm:max-w-2xl sm:w-full max-h-[90vh] overflow-y-auto">
+                <div class="bg-[#008751] text-white px-6 py-4 rounded-t-xl flex justify-between items-center">
+                    <h3 class="text-lg font-semibold">Staff Details</h3>
+                    <button @click="showDetailsModal = false" class="text-white/80 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-6" x-show="selectedStaff">
+                    <div class="flex items-center mb-6">
+                        <div class="w-16 h-16 bg-[#008751] rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                            <span x-text="(selectedStaff?.first_name?.[0] || '') + (selectedStaff?.last_name?.[0] || '')"></span>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="text-xl font-bold text-gray-900" x-text="selectedStaff?.full_name"></h4>
+                            <p class="text-gray-500" x-text="selectedStaff?.email"></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-500">Platform Role</p>
+                            <p class="font-semibold" x-text="formatRole(selectedStaff?.platform_role)"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-500">Status</p>
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full"
+                                  :class="selectedStaff?.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                  x-text="selectedStaff?.is_active ? 'Active' : 'Inactive'"></span>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-500">Phone</p>
+                            <p class="font-semibold" x-text="selectedStaff?.phone_number || 'Not provided'"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-500">Created</p>
+                            <p class="font-semibold" x-text="formatDate(selectedStaff?.created_at)"></p>
+                        </div>
+                    </div>
+                    <div x-show="selectedStaff?.onboarded_by" class="bg-blue-50 rounded-lg p-4 mb-6">
+                        <p class="text-sm text-blue-600">Onboarded by</p>
+                        <p class="font-semibold text-blue-800" x-text="selectedStaff?.onboarded_by?.full_name + ' (' + selectedStaff?.onboarded_by?.email + ')'"></p>
+                    </div>
+                    <div x-show="selectedStaff?.staff_notes" class="bg-yellow-50 rounded-lg p-4 mb-6">
+                        <p class="text-sm text-yellow-600">Internal Notes</p>
+                        <p class="text-yellow-800 whitespace-pre-wrap" x-text="selectedStaff?.staff_notes"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Staff Modal -->
+    <div x-show="showEditModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
+            <div x-show="showEditModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+                 class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showEditModal = false"></div>
+
+            <div x-show="showEditModal" x-transition:enter="ease-out duration-300"
+                 class="relative bg-white rounded-xl shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+                <div class="bg-yellow-500 text-white px-6 py-4 rounded-t-xl">
+                    <h3 class="text-lg font-semibold">Edit Platform Staff</h3>
+                </div>
+                <form @submit.prevent="updateStaff()">
+                    <div class="px-6 py-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                                <input type="text" x-model="editData.first_name"
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                                <input type="text" x-model="editData.last_name"
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                            <input type="tel" x-model="editData.phone_number"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Platform Role</label>
+                            <select x-model="editData.platform_role"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                                <option value="super_admin">Super Admin</option>
+                                <option value="admin">Admin</option>
+                                <option value="it_developer">IT Developer</option>
+                                <option value="customer_service">Customer Service</option>
+                                <option value="marketing">Marketing</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
+                            <textarea x-model="editData.staff_notes" rows="3"
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"></textarea>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-6 py-4 rounded-b-xl flex justify-end space-x-3">
+                        <button type="button" @click="showEditModal = false"
+                                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="updating"
+                                class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Result Modal -->
+    <div x-show="showPasswordModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showPasswordModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl transform transition-all sm:max-w-md sm:w-full">
+                <div class="bg-purple-600 text-white px-6 py-4 rounded-t-xl">
+                    <h3 class="text-lg font-semibold">Password Generated</h3>
+                </div>
+                <div class="p-6">
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                        <p class="text-sm text-yellow-800 mb-2">⚠️ Copy this password now. It won't be shown again!</p>
+                    </div>
+                    <div class="bg-gray-100 rounded-lg p-4 font-mono text-lg text-center select-all" x-text="tempPassword"></div>
+                    <button @click="copyPassword()" class="mt-4 w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        Copy to Clipboard
+                    </button>
+                </div>
+                <div class="bg-gray-50 px-6 py-4 rounded-b-xl">
+                    <button @click="showPasswordModal = false" class="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div x-show="toast.show" x-cloak
+         x-transition:enter="transform ease-out duration-300 transition"
+         x-transition:enter-start="translate-y-2 opacity-0"
+         x-transition:enter-end="translate-y-0 opacity-100"
+         x-transition:leave="transform ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed bottom-4 right-4 z-50">
+        <div class="rounded-lg shadow-lg p-4 flex items-center space-x-3"
+             :class="toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'">
+            <svg x-show="toast.type === 'success'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <svg x-show="toast.type === 'error'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+function platformStaffManager() {
+    return {
+        // Data
+        staffList: {{ staff | tojson | safe }},
+        stats: {{ stats | tojson | safe }},
+        pagination: {{ pagination | tojson | safe }},
+        loading: false,
+        creating: false,
+        updating: false,
+        
+        // Modals
+        showCreateModal: false,
+        showDetailsModal: false,
+        showEditModal: false,
+        showPasswordModal: false,
+        
+        // Selected/Edit Data
+        selectedStaff: null,
+        editData: {},
+        tempPassword: '',
+        
+        // Filters
+        filters: {
+            query: '',
+            role: '',
+            is_active: '',
+        },
+        
+        // Toast
+        toast: {
+            show: false,
+            message: '',
+            type: 'success'
+        },
+        
+        // New Staff Form
+        newStaff: {
+            email: '',
+            first_name: '',
+            last_name: '',
+            phone_number: '',
+            platform_role: '',
+            custom_password: '',
+            staff_notes: ''
+        },
+        
+        init() {
+            console.log('Platform Staff Manager initialized');
+        },
+        
+        async loadStaff() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                if (this.filters.query) params.append('query', this.filters.query);
+                if (this.filters.role) params.append('role', this.filters.role);
+                if (this.filters.is_active !== '') params.append('is_active', this.filters.is_active);
+                params.append('page', this.pagination.page);
+                params.append('page_size', this.pagination.page_size);
+                
+                const response = await fetch(`/api/v1/admin/staff/list?${params}`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.staffList = data.data.staff;
+                    this.pagination = data.data.pagination;
+                }
+            } catch (error) {
+                console.error('Error loading staff:', error);
+                this.showToast('Error loading staff list', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/v1/admin/staff/stats', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.stats = data.data;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        },
+        
+        async createStaff() {
+            this.creating = true;
+            try {
+                const response = await fetch('/api/v1/admin/staff/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.newStaff)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showCreateModal = false;
+                    this.resetNewStaff();
+                    this.showToast('Staff account created successfully', 'success');
+                    
+                    if (data.data.temporary_password) {
+                        this.tempPassword = data.data.temporary_password;
+                        this.showPasswordModal = true;
+                    }
+                    
+                    await this.loadStaff();
+                    await this.loadStats();
+                } else {
+                    this.showToast(data.error?.message || 'Failed to create staff', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating staff:', error);
+                this.showToast('Error creating staff account', 'error');
+            } finally {
+                this.creating = false;
+            }
+        },
+        
+        async viewDetails(member) {
+            try {
+                const response = await fetch(`/api/v1/admin/staff/${member.id}`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.selectedStaff = data.data;
+                    this.showDetailsModal = true;
+                }
+            } catch (error) {
+                console.error('Error loading staff details:', error);
+                this.showToast('Error loading staff details', 'error');
+            }
+        },
+        
+        editStaff(member) {
+            this.editData = {
+                id: member.id,
+                first_name: member.first_name,
+                last_name: member.last_name,
+                phone_number: member.phone_number || '',
+                platform_role: member.platform_role,
+                staff_notes: ''
+            };
+            this.showEditModal = true;
+        },
+        
+        async updateStaff() {
+            this.updating = true;
+            try {
+                const response = await fetch(`/api/v1/admin/staff/${this.editData.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.editData)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showEditModal = false;
+                    this.showToast('Staff account updated', 'success');
+                    await this.loadStaff();
+                } else {
+                    this.showToast(data.error?.message || 'Failed to update staff', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating staff:', error);
+                this.showToast('Error updating staff account', 'error');
+            } finally {
+                this.updating = false;
+            }
+        },
+        
+        async resetPassword(member) {
+            if (!confirm(`Reset password for ${member.email}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/v1/admin/staff/${member.id}/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.data.temporary_password) {
+                        this.tempPassword = data.data.temporary_password;
+                        this.showPasswordModal = true;
+                    }
+                    this.showToast('Password reset successfully', 'success');
+                } else {
+                    this.showToast(data.error?.message || 'Failed to reset password', 'error');
+                }
+            } catch (error) {
+                console.error('Error resetting password:', error);
+                this.showToast('Error resetting password', 'error');
+            }
+        },
+        
+        async toggleStatus(member) {
+            const action = member.is_active ? 'deactivate' : 'reactivate';
+            const reason = member.is_active ? prompt('Reason for deactivation (optional):') : prompt('Reason for reactivation (optional):');
+            
+            if (member.is_active && reason === null) return; // Cancelled
+            
+            try {
+                const response = await fetch(`/api/v1/admin/staff/${member.id}/${action}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ reason })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(`Staff ${action}d successfully`, 'success');
+                    await this.loadStaff();
+                    await this.loadStats();
+                } else {
+                    this.showToast(data.error?.message || `Failed to ${action} staff`, 'error');
+                }
+            } catch (error) {
+                console.error(`Error ${action}ing staff:`, error);
+                this.showToast(`Error ${action}ing staff`, 'error');
+            }
+        },
+        
+        clearFilters() {
+            this.filters = { query: '', role: '', is_active: '' };
+            this.pagination.page = 1;
+            this.loadStaff();
+        },
+        
+        prevPage() {
+            if (this.pagination.has_previous) {
+                this.pagination.page--;
+                this.loadStaff();
+            }
+        },
+        
+        nextPage() {
+            if (this.pagination.has_next) {
+                this.pagination.page++;
+                this.loadStaff();
+            }
+        },
+        
+        resetNewStaff() {
+            this.newStaff = {
+                email: '', first_name: '', last_name: '', phone_number: '',
+                platform_role: '', custom_password: '', staff_notes: ''
+            };
+        },
+        
+        copyPassword() {
+            navigator.clipboard.writeText(this.tempPassword);
+            this.showToast('Password copied to clipboard', 'success');
+        },
+        
+        formatRole(role) {
+            const roles = {
+                'super_admin': 'Super Admin',
+                'admin': 'Admin',
+                'it_developer': 'IT Developer',
+                'customer_service': 'Customer Service',
+                'marketing': 'Marketing'
+            };
+            return roles[role] || role;
+        },
+        
+        getRoleBadgeClass(role) {
+            const classes = {
+                'super_admin': 'bg-purple-100 text-purple-800',
+                'admin': 'bg-blue-100 text-blue-800',
+                'it_developer': 'bg-indigo-100 text-indigo-800',
+                'customer_service': 'bg-yellow-100 text-yellow-800',
+                'marketing': 'bg-pink-100 text-pink-800'
+            };
+            return classes[role] || 'bg-gray-100 text-gray-800';
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            return new Date(dateStr).toLocaleDateString('en-NG', {
+                year: 'numeric', month: 'short', day: 'numeric'
+            });
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        }
+    };
+}
+</script>
+{% endblock %}

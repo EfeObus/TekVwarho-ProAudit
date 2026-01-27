@@ -1,0 +1,524 @@
+{% extends "base.html" %}
+
+{% block title %}Risk Signals - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    :root { --ng-green: #008751; --ng-green-dark: #006741; }
+    .btn-primary { background: var(--ng-green); color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; }
+    .btn-primary:hover { background: var(--ng-green-dark); }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { background: #e6f5ed; color: var(--ng-green-dark); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; padding: 0.75rem 1rem; text-align: left; }
+    .data-table td { padding: 0.875rem 1rem; font-size: 0.875rem; border-bottom: 1px solid #f3f4f6; }
+    .data-table tr:hover td { background: #fafbfc; }
+    .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-critical { background: #fee2e2; color: #991b1b; }
+    .badge-high { background: #ffedd5; color: #c2410c; }
+    .badge-medium { background: #fef3c7; color: #92400e; }
+    .badge-low { background: #dcfce7; color: #166534; }
+    .badge-new { background: #dbeafe; color: #1e40af; }
+    .badge-investigating { background: #fef3c7; color: #92400e; }
+    .badge-resolved { background: #dcfce7; color: #166534; }
+    .badge-dismissed { background: #f3f4f6; color: #4b5563; }
+    .stat-card { background: white; border-radius: 0.75rem; padding: 1.25rem; border: 1px solid #e5e7eb; }
+    .risk-indicator { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .risk-critical { background: #dc2626; animation: pulse 2s infinite; }
+    .risk-high { background: #ea580c; }
+    .risk-medium { background: #ca8a04; }
+    .risk-low { background: #16a34a; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="riskSignalsPage()" class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900">Risk Signals</h1>
+                    <p class="text-sm text-gray-500">AI-detected anomalies and fraud indicators</p>
+                </div>
+            </div>
+            <button @click="refreshSignals()" class="btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Refresh Signals
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div class="stat-card border-l-4 border-red-500">
+                <p class="text-sm text-gray-500">Critical</p>
+                <p class="text-2xl font-bold text-red-600" x-text="stats.critical">0</p>
+            </div>
+            <div class="stat-card border-l-4 border-orange-500">
+                <p class="text-sm text-gray-500">High</p>
+                <p class="text-2xl font-bold text-orange-600" x-text="stats.high">0</p>
+            </div>
+            <div class="stat-card border-l-4 border-yellow-500">
+                <p class="text-sm text-gray-500">Medium</p>
+                <p class="text-2xl font-bold text-yellow-600" x-text="stats.medium">0</p>
+            </div>
+            <div class="stat-card border-l-4 border-green-500">
+                <p class="text-sm text-gray-500">Low</p>
+                <p class="text-2xl font-bold text-green-600" x-text="stats.low">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Total Open</p>
+                <p class="text-2xl font-bold text-gray-800" x-text="stats.total_open">0</p>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div class="flex flex-wrap gap-4">
+                <input type="text" x-model="searchQuery" @input.debounce.300ms="loadSignals()" placeholder="Search signals..." class="px-3 py-2 border rounded-lg text-sm w-64 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                <select x-model="filterSeverity" @change="loadSignals()" class="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                <select x-model="filterStatus" @change="loadSignals()" class="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">All Statuses</option>
+                    <option value="new">New</option>
+                    <option value="investigating">Investigating</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="dismissed">Dismissed</option>
+                </select>
+                <select x-model="filterType" @change="loadSignals()" class="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">All Types</option>
+                    <option value="anomaly">Anomaly</option>
+                    <option value="fraud">Fraud Indicator</option>
+                    <option value="benford">Benford's Law Violation</option>
+                    <option value="pattern">Suspicious Pattern</option>
+                    <option value="access">Access Violation</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Risk Signals Table -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <!-- Loading State -->
+            <div x-show="loading" class="text-center py-12">
+                <svg class="animate-spin h-8 w-8 mx-auto text-green-600 mb-2" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-gray-500 text-sm">Loading risk signals...</p>
+            </div>
+            
+            <table class="data-table" x-show="!loading">
+                <thead>
+                    <tr>
+                        <th>Signal</th>
+                        <th>Type</th>
+                        <th>Tenant</th>
+                        <th>Severity</th>
+                        <th>Status</th>
+                        <th>Detected</th>
+                        <th>Score</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="signal in signals" :key="signal.id">
+                        <tr>
+                            <td>
+                                <span class="risk-indicator" :class="'risk-' + (signal.severity || 'medium').toLowerCase()"></span>
+                                <span class="font-medium" x-text="signal.description || signal.signal_type || 'Unknown Signal'"></span>
+                            </td>
+                            <td class="capitalize" x-text="signal.signal_type || 'anomaly'"></td>
+                            <td x-text="signal.tenant_name || signal.organization_name || '-'"></td>
+                            <td>
+                                <span class="badge" :class="getSeverityBadgeClass(signal.severity)" x-text="signal.severity || 'Medium'"></span>
+                            </td>
+                            <td>
+                                <span class="badge" :class="getStatusBadgeClass(signal.status)" x-text="signal.status || 'New'"></span>
+                            </td>
+                            <td class="text-gray-500 text-sm" x-text="formatDate(signal.detected_at || signal.created_at)"></td>
+                            <td>
+                                <span class="font-mono text-sm" :class="getRiskScoreClass(signal.risk_score)" x-text="formatRiskScore(signal.risk_score)"></span>
+                            </td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <button @click="viewSignalDetails(signal.id)" class="text-gray-400 hover:text-blue-600" title="View Details">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                    </button>
+                                    <button @click="updateSignalStatus(signal.id, 'investigating')" x-show="signal.status !== 'investigating' && signal.status !== 'resolved'" class="text-gray-400 hover:text-blue-600" title="Start Investigation">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                    </button>
+                                    <button @click="confirmDismiss(signal)" x-show="signal.status !== 'dismissed'" class="text-gray-400 hover:text-yellow-600" title="Dismiss">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                    <button @click="confirmResolve(signal)" x-show="signal.status !== 'resolved'" class="text-gray-400 hover:text-green-600" title="Mark Resolved">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="signals.length === 0 && !loading">
+                        <td colspan="8" class="text-center text-gray-500 py-12">
+                            <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            No risk signals detected
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <div x-show="pagination.total > pagination.limit" class="bg-gray-50 px-4 py-3 flex items-center justify-between border-t">
+                <div class="text-sm text-gray-500">
+                    Showing <span x-text="((pagination.page - 1) * pagination.limit) + 1"></span> to 
+                    <span x-text="Math.min(pagination.page * pagination.limit, pagination.total)"></span> of 
+                    <span x-text="pagination.total"></span> signals
+                </div>
+                <div class="flex gap-2">
+                    <button @click="prevPage()" :disabled="pagination.page <= 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Previous</button>
+                    <button @click="nextPage()" :disabled="pagination.page * pagination.limit >= pagination.total" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Risk Score Legend -->
+        <div class="mt-6 bg-white rounded-lg border border-gray-200 p-4">
+            <h4 class="font-medium text-gray-900 mb-3">Risk Score Legend</h4>
+            <div class="flex flex-wrap gap-6 text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="risk-indicator risk-critical"></span>
+                    <span>Critical (80-100%)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="risk-indicator risk-high"></span>
+                    <span>High (60-79%)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="risk-indicator risk-medium"></span>
+                    <span>Medium (40-59%)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="risk-indicator risk-low"></span>
+                    <span>Low (0-39%)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Signal Details Modal -->
+    <div x-show="showDetailsModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/50" @click="showDetailsModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[80vh] overflow-y-auto">
+                <h3 class="text-lg font-semibold mb-4">Signal Details</h3>
+                <div x-show="selectedSignal">
+                    <dl class="space-y-3">
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Signal ID</dt>
+                            <dd class="text-sm font-mono" x-text="selectedSignal?.id?.substring(0,8) + '...'"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Type</dt>
+                            <dd class="text-sm capitalize" x-text="selectedSignal?.signal_type"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Severity</dt>
+                            <dd><span class="badge" :class="getSeverityBadgeClass(selectedSignal?.severity)" x-text="selectedSignal?.severity"></span></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Status</dt>
+                            <dd><span class="badge" :class="getStatusBadgeClass(selectedSignal?.status)" x-text="selectedSignal?.status"></span></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Risk Score</dt>
+                            <dd class="text-sm font-mono" :class="getRiskScoreClass(selectedSignal?.risk_score)" x-text="formatRiskScore(selectedSignal?.risk_score)"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Detected</dt>
+                            <dd class="text-sm" x-text="formatDate(selectedSignal?.detected_at || selectedSignal?.created_at)"></dd>
+                        </div>
+                        <div x-show="selectedSignal?.organization_name">
+                            <dt class="text-sm text-gray-500 mb-1">Organization</dt>
+                            <dd class="text-sm" x-text="selectedSignal?.organization_name"></dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm text-gray-500 mb-1">Description</dt>
+                            <dd class="text-sm bg-gray-50 p-2 rounded" x-text="selectedSignal?.description"></dd>
+                        </div>
+                        <div x-show="selectedSignal?.evidence">
+                            <dt class="text-sm text-gray-500 mb-1">Evidence</dt>
+                            <dd class="text-sm bg-gray-50 p-2 rounded font-mono text-xs whitespace-pre-wrap" x-text="JSON.stringify(selectedSignal?.evidence, null, 2)"></dd>
+                        </div>
+                    </dl>
+                </div>
+                <div class="flex justify-end mt-6">
+                    <button @click="showDetailsModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Update Status Modal -->
+    <div x-show="showUpdateModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/50" @click="showUpdateModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+                <h3 class="text-lg font-semibold mb-4" x-text="updateAction === 'resolved' ? 'Resolve Signal' : 'Dismiss Signal'"></h3>
+                <p class="text-sm text-gray-600 mb-4" x-text="updateAction === 'resolved' ? 'Please provide details about the resolution.' : 'Please provide a reason for dismissing this signal.'"></p>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
+                    <textarea x-model="updateReason" required rows="3" class="w-full px-3 py-2 border rounded-lg text-sm" :placeholder="updateAction === 'resolved' ? 'Describe how the risk was addressed...' : 'Explain why this is a false positive...'"></textarea>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button @click="showUpdateModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                    <button @click="executeStatusUpdate()" :disabled="!updateReason" class="btn-primary" :class="updateAction === 'resolved' ? '' : 'bg-yellow-600 hover:bg-yellow-700'">
+                        <span x-text="updateAction === 'resolved' ? 'Mark Resolved' : 'Dismiss Signal'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function riskSignalsPage() {
+    return {
+        loading: true,
+        signals: [],
+        stats: {
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            total_open: 0
+        },
+        selectedSignal: null,
+        signalToUpdate: null,
+        updateAction: '',
+        updateReason: '',
+        
+        // Filters
+        searchQuery: '',
+        filterSeverity: '',
+        filterStatus: '',
+        filterType: '',
+        
+        // Pagination
+        pagination: {
+            page: 1,
+            limit: 20,
+            total: 0
+        },
+        
+        // Modals
+        showDetailsModal: false,
+        showUpdateModal: false,
+        
+        async init() {
+            await this.loadStats();
+            await this.loadSignals();
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/v1/risk-signals/stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.stats = {
+                        critical: data.critical || 0,
+                        high: data.high || 0,
+                        medium: data.medium || 0,
+                        low: data.low || 0,
+                        total_open: data.total_open || data.open || (data.critical + data.high + data.medium + data.low) || 0
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        },
+        
+        async loadSignals() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('page', this.pagination.page);
+                params.append('limit', this.pagination.limit);
+                if (this.filterSeverity) params.append('severity', this.filterSeverity);
+                if (this.filterStatus) params.append('status', this.filterStatus);
+                if (this.filterType) params.append('signal_type', this.filterType);
+                if (this.searchQuery) params.append('search', this.searchQuery);
+                
+                const response = await fetch(`/api/v1/risk-signals?${params}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.signals = data.signals || data.items || [];
+                    this.pagination.total = data.total || this.signals.length;
+                }
+            } catch (error) {
+                console.error('Error loading signals:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async viewSignalDetails(signalId) {
+            try {
+                const response = await fetch(`/api/v1/risk-signals/${signalId}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    this.selectedSignal = await response.json();
+                    this.showDetailsModal = true;
+                } else {
+                    this.showNotification('Failed to load signal details', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading signal:', error);
+                this.showNotification('Failed to load signal details', 'error');
+            }
+        },
+        
+        async updateSignalStatus(signalId, newStatus) {
+            try {
+                const response = await fetch(`/api/v1/risk-signals/${signalId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ status: newStatus })
+                });
+                
+                if (response.ok) {
+                    await this.loadSignals();
+                    await this.loadStats();
+                    this.showNotification(`Signal status updated to ${newStatus}`, 'success');
+                } else {
+                    const error = await response.json();
+                    this.showNotification(error.detail || 'Failed to update signal', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating signal:', error);
+                this.showNotification('Failed to update signal', 'error');
+            }
+        },
+        
+        confirmDismiss(signal) {
+            this.signalToUpdate = signal;
+            this.updateAction = 'dismissed';
+            this.updateReason = '';
+            this.showUpdateModal = true;
+        },
+        
+        confirmResolve(signal) {
+            this.signalToUpdate = signal;
+            this.updateAction = 'resolved';
+            this.updateReason = '';
+            this.showUpdateModal = true;
+        },
+        
+        async executeStatusUpdate() {
+            if (!this.signalToUpdate) return;
+            
+            try {
+                const response = await fetch(`/api/v1/risk-signals/${this.signalToUpdate.id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ 
+                        status: this.updateAction,
+                        reason: this.updateReason 
+                    })
+                });
+                
+                if (response.ok) {
+                    this.showUpdateModal = false;
+                    this.signalToUpdate = null;
+                    this.updateReason = '';
+                    await this.loadSignals();
+                    await this.loadStats();
+                    this.showNotification(`Signal ${this.updateAction} successfully`, 'success');
+                } else {
+                    const error = await response.json();
+                    this.showNotification(error.detail || 'Failed to update signal', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating signal:', error);
+                this.showNotification('Failed to update signal', 'error');
+            }
+        },
+        
+        async refreshSignals() {
+            await this.loadStats();
+            await this.loadSignals();
+            this.showNotification('Signals refreshed', 'success');
+        },
+        
+        getSeverityBadgeClass(severity) {
+            const s = (severity || '').toLowerCase();
+            if (s === 'critical') return 'badge-critical';
+            if (s === 'high') return 'badge-high';
+            if (s === 'medium') return 'badge-medium';
+            if (s === 'low') return 'badge-low';
+            return 'badge-medium';
+        },
+        
+        getStatusBadgeClass(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'new') return 'badge-new';
+            if (s === 'investigating') return 'badge-investigating';
+            if (s === 'resolved') return 'badge-resolved';
+            if (s === 'dismissed') return 'badge-dismissed';
+            return 'badge-new';
+        },
+        
+        getRiskScoreClass(score) {
+            if (score >= 0.8) return 'text-red-600 font-semibold';
+            if (score >= 0.5) return 'text-yellow-600';
+            return 'text-gray-600';
+        },
+        
+        formatRiskScore(score) {
+            if (score === null || score === undefined) return '-';
+            return Math.round(score * 100) + '%';
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString();
+        },
+        
+        showNotification(message, type) {
+            alert(message);
+        },
+        
+        nextPage() {
+            if (this.pagination.page * this.pagination.limit < this.pagination.total) {
+                this.pagination.page++;
+                this.loadSignals();
+            }
+        },
+        
+        prevPage() {
+            if (this.pagination.page > 1) {
+                this.pagination.page--;
+                this.loadSignals();
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

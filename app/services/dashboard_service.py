@@ -123,6 +123,10 @@ class DashboardService:
         # Organization stats by type
         org_by_type = await self._get_organizations_by_type()
         
+        # Tenants list and stats
+        tenants_list = await self._get_tenants_list(limit=50)
+        tenant_stats = await self._get_tenant_stats()
+        
         # Subscription/Plan tracking
         subscription_stats = await self._get_subscription_stats()
         
@@ -154,27 +158,33 @@ class DashboardService:
         filing_status = await self._get_platform_filing_status()
         
         # ===== 5. NEW SUPER ADMIN FEATURES =====
-        # Legal Holds
+        # Legal Holds - Stats and List
         legal_hold_service = LegalHoldService(self.db)
         legal_holds_stats = await legal_hold_service.get_legal_holds_stats()
+        legal_holds_list = await legal_hold_service.get_all_legal_holds(limit=15)
         
-        # Risk Signals
+        # Risk Signals - Stats and List
         risk_signal_service = RiskSignalService(self.db)
         risk_signals_stats = await risk_signal_service.get_risk_signals_stats()
         recent_risk_signals = await risk_signal_service.get_recent_risk_signals(days=7, limit=5)
+        risk_signals_list = await risk_signal_service.get_all_risk_signals(limit=20)
         
-        # ML Jobs
+        # ML Jobs - Stats and List
         ml_job_service = MLJobService(self.db)
         ml_jobs_stats = await ml_job_service.get_ml_jobs_stats()
         ml_models_stats = await ml_job_service.get_models_stats()
+        ml_jobs_list = await ml_job_service.get_all_ml_jobs(limit=15)
+        ml_models_list = await ml_job_service.get_all_models(limit=10)
         
-        # Upsell Opportunities
+        # Upsell Opportunities - Stats and List
         upsell_service = UpsellService(self.db)
         upsell_stats = await upsell_service.get_upsell_stats()
+        upsell_list = await upsell_service.get_all_opportunities(limit=15)
         
-        # Support Tickets
+        # Support Tickets - Stats and List
         support_service = SupportTicketService(self.db)
         support_stats = await support_service.get_tickets_stats()
+        support_tickets_list = await support_service.get_all_tickets(limit=20)
         
         return {
             "dashboard_type": "super_admin",
@@ -195,6 +205,8 @@ class DashboardService:
             "organizations_by_type": org_by_type,
             "subscription_stats": subscription_stats,
             "verification_stats": verification_stats,
+            "tenants_list": tenants_list,
+            "tenant_stats": tenant_stats,
             
             # Section 2: Platform Monitoring & Analytics
             "platform_health": platform_health,
@@ -212,6 +224,24 @@ class DashboardService:
             
             # Section 5: Legal Holds & Compliance
             "legal_holds": legal_holds_stats,
+            "legal_holds_list": [
+                {
+                    "id": str(h.id),
+                    "hold_number": h.hold_number,
+                    "organization_id": str(h.organization_id) if h.organization_id else None,
+                    "matter_name": h.matter_name,
+                    "matter_reference": h.matter_reference,
+                    "hold_type": h.hold_type.value if h.hold_type else None,
+                    "status": h.status.value if h.status else None,
+                    "data_scope": h.data_scope.value if h.data_scope else None,
+                    "preservation_start_date": h.preservation_start_date.isoformat() if h.preservation_start_date else None,
+                    "hold_start_date": h.hold_start_date.isoformat() if h.hold_start_date else None,
+                    "records_preserved_count": h.records_preserved_count or 0,
+                    "legal_counsel_name": h.legal_counsel_name,
+                    "created_at": h.created_at.isoformat() if h.created_at else None,
+                }
+                for h in legal_holds_list
+            ],
             
             # Section 6: Risk Signals & Monitoring
             "risk_signals": risk_signals_stats,
@@ -226,16 +256,103 @@ class DashboardService:
                 }
                 for s in recent_risk_signals
             ],
+            "risk_signals_list": [
+                {
+                    "id": str(s.id),
+                    "signal_code": s.signal_code,
+                    "organization_id": str(s.organization_id) if s.organization_id else None,
+                    "signal_type": s.signal_type.value if s.signal_type else None,
+                    "category": s.category.value if s.category else None,
+                    "severity": s.severity.value if s.severity else None,
+                    "status": s.status.value if s.status else None,
+                    "title": s.title,
+                    "description": s.description,
+                    "risk_score": float(s.risk_score) if s.risk_score else None,
+                    "detected_at": s.detected_at.isoformat() if s.detected_at else None,
+                    "acknowledged": s.acknowledged,
+                    "requires_immediate_action": s.requires_immediate_action,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                }
+                for s in risk_signals_list
+            ],
             
             # Section 7: ML Jobs & Models
             "ml_jobs": ml_jobs_stats,
             "ml_models": ml_models_stats,
+            "ml_jobs_list": [
+                {
+                    "id": str(j.id),
+                    "job_id": j.job_id,
+                    "organization_id": str(j.organization_id) if j.organization_id else None,
+                    "job_type": j.job_type.value if j.job_type else None,
+                    "status": j.status.value if j.status else None,
+                    "progress_percent": j.progress_percent or 0,
+                    "started_at": j.started_at.isoformat() if j.started_at else None,
+                    "completed_at": j.completed_at.isoformat() if j.completed_at else None,
+                    "error_message": j.error_message,
+                    "created_at": j.created_at.isoformat() if j.created_at else None,
+                }
+                for j in ml_jobs_list
+            ],
+            "ml_models_list": [
+                {
+                    "id": str(m.id),
+                    "model_name": m.model_name,
+                    "model_type": m.model_type.value if m.model_type else None,
+                    "version": m.version,
+                    "is_active": m.is_active,
+                    "accuracy_score": float(m.accuracy_score) if m.accuracy_score else None,
+                    "precision_score": float(m.precision_score) if m.precision_score else None,
+                    "recall_score": float(m.recall_score) if m.recall_score else None,
+                    "total_predictions": m.total_predictions or 0,
+                    "last_trained_at": m.last_trained_at.isoformat() if m.last_trained_at else None,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                }
+                for m in ml_models_list
+            ],
             
             # Section 8: Upsell Opportunities
             "upsell": upsell_stats,
+            "upsell_list": [
+                {
+                    "id": str(u.id),
+                    "opportunity_code": u.opportunity_code,
+                    "organization_id": str(u.organization_id) if u.organization_id else None,
+                    "upsell_type": u.upsell_type.value if u.upsell_type else None,
+                    "status": u.status.value if u.status else None,
+                    "priority": u.priority.value if u.priority else None,
+                    "current_tier": u.current_tier,
+                    "target_tier": u.target_tier,
+                    "estimated_mrr_increase": float(u.estimated_mrr_increase) if u.estimated_mrr_increase else 0,
+                    "confidence_score": float(u.confidence_score) if u.confidence_score else None,
+                    "trigger_reason": u.trigger_reason,
+                    "identified_at": u.identified_at.isoformat() if u.identified_at else None,
+                    "created_at": u.created_at.isoformat() if u.created_at else None,
+                }
+                for u in upsell_list
+            ],
             
             # Section 9: Support Tickets
             "support_tickets": support_stats,
+            "support_tickets_list": [
+                {
+                    "id": str(t.id),
+                    "ticket_number": t.ticket_number,
+                    "organization_id": str(t.organization_id) if t.organization_id else None,
+                    "subject": t.subject,
+                    "category": t.category.value if t.category else None,
+                    "priority": t.priority.value if t.priority else None,
+                    "status": t.status.value if t.status else None,
+                    "source": t.source.value if t.source else None,
+                    "description": t.description[:200] + "..." if t.description and len(t.description) > 200 else t.description,
+                    "requester_email": t.requester_email,
+                    "requester_name": t.requester_name,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                    "first_response_at": t.first_response_at.isoformat() if t.first_response_at else None,
+                    "resolved_at": t.resolved_at.isoformat() if t.resolved_at else None,
+                }
+                for t in support_tickets_list
+            ],
             
             "permissions": [p.value for p in get_platform_permissions(PlatformRole.SUPER_ADMIN)],
             "quick_actions": [
@@ -746,6 +863,51 @@ class DashboardService:
             )
         )
         return result.scalar() or 0
+    
+    async def _get_tenants_list(self, limit: int = 50) -> List[Dict]:
+        """Get list of all organizations (tenants)"""
+        result = await self.db.execute(
+            select(Organization)
+            .order_by(Organization.created_at.desc())
+            .limit(limit)
+        )
+        orgs = result.scalars().all()
+        return [
+            {
+                "id": str(org.id),
+                "name": org.name,
+                "organization_type": org.organization_type.value if org.organization_type else "unknown",
+                "status": "active" if org.verification_status == VerificationStatus.VERIFIED else (
+                    "trial" if org.verification_status == VerificationStatus.PENDING else org.verification_status.value if org.verification_status else "unknown"
+                ),
+                "user_count": 0,  # Would need a join to get actual count
+                "created_at": org.created_at.strftime("%b %d, %Y") if org.created_at else None,
+            }
+            for org in orgs
+        ]
+    
+    async def _get_tenant_stats(self) -> Dict[str, int]:
+        """Get tenant stats by status"""
+        verified = await self.db.execute(
+            select(func.count(Organization.id)).where(
+                Organization.verification_status == VerificationStatus.VERIFIED
+            )
+        )
+        pending = await self.db.execute(
+            select(func.count(Organization.id)).where(
+                Organization.verification_status == VerificationStatus.PENDING
+            )
+        )
+        suspended = await self.db.execute(
+            select(func.count(Organization.id)).where(
+                Organization.verification_status == VerificationStatus.REJECTED
+            )
+        )
+        return {
+            "active": verified.scalar() or 0,
+            "trial": pending.scalar() or 0,
+            "suspended": suspended.scalar() or 0,
+        }
     
     async def _get_organizations_by_type(self) -> Dict[str, int]:
         result = await self.db.execute(
@@ -2797,6 +2959,8 @@ class DashboardService:
         # This would integrate with billing system
         return {
             "mrr": 0,  # Monthly Recurring Revenue
+            "arpu": 0,  # Average Revenue Per User
+            "churn_rate": "0%",  # Monthly churn rate
             "total_subscriptions": 0,
             "e_invoice_fees_this_month": 0,
             "growth_rate": "0%",

@@ -30,6 +30,7 @@ router = APIRouter(prefix="/ml-jobs", tags=["ML Jobs"])
 class CreateMLJobRequest(BaseModel):
     """Request schema for creating an ML job."""
     job_type: MLJobType
+    job_name: Optional[str] = None  # Auto-generated if not provided
     priority: MLJobPriority = MLJobPriority.NORMAL
     model_id: Optional[uuid.UUID] = None
     organization_id: Optional[uuid.UUID] = None
@@ -45,7 +46,7 @@ class MLJobResponse(BaseModel):
     status: str
     priority: str
     model_id: Optional[uuid.UUID]
-    target_organization_id: Optional[uuid.UUID]
+    organization_id: Optional[uuid.UUID]
     progress_percent: Optional[int]
     current_step: Optional[str]
     started_at: Optional[str]
@@ -132,7 +133,7 @@ class UpdateProgressRequest(BaseModel):
 @router.post("", response_model=MLJobResponse, status_code=status.HTTP_201_CREATED)
 async def create_ml_job(
     request: CreateMLJobRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Create a new ML job (Super Admin only)."""
@@ -141,6 +142,7 @@ async def create_ml_job(
     try:
         job = await service.create_ml_job(
             job_type=request.job_type,
+            job_name=request.job_name,
             priority=request.priority,
             model_id=request.model_id,
             organization_id=request.organization_id,
@@ -162,7 +164,7 @@ async def list_ml_jobs(
     job_type: Optional[MLJobType] = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """List all ML jobs (Super Admin only)."""
@@ -183,7 +185,7 @@ async def list_ml_jobs(
 
 @router.get("/stats", response_model=MLJobStatsResponse)
 async def get_ml_jobs_stats(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get ML job statistics (Super Admin only)."""
@@ -195,7 +197,7 @@ async def get_ml_jobs_stats(
 @router.get("/{job_id}", response_model=MLJobResponse)
 async def get_ml_job(
     job_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get a specific ML job (Super Admin only)."""
@@ -215,7 +217,7 @@ async def get_ml_job(
 async def start_ml_job(
     job_id: uuid.UUID,
     worker_id: Optional[str] = None,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Start an ML job (Super Admin only)."""
@@ -235,7 +237,7 @@ async def start_ml_job(
 async def update_job_progress(
     job_id: uuid.UUID,
     request: UpdateProgressRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Update ML job progress (Super Admin only)."""
@@ -258,7 +260,7 @@ async def update_job_progress(
 @router.post("/{job_id}/cancel", response_model=MLJobResponse)
 async def cancel_ml_job(
     job_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Cancel an ML job (Super Admin only)."""
@@ -281,7 +283,7 @@ async def cancel_ml_job(
 @router.post("/models", response_model=MLModelResponse, status_code=status.HTTP_201_CREATED)
 async def create_ml_model(
     request: CreateMLModelRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Create a new ML model (Super Admin only)."""
@@ -315,7 +317,7 @@ async def list_ml_models(
     is_active: Optional[bool] = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """List all ML models (Super Admin only)."""
@@ -336,7 +338,7 @@ async def list_ml_models(
 
 @router.get("/models/stats", response_model=MLModelStatsResponse)
 async def get_ml_models_stats(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get ML model statistics (Super Admin only)."""
@@ -348,7 +350,7 @@ async def get_ml_models_stats(
 @router.get("/models/{model_id}", response_model=MLModelResponse)
 async def get_ml_model(
     model_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get a specific ML model (Super Admin only)."""
@@ -367,7 +369,7 @@ async def get_ml_model(
 @router.post("/models/{model_id}/activate", response_model=MLModelResponse)
 async def activate_ml_model(
     model_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Activate an ML model (Super Admin only)."""
@@ -386,7 +388,7 @@ async def activate_ml_model(
 @router.post("/models/{model_id}/deactivate", response_model=MLModelResponse)
 async def deactivate_ml_model(
     model_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Deactivate an ML model (Super Admin only)."""
@@ -411,7 +413,7 @@ def _format_ml_job(job) -> dict:
         "status": job.status.value if job.status else None,
         "priority": job.priority.value if job.priority else None,
         "model_id": job.model_id,
-        "target_organization_id": job.target_organization_id,
+        "organization_id": job.organization_id,
         "progress_percent": job.progress_percent,
         "current_step": job.current_step,
         "started_at": job.started_at.isoformat() if job.started_at else None,

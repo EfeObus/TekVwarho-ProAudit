@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="apiKeysPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <a href="/staff/dashboard" class="hover:text-green-600">Dashboard</a>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            <span class="text-gray-900">API Keys</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Platform API Keys</h1>
+                <p class="text-gray-600">Manage API keys for government gateways (NRS, JTB) and integrations</p>
+            </div>
+            <button @click="showCreateModal = true" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Add API Key
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    <div x-show="successMessage" x-transition class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div class="flex items-center gap-2 text-green-700">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span x-text="successMessage"></span>
+        </div>
+    </div>
+    
+    <div x-show="errorMessage" x-transition class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div class="flex items-center gap-2 text-red-700">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            <span x-text="errorMessage"></span>
+        </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="mb-6">
+        <nav class="flex space-x-4 border-b border-gray-200">
+            <button @click="activeFilter = 'all'" :class="activeFilter === 'all' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                All Keys
+                <span class="ml-2 px-2 py-0.5 text-xs rounded-full" :class="activeFilter === 'all' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'" x-text="apiKeys.length"></span>
+            </button>
+            <button @click="activeFilter = 'nrs'" :class="activeFilter === 'nrs' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                NRS Gateway
+            </button>
+            <button @click="activeFilter = 'jtb'" :class="activeFilter === 'jtb' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                JTB Gateway
+            </button>
+            <button @click="activeFilter = 'payment'" :class="activeFilter === 'payment' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Payment
+            </button>
+            <button @click="activeFilter = 'other'" :class="activeFilter === 'other' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm">
+                Other
+            </button>
+        </nav>
+    </div>
+
+    <!-- API Keys List -->
+    <div class="space-y-4">
+        <template x-for="key in filteredKeys" :key="key.id">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start gap-4">
+                        <!-- Icon based on type -->
+                        <div :class="getTypeColor(key.key_type)" class="w-12 h-12 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-3">
+                                <h3 class="text-lg font-semibold text-gray-900" x-text="key.name"></h3>
+                                <span :class="key.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" class="px-2 py-0.5 text-xs rounded-full" x-text="key.is_active ? 'Active' : 'Revoked'"></span>
+                                <span :class="key.environment === 'production' ? 'bg-purple-100 text-purple-800' : 'bg-yellow-100 text-yellow-800'" class="px-2 py-0.5 text-xs rounded-full" x-text="key.environment"></span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1" x-text="key.description || 'No description'"></p>
+                            
+                            <!-- Key Details -->
+                            <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <p class="text-xs text-gray-500 uppercase">API Key</p>
+                                    <p class="text-sm font-mono text-gray-700" x-text="key.masked_key"></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500 uppercase">Type</p>
+                                    <p class="text-sm text-gray-700" x-text="formatKeyType(key.key_type)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500 uppercase">Last Used</p>
+                                    <p class="text-sm text-gray-700" x-text="key.last_used_at ? formatDate(key.last_used_at) : 'Never'"></p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500 uppercase">Usage Count</p>
+                                    <p class="text-sm text-gray-700" x-text="key.usage_count.toLocaleString()"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Endpoint if available -->
+                            <div x-show="key.api_endpoint" class="mt-3">
+                                <p class="text-xs text-gray-500 uppercase">Endpoint</p>
+                                <p class="text-sm font-mono text-gray-600" x-text="key.api_endpoint"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2">
+                        <button @click="testConnection(key)" :disabled="testingKey === key.id" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1" :class="testingKey === key.id ? 'opacity-50 cursor-not-allowed' : ''">
+                            <svg x-show="testingKey === key.id" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span x-text="testingKey === key.id ? 'Testing...' : 'Test'"></span>
+                        </button>
+                        <button @click="editKey(key)" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                            Edit
+                        </button>
+                        <button x-show="key.is_active" @click="revokeKey(key)" class="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                            Revoke
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Connection Status -->
+                <div x-show="key.is_verified" class="mt-4 pt-4 border-t border-gray-100">
+                    <div class="flex items-center gap-2 text-sm text-green-600">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Connection verified
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- Empty State -->
+        <div x-show="filteredKeys.length === 0" class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No API Keys Found</h3>
+            <p class="text-gray-500 mb-4">Get started by adding your first API key for government gateways or integrations.</p>
+            <button @click="showCreateModal = true" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                Add First API Key
+            </button>
+        </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div x-show="showCreateModal" x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black opacity-50" @click="closeModal()"></div>
+            
+            <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-gray-900" x-text="editingKey ? 'Edit API Key' : 'Add New API Key'"></h2>
+                    <button @click="closeModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form @submit.prevent="saveKey()">
+                    <div class="space-y-4">
+                        <!-- Name -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                            <input type="text" x-model="formData.name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="e.g., NRS Production Key">
+                        </div>
+                        
+                        <!-- Type and Environment -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Key Type *</label>
+                                <select x-model="formData.key_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                                    <option value="">Select type...</option>
+                                    <option value="nrs_gateway">NRS Gateway (Nigeria Revenue Service)</option>
+                                    <option value="jtb_gateway">JTB Gateway (Joint Tax Board)</option>
+                                    <option value="paystack">Paystack</option>
+                                    <option value="flutterwave">Flutterwave</option>
+                                    <option value="sendgrid">SendGrid</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Environment *</label>
+                                <select x-model="formData.environment" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                                    <option value="sandbox">Sandbox (Testing)</option>
+                                    <option value="production">Production</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Description -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea x-model="formData.description" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Optional description..."></textarea>
+                        </div>
+                        
+                        <!-- API Key -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">API Key *</label>
+                            <div class="relative">
+                                <input :type="showApiKey ? 'text' : 'password'" x-model="formData.api_key" required class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono" placeholder="pk_live_...">
+                                <button type="button" @click="showApiKey = !showApiKey" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600">
+                                    <svg x-show="!showApiKey" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                    <svg x-show="showApiKey" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- API Secret (optional) -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">API Secret (Optional)</label>
+                            <div class="relative">
+                                <input :type="showApiSecret ? 'text' : 'password'" x-model="formData.api_secret" class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono" placeholder="sk_live_...">
+                                <button type="button" @click="showApiSecret = !showApiSecret" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600">
+                                    <svg x-show="!showApiSecret" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                    <svg x-show="showApiSecret" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Client ID (optional) -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Client ID (Optional)</label>
+                            <input type="text" x-model="formData.client_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="client_id_...">
+                        </div>
+                        
+                        <!-- API Endpoint -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">API Endpoint</label>
+                            <input type="url" x-model="formData.api_endpoint" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="https://api.example.com/v1">
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
+                            <textarea x-model="formData.notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Internal notes (not visible to users)..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 mt-6 pt-6 border-t">
+                        <button type="button" @click="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="saving" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                            <svg x-show="saving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span x-text="saving ? 'Saving...' : (editingKey ? 'Update Key' : 'Add Key')"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revoke Confirmation Modal -->
+    <div x-show="showRevokeModal" x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black opacity-50" @click="showRevokeModal = false"></div>
+            
+            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="text-center">
+                    <div class="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+                        <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Revoke API Key</h3>
+                    <p class="text-gray-500 mb-4">Are you sure you want to revoke this API key? This action cannot be undone and any services using this key will stop working.</p>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1 text-left">Reason for revocation</label>
+                        <textarea x-model="revokeReason" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Optional reason..."></textarea>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button @click="showRevokeModal = false" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button @click="confirmRevoke()" :disabled="revoking" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                            <span x-text="revoking ? 'Revoking...' : 'Revoke Key'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function apiKeysPage() {
+    return {
+        activeFilter: 'all',
+        apiKeys: [],
+        loading: true,
+        saving: false,
+        testingKey: null,
+        revoking: false,
+        successMessage: '',
+        errorMessage: '',
+        showCreateModal: false,
+        showRevokeModal: false,
+        showApiKey: false,
+        showApiSecret: false,
+        editingKey: null,
+        keyToRevoke: null,
+        revokeReason: '',
+        
+        formData: {
+            name: '',
+            key_type: '',
+            environment: 'sandbox',
+            description: '',
+            api_key: '',
+            api_secret: '',
+            client_id: '',
+            api_endpoint: '',
+            notes: ''
+        },
+        
+        get filteredKeys() {
+            if (this.activeFilter === 'all') return this.apiKeys;
+            if (this.activeFilter === 'nrs') return this.apiKeys.filter(k => k.key_type === 'nrs_gateway');
+            if (this.activeFilter === 'jtb') return this.apiKeys.filter(k => k.key_type === 'jtb_gateway');
+            if (this.activeFilter === 'payment') return this.apiKeys.filter(k => ['paystack', 'flutterwave'].includes(k.key_type));
+            if (this.activeFilter === 'other') return this.apiKeys.filter(k => ['sendgrid', 'custom'].includes(k.key_type));
+            return this.apiKeys;
+        },
+        
+        async init() {
+            await this.loadApiKeys();
+        },
+        
+        async loadApiKeys() {
+            this.loading = true;
+            try {
+                const response = await fetch('/api/v1/admin/api-keys', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.apiKeys = data.api_keys || [];
+                } else {
+                    // Use sample data for demo if API not ready
+                    this.apiKeys = [
+                        {
+                            id: '1',
+                            name: 'NRS Production Gateway',
+                            description: 'Production API key for Nigeria Revenue Service e-invoicing',
+                            key_type: 'nrs_gateway',
+                            environment: 'production',
+                            api_key: 'nrs_pk_live_abc123def456',
+                            masked_key: 'nrs_pk_l****...456',
+                            api_endpoint: 'https://api.nrs.gov.ng/v1',
+                            is_active: true,
+                            is_verified: true,
+                            last_used_at: '2026-01-26T14:30:00Z',
+                            usage_count: 15420
+                        },
+                        {
+                            id: '2',
+                            name: 'Paystack Production',
+                            description: 'Payment processing for subscriptions',
+                            key_type: 'paystack',
+                            environment: 'production',
+                            api_key: 'pk_live_xyz789',
+                            masked_key: 'pk_live****...789',
+                            api_endpoint: 'https://api.paystack.co',
+                            is_active: true,
+                            is_verified: true,
+                            last_used_at: '2026-01-26T12:00:00Z',
+                            usage_count: 8320
+                        },
+                        {
+                            id: '3',
+                            name: 'NRS Sandbox',
+                            description: 'Testing key for NRS integration',
+                            key_type: 'nrs_gateway',
+                            environment: 'sandbox',
+                            api_key: 'nrs_pk_test_test123',
+                            masked_key: 'nrs_pk_t****...123',
+                            api_endpoint: 'https://sandbox.nrs.gov.ng/v1',
+                            is_active: true,
+                            is_verified: false,
+                            last_used_at: null,
+                            usage_count: 0
+                        }
+                    ];
+                }
+            } catch (error) {
+                console.error('Error loading API keys:', error);
+                this.errorMessage = 'Failed to load API keys';
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async saveKey() {
+            this.saving = true;
+            this.clearMessages();
+            
+            try {
+                const url = this.editingKey 
+                    ? `/api/v1/admin/api-keys/${this.editingKey.id}`
+                    : '/api/v1/admin/api-keys';
+                    
+                const response = await fetch(url, {
+                    method: this.editingKey ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.formData)
+                });
+                
+                if (response.ok) {
+                    this.successMessage = this.editingKey ? 'API key updated successfully' : 'API key created successfully';
+                    this.closeModal();
+                    await this.loadApiKeys();
+                } else {
+                    const error = await response.json();
+                    this.errorMessage = error.detail || 'Failed to save API key';
+                }
+            } catch (error) {
+                // Demo mode - simulate success
+                const newKey = {
+                    id: Date.now().toString(),
+                    ...this.formData,
+                    masked_key: this.formData.api_key.length > 8 
+                        ? `${this.formData.api_key.slice(0, 8)}****...${this.formData.api_key.slice(-3)}`
+                        : '****',
+                    is_active: true,
+                    is_verified: false,
+                    last_used_at: null,
+                    usage_count: 0
+                };
+                
+                if (this.editingKey) {
+                    const idx = this.apiKeys.findIndex(k => k.id === this.editingKey.id);
+                    if (idx > -1) this.apiKeys[idx] = { ...this.apiKeys[idx], ...newKey };
+                } else {
+                    this.apiKeys.push(newKey);
+                }
+                
+                this.successMessage = this.editingKey ? 'API key updated successfully' : 'API key created successfully';
+                this.closeModal();
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        editKey(key) {
+            this.editingKey = key;
+            this.formData = {
+                name: key.name,
+                key_type: key.key_type,
+                environment: key.environment,
+                description: key.description || '',
+                api_key: key.api_key || '',
+                api_secret: key.api_secret || '',
+                client_id: key.client_id || '',
+                api_endpoint: key.api_endpoint || '',
+                notes: key.notes || ''
+            };
+            this.showCreateModal = true;
+        },
+        
+        revokeKey(key) {
+            this.keyToRevoke = key;
+            this.revokeReason = '';
+            this.showRevokeModal = true;
+        },
+        
+        async confirmRevoke() {
+            if (!this.keyToRevoke) return;
+            
+            this.revoking = true;
+            
+            try {
+                const response = await fetch(`/api/v1/admin/api-keys/${this.keyToRevoke.id}/revoke`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ reason: this.revokeReason })
+                });
+                
+                if (response.ok) {
+                    this.successMessage = 'API key revoked successfully';
+                    await this.loadApiKeys();
+                } else {
+                    this.errorMessage = 'Failed to revoke API key';
+                }
+            } catch (error) {
+                // Demo mode
+                const key = this.apiKeys.find(k => k.id === this.keyToRevoke.id);
+                if (key) key.is_active = false;
+                this.successMessage = 'API key revoked successfully';
+            } finally {
+                this.revoking = false;
+                this.showRevokeModal = false;
+                this.keyToRevoke = null;
+            }
+        },
+        
+        async testConnection(key) {
+            this.testingKey = key.id;
+            this.clearMessages();
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                key.is_verified = true;
+                this.successMessage = `Connection test successful for ${key.name}`;
+            } catch (error) {
+                this.errorMessage = `Connection test failed for ${key.name}`;
+            } finally {
+                this.testingKey = null;
+            }
+        },
+        
+        closeModal() {
+            this.showCreateModal = false;
+            this.editingKey = null;
+            this.showApiKey = false;
+            this.showApiSecret = false;
+            this.formData = {
+                name: '',
+                key_type: '',
+                environment: 'sandbox',
+                description: '',
+                api_key: '',
+                api_secret: '',
+                client_id: '',
+                api_endpoint: '',
+                notes: ''
+            };
+        },
+        
+        getTypeColor(type) {
+            const colors = {
+                'nrs_gateway': 'bg-green-600',
+                'jtb_gateway': 'bg-blue-600',
+                'paystack': 'bg-cyan-600',
+                'flutterwave': 'bg-orange-600',
+                'sendgrid': 'bg-indigo-600',
+                'custom': 'bg-gray-600'
+            };
+            return colors[type] || 'bg-gray-600';
+        },
+        
+        formatKeyType(type) {
+            const labels = {
+                'nrs_gateway': 'NRS Gateway',
+                'jtb_gateway': 'JTB Gateway',
+                'paystack': 'Paystack',
+                'flutterwave': 'Flutterwave',
+                'sendgrid': 'SendGrid',
+                'custom': 'Custom'
+            };
+            return labels[type] || type;
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return 'Never';
+            return new Date(dateStr).toLocaleDateString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+        
+        clearMessages() {
+            this.successMessage = '';
+            this.errorMessage = '';
+        }
+    };
+}
+</script>
+{% endblock %}

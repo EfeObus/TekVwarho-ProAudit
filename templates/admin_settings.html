@@ -1,0 +1,814 @@
+{% extends "base.html" %}
+
+{% block title %}Platform Settings - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="adminSettingsPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <a href="/staff/dashboard" class="hover:text-green-600">Dashboard</a>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            <span class="text-gray-900">Platform Settings</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900">Platform Settings</h1>
+        <p class="text-gray-600">Configure platform-wide settings and preferences</p>
+    </div>
+
+    <!-- Alert Messages -->
+    <div x-show="successMessage" x-transition class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div class="flex items-center gap-2 text-green-700">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span x-text="successMessage"></span>
+        </div>
+    </div>
+    
+    <div x-show="errorMessage" x-transition class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div class="flex items-center gap-2 text-red-700">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            <span x-text="errorMessage"></span>
+        </div>
+    </div>
+
+    <!-- Settings Tabs -->
+    <div class="mb-6">
+        <nav class="flex space-x-4 border-b border-gray-200 overflow-x-auto">
+            <button @click="activeTab = 'general'" :class="activeTab === 'general' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap">
+                General
+            </button>
+            <button @click="activeTab = 'api'" :class="activeTab === 'api' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap">
+                API Keys
+            </button>
+            <button @click="activeTab = 'nrs'" :class="activeTab === 'nrs' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap">
+                NRS Gateway
+            </button>
+            <button @click="activeTab = 'billing'" :class="activeTab === 'billing' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap">
+                Billing
+            </button>
+            <button @click="activeTab = 'security'" :class="activeTab === 'security' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap">
+                Security
+            </button>
+            <button @click="activeTab = 'notifications'" :class="activeTab === 'notifications' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap">
+                Notifications
+            </button>
+        </nav>
+    </div>
+
+    <!-- General Settings Tab -->
+    <div x-show="activeTab === 'general'" class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Platform Configuration</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Platform Name</label>
+                    <input type="text" x-model="settings.platformName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="TekVwarho ProAudit">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Support Email</label>
+                    <input type="email" x-model="settings.supportEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="support@tekvwarho.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Default Currency</label>
+                    <select x-model="settings.defaultCurrency" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="NGN">NGN - Nigerian Naira</option>
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="GBP">GBP - British Pound</option>
+                        <option value="EUR">EUR - Euro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Default Timezone</label>
+                    <select x-model="settings.defaultTimezone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="Africa/Lagos">Africa/Lagos (WAT)</option>
+                        <option value="UTC">UTC</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="America/New_York">America/New_York</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trial Settings -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Trial & Subscription</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Trial Period (Days)</label>
+                    <input type="number" x-model="settings.trialDays" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Grace Period (Days)</label>
+                    <input type="number" x-model="settings.graceDays" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Default Trial Tier</label>
+                    <select x-model="settings.defaultTrialTier" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="core">Core</option>
+                        <option value="professional">Professional</option>
+                        <option value="enterprise">Enterprise</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                    <p class="font-medium text-gray-900">Allow Trial Extensions</p>
+                    <p class="text-sm text-gray-500">Support staff can extend trial periods</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" x-model="settings.allowTrialExtensions" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button @click="saveSettings()" :disabled="saving" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                <svg x-show="saving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span x-text="saving ? 'Saving...' : 'Save Settings'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- API Keys Tab -->
+    <div x-show="activeTab === 'api'" class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">API Keys</h2>
+                    <p class="text-sm text-gray-500">Manage platform API keys for external integrations</p>
+                </div>
+                <button @click="showApiKeyModal = true" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Generate New Key
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Key (Masked)</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Used</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="key in apiKeys" :key="key.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="key.name"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono" x-text="key.masked_key"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(key.created_at)"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="key.last_used ? formatDate(key.last_used) : 'Never'"></td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="key.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" class="px-2 py-1 text-xs rounded-full" x-text="key.is_active ? 'Active' : 'Revoked'"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right">
+                                    <button x-show="key.is_active" @click="revokeApiKey(key.id)" class="text-red-600 hover:text-red-800 text-sm">
+                                        Revoke
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="apiKeys.length === 0">
+                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                                No API keys generated yet
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- NRS Gateway Tab -->
+    <div x-show="activeTab === 'nrs'" class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">NRS Gateway Configuration</h2>
+            <p class="text-sm text-gray-500 mb-6">Configure the Nigeria Revenue Service (NRS) e-invoicing gateway connection</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">NRS API Endpoint</label>
+                    <input type="url" x-model="nrsSettings.apiEndpoint" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="https://api.nrs.gov.ng/v1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Environment</label>
+                    <select x-model="nrsSettings.environment" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="sandbox">Sandbox (Testing)</option>
+                        <option value="production">Production</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+                    <input type="text" x-model="nrsSettings.clientId" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Client Secret</label>
+                    <div class="relative">
+                        <input :type="showNrsSecret ? 'text' : 'password'" x-model="nrsSettings.clientSecret" class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <button type="button" @click="showNrsSecret = !showNrsSecret" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600">
+                            <svg x-show="!showNrsSecret" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                            <svg x-show="showNrsSecret" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connection Status -->
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-6">
+                <div class="flex items-center gap-3">
+                    <div :class="nrsSettings.connected ? 'bg-green-500' : 'bg-red-500'" class="w-3 h-3 rounded-full"></div>
+                    <div>
+                        <p class="font-medium text-gray-900">Connection Status</p>
+                        <p class="text-sm text-gray-500" x-text="nrsSettings.connected ? 'Connected to NRS Gateway' : 'Not Connected'"></p>
+                    </div>
+                </div>
+                <button @click="testNrsConnection()" :disabled="testingNrs" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50">
+                    <span x-text="testingNrs ? 'Testing...' : 'Test Connection'"></span>
+                </button>
+            </div>
+
+            <div class="flex justify-end">
+                <button @click="saveNrsSettings()" :disabled="saving" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    Save NRS Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Billing Tab -->
+    <div x-show="activeTab === 'billing'" class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Billing Configuration</h2>
+            
+            <!-- Pricing Tiers -->
+            <div class="mb-8">
+                <h3 class="text-md font-medium text-gray-800 mb-4">Subscription Pricing (Monthly)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Core Tier</label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-500">₦</span>
+                            <input type="number" x-model="billingSettings.corePrice" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                    </div>
+                    <div class="p-4 bg-green-50 rounded-lg">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Professional Tier</label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-500">₦</span>
+                            <input type="number" x-model="billingSettings.professionalPrice" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                    </div>
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Enterprise Tier</label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-500">₦</span>
+                            <input type="number" x-model="billingSettings.enterprisePrice" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Gateway -->
+            <div class="mb-6">
+                <h3 class="text-md font-medium text-gray-800 mb-4">Payment Gateway</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment Provider</label>
+                        <select x-model="billingSettings.paymentProvider" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                            <option value="paystack">Paystack</option>
+                            <option value="flutterwave">Flutterwave</option>
+                            <option value="stripe">Stripe</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Public Key</label>
+                        <input type="text" x-model="billingSettings.publicKey" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button @click="saveBillingSettings()" :disabled="saving" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    Save Billing Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Tab -->
+    <div x-show="activeTab === 'security'" class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Security Settings</h2>
+            
+            <!-- Password Policy -->
+            <div class="mb-8">
+                <h3 class="text-md font-medium text-gray-800 mb-4">Password Policy</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Minimum Length</label>
+                        <input type="number" x-model="securitySettings.minPasswordLength" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password Expiry (Days)</label>
+                        <input type="number" x-model="securitySettings.passwordExpiryDays" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Login Attempts</label>
+                        <input type="number" x-model="securitySettings.maxLoginAttempts" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Settings -->
+            <div class="mb-6">
+                <h3 class="text-md font-medium text-gray-800 mb-4">Session Settings</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Session Timeout (Minutes)</label>
+                        <input type="number" x-model="securitySettings.sessionTimeoutMinutes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Concurrent Sessions Allowed</label>
+                        <input type="number" x-model="securitySettings.maxConcurrentSessions" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Toggles -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Require 2FA for Platform Staff</p>
+                        <p class="text-sm text-gray-500">All platform staff must enable two-factor authentication</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="securitySettings.require2FA" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">IP Whitelisting for Admin Access</p>
+                        <p class="text-sm text-gray-500">Restrict admin access to specific IP addresses</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="securitySettings.ipWhitelisting" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex justify-end mt-6">
+                <button @click="saveSecuritySettings()" :disabled="saving" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    Save Security Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Tab -->
+    <div x-show="activeTab === 'notifications'" class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Notification Settings</h2>
+            
+            <!-- Email Settings -->
+            <div class="mb-8">
+                <h3 class="text-md font-medium text-gray-800 mb-4">Email Configuration</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
+                        <input type="text" x-model="notificationSettings.smtpHost" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="smtp.sendgrid.net">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">SMTP Port</label>
+                        <input type="number" x-model="notificationSettings.smtpPort" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="587">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">From Email</label>
+                        <input type="email" x-model="notificationSettings.fromEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="noreply@tekvwarho.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">From Name</label>
+                        <input type="text" x-model="notificationSettings.fromName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="TekVwarho ProAudit">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notification Types -->
+            <div class="space-y-4">
+                <h3 class="text-md font-medium text-gray-800 mb-4">System Notifications</h3>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">New Organization Registration</p>
+                        <p class="text-sm text-gray-500">Notify admins when a new organization registers</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="notificationSettings.notifyNewOrg" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Verification Submitted</p>
+                        <p class="text-sm text-gray-500">Notify when documents are submitted for verification</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="notificationSettings.notifyVerification" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Failed NRS Submissions</p>
+                        <p class="text-sm text-gray-500">Alert on failed NRS e-invoice submissions</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="notificationSettings.notifyNrsFailure" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex justify-end mt-6">
+                <button @click="saveNotificationSettings()" :disabled="saving" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    Save Notification Settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function adminSettingsPage() {
+    return {
+        activeTab: 'general',
+        saving: false,
+        testingNrs: false,
+        showNrsSecret: false,
+        showApiKeyModal: false,
+        successMessage: '',
+        errorMessage: '',
+        
+        // General Settings
+        settings: {
+            platformName: 'TekVwarho ProAudit',
+            supportEmail: 'support@tekvwarho.com',
+            defaultCurrency: 'NGN',
+            defaultTimezone: 'Africa/Lagos',
+            trialDays: 14,
+            graceDays: 7,
+            defaultTrialTier: 'professional',
+            allowTrialExtensions: true
+        },
+        
+        // NRS Settings
+        nrsSettings: {
+            apiEndpoint: 'https://api.nrs.gov.ng/v1',
+            environment: 'sandbox',
+            clientId: '',
+            clientSecret: '',
+            connected: false
+        },
+        
+        // Billing Settings
+        billingSettings: {
+            corePrice: 15000,
+            professionalPrice: 45000,
+            enterprisePrice: 150000,
+            paymentProvider: 'paystack',
+            publicKey: ''
+        },
+        
+        // Security Settings
+        securitySettings: {
+            minPasswordLength: 12,
+            passwordExpiryDays: 90,
+            maxLoginAttempts: 5,
+            sessionTimeoutMinutes: 60,
+            maxConcurrentSessions: 3,
+            require2FA: true,
+            ipWhitelisting: false
+        },
+        
+        // Notification Settings
+        notificationSettings: {
+            smtpHost: 'smtp.sendgrid.net',
+            smtpPort: 587,
+            fromEmail: 'noreply@tekvwarho.com',
+            fromName: 'TekVwarho ProAudit',
+            notifyNewOrg: true,
+            notifyVerification: true,
+            notifyNrsFailure: true
+        },
+        
+        // API Keys
+        apiKeys: [],
+        
+        async init() {
+            await this.loadSettings();
+        },
+        
+        async loadSettings() {
+            // In production, this would fetch from API
+            // For now, use default values
+            this.apiKeys = [
+                {
+                    id: '1',
+                    name: 'Production API Key',
+                    masked_key: 'pk_live_****...****8a2c',
+                    created_at: '2026-01-15T10:00:00Z',
+                    last_used: '2026-01-25T14:30:00Z',
+                    is_active: true
+                },
+                {
+                    id: '2',
+                    name: 'Sandbox API Key',
+                    masked_key: 'pk_test_****...****3d4f',
+                    created_at: '2026-01-10T08:00:00Z',
+                    last_used: null,
+                    is_active: true
+                }
+            ];
+        },
+        
+        async saveSettings() {
+            this.saving = true;
+            this.clearMessages();
+            
+            try {
+                const response = await fetch('/api/v1/admin/settings/general', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        platform_name: this.settings.platformName,
+                        support_email: this.settings.supportEmail,
+                        default_currency: this.settings.defaultCurrency,
+                        default_timezone: this.settings.defaultTimezone,
+                        maintenance_mode: false
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.successMessage = 'General settings saved successfully';
+                } else {
+                    throw new Error(data.error?.message || 'Failed to save');
+                }
+            } catch (error) {
+                this.errorMessage = error.message || 'Failed to save settings';
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async saveNrsSettings() {
+            this.saving = true;
+            this.clearMessages();
+            
+            try {
+                const response = await fetch('/api/v1/admin/settings/nrs', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        enabled: this.nrsSettings.enabled,
+                        endpoint: this.nrsSettings.endpoint,
+                        api_key: this.nrsSettings.apiKey,
+                        environment: this.nrsSettings.environment,
+                        timeout_seconds: parseInt(this.nrsSettings.timeout) || 30
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.successMessage = 'NRS settings saved successfully';
+                } else {
+                    throw new Error(data.error?.message || 'Failed to save');
+                }
+            } catch (error) {
+                this.errorMessage = error.message || 'Failed to save NRS settings';
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async testNrsConnection() {
+            this.testingNrs = true;
+            this.clearMessages();
+            
+            try {
+                const response = await fetch('/api/v1/admin/settings/test-nrs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (data.success && data.data.nrs_connected) {
+                    this.nrsSettings.connected = true;
+                    this.successMessage = 'Successfully connected to NRS Gateway';
+                } else {
+                    throw new Error(data.data?.error || 'Connection failed');
+                }
+            } catch (error) {
+                this.nrsSettings.connected = false;
+                this.errorMessage = error.message || 'Failed to connect to NRS Gateway';
+            } finally {
+                this.testingNrs = false;
+            }
+        },
+        
+        async saveBillingSettings() {
+            this.saving = true;
+            this.clearMessages();
+            
+            try {
+                const response = await fetch('/api/v1/admin/settings/billing', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        paystack_public_key: this.billingSettings?.paystackPublicKey || '',
+                        paystack_secret_key: this.billingSettings?.paystackSecretKey || '',
+                        auto_charge_enabled: this.billingSettings?.autoChargeEnabled || true,
+                        invoice_prefix: this.billingSettings?.invoicePrefix || 'INV',
+                        tax_rate_percent: parseFloat(this.billingSettings?.taxRate) || 7.5
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.successMessage = 'Billing settings saved successfully';
+                } else {
+                    throw new Error(data.error?.message || 'Failed to save');
+                }
+            } catch (error) {
+                this.errorMessage = error.message || 'Failed to save billing settings';
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async saveSecuritySettings() {
+            this.saving = true;
+            this.clearMessages();
+            
+            try {
+                const response = await fetch('/api/v1/admin/settings/security', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        mfa_required: this.securitySettings?.mfaRequired || false,
+                        session_timeout_minutes: parseInt(this.securitySettings?.sessionTimeout) || 60,
+                        password_min_length: parseInt(this.securitySettings?.passwordMinLength) || 8,
+                        password_require_special: this.securitySettings?.passwordRequireSpecial || true,
+                        max_login_attempts: parseInt(this.securitySettings?.maxLoginAttempts) || 5,
+                        lockout_duration_minutes: parseInt(this.securitySettings?.lockoutDuration) || 30,
+                        geo_fencing_enabled: this.securitySettings?.geoFencingEnabled || true
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.successMessage = 'Security settings saved successfully';
+                } else {
+                    throw new Error(data.error?.message || 'Failed to save');
+                }
+            } catch (error) {
+                this.errorMessage = error.message || 'Failed to save security settings';
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async saveNotificationSettings() {
+            this.saving = true;
+            this.clearMessages();
+            
+            try {
+                const response = await fetch('/api/v1/admin/settings/notifications', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email_enabled: this.notificationSettings?.emailEnabled || true,
+                        smtp_host: this.notificationSettings?.smtpHost || '',
+                        smtp_port: parseInt(this.notificationSettings?.smtpPort) || 587,
+                        smtp_user: this.notificationSettings?.smtpUser || '',
+                        smtp_password: this.notificationSettings?.smtpPassword || '',
+                        from_email: this.notificationSettings?.fromEmail || 'noreply@tekvwarho.com',
+                        from_name: this.notificationSettings?.fromName || 'TekVwarho ProAudit'
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.successMessage = 'Notification settings saved successfully';
+                } else {
+                    throw new Error(data.error?.message || 'Failed to save');
+                }
+            } catch (error) {
+                this.errorMessage = error.message || 'Failed to save notification settings';
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async revokeApiKey(keyId) {
+            if (!confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/v1/admin/api-keys/${keyId}/revoke`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const key = this.apiKeys.find(k => k.id === keyId);
+                    if (key) {
+                        key.is_active = false;
+                    }
+                    this.successMessage = 'API key revoked successfully';
+                } else {
+                    throw new Error(data.error?.message || 'Failed to revoke');
+                }
+            } catch (error) {
+                this.errorMessage = error.message || 'Failed to revoke API key';
+            }
+        },
+        
+        async loadApiKeys() {
+            try {
+                const response = await fetch('/api/v1/admin/api-keys', {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.apiKeys = data.data.keys;
+                }
+            } catch (error) {
+                console.error('Failed to load API keys:', error);
+            }
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return 'Never';
+            return new Date(dateStr).toLocaleDateString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+        
+        clearMessages() {
+            this.successMessage = '';
+            this.errorMessage = '';
+        }
+    };
+}
+</script>
+{% endblock %}

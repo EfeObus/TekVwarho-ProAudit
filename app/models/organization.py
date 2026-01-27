@@ -19,8 +19,9 @@ Verification Status:
 
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
+from datetime import datetime
 
-from sqlalchemy import Boolean, String, Text, Enum as SQLEnum
+from sqlalchemy import Boolean, String, Text, Enum as SQLEnum, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
@@ -168,6 +169,31 @@ class Organization(BaseModel):
         String(20),
         nullable=True,
         comment="Referral code of the organization that referred this one"
+    )
+    
+    # ===========================================
+    # EMERGENCY SUSPENSION FIELDS (Super Admin)
+    # ===========================================
+    is_emergency_suspended: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Whether this organization is emergency suspended"
+    )
+    emergency_suspended_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When the organization was emergency suspended"
+    )
+    emergency_suspended_by_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        nullable=True,
+        comment="ID of admin who emergency suspended this organization"
+    )
+    emergency_suspension_reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Reason for emergency suspension"
     )
     
     # Relationships

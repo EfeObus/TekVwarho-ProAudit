@@ -1,0 +1,560 @@
+{% extends "base.html" %}
+
+{% block title %}ML Jobs - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    :root { --ng-green: #008751; --ng-green-dark: #006741; }
+    .btn-primary { background: var(--ng-green); color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; }
+    .btn-primary:hover { background: var(--ng-green-dark); }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { background: #e6f5ed; color: var(--ng-green-dark); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; padding: 0.75rem 1rem; text-align: left; }
+    .data-table td { padding: 0.875rem 1rem; font-size: 0.875rem; border-bottom: 1px solid #f3f4f6; }
+    .data-table tr:hover td { background: #fafbfc; }
+    .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f3f4f6; color: #4b5563; }
+    .stat-card { background: white; border-radius: 0.75rem; padding: 1.25rem; border: 1px solid #e5e7eb; }
+    .progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+    .progress-bar .fill { height: 100%; background: var(--ng-green); border-radius: 3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="mlJobsPage()" class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900">ML Jobs</h1>
+                    <p class="text-sm text-gray-500">Machine learning pipeline monitoring</p>
+                </div>
+            </div>
+            <button @click="triggerNewJob()" class="btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Trigger Job
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Running</p>
+                <p class="text-2xl font-bold text-blue-600" x-text="stats.running">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Queued</p>
+                <p class="text-2xl font-bold text-yellow-600" x-text="stats.queued">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Completed (24h)</p>
+                <p class="text-2xl font-bold text-green-600" x-text="stats.completed_24h">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Failed (24h)</p>
+                <p class="text-2xl font-bold text-red-600" x-text="stats.failed_24h">0</p>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            <div class="flex flex-wrap gap-4 items-center">
+                <input type="text" x-model="searchQuery" @input.debounce.300ms="loadJobs()" 
+                       placeholder="Search jobs..." 
+                       class="px-3 py-2 border rounded-lg text-sm w-64 focus:ring-2 focus:ring-green-500">
+                <select x-model="filterStatus" @change="loadJobs()" class="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <select x-model="filterType" @change="loadJobs()" class="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">All Types</option>
+                    <template x-for="type in jobTypes" :key="type.value">
+                        <option :value="type.value" x-text="type.label"></option>
+                    </template>
+                </select>
+                <button @click="loadJobs()" class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Active Jobs -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6 mb-6" x-show="activeJobs.length > 0">
+            <h3 class="font-semibold text-gray-900 mb-4">Active Jobs</h3>
+            <div class="space-y-4">
+                <template x-for="job in activeJobs" :key="job.id">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div>
+                                <span class="font-medium" x-text="job.job_type || 'ML Job'"></span>
+                                <span class="text-xs text-gray-500 ml-2" x-text="job.job_id"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="badge badge-info">Running</span>
+                                <button @click="confirmCancelJob(job)" class="text-red-500 hover:text-red-700 text-sm">Cancel</button>
+                            </div>
+                        </div>
+                        <div class="progress-bar mb-2">
+                            <div class="fill" :style="'width: ' + (job.progress_percent || 0) + '%'"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-500">
+                            <span>Progress: <span x-text="job.progress_percent || 0"></span>%</span>
+                            <span>Step: <span x-text="job.current_step || 'Processing'"></span></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <!-- Job History -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="p-4 border-b border-gray-200">
+                <h3 class="font-semibold text-gray-900">Job History</h3>
+            </div>
+            
+            <!-- Loading State -->
+            <div x-show="loading" class="p-12 text-center">
+                <svg class="animate-spin h-8 w-8 mx-auto text-green-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <p class="mt-2 text-gray-500">Loading jobs...</p>
+            </div>
+            
+            <table class="data-table" x-show="!loading">
+                <thead>
+                    <tr>
+                        <th>Job ID</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                        <th>Started</th>
+                        <th>Completed</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="job in jobs" :key="job.id">
+                        <tr>
+                            <td class="font-mono text-xs" x-text="(job.job_id || job.id || '').substring(0, 12) + '...'"></td>
+                            <td class="capitalize" x-text="(job.job_type || 'Unknown').replace(/_/g, ' ')"></td>
+                            <td>
+                                <span class="badge" :class="getStatusBadgeClass(job.status)" x-text="job.status"></span>
+                            </td>
+                            <td x-text="(job.progress_percent || 0) + '%'"></td>
+                            <td class="text-gray-500 text-sm" x-text="formatDate(job.started_at)"></td>
+                            <td class="text-gray-500 text-sm" x-text="formatDate(job.completed_at)"></td>
+                            <td class="flex gap-2">
+                                <button @click="viewJobDetails(job.id)" class="text-gray-400 hover:text-green-600" title="View Details">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </button>
+                                <button x-show="job.status === 'failed' || job.status === 'FAILED'" @click="retryJob(job.id)" class="text-gray-400 hover:text-blue-600" title="Retry">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="jobs.length === 0 && !loading">
+                        <td colspan="7" class="text-center text-gray-500 py-12">No ML jobs found</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-between" x-show="pagination.total > pagination.limit">
+                <p class="text-sm text-gray-500">
+                    Showing <span x-text="((pagination.page - 1) * pagination.limit) + 1"></span> to 
+                    <span x-text="Math.min(pagination.page * pagination.limit, pagination.total)"></span> of 
+                    <span x-text="pagination.total"></span> jobs
+                </p>
+                <div class="flex gap-2">
+                    <button @click="prevPage()" :disabled="pagination.page === 1" 
+                            class="px-3 py-1 border rounded text-sm disabled:opacity-50">Previous</button>
+                    <button @click="nextPage()" :disabled="pagination.page * pagination.limit >= pagination.total" 
+                            class="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Job Modal -->
+    <div x-show="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="font-semibold text-gray-900">Trigger New ML Job</h3>
+                <button @click="showCreateModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Job Type</label>
+                    <select x-model="jobForm.job_type" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                        <template x-for="type in jobTypes" :key="type.value">
+                            <option :value="type.value" x-text="type.label"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                    <select x-model="jobForm.priority" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                        <option value="low">Low</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Organization ID (Optional)</label>
+                    <input type="text" x-model="jobForm.organization_id" placeholder="Leave empty for platform-wide" 
+                           class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-200 flex justify-end gap-2">
+                <button @click="showCreateModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                <button @click="createJob()" class="btn-primary">Create Job</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Job Details Modal -->
+    <div x-show="showDetailsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+                <h3 class="font-semibold text-gray-900">Job Details</h3>
+                <button @click="showDetailsModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-4" x-show="selectedJob">
+                <dl class="space-y-3">
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Job ID</dt>
+                        <dd class="text-sm font-mono" x-text="selectedJob?.job_id || selectedJob?.id"></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Type</dt>
+                        <dd class="text-sm capitalize" x-text="(selectedJob?.job_type || '').replace(/_/g, ' ')"></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Status</dt>
+                        <dd><span class="badge" :class="getStatusBadgeClass(selectedJob?.status)" x-text="selectedJob?.status"></span></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Priority</dt>
+                        <dd class="text-sm capitalize" x-text="selectedJob?.priority"></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Progress</dt>
+                        <dd class="text-sm" x-text="(selectedJob?.progress_percent || 0) + '%'"></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Current Step</dt>
+                        <dd class="text-sm" x-text="selectedJob?.current_step || '-'"></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Created</dt>
+                        <dd class="text-sm" x-text="formatDate(selectedJob?.created_at)"></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Started</dt>
+                        <dd class="text-sm" x-text="formatDate(selectedJob?.started_at)"></dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500">Completed</dt>
+                        <dd class="text-sm" x-text="formatDate(selectedJob?.completed_at)"></dd>
+                    </div>
+                    <div x-show="selectedJob?.error_message">
+                        <dt class="text-sm text-gray-500 mb-1">Error</dt>
+                        <dd class="text-sm text-red-600 bg-red-50 p-2 rounded" x-text="selectedJob?.error_message"></dd>
+                    </div>
+                    <div x-show="selectedJob?.result">
+                        <dt class="text-sm text-gray-500 mb-1">Result</dt>
+                        <dd class="text-xs font-mono bg-gray-50 p-2 rounded overflow-x-auto" x-text="JSON.stringify(selectedJob?.result, null, 2)"></dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cancel Confirmation Modal -->
+    <div x-show="showCancelModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4">
+            <div class="p-4 border-b border-gray-200">
+                <h3 class="font-semibold text-gray-900">Cancel Job</h3>
+            </div>
+            <div class="p-4">
+                <p class="text-sm text-gray-600">Are you sure you want to cancel this ML job? This action cannot be undone.</p>
+            </div>
+            <div class="p-4 border-t border-gray-200 flex justify-end gap-2">
+                <button @click="showCancelModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">No, Keep Running</button>
+                <button @click="cancelJob()" class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">Yes, Cancel Job</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function mlJobsPage() {
+    return {
+        loading: true,
+        jobs: [],
+        stats: {
+            running: 0,
+            queued: 0,
+            completed_24h: 0,
+            failed_24h: 0
+        },
+        activeJobs: [],
+        selectedJob: null,
+        showDetailsModal: false,
+        showCreateModal: false,
+        showCancelModal: false,
+        jobToCancel: null,
+        
+        // Filters
+        filterStatus: '',
+        filterType: '',
+        searchQuery: '',
+        
+        // Pagination
+        pagination: {
+            page: 1,
+            limit: 20,
+            total: 0
+        },
+        
+        // Create job form
+        jobForm: {
+            job_type: 'anomaly_detection',
+            priority: 'normal',
+            organization_id: '',
+            parameters: {}
+        },
+        
+        jobTypes: [
+            { value: 'anomaly_detection', label: 'Anomaly Detection' },
+            { value: 'fraud_detection', label: 'Fraud Detection' },
+            { value: 'risk_scoring', label: 'Risk Scoring' },
+            { value: 'benfords_analysis', label: 'Benfords Analysis' },
+            { value: 'trend_analysis', label: 'Trend Analysis' },
+            { value: 'model_training', label: 'Model Training' },
+            { value: 'model_evaluation', label: 'Model Evaluation' }
+        ],
+        
+        async init() {
+            await this.loadStats();
+            await this.loadJobs();
+            // Poll for updates every 10 seconds
+            setInterval(() => {
+                if (this.activeJobs.length > 0) {
+                    this.loadJobs();
+                }
+            }, 10000);
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/v1/ml-jobs/stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.stats = {
+                        running: data.running || data.active || 0,
+                        queued: data.queued || data.pending || 0,
+                        completed_24h: data.completed_24h || data.completed || 0,
+                        failed_24h: data.failed_24h || data.failed || 0
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading ML job stats:', error);
+            }
+        },
+        
+        async loadJobs() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('page', this.pagination.page);
+                params.append('limit', this.pagination.limit);
+                if (this.filterStatus) params.append('status', this.filterStatus);
+                if (this.filterType) params.append('job_type', this.filterType);
+                if (this.searchQuery) params.append('search', this.searchQuery);
+                
+                const response = await fetch(`/api/v1/ml-jobs?${params}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.jobs = data.jobs || data.items || [];
+                    this.pagination.total = data.total || this.jobs.length;
+                    this.activeJobs = this.jobs.filter(j => 
+                        j.status === 'running' || j.status === 'RUNNING' || 
+                        j.status === 'pending' || j.status === 'PENDING'
+                    );
+                } else {
+                    console.error('Failed to load jobs');
+                }
+            } catch (error) {
+                console.error('Error loading ML jobs:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async triggerNewJob() {
+            this.jobForm = {
+                job_type: 'anomaly_detection',
+                priority: 'normal',
+                organization_id: '',
+                parameters: {}
+            };
+            this.showCreateModal = true;
+        },
+        
+        async createJob() {
+            try {
+                const response = await fetch('/api/v1/ml-jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.jobForm)
+                });
+                
+                if (response.ok) {
+                    this.showCreateModal = false;
+                    await this.loadJobs();
+                    await this.loadStats();
+                    this.showNotification('ML job created successfully', 'success');
+                } else {
+                    const error = await response.json();
+                    this.showNotification(error.detail || 'Failed to create job', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating job:', error);
+                this.showNotification('Failed to create job', 'error');
+            }
+        },
+        
+        async viewJobDetails(jobId) {
+            try {
+                const response = await fetch(`/api/v1/ml-jobs/${jobId}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    this.selectedJob = await response.json();
+                    this.showDetailsModal = true;
+                } else {
+                    this.showNotification('Failed to load job details', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading job details:', error);
+                this.showNotification('Failed to load job details', 'error');
+            }
+        },
+        
+        confirmCancelJob(job) {
+            this.jobToCancel = job;
+            this.showCancelModal = true;
+        },
+        
+        async cancelJob() {
+            if (!this.jobToCancel) return;
+            
+            try {
+                const response = await fetch(`/api/v1/ml-jobs/${this.jobToCancel.id}/cancel`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    this.showCancelModal = false;
+                    this.jobToCancel = null;
+                    await this.loadJobs();
+                    await this.loadStats();
+                    this.showNotification('Job cancelled successfully', 'success');
+                } else {
+                    const error = await response.json();
+                    this.showNotification(error.detail || 'Failed to cancel job', 'error');
+                }
+            } catch (error) {
+                console.error('Error cancelling job:', error);
+                this.showNotification('Failed to cancel job', 'error');
+            }
+        },
+        
+        async retryJob(jobId) {
+            try {
+                const response = await fetch(`/api/v1/ml-jobs/${jobId}/retry`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    await this.loadJobs();
+                    await this.loadStats();
+                    this.showNotification('Job retry initiated', 'success');
+                } else {
+                    const error = await response.json();
+                    this.showNotification(error.detail || 'Failed to retry job', 'error');
+                }
+            } catch (error) {
+                console.error('Error retrying job:', error);
+                this.showNotification('Failed to retry job', 'error');
+            }
+        },
+        
+        getStatusBadgeClass(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'completed' || s === 'success') return 'badge-success';
+            if (s === 'failed' || s === 'error') return 'badge-danger';
+            if (s === 'running' || s === 'in_progress') return 'badge-info';
+            if (s === 'pending' || s === 'queued') return 'badge-warning';
+            if (s === 'cancelled') return 'badge-gray';
+            return 'badge-gray';
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleString();
+        },
+        
+        showNotification(message, type) {
+            // Simple notification - can be enhanced with toast library
+            alert(message);
+        },
+        
+        nextPage() {
+            if (this.pagination.page * this.pagination.limit < this.pagination.total) {
+                this.pagination.page++;
+                this.loadJobs();
+            }
+        },
+        
+        prevPage() {
+            if (this.pagination.page > 1) {
+                this.pagination.page--;
+                this.loadJobs();
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

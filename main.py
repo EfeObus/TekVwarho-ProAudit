@@ -139,6 +139,14 @@ setup_sku_middleware(
     enable_feature_gating=True,  # Set to False to disable tier enforcement
 )
 
+# Setup Emergency Mode Middleware (Platform Emergency Controls)
+from app.middleware.emergency_mode import create_emergency_middleware
+create_emergency_middleware(
+    app=app,
+    enabled=True,
+    development_mode=settings.is_development,
+)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -635,6 +643,18 @@ from app.routers import (
     ml_jobs,
     upsell,
     support_tickets,
+    admin_tenants,
+    admin_emergency,
+    admin_user_search,
+    admin_platform_staff,
+    admin_verification,
+    admin_audit_logs,
+    admin_health,
+    # New Admin Routers (Settings, Security, API Keys, Automation)
+    admin_settings,
+    admin_security,
+    admin_api_keys,
+    admin_automation,
 )
 
 # View Routes (HTML pages)
@@ -763,6 +783,39 @@ app.include_router(upsell.router, prefix="/api/v1", tags=["Upsell"])
 
 # Support Tickets (Customer Service)
 app.include_router(support_tickets.router, prefix="/api/v1", tags=["Support Tickets"])
+
+# Admin Tenants (Tenant Management for Platform Admins)
+app.include_router(admin_tenants.router, prefix="/api/v1", tags=["Admin - Tenants"])
+
+# Emergency Controls (Kill Switches, Maintenance Mode, Feature Toggles)
+app.include_router(admin_emergency.router, prefix="/api/v1", tags=["Admin - Emergency Controls"])
+
+# Admin User Search (Cross-Tenant User Discovery)
+app.include_router(admin_user_search.router, prefix="/api/v1", tags=["Admin - User Search"])
+
+# Admin Platform Staff Management (Internal TekVwarho Staff)
+app.include_router(admin_platform_staff.router, prefix="/api/v1", tags=["Admin - Platform Staff"])
+
+# Admin Organization Verification (CAC/TIN Document Review)
+app.include_router(admin_verification.router, prefix="/api/v1", tags=["Admin - Verification"])
+
+# Admin Global Audit Log Viewer (Cross-Tenant Audit Trail)
+app.include_router(admin_audit_logs.router, prefix="/api/v1", tags=["Admin - Audit Logs"])
+
+# Admin Platform Health Metrics (System Monitoring Dashboard)
+app.include_router(admin_health.router, prefix="/api/v1", tags=["Admin - Platform Health"])
+
+# Admin Platform Settings (General, Trial, NRS, Billing, Security, Notifications)
+app.include_router(admin_settings.router, prefix="/api/v1", tags=["Admin - Settings"])
+
+# Admin Security Audit Center (Alerts, Sessions, IP Whitelist, Policies)
+app.include_router(admin_security.router, prefix="/api/v1", tags=["Admin - Security"])
+
+# Admin API Keys Management (Generate, Revoke, Track Usage)
+app.include_router(admin_api_keys.router, prefix="/api/v1", tags=["Admin - API Keys"])
+
+# Admin Workflow Automation (Rules, Triggers, Actions)
+app.include_router(admin_automation.router, prefix="/api/v1", tags=["Admin - Automation"])
 
 
 if __name__ == "__main__":

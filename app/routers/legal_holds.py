@@ -94,7 +94,7 @@ class ReleaseLegalHoldRequest(BaseModel):
 @router.post("", response_model=LegalHoldResponse, status_code=status.HTTP_201_CREATED)
 async def create_legal_hold(
     request: CreateLegalHoldRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Create a new legal hold (Super Admin only)."""
@@ -133,7 +133,7 @@ async def list_legal_holds(
     hold_type: Optional[LegalHoldType] = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """List all legal holds (Super Admin only)."""
@@ -155,7 +155,7 @@ async def list_legal_holds(
 
 @router.get("/stats", response_model=LegalHoldStatsResponse)
 async def get_legal_hold_stats(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get legal hold statistics (Super Admin only)."""
@@ -167,7 +167,7 @@ async def get_legal_hold_stats(
 @router.get("/{hold_id}", response_model=LegalHoldResponse)
 async def get_legal_hold(
     hold_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get a specific legal hold (Super Admin only)."""
@@ -186,7 +186,7 @@ async def get_legal_hold(
 @router.post("/{hold_id}/request-release", response_model=LegalHoldResponse)
 async def request_release(
     hold_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Request release of a legal hold (Super Admin only)."""
@@ -206,7 +206,7 @@ async def request_release(
 async def release_legal_hold(
     hold_id: uuid.UUID,
     request: ReleaseLegalHoldRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Release a legal hold (Super Admin only)."""
@@ -229,7 +229,7 @@ async def release_legal_hold(
 @router.get("/check/{organization_id}")
 async def check_organization_hold(
     organization_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Check if organization has any active legal holds (Super Admin only)."""

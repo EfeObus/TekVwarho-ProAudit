@@ -649,11 +649,11 @@ async def seed_payroll_history():
             if not entity:
                 return
             
-            print(f"📍 Entity: {entity.name}")
-            print(f"👥 Total Employees: {len(employees)}")
+            print(f"[INFO] Entity: {entity.name}")
+            print(f"[USERS] Total Employees: {len(employees)}")
             
             # Assign TINs to employees without them
-            print("\n🔄 Assigning TINs to employees...")
+            print("\n[SYNC] Assigning TINs to employees...")
             await assign_missing_tins(session, entity.id)
             
             # Determine payroll history range
@@ -662,7 +662,7 @@ async def seed_payroll_history():
             start_year = max(earliest_hire.year, 2015)
             end_year = 2025  # Up to December 2025
             
-            print(f"\n📅 Creating payroll history from {start_year} to {end_year}...")
+            print(f"\n[DATE] Creating payroll history from {start_year} to {end_year}...")
             print(f"   Total months: {(end_year - start_year + 1) * 12}")
             
             total_runs = 0

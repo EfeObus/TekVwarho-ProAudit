@@ -28,17 +28,17 @@ def test_billing_error_codes():
     
     # Count error codes
     error_codes = list(BillingErrorCode)
-    print(f"✅ BillingErrorCode has {len(error_codes)} error codes")
-    print(f"✅ BILLING_ERROR_MESSAGES has {len(BILLING_ERROR_MESSAGES)} entries")
+    print(f"[OK] BillingErrorCode has {len(error_codes)} error codes")
+    print(f"[OK] BILLING_ERROR_MESSAGES has {len(BILLING_ERROR_MESSAGES)} entries")
     
     # Verify all codes have messages
     missing_messages = [code for code in error_codes if code not in BILLING_ERROR_MESSAGES]
     if missing_messages:
-        print(f"⚠️  Warning: {len(missing_messages)} codes missing messages:")
+        print(f"[WARN]  Warning: {len(missing_messages)} codes missing messages:")
         for code in missing_messages[:5]:
             print(f"   - {code.name}")
     else:
-        print("✅ All error codes have corresponding messages")
+        print("[OK] All error codes have corresponding messages")
     
     # Show sample codes by category
     print("\nSample error codes by category:")
@@ -71,17 +71,17 @@ def test_config_settings():
     # Check timeout setting
     timeout = getattr(settings, 'paystack_timeout_seconds', None)
     if timeout:
-        print(f"✅ paystack_timeout_seconds = {timeout} seconds")
+        print(f"[OK] paystack_timeout_seconds = {timeout} seconds")
     else:
-        print("❌ paystack_timeout_seconds not found in settings")
+        print("[FAIL] paystack_timeout_seconds not found in settings")
         return False
     
     # Check retry setting
     max_retries = getattr(settings, 'paystack_max_retries', None)
     if max_retries:
-        print(f"✅ paystack_max_retries = {max_retries}")
+        print(f"[OK] paystack_max_retries = {max_retries}")
     else:
-        print("❌ paystack_max_retries not found in settings")
+        print("[FAIL] paystack_max_retries not found in settings")
         return False
     
     return True
@@ -109,19 +109,19 @@ def test_amount_validation():
     print("Testing Amount Validation (#39)")
     print("=" * 60)
     
-    print(f"✅ MIN_PAYMENT_AMOUNT = ₦{MIN_PAYMENT_AMOUNT:,} ({MIN_PAYMENT_AMOUNT * 100:,} kobo)")
-    print(f"✅ MAX_PAYMENT_AMOUNT = ₦{MAX_PAYMENT_AMOUNT:,} ({MAX_PAYMENT_AMOUNT * 100:,} kobo)")
+    print(f"[OK] MIN_PAYMENT_AMOUNT = ₦{MIN_PAYMENT_AMOUNT:,} ({MIN_PAYMENT_AMOUNT * 100:,} kobo)")
+    print(f"[OK] MAX_PAYMENT_AMOUNT = ₦{MAX_PAYMENT_AMOUNT:,} ({MAX_PAYMENT_AMOUNT * 100:,} kobo)")
     
     # Verify reasonable values
     if MIN_PAYMENT_AMOUNT >= 50:
-        print("✅ Minimum amount is reasonable (>= ₦50)")
+        print("[OK] Minimum amount is reasonable (>= ₦50)")
     else:
-        print("⚠️  Warning: Minimum amount might be too low")
+        print("[WARN]  Warning: Minimum amount might be too low")
     
     if MAX_PAYMENT_AMOUNT <= 100_000_000:
-        print("✅ Maximum amount is reasonable (<= ₦100M)")
+        print("[OK] Maximum amount is reasonable (<= ₦100M)")
     else:
-        print("⚠️  Warning: Maximum amount might be too high")
+        print("[WARN]  Warning: Maximum amount might be too high")
     
     return True
 
@@ -161,22 +161,22 @@ def test_database_indexes():
     
     print(f"UsageRecord indexes (#42):")
     for idx in usage_indexes:
-        print(f"  ✅ {idx}")
+        print(f"  [OK] {idx}")
     if not usage_indexes:
-        print("  ⚠️  No period indexes found")
+        print("  [WARN]  No period indexes found")
     
     print(f"\nPaymentTransaction indexes (#43):")
     for idx in payment_indexes:
-        print(f"  ✅ {idx}")
+        print(f"  [OK] {idx}")
     if not payment_indexes:
-        print("  ⚠️  No timestamp indexes found")
+        print("  [WARN]  No timestamp indexes found")
     
     return bool(usage_indexes) or bool(payment_indexes)
 
 
 def main():
     """Run all tests"""
-    print("\n🔧 BILLING ISSUES #37-46 IMPLEMENTATION TEST")
+    print("\n[TEST] BILLING ISSUES #37-46 IMPLEMENTATION TEST")
     print("=" * 60)
     
     results = []
@@ -184,25 +184,25 @@ def main():
     try:
         results.append(("Error Codes (#46)", test_billing_error_codes()))
     except Exception as e:
-        print(f"❌ Error testing error codes: {e}")
+        print(f"[FAIL] Error testing error codes: {e}")
         results.append(("Error Codes (#46)", False))
     
     try:
         results.append(("Config Settings (#41)", test_config_settings()))
     except Exception as e:
-        print(f"❌ Error testing config: {e}")
+        print(f"[FAIL] Error testing config: {e}")
         results.append(("Config Settings (#41)", False))
     
     try:
         results.append(("Amount Validation (#39)", test_amount_validation()))
     except Exception as e:
-        print(f"❌ Error testing amount validation: {e}")
+        print(f"[FAIL] Error testing amount validation: {e}")
         results.append(("Amount Validation (#39)", False))
     
     try:
         results.append(("Database Indexes (#42, #43)", test_database_indexes()))
     except Exception as e:
-        print(f"❌ Error testing indexes: {e}")
+        print(f"[FAIL] Error testing indexes: {e}")
         results.append(("Database Indexes (#42, #43)", False))
     
     # Summary
@@ -214,16 +214,16 @@ def main():
     total = len(results)
     
     for name, status in results:
-        emoji = "✅" if status else "❌"
+        emoji = "[OK]" if status else "[FAIL]"
         print(f"  {emoji} {name}")
     
     print(f"\nResult: {passed}/{total} tests passed")
     
     if passed == total:
-        print("\n🎉 All billing feature implementations verified!")
+        print("\n[SUCCESS] All billing feature implementations verified!")
         return 0
     else:
-        print("\n⚠️  Some tests failed - review implementation")
+        print("\n[WARN]  Some tests failed - review implementation")
         return 1
 
 

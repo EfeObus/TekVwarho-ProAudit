@@ -11,6 +11,17 @@
     <!-- Alpine.js x-cloak style (must be before Alpine.js) -->
     <style>
         [x-cloak] { display: none !important; }
+        
+        /* HTMX Loading Indicator Styles */
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator {
+            display: inline-block;
+        }
+        .htmx-request.htmx-indicator {
+            display: inline-block;
+        }
     </style>
     
     <!-- HTMX -->

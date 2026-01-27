@@ -705,8 +705,20 @@ function dashboardApp() {
         orgSpecific: {},
         
         // Role-based view restrictions (Maker-Checker SoD)
-        viewRestrictions: {},
-        quickActions: [],
+        // Default to full access - API will override with actual restrictions
+        viewRestrictions: {
+            financial_statements: 'full',
+            nrs_submission: 'full',
+            bank_balance: 'full',
+            wren_categorization: 'full',
+            salary_details: 'full'
+        },
+        quickActions: [
+            { label: 'New Transaction', url: '/transactions/new' },
+            { label: 'Create Invoice', url: '/invoices/new' },
+            { label: 'View Reports', url: '/reports' },
+            { label: 'Tax Filing', url: '/tax-filing' }
+        ],
         
         // Permission helper methods
         canView(feature) {
@@ -744,7 +756,11 @@ function dashboardApp() {
         async loadDashboard() {
             try {
                 const response = await fetch(`/api/v1/dashboard?entity_id=${this.entityId}`, {
-                    headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+                    credentials: 'include',  // Send HTTP-only cookies
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') 
+                    }
                 });
                 
                 if (response.ok) {

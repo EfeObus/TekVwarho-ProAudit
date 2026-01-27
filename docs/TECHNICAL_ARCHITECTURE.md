@@ -1,7 +1,7 @@
 # TekVwarho ProAudit - Technical Architecture Document
 
-**Document Version:** 2.1  
-**Date:** January 6, 2026  
+**Document Version:** 2.2  
+**Date:** January 27, 2026  
 **Status:** Production Architecture  
 **Classification:** Internal Technical Document  
 
@@ -11,8 +11,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Routes** | 527 |
-| **API Endpoints** | 471 |
+| **Total Routes** | 558 |
+| **API Endpoints** | 502 |
+| **Admin API Endpoints** | 31 |
 | **View Routes** | 52 |
 | **Database Models** | 84 exports |
 | **Test Coverage** | 313 tests passing |
@@ -549,6 +550,63 @@ GET    /api/v1/entities/{entityId}/banking/reconciliation
 }
 ```
 
+### 7.4 Super Admin API Endpoints (Platform Management)
+
+These endpoints require `platform_staff` role with `Super Admin` access level. All endpoints return JSON and support pagination where applicable.
+
+```yaml
+# Emergency Controls - Kill Switches & Platform Safety
+POST   /admin/emergency/platform/read-only           # Toggle platform read-only mode
+GET    /admin/emergency/platform/status              # Get platform emergency status
+POST   /admin/emergency/tenant/{tenant_id}/suspend   # Emergency suspend a tenant
+DELETE /admin/emergency/tenant/{tenant_id}/suspend   # Lift tenant suspension
+POST   /admin/emergency/feature/{feature_name}/disable # Disable feature globally
+DELETE /admin/emergency/feature/{feature_name}/disable # Re-enable feature
+
+# Cross-Tenant User Search & Management
+GET    /admin/users/search                           # Search users across all tenants
+GET    /admin/users/{user_id}                        # Get user details
+GET    /admin/users/{user_id}/activity               # Get user activity history
+POST   /admin/users/{user_id}/suspend                # Suspend/unsuspend user
+
+# Platform Staff Management
+GET    /admin/staff                                  # List all platform staff
+POST   /admin/staff                                  # Create new platform staff
+GET    /admin/staff/{staff_id}                       # Get staff details
+PUT    /admin/staff/{staff_id}                       # Update staff
+
+# Organization Verification Workflow
+GET    /admin/verifications                          # List pending verifications
+GET    /admin/verifications/{org_id}                 # Get verification details
+POST   /admin/verifications/{org_id}/approve         # Approve organization
+POST   /admin/verifications/{org_id}/reject          # Reject organization
+
+# Global Audit Log Viewer
+GET    /admin/audit-logs                             # List all audit logs (paginated)
+GET    /admin/audit-logs/stats                       # Get audit statistics
+GET    /admin/audit-logs/{log_id}                    # Get specific log details
+GET    /admin/audit-logs/export                      # Export audit logs
+
+# Platform Health Metrics
+GET    /admin/health                                 # Overall platform health
+GET    /admin/health/database                        # Database health metrics
+GET    /admin/health/services                        # External service status
+GET    /admin/health/metrics                         # Detailed system metrics
+GET    /admin/health/tenants/summary                 # Tenant health summary
+GET    /admin/health/alerts                          # Active platform alerts
+
+# Tenant Management
+GET    /admin/tenants                                # List all tenants
+GET    /admin/tenants/{tenant_id}                    # Get tenant details
+PUT    /admin/tenants/{tenant_id}                    # Update tenant
+
+# SKU/Billing Management
+GET    /admin/skus                                   # List all SKUs
+POST   /admin/skus                                   # Create new SKU
+GET    /admin/skus/{sku_id}                          # Get SKU details
+PUT    /admin/skus/{sku_id}                          # Update SKU
+```
+
 ---
 
 ## 8. Security Architecture
@@ -576,6 +634,8 @@ GET    /api/v1/entities/{entityId}/banking/reconciliation
 
 ### 8.2 Role-Based Access Control
 
+#### Tenant-Level Roles
+
 | Role | Permissions |
 |------|-------------|
 | **Owner** | Full access to all resources |
@@ -585,6 +645,21 @@ GET    /api/v1/entities/{entityId}/banking/reconciliation
 | **Inventory** | Manage stock only |
 | **Auditor** | Read-only access to all financial data |
 | **Viewer** | Dashboard and reports only |
+
+#### Platform Staff Roles (Super Admin Dashboard)
+
+| Role | Permissions |
+|------|-------------|
+| **Super Admin** | Full platform access including emergency controls, user management, verification approvals, health monitoring |
+| **IT Developer** | Platform health monitoring, audit log viewing, technical diagnostics |
+| **CSR** | User search, basic support functions, read-only tenant info |
+| **Support Manager** | Escalated support actions, tenant verification review |
+
+**Platform Staff Authentication:**
+- Requires `is_platform_staff = true` flag on user
+- JWT tokens include `platform_role` claim
+- All actions logged to global audit log
+- MFA enforcement configurable per role
 
 ### 8.3 Data Encryption
 

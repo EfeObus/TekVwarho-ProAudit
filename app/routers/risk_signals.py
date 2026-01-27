@@ -107,7 +107,7 @@ class AddCommentRequest(BaseModel):
 @router.post("", response_model=RiskSignalResponse, status_code=status.HTTP_201_CREATED)
 async def create_risk_signal(
     request: CreateRiskSignalRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Create a new risk signal (Super Admin only)."""
@@ -145,7 +145,7 @@ async def list_risk_signals(
     organization_id: Optional[uuid.UUID] = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """List all risk signals (Super Admin only)."""
@@ -168,7 +168,7 @@ async def list_risk_signals(
 
 @router.get("/stats", response_model=RiskSignalStatsResponse)
 async def get_risk_signal_stats(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get risk signal statistics (Super Admin only)."""
@@ -181,7 +181,7 @@ async def get_risk_signal_stats(
 async def get_recent_signals(
     days: int = Query(7, ge=1, le=30),
     limit: int = Query(10, ge=1, le=50),
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get recently detected risk signals (Super Admin only)."""
@@ -196,7 +196,7 @@ async def get_recent_signals(
 
 @router.get("/by-category")
 async def get_signals_by_category(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get risk signals grouped by category (Super Admin only)."""
@@ -208,7 +208,7 @@ async def get_signals_by_category(
 @router.get("/{signal_id}", response_model=RiskSignalResponse)
 async def get_risk_signal(
     signal_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get a specific risk signal (Super Admin only)."""
@@ -227,7 +227,7 @@ async def get_risk_signal(
 @router.post("/{signal_id}/acknowledge", response_model=RiskSignalResponse)
 async def acknowledge_signal(
     signal_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Acknowledge a risk signal (Super Admin only)."""
@@ -250,7 +250,7 @@ async def acknowledge_signal(
 async def assign_signal(
     signal_id: uuid.UUID,
     request: AssignSignalRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Assign a risk signal to a staff member (Super Admin only)."""
@@ -274,7 +274,7 @@ async def assign_signal(
 async def update_signal_status(
     signal_id: uuid.UUID,
     request: UpdateStatusRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Update risk signal status (Super Admin only)."""
@@ -299,7 +299,7 @@ async def update_signal_status(
 async def add_comment(
     signal_id: uuid.UUID,
     request: AddCommentRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Add a comment to a risk signal (Super Admin only)."""

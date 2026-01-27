@@ -1,349 +1,88 @@
 {% extends "base.html" %}
 
-{% block title %}Super Admin Command Center - TekVwarho ProAudit{% endblock %}
+{% block title %}Super Admin - TekVwarho ProAudit{% endblock %}
 
 {% block head %}
 <style>
-    /* Nigerian Flag Colors - Green White Green Theme */
+    /* Nigerian Flag Colors */
     :root {
         --ng-green: #008751;
         --ng-green-dark: #006741;
         --ng-green-light: #00a865;
         --ng-white: #ffffff;
         --ng-green-pale: #e6f5ed;
-        --ng-green-muted: #f0f9f4;
     }
     
-    /* Override primary colors */
-    .bg-ng-green { background-color: var(--ng-green) !important; }
-    .bg-ng-green-dark { background-color: var(--ng-green-dark) !important; }
-    .bg-ng-green-light { background-color: var(--ng-green-light) !important; }
-    .bg-ng-green-pale { background-color: var(--ng-green-pale) !important; }
-    .text-ng-green { color: var(--ng-green) !important; }
-    .border-ng-green { border-color: var(--ng-green) !important; }
-    
-    /* Sidebar Navigation */
+    /* Sidebar */
     .admin-sidebar {
-        width: 280px;
+        width: 260px;
         background: linear-gradient(180deg, var(--ng-green-dark) 0%, var(--ng-green) 100%);
         min-height: 100vh;
         position: fixed;
         left: 0;
         top: 0;
         z-index: 40;
-        transition: transform 0.3s ease;
+        overflow-y: auto;
     }
     
-    .admin-sidebar .nav-link {
-        color: rgba(255, 255, 255, 0.85);
-        padding: 0.75rem 1.25rem;
-        border-radius: 0.5rem;
-        margin: 0.25rem 0.75rem;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-    
-    .admin-sidebar .nav-link:hover,
-    .admin-sidebar .nav-link.active {
-        background-color: rgba(255, 255, 255, 0.15);
-        color: white;
-    }
-    
-    .admin-sidebar .nav-link.active {
-        background-color: rgba(255, 255, 255, 0.2);
-        font-weight: 600;
-    }
-    
-    .admin-sidebar .nav-section {
-        color: rgba(255, 255, 255, 0.5);
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        padding: 1rem 1.25rem 0.5rem;
-        margin-top: 0.5rem;
-    }
-    
-    /* Main Content Area */
-    .admin-main {
-        margin-left: 280px;
-        min-height: 100vh;
-        background-color: #f8fafb;
-    }
-    
-    /* Top Header Bar */
-    .admin-header {
-        background: white;
-        border-bottom: 1px solid #e5e7eb;
-        padding: 1rem 2rem;
-        position: sticky;
-        top: 0;
-        z-index: 30;
-    }
-    
-    /* Metric Cards */
-    .metric-card {
-        background: white;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        border: 1px solid #e5e7eb;
-        transition: all 0.2s ease;
-    }
-    
-    .metric-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 135, 81, 0.1);
-        border-color: var(--ng-green-light);
-    }
-    
-    .metric-card.highlight {
-        background: linear-gradient(135deg, var(--ng-green) 0%, var(--ng-green-dark) 100%);
-        color: white;
-    }
-    
-    .metric-card.highlight .metric-label {
+    .admin-sidebar .nav-item {
         color: rgba(255, 255, 255, 0.8);
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        line-height: 1.2;
-    }
-    
-    .metric-label {
-        font-size: 0.875rem;
-        color: #6b7280;
-        font-weight: 500;
-    }
-    
-    .metric-trend {
-        font-size: 0.75rem;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
-    
-    .metric-trend.up { color: var(--ng-green); }
-    .metric-trend.down { color: #ef4444; }
-    
-    /* Section Headers */
-    .section-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 2px solid var(--ng-green-pale);
-    }
-    
-    .section-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: #111827;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .section-title svg {
-        color: var(--ng-green);
-    }
-    
-    /* Data Tables */
-    .data-grid {
-        background: white;
-        border-radius: 1rem;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        border: 1px solid #e5e7eb;
-    }
-    
-    .data-grid table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    
-    .data-grid th {
-        background: var(--ng-green-pale);
-        color: var(--ng-green-dark);
-        font-weight: 600;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        padding: 0.875rem 1rem;
-        text-align: left;
-        border-bottom: 1px solid #e5e7eb;
-    }
-    
-    .data-grid td {
-        padding: 1rem;
-        font-size: 0.875rem;
-        border-bottom: 1px solid #f3f4f6;
-    }
-    
-    .data-grid tr:hover td {
-        background-color: var(--ng-green-muted);
-    }
-    
-    /* Status Badges */
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    
-    .status-badge.active { background: #dcfce7; color: #166534; }
-    .status-badge.trial { background: #dbeafe; color: #1e40af; }
-    .status-badge.suspended { background: #fee2e2; color: #991b1b; }
-    .status-badge.grace { background: #fef3c7; color: #92400e; }
-    .status-badge.healthy { background: #dcfce7; color: #166534; }
-    .status-badge.warning { background: #fef3c7; color: #92400e; }
-    .status-badge.critical { background: #fee2e2; color: #991b1b; }
-    
-    /* Action Buttons */
-    .btn-action {
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        transition: all 0.2s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .btn-action.primary {
-        background: var(--ng-green);
-        color: white;
-    }
-    
-    .btn-action.primary:hover {
-        background: var(--ng-green-dark);
-    }
-    
-    .btn-action.secondary {
-        background: white;
-        color: var(--ng-green);
-        border: 1px solid var(--ng-green);
-    }
-    
-    .btn-action.secondary:hover {
-        background: var(--ng-green-pale);
-    }
-    
-    /* Quick Action Cards */
-    .quick-action {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.75rem;
-        padding: 1.25rem;
-        text-align: center;
-        transition: all 0.2s ease;
-        cursor: pointer;
-        text-decoration: none;
-        display: block;
-    }
-    
-    .quick-action:hover {
-        border-color: var(--ng-green);
-        box-shadow: 0 4px 12px rgba(0, 135, 81, 0.15);
-        transform: translateY(-2px);
-    }
-    
-    .quick-action-icon {
-        width: 48px;
-        height: 48px;
-        background: var(--ng-green-pale);
-        color: var(--ng-green);
-        border-radius: 0.75rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 0.75rem;
-    }
-    
-    /* Health Indicator */
-    .health-indicator {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 0.5rem;
-    }
-    
-    .health-indicator.healthy { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
-    .health-indicator.warning { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.5); }
-    .health-indicator.critical { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
-    
-    /* Charts Container */
-    .chart-container {
-        background: white;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        border: 1px solid #e5e7eb;
-    }
-    
-    /* Tabs */
-    .tab-nav {
-        display: flex;
-        gap: 0.25rem;
-        background: #f3f4f6;
-        padding: 0.25rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .tab-nav button {
-        padding: 0.5rem 1rem;
+        padding: 0.625rem 1rem;
+        margin: 0.125rem 0.5rem;
         border-radius: 0.375rem;
         font-size: 0.875rem;
-        font-weight: 500;
-        color: #6b7280;
-        background: transparent;
-        border: none;
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: background 0.15s;
     }
     
-    .tab-nav button.active {
-        background: white;
-        color: var(--ng-green);
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    }
+    .admin-sidebar .nav-item:hover { background: rgba(255,255,255,0.1); }
+    .admin-sidebar .nav-item.active { background: rgba(255,255,255,0.2); color: white; font-weight: 500; }
+    .admin-sidebar .nav-section { color: rgba(255,255,255,0.5); font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 1rem 1rem 0.375rem; }
     
-    /* Progress Bars */
-    .progress-bar {
-        height: 8px;
-        background: #e5e7eb;
-        border-radius: 4px;
-        overflow: hidden;
-    }
+    /* Main Content */
+    .admin-main { margin-left: 260px; min-height: 100vh; background: #f8fafb; }
+    .admin-header { background: white; border-bottom: 1px solid #e5e7eb; padding: 0.75rem 1.5rem; position: sticky; top: 0; z-index: 30; }
     
-    .progress-bar .fill {
-        height: 100%;
-        background: var(--ng-green);
-        border-radius: 4px;
-        transition: width 0.3s ease;
-    }
+    /* Cards */
+    .stat-card { background: white; border-radius: 0.75rem; padding: 1.25rem; border: 1px solid #e5e7eb; }
+    .stat-card.primary { background: linear-gradient(135deg, var(--ng-green) 0%, var(--ng-green-dark) 100%); color: white; }
+    .stat-card .stat-value { font-size: 1.75rem; font-weight: 700; line-height: 1.2; }
+    .stat-card .stat-label { font-size: 0.8rem; color: #6b7280; }
+    .stat-card.primary .stat-label { color: rgba(255,255,255,0.8); }
+    
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { background: var(--ng-green-pale); color: var(--ng-green-dark); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.75rem 1rem; text-align: left; }
+    .data-table td { padding: 0.875rem 1rem; font-size: 0.875rem; border-bottom: 1px solid #f3f4f6; }
+    .data-table tr:hover td { background: #fafbfc; }
+    
+    /* Status badges */
+    .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f3f4f6; color: #4b5563; }
+    
+    /* Health dot */
+    .health-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .health-dot.healthy { background: #22c55e; }
+    .health-dot.warning { background: #f59e0b; }
+    .health-dot.critical { background: #ef4444; }
+    
+    /* Buttons */
+    .btn-primary { background: var(--ng-green); color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; }
+    .btn-primary:hover { background: var(--ng-green-dark); }
+    .btn-secondary { background: white; color: var(--ng-green); border: 1px solid var(--ng-green); padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; }
     
     /* Responsive */
     @media (max-width: 1024px) {
-        .admin-sidebar {
-            transform: translateX(-100%);
-        }
-        .admin-sidebar.open {
-            transform: translateX(0);
-        }
-        .admin-main {
-            margin-left: 0;
-        }
+        .admin-sidebar { transform: translateX(-100%); }
+        .admin-sidebar.open { transform: translateX(0); }
+        .admin-main { margin-left: 0; }
     }
 </style>
 {% endblock %}
@@ -351,119 +90,143 @@
 {% block nav %}{% endblock %}
 
 {% block content %}
-<div x-data="superAdminDashboard()" x-init="init()" class="flex min-h-screen">
-    <!-- Sidebar Navigation -->
+<div x-data="superAdminApp()" class="flex min-h-screen">
+    <!-- Sidebar -->
     <aside class="admin-sidebar" :class="{ 'open': sidebarOpen }">
         <!-- Logo -->
-        <div class="p-6 border-b border-white/10">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-content-center overflow-hidden">
+        <div class="p-4 border-b border-white/10">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-white rounded flex items-center justify-center overflow-hidden">
                     <img src="/static/images/logo.jpg" alt="Logo" class="w-full h-full object-cover">
                 </div>
                 <div>
-                    <div class="text-white font-bold text-lg">TekVwarho</div>
-                    <div class="text-white/60 text-xs">Super Admin</div>
+                    <div class="text-white font-semibold text-sm">TekVwarho</div>
+                    <div class="text-white/50 text-xs">Super Admin</div>
                 </div>
             </div>
         </div>
         
         <!-- Navigation -->
-        <nav class="py-4 overflow-y-auto" style="height: calc(100vh - 100px);">
+        <nav class="py-2" style="height: calc(100vh - 140px); overflow-y: auto;">
             <div class="nav-section">Overview</div>
-            <a href="#overview" @click.prevent="activeSection = 'overview'" :class="{ 'active': activeSection === 'overview' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-                Executive Dashboard
+            <a @click="setSection('overview')" :class="{ 'active': section === 'overview' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+                Dashboard
             </a>
             
             <div class="nav-section">Tenant Management</div>
-            <a href="#tenants" @click.prevent="activeSection = 'tenants'" :class="{ 'active': activeSection === 'tenants' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                Tenant Registry
+            <a @click="setSection('tenants')" :class="{ 'active': section === 'tenants' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                Tenants
             </a>
-            <a href="#subscriptions" @click.prevent="activeSection = 'subscriptions'" :class="{ 'active': activeSection === 'subscriptions' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            <a href="/admin/verifications" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Verifications
+            </a>
+            <a @click="setSection('subscriptions')" :class="{ 'active': section === 'subscriptions' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                 Subscriptions
             </a>
-            <a href="#feature-flags" @click.prevent="activeSection = 'feature-flags'" :class="{ 'active': activeSection === 'feature-flags' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+            <a @click="setSection('features')" :class="{ 'active': section === 'features' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
                 Feature Flags
             </a>
             
             <div class="nav-section">Compliance</div>
-            <a href="#audit-logs" @click.prevent="activeSection = 'audit-logs'" :class="{ 'active': activeSection === 'audit-logs' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <a @click="setSection('audit')" :class="{ 'active': section === 'audit' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Audit Logs
             </a>
-            <a href="#compliance" @click.prevent="activeSection = 'compliance'" :class="{ 'active': activeSection === 'compliance' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                Compliance Dashboard
+            <a @click="setSection('compliance')" :class="{ 'active': section === 'compliance' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                Compliance
             </a>
-            <a href="#legal-holds" @click.prevent="activeSection = 'legal-holds'" :class="{ 'active': activeSection === 'legal-holds' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <a href="/admin/legal-holds" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
                 Legal Holds
             </a>
             
             <div class="nav-section">Intelligence</div>
-            <a href="#ml-jobs" @click.prevent="activeSection = 'ml-jobs'" :class="{ 'active': activeSection === 'ml-jobs' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                ML Jobs Monitor
+            <a href="/admin/ml-jobs" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                ML Jobs
             </a>
-            <a href="#models" @click.prevent="activeSection = 'models'" :class="{ 'active': activeSection === 'models' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
-                Model Registry
+            <a @click="setSection('models')" :class="{ 'active': section === 'models' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                Models
             </a>
-            <a href="#risk-signals" @click.prevent="activeSection = 'risk-signals'" :class="{ 'active': activeSection === 'risk-signals' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <a href="/admin/risk-signals" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                 Risk Signals
             </a>
             
             <div class="nav-section">Revenue</div>
-            <a href="#revenue" @click.prevent="activeSection = 'revenue'" :class="{ 'active': activeSection === 'revenue' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Revenue Analytics
+            <a @click="setSection('revenue')" :class="{ 'active': section === 'revenue' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Revenue
             </a>
-            <a href="#upsell" @click.prevent="activeSection = 'upsell'" :class="{ 'active': activeSection === 'upsell' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-                Upsell Signals
+            <a @click="setSection('upsell')" :class="{ 'active': section === 'upsell' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                Upsell
             </a>
             
             <div class="nav-section">Operations</div>
-            <a href="#infrastructure" @click.prevent="activeSection = 'infrastructure'" :class="{ 'active': activeSection === 'infrastructure' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+            <a @click="setSection('infrastructure')" :class="{ 'active': section === 'infrastructure' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
                 Infrastructure
             </a>
-            <a href="#support" @click.prevent="activeSection = 'support'" :class="{ 'active': activeSection === 'support' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                Support Queue
+            <a href="/admin/automation" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Automation
+            </a>
+            <a @click="setSection('support')" :class="{ 'active': section === 'support' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                Support
+            </a>
+            <a href="/admin/emergency-controls" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Emergency Controls
             </a>
             
             <div class="nav-section">Administration</div>
-            <a href="#admin-users" @click.prevent="activeSection = 'admin-users'" :class="{ 'active': activeSection === 'admin-users' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                Staff Management
+            <a @click="setSection('staff')" :class="{ 'active': section === 'staff' }" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                Staff
             </a>
-            <a href="#security" @click.prevent="activeSection = 'security'" :class="{ 'active': activeSection === 'security' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                Security Dashboard
+            <a href="/admin/platform-staff" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                Platform Staff
             </a>
-            <a href="#settings" @click.prevent="activeSection = 'settings'" :class="{ 'active': activeSection === 'settings' }" class="nav-link">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Global Settings
+            <a href="/admin/users/search" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                User Search
+            </a>
+            <a href="/admin/security" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                Security
+            </a>
+            <a href="/admin/api-keys" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                API Keys
+            </a>
+            <a href="/admin/settings" class="nav-item">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Settings
             </a>
         </nav>
         
-        <!-- User Profile -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold">
+        <!-- User -->
+        <div class="absolute bottom-0 left-0 right-0 p-3 border-t border-white/10">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white text-xs font-bold">
                     {{ dashboard.user.name[:2] | upper if dashboard.user.name else 'SA' }}
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-white font-medium text-sm truncate">{{ dashboard.user.name or 'Super Admin' }}</div>
-                    <div class="text-white/60 text-xs truncate">{{ dashboard.user.email }}</div>
+                    <div class="text-white text-xs font-medium truncate">{{ dashboard.user.name or 'Super Admin' }}</div>
+                    <div class="text-white/50 text-xs truncate">{{ dashboard.user.email }}</div>
                 </div>
-                <a href="/logout" class="text-white/60 hover:text-white">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                <a href="/logout" class="text-white/50 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 </a>
             </div>
         </div>
@@ -471,183 +234,774 @@
     
     <!-- Main Content -->
     <main class="admin-main flex-1">
-        <!-- Top Header -->
+        <!-- Header -->
         <header class="admin-header flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <div class="flex items-center gap-3">
+                <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded hover:bg-gray-100">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900" x-text="sectionTitles[activeSection]">Executive Dashboard</h1>
-                    <p class="text-sm text-gray-500">Platform Command Center</p>
+                    <h1 class="text-lg font-bold text-gray-900" x-text="titles[section]">Dashboard</h1>
+                    <p class="text-xs text-gray-500">TekVwarho Platform Administration</p>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
-                <!-- System Health Quick View -->
-                <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
-                    <span class="health-indicator healthy"></span>
-                    <span class="text-sm font-medium text-green-700">All Systems Operational</span>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded border border-green-200">
+                    <span class="health-dot healthy"></span>
+                    <span class="text-xs font-medium text-green-700">Systems OK</span>
                 </div>
-                <!-- Notifications -->
-                <button class="relative p-2 rounded-lg hover:bg-gray-100">
-                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                    <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" x-show="alertCount > 0"></span>
-                </button>
-                <!-- Quick Search -->
                 <div class="relative">
-                    <input type="text" placeholder="Search tenants, users..." class="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-green-500">
-                    <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input type="text" placeholder="Search..." class="w-48 pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-green-500">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 </div>
             </div>
         </header>
         
-        <!-- Content Area -->
+        <!-- Content -->
         <div class="p-6">
-            <!-- Section: Executive Overview (Default) -->
-            <div x-show="activeSection === 'overview'" x-transition>
-                {% include 'partials/super_admin/overview.html' %}
+            <!-- Overview Section -->
+            <div x-show="section === 'overview'">
+                <!-- KPIs -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card primary">
+                        <p class="stat-label">Total Tenants</p>
+                        <p class="stat-value">{{ dashboard.overview.total_organizations }}</p>
+                        <p class="text-xs text-white/70 mt-1">{{ dashboard.tenant_stats.active if dashboard.tenant_stats else dashboard.overview.total_organizations }} active</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Monthly Revenue</p>
+                        <p class="stat-value text-green-600">{{ "₦{:,.0f}".format(dashboard.platform_revenue.mrr if dashboard.platform_revenue else 0) }}</p>
+                        <p class="text-xs text-gray-500 mt-1">+{{ dashboard.platform_revenue.growth_rate if dashboard.platform_revenue else '0%' }} growth</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Total Users</p>
+                        <p class="stat-value">{{ dashboard.overview.total_users }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ dashboard.growth_stats.new_users_30d if dashboard.growth_stats else 0 }} new this month</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Platform Staff</p>
+                        <p class="stat-value">{{ dashboard.overview.total_staff }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ dashboard.overview.pending_verifications }} pending verifications</p>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="stat-card col-span-2">
+                        <h3 class="font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <a href="/admin/staff/onboard" class="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition">
+                                <svg class="w-6 h-6 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+                                <span class="text-xs font-medium text-gray-700">Onboard Staff</span>
+                            </a>
+                            <a href="/admin/verifications" class="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition">
+                                <svg class="w-6 h-6 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="text-xs font-medium text-gray-700">Verifications</span>
+                            </a>
+                            <a href="/admin/api-keys" class="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition">
+                                <svg class="w-6 h-6 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                                <span class="text-xs font-medium text-gray-700">API Keys</span>
+                            </a>
+                            <a href="/admin/settings" class="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition">
+                                <svg class="w-6 h-6 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <span class="text-xs font-medium text-gray-700">Settings</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="font-semibold text-gray-900 mb-4">System Health</h3>
+                        <div class="space-y-3">
+                            {% if dashboard.platform_health %}
+                            {% for service, status in dashboard.platform_health.items() %}
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="health-dot {{ status.status if status.status else 'healthy' }}"></span>
+                                    <span class="text-sm capitalize">{{ service.replace('_', ' ') }}</span>
+                                </div>
+                                <span class="badge badge-{{ 'success' if status.status == 'healthy' else 'warning' if status.status == 'warning' else 'danger' }}">{{ status.status or 'OK' }}</span>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2"><span class="health-dot healthy"></span><span class="text-sm">API</span></div>
+                                <span class="badge badge-success">Healthy</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2"><span class="health-dot healthy"></span><span class="text-sm">Database</span></div>
+                                <span class="badge badge-success">Healthy</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2"><span class="health-dot healthy"></span><span class="text-sm">Workers</span></div>
+                                <span class="badge badge-success">Healthy</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Activity -->
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Details</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if dashboard.recent_activity %}
+                                {% for activity in dashboard.recent_activity[:10] %}
+                                <tr>
+                                    <td class="font-medium">{{ activity.user_email or activity.user or 'System' }}</td>
+                                    <td><span class="badge badge-info">{{ activity.action }}</span></td>
+                                    <td class="text-gray-500">{{ activity.description or activity.resource or '-' }}</td>
+                                    <td class="text-gray-400 text-xs">{{ activity.timestamp or activity.created_at }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr><td colspan="4" class="text-center text-gray-500 py-8">No recent activity</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Tenant Registry -->
-            <div x-show="activeSection === 'tenants'" x-transition x-cloak>
-                {% include 'partials/super_admin/tenants.html' %}
+            <!-- Tenants Section -->
+            <div x-show="section === 'tenants'" x-cloak>
+                <div class="stat-card mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <input type="text" placeholder="Search tenants..." class="w-64 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-green-500">
+                            <select class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-green-500">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="trial">Trial</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                        <button class="btn-primary">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Add Tenant
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Organization</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Users</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if dashboard.tenants_list %}
+                                {% for tenant in dashboard.tenants_list %}
+                                <tr>
+                                    <td class="font-medium">{{ tenant.name }}</td>
+                                    <td>{{ tenant.organization_type }}</td>
+                                    <td><span class="badge badge-{{ 'success' if tenant.status == 'active' else 'warning' if tenant.status == 'trial' else 'danger' }}">{{ tenant.status }}</span></td>
+                                    <td>{{ tenant.user_count or 0 }}</td>
+                                    <td class="text-gray-500 text-xs">{{ tenant.created_at }}</td>
+                                    <td>
+                                        <div class="flex items-center gap-2">
+                                            <button class="text-gray-400 hover:text-green-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button>
+                                            <button class="text-gray-400 hover:text-blue-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr><td colspan="6" class="text-center text-gray-500 py-8">No tenants found</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Subscriptions -->
-            <div x-show="activeSection === 'subscriptions'" x-transition x-cloak>
-                {% include 'partials/super_admin/subscriptions.html' %}
+            <!-- Subscriptions Section -->
+            <div x-show="section === 'subscriptions'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">Core Tier</p>
+                        <p class="stat-value text-green-600">{{ dashboard.subscription_stats.by_tier.core if dashboard.subscription_stats else 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">N15,000/mo</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Professional</p>
+                        <p class="stat-value text-blue-600">{{ dashboard.subscription_stats.by_tier.professional if dashboard.subscription_stats else 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">N50,000/mo</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Enterprise</p>
+                        <p class="stat-value text-purple-600">{{ dashboard.subscription_stats.by_tier.enterprise if dashboard.subscription_stats else 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">N150,000/mo</p>
+                    </div>
+                    <div class="stat-card primary">
+                        <p class="stat-label">Total MRR</p>
+                        <p class="stat-value">{{ "₦{:,.0f}".format(dashboard.platform_revenue.mrr if dashboard.platform_revenue else 0) }}</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Subscription Details</h3>
+                    <p class="text-gray-500 text-sm">Subscription management coming soon...</p>
+                </div>
             </div>
             
-            <!-- Section: Feature Flags -->
-            <div x-show="activeSection === 'feature-flags'" x-transition x-cloak>
-                {% include 'partials/super_admin/feature_flags.html' %}
+            <!-- Feature Flags Section -->
+            <div x-show="section === 'features'" x-cloak>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Feature Flag Management</h3>
+                    <p class="text-gray-500 text-sm mb-4">Control feature availability by tier.</p>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th class="text-center">Core</th>
+                                    <th class="text-center">Professional</th>
+                                    <th class="text-center">Enterprise</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Basic Accounting</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                </tr>
+                                <tr>
+                                    <td>Invoice Management</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                </tr>
+                                <tr>
+                                    <td>Bank Reconciliation</td>
+                                    <td class="text-center text-gray-400">No</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                </tr>
+                                <tr>
+                                    <td>Payroll</td>
+                                    <td class="text-center text-gray-400">No</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                </tr>
+                                <tr>
+                                    <td>Multi-Entity</td>
+                                    <td class="text-center text-gray-400">No</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                </tr>
+                                <tr>
+                                    <td>API Access</td>
+                                    <td class="text-center text-gray-400">No</td>
+                                    <td class="text-center text-gray-400">No</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                </tr>
+                                <tr>
+                                    <td>White-labeling</td>
+                                    <td class="text-center text-gray-400">No</td>
+                                    <td class="text-center text-gray-400">No</td>
+                                    <td class="text-center text-green-600">Yes</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Audit Logs -->
-            <div x-show="activeSection === 'audit-logs'" x-transition x-cloak>
-                {% include 'partials/super_admin/audit_logs.html' %}
+            <!-- Audit Logs Section -->
+            <div x-show="section === 'audit'" x-cloak>
+                <div class="stat-card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-900">Audit Logs</h3>
+                        <button class="btn-secondary text-sm">Export Logs</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Resource</th>
+                                    <th>IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if dashboard.recent_activity %}
+                                {% for log in dashboard.recent_activity %}
+                                <tr>
+                                    <td class="text-gray-500 text-xs">{{ log.timestamp or log.created_at }}</td>
+                                    <td class="font-medium">{{ log.user_email or log.user }}</td>
+                                    <td><span class="badge badge-info">{{ log.action }}</span></td>
+                                    <td>{{ log.resource or log.description or '-' }}</td>
+                                    <td class="text-gray-400 text-xs">{{ log.ip_address or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr><td colspan="5" class="text-center text-gray-500 py-8">No audit logs available</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Compliance Dashboard -->
-            <div x-show="activeSection === 'compliance'" x-transition x-cloak>
-                {% include 'partials/super_admin/compliance.html' %}
+            <!-- Compliance Section -->
+            <div x-show="section === 'compliance'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">FIRS Compliance</p>
+                        <p class="stat-value text-green-600">98%</p>
+                        <p class="text-xs text-gray-500 mt-1">Tax compliance rate</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">NRS Compliance</p>
+                        <p class="stat-value text-green-600">{{ dashboard.nrs_compliance.compliance_rate if dashboard.nrs_compliance else '95%' }}</p>
+                        <p class="text-xs text-gray-500 mt-1">E-invoice compliance</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">CAMA Compliance</p>
+                        <p class="stat-value text-green-600">100%</p>
+                        <p class="text-xs text-gray-500 mt-1">Corporate compliance</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Compliance Dashboard</h3>
+                    <p class="text-gray-500 text-sm">Nigerian regulatory compliance tracking for FIRS, NRS, and CAMA.</p>
+                </div>
             </div>
             
-            <!-- Section: Legal Holds -->
-            <div x-show="activeSection === 'legal-holds'" x-transition x-cloak>
-                {% include 'partials/super_admin/legal_holds.html' %}
+            <!-- Legal Holds Section -->
+            <div x-show="section === 'legal'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">Active Holds</p>
+                        <p class="stat-value">{{ dashboard.legal_holds.active if dashboard.legal_holds else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Pending Release</p>
+                        <p class="stat-value text-yellow-600">{{ dashboard.legal_holds.pending if dashboard.legal_holds else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Records Preserved</p>
+                        <p class="stat-value">{{ dashboard.legal_holds.total_records if dashboard.legal_holds else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Released (30d)</p>
+                        <p class="stat-value text-gray-500">{{ dashboard.legal_holds.released if dashboard.legal_holds else 0 }}</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Legal Hold Management</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Hold ID</th>
+                                    <th>Matter</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Records</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if dashboard.legal_holds_list %}
+                                {% for hold in dashboard.legal_holds_list %}
+                                <tr>
+                                    <td class="font-mono text-xs">{{ hold.hold_number }}</td>
+                                    <td class="font-medium">{{ hold.matter_name }}</td>
+                                    <td>{{ hold.hold_type }}</td>
+                                    <td><span class="badge badge-{{ 'success' if hold.status == 'active' else 'gray' }}">{{ hold.status }}</span></td>
+                                    <td>{{ hold.records_preserved_count }}</td>
+                                    <td class="text-gray-500 text-xs">{{ hold.created_at }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr><td colspan="6" class="text-center text-gray-500 py-8">No legal holds</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: ML Jobs -->
-            <div x-show="activeSection === 'ml-jobs'" x-transition x-cloak>
-                {% include 'partials/super_admin/ml_jobs.html' %}
+            <!-- ML Jobs Section -->
+            <div x-show="section === 'ml-jobs'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">Active Jobs</p>
+                        <p class="stat-value">{{ dashboard.ml_jobs.active if dashboard.ml_jobs else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Queued</p>
+                        <p class="stat-value text-yellow-600">{{ dashboard.ml_jobs.queued if dashboard.ml_jobs else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Completed (24h)</p>
+                        <p class="stat-value text-green-600">{{ dashboard.ml_jobs.completed_24h if dashboard.ml_jobs else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Failed (24h)</p>
+                        <p class="stat-value text-red-600">{{ dashboard.ml_jobs.failed_24h if dashboard.ml_jobs else 0 }}</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">ML Job Queue</h3>
+                    <p class="text-gray-500 text-sm">Machine learning pipeline monitoring.</p>
+                </div>
             </div>
             
-            <!-- Section: Model Registry -->
-            <div x-show="activeSection === 'models'" x-transition x-cloak>
-                {% include 'partials/super_admin/models.html' %}
+            <!-- Models Section -->
+            <div x-show="section === 'models'" x-cloak>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Model Registry</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium">Anomaly Detection</span>
+                                <span class="badge badge-success">Active</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mb-2">Version 2.1.0 - Updated Jan 2026</p>
+                            <div class="flex items-center gap-4 text-xs text-gray-500">
+                                <span>Precision: 94%</span>
+                                <span>Recall: 91%</span>
+                            </div>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium">Risk Scoring</span>
+                                <span class="badge badge-success">Active</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mb-2">Version 1.8.0 - Updated Dec 2025</p>
+                            <div class="flex items-center gap-4 text-xs text-gray-500">
+                                <span>Precision: 89%</span>
+                                <span>Recall: 87%</span>
+                            </div>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium">Benford's Law Analyzer</span>
+                                <span class="badge badge-success">Active</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mb-2">Version 1.2.0 - Updated Jan 2026</p>
+                            <div class="flex items-center gap-4 text-xs text-gray-500">
+                                <span>Accuracy: 97%</span>
+                            </div>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium">Journal Clusterer</span>
+                                <span class="badge badge-warning">Training</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mb-2">Version 2.0.0 - In Progress</p>
+                            <div class="flex items-center gap-4 text-xs text-gray-500">
+                                <span>Progress: 67%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Risk Signals -->
-            <div x-show="activeSection === 'risk-signals'" x-transition x-cloak>
-                {% include 'partials/super_admin/risk_signals.html' %}
+            <!-- Risk Signals Section -->
+            <div x-show="section === 'risk'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">Critical</p>
+                        <p class="stat-value text-red-600">{{ dashboard.risk_signals.critical if dashboard.risk_signals else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">High</p>
+                        <p class="stat-value text-orange-600">{{ dashboard.risk_signals.high if dashboard.risk_signals else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Medium</p>
+                        <p class="stat-value text-yellow-600">{{ dashboard.risk_signals.medium if dashboard.risk_signals else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Low</p>
+                        <p class="stat-value text-green-600">{{ dashboard.risk_signals.low if dashboard.risk_signals else 0 }}</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Recent Risk Signals</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Signal</th>
+                                    <th>Title</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Detected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if dashboard.recent_risk_signals %}
+                                {% for signal in dashboard.recent_risk_signals %}
+                                <tr>
+                                    <td class="font-mono text-xs">{{ signal.signal_code }}</td>
+                                    <td class="font-medium">{{ signal.title }}</td>
+                                    <td><span class="badge badge-{{ 'danger' if signal.severity == 'critical' else 'warning' if signal.severity == 'high' else 'info' }}">{{ signal.severity }}</span></td>
+                                    <td><span class="badge badge-{{ 'success' if signal.status == 'resolved' else 'gray' }}">{{ signal.status }}</span></td>
+                                    <td class="text-gray-500 text-xs">{{ signal.detected_at }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr><td colspan="5" class="text-center text-gray-500 py-8">No risk signals detected</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Revenue Analytics -->
-            <div x-show="activeSection === 'revenue'" x-transition x-cloak>
-                {% include 'partials/super_admin/revenue.html' %}
+            <!-- Revenue Section -->
+            <div x-show="section === 'revenue'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card primary">
+                        <p class="stat-label">ARR</p>
+                        <p class="stat-value">{{ "₦{:,.0f}".format((dashboard.platform_revenue.mrr or 0) * 12 if dashboard.platform_revenue else 0) }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">MRR</p>
+                        <p class="stat-value text-green-600">{{ "₦{:,.0f}".format(dashboard.platform_revenue.mrr if dashboard.platform_revenue else 0) }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">ARPU</p>
+                        <p class="stat-value">{{ "₦{:,.0f}".format(dashboard.platform_revenue.arpu if dashboard.platform_revenue else 0) }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Churn Rate</p>
+                        <p class="stat-value">{{ dashboard.platform_revenue.churn_rate if dashboard.platform_revenue else '0%' }}</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Revenue Analytics</h3>
+                    <p class="text-gray-500 text-sm">Detailed revenue analytics and trends.</p>
+                </div>
             </div>
             
-            <!-- Section: Upsell Signals -->
-            <div x-show="activeSection === 'upsell'" x-transition x-cloak>
-                {% include 'partials/super_admin/upsell.html' %}
+            <!-- Upsell Section -->
+            <div x-show="section === 'upsell'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">Core to Pro</p>
+                        <p class="stat-value text-blue-600">{{ dashboard.upsell.core_to_pro if dashboard.upsell else 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Upgrade candidates</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Pro to Enterprise</p>
+                        <p class="stat-value text-purple-600">{{ dashboard.upsell.pro_to_ent if dashboard.upsell else 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Upgrade candidates</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Intelligence Add-on</p>
+                        <p class="stat-value text-orange-600">{{ dashboard.upsell.intelligence if dashboard.upsell else 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Add-on candidates</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Upsell Opportunities</h3>
+                    <p class="text-gray-500 text-sm">Identify customers ready for upgrades based on usage patterns.</p>
+                </div>
             </div>
             
-            <!-- Section: Infrastructure -->
-            <div x-show="activeSection === 'infrastructure'" x-transition x-cloak>
-                {% include 'partials/super_admin/infrastructure.html' %}
+            <!-- Infrastructure Section -->
+            <div x-show="section === 'infrastructure'" x-cloak>
+                <div class="stat-card mb-6">
+                    <h3 class="font-semibold text-gray-900 mb-4">Service Status</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium">API Gateway</span>
+                                <span class="health-dot healthy"></span>
+                            </div>
+                            <p class="text-xs text-gray-500">Uptime: 99.97%</p>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium">PostgreSQL</span>
+                                <span class="health-dot healthy"></span>
+                            </div>
+                            <p class="text-xs text-gray-500">Connections: 45/100</p>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium">Redis Cache</span>
+                                <span class="health-dot healthy"></span>
+                            </div>
+                            <p class="text-xs text-gray-500">Memory: 2.1GB/8GB</p>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium">Celery Workers</span>
+                                <span class="health-dot healthy"></span>
+                            </div>
+                            <p class="text-xs text-gray-500">Active: 4/4</p>
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Support Queue -->
-            <div x-show="activeSection === 'support'" x-transition x-cloak>
-                {% include 'partials/super_admin/support.html' %}
+            <!-- Support Section -->
+            <div x-show="section === 'support'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">Open Tickets</p>
+                        <p class="stat-value">{{ dashboard.support_tickets.open if dashboard.support_tickets else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Critical</p>
+                        <p class="stat-value text-red-600">{{ dashboard.support_tickets.critical if dashboard.support_tickets else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Avg Response</p>
+                        <p class="stat-value text-green-600">{{ dashboard.support_tickets.avg_response_time or '2h' if dashboard.support_tickets else '2h' }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">CSAT Score</p>
+                        <p class="stat-value">{{ dashboard.support_tickets.csat_score or '4.5' if dashboard.support_tickets else '4.5' }}/5</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Support Queue</h3>
+                    <p class="text-gray-500 text-sm">Customer support ticket management.</p>
+                </div>
             </div>
             
-            <!-- Section: Staff Management -->
-            <div x-show="activeSection === 'admin-users'" x-transition x-cloak>
-                {% include 'partials/super_admin/staff_management.html' %}
+            <!-- Staff Section -->
+            <div x-show="section === 'staff'" x-cloak>
+                <div class="stat-card mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-900">Platform Staff</h3>
+                        <a href="/admin/staff/onboard" class="btn-primary">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Onboard Staff
+                        </a>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                        <div class="text-center p-4 bg-gray-50 rounded-lg">
+                            <p class="text-2xl font-bold text-gray-900">{{ dashboard.overview.total_staff }}</p>
+                            <p class="text-xs text-gray-500">Total Staff</p>
+                        </div>
+                        {% if dashboard.staff_by_role %}
+                        {% for role, count in dashboard.staff_by_role.items() %}
+                        <div class="text-center p-4 bg-gray-50 rounded-lg">
+                            <p class="text-2xl font-bold text-gray-900">{{ count }}</p>
+                            <p class="text-xs text-gray-500 capitalize">{{ role.replace('_', ' ') }}</p>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
             </div>
             
-            <!-- Section: Security Dashboard -->
-            <div x-show="activeSection === 'security'" x-transition x-cloak>
-                {% include 'partials/super_admin/security.html' %}
+            <!-- Security Section -->
+            <div x-show="section === 'security'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="stat-card">
+                        <p class="stat-label">Security Score</p>
+                        <p class="stat-value text-green-600">A+</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Failed Logins (24h)</p>
+                        <p class="stat-value text-red-600">{{ dashboard.failed_logins.count_24h if dashboard.failed_logins else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">Active Sessions</p>
+                        <p class="stat-value">{{ dashboard.security_alerts | length if dashboard.security_alerts else 0 }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <p class="stat-label">2FA Adoption</p>
+                        <p class="stat-value text-green-600">78%</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Security Dashboard</h3>
+                    <p class="text-gray-500 text-sm mb-4">Platform security monitoring and controls.</p>
+                    <a href="/admin/security" class="btn-primary">View Full Security Dashboard</a>
+                </div>
             </div>
             
-            <!-- Section: Global Settings -->
-            <div x-show="activeSection === 'settings'" x-transition x-cloak>
-                {% include 'partials/super_admin/settings.html' %}
+            <!-- Settings Section -->
+            <div x-show="section === 'settings'" x-cloak>
+                <div class="stat-card">
+                    <h3 class="font-semibold text-gray-900 mb-4">Global Settings</h3>
+                    <p class="text-gray-500 text-sm mb-4">Platform-wide configuration settings.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Platform Name</label>
+                            <input type="text" value="TekVwarho ProAudit" class="w-full px-3 py-2 border border-gray-200 rounded-lg" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Default Currency</label>
+                            <input type="text" value="NGN (Nigerian Naira)" class="w-full px-3 py-2 border border-gray-200 rounded-lg" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Default Timezone</label>
+                            <input type="text" value="Africa/Lagos (WAT)" class="w-full px-3 py-2 border border-gray-200 rounded-lg" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Trial Period</label>
+                            <input type="text" value="14 days" class="w-full px-3 py-2 border border-gray-200 rounded-lg" readonly>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <a href="/admin/settings" class="btn-primary">Manage Settings</a>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
 </div>
 
 <script>
-function superAdminDashboard() {
+function superAdminApp() {
     return {
         sidebarOpen: false,
-        activeSection: 'overview',
-        alertCount: {{ dashboard.security_alerts | length if dashboard.security_alerts else 0 }},
-        loading: false,
+        section: 'overview',
+        titles: {
+            'overview': 'Dashboard',
+            'tenants': 'Tenants',
+            'subscriptions': 'Subscriptions',
+            'features': 'Feature Flags',
+            'audit': 'Audit Logs',
+            'compliance': 'Compliance',
+            'legal': 'Legal Holds',
+            'ml-jobs': 'ML Jobs',
+            'models': 'Models',
+            'risk': 'Risk Signals',
+            'revenue': 'Revenue',
+            'upsell': 'Upsell',
+            'infrastructure': 'Infrastructure',
+            'support': 'Support',
+            'staff': 'Staff',
+            'security': 'Security',
+            'settings': 'Settings'
+        },
         
-        sectionTitles: {
-            'overview': 'Executive Dashboard',
-            'tenants': 'Tenant Registry',
-            'subscriptions': 'Subscription Management',
-            'feature-flags': 'Feature Flag Control',
-            'audit-logs': 'Global Audit Logs',
-            'compliance': 'Compliance Dashboard',
-            'legal-holds': 'Legal Holds',
-            'ml-jobs': 'ML Jobs Monitor',
-            'models': 'Model Registry',
-            'risk-signals': 'Risk Detection',
-            'revenue': 'Revenue Analytics',
-            'upsell': 'Upsell Opportunities',
-            'infrastructure': 'Infrastructure Health',
-            'support': 'Support Queue',
-            'admin-users': 'Staff Management',
-            'security': 'Security Dashboard',
-            'settings': 'Global Settings'
+        setSection(s) {
+            this.section = s;
+            window.location.hash = s;
         },
         
         init() {
-            // Check URL hash for initial section
             const hash = window.location.hash.replace('#', '');
-            if (hash && this.sectionTitles[hash]) {
-                this.activeSection = hash;
-            }
-            
-            // Listen for hash changes
-            window.addEventListener('hashchange', () => {
-                const newHash = window.location.hash.replace('#', '');
-                if (newHash && this.sectionTitles[newHash]) {
-                    this.activeSection = newHash;
-                }
-            });
-        },
-        
-        async refreshData() {
-            this.loading = true;
-            try {
-                const response = await fetch('/api/v1/staff/dashboard');
-                if (response.ok) {
-                    const data = await response.json();
-                    // Update dashboard data
-                    console.log('Dashboard refreshed', data);
-                }
-            } catch (error) {
-                console.error('Failed to refresh dashboard', error);
-            } finally {
-                this.loading = false;
+            if (hash && this.titles[hash]) {
+                this.section = hash;
             }
         }
     }

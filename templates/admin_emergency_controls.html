@@ -1,0 +1,1210 @@
+{% extends "base.html" %}
+
+{% block title %}Emergency Controls - Super Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --nigeria-green: #008751;
+        --nigeria-green-dark: #006340;
+        --danger-red: #dc3545;
+        --warning-orange: #fd7e14;
+        --success-green: #28a745;
+    }
+    
+    .emergency-header {
+        background: linear-gradient(135deg, var(--danger-red) 0%, #a71d2a 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+    }
+    
+    .emergency-header h1 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .emergency-header .subtitle {
+        opacity: 0.9;
+        margin-top: 0.5rem;
+    }
+    
+    .status-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .status-card.active-danger {
+        border-left: 4px solid var(--danger-red);
+        background: #fff5f5;
+    }
+    
+    .status-card.active-warning {
+        border-left: 4px solid var(--warning-orange);
+        background: #fff8f0;
+    }
+    
+    .status-card.normal {
+        border-left: 4px solid var(--success-green);
+    }
+    
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    
+    .status-indicator.active {
+        background: var(--danger-red);
+        color: white;
+    }
+    
+    .status-indicator.inactive {
+        background: var(--success-green);
+        color: white;
+    }
+    
+    .control-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .control-section h3 {
+        color: #333;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #f0f0f0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .control-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+    
+    .control-item {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s;
+    }
+    
+    .control-item:hover {
+        border-color: var(--nigeria-green);
+        box-shadow: 0 2px 8px rgba(0,135,81,0.1);
+    }
+    
+    .control-item.disabled {
+        background: #ffebee;
+        border-color: var(--danger-red);
+    }
+    
+    .control-info h4 {
+        margin: 0 0 0.25rem 0;
+        font-size: 0.95rem;
+    }
+    
+    .control-info p {
+        margin: 0;
+        font-size: 0.8rem;
+        color: #666;
+    }
+    
+    .toggle-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.8rem;
+    }
+    
+    .toggle-btn.enable {
+        background: var(--success-green);
+        color: white;
+    }
+    
+    .toggle-btn.disable {
+        background: var(--danger-red);
+        color: white;
+    }
+    
+    .toggle-btn:hover {
+        transform: scale(1.05);
+    }
+    
+    .tenant-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .tenant-table th,
+    .tenant-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .tenant-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .tenant-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .history-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .history-item {
+        padding: 1rem;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+    
+    .history-item:last-child {
+        border-bottom: none;
+    }
+    
+    .history-info h4 {
+        margin: 0 0 0.25rem 0;
+        font-size: 0.95rem;
+    }
+    
+    .history-info p {
+        margin: 0;
+        font-size: 0.8rem;
+        color: #666;
+    }
+    
+    .history-meta {
+        text-align: right;
+        font-size: 0.8rem;
+        color: #888;
+    }
+    
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .badge-danger {
+        background: #ffebee;
+        color: var(--danger-red);
+    }
+    
+    .badge-success {
+        background: #e8f5e9;
+        color: var(--success-green);
+    }
+    
+    .badge-warning {
+        background: #fff3e0;
+        color: var(--warning-orange);
+    }
+    
+    /* Modal styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .modal-overlay.active {
+        display: flex;
+    }
+    
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+    
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    
+    .modal-header h3 {
+        margin: 0;
+        color: var(--danger-red);
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+    }
+    
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.95rem;
+    }
+    
+    .form-group textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+    
+    .form-group .helper-text {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 0.25rem;
+    }
+    
+    .warning-box {
+        background: #fff3e0;
+        border: 1px solid var(--warning-orange);
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    .warning-box i {
+        color: var(--warning-orange);
+        font-size: 1.25rem;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+    
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-danger {
+        background: var(--danger-red);
+        color: white;
+    }
+    
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .btn-success {
+        background: var(--success-green);
+        color: white;
+    }
+    
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .stat-card {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        text-align: center;
+    }
+    
+    .stat-card .number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--nigeria-green);
+    }
+    
+    .stat-card.danger .number {
+        color: var(--danger-red);
+    }
+    
+    .stat-card .label {
+        font-size: 0.85rem;
+        color: #666;
+    }
+    
+    /* Loading spinner */
+    .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid var(--nigeria-green);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Toast notifications */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 2000;
+    }
+    
+    .toast {
+        background: #333;
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        animation: slideIn 0.3s ease;
+    }
+    
+    .toast.success {
+        background: var(--success-green);
+    }
+    
+    .toast.error {
+        background: var(--danger-red);
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Header -->
+    <div class="emergency-header">
+        <h1>
+            <i class="fas fa-exclamation-triangle"></i>
+            Emergency Controls
+        </h1>
+        <p class="subtitle">
+            <i class="fas fa-shield-alt"></i>
+            Super Admin Only - All actions are fully audited
+        </p>
+    </div>
+    
+    <!-- Current Platform Status -->
+    <div class="status-card {% if platform_status.is_read_only or platform_status.is_maintenance_mode %}active-danger{% elif platform_status.disabled_features|length > 0 %}active-warning{% else %}normal{% endif %}">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">
+                <i class="fas fa-heartbeat"></i>
+                Platform Status
+            </h3>
+            <div>
+                {% if platform_status.is_maintenance_mode %}
+                    <span class="status-indicator active">
+                        <i class="fas fa-tools"></i> MAINTENANCE MODE
+                    </span>
+                {% elif platform_status.is_read_only %}
+                    <span class="status-indicator active">
+                        <i class="fas fa-lock"></i> READ-ONLY MODE
+                    </span>
+                {% elif platform_status.disabled_features|length > 0 %}
+                    <span class="status-indicator" style="background: var(--warning-orange); color: white;">
+                        <i class="fas fa-exclamation"></i> {{ platform_status.disabled_features|length }} FEATURES DISABLED
+                    </span>
+                {% else %}
+                    <span class="status-indicator inactive">
+                        <i class="fas fa-check-circle"></i> NORMAL OPERATIONS
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card {% if active_controls_count > 0 %}danger{% endif %}">
+                <div class="number">{{ active_controls_count }}</div>
+                <div class="label">Active Controls</div>
+            </div>
+            <div class="stat-card {% if suspended_tenants_count > 0 %}danger{% endif %}">
+                <div class="number">{{ suspended_tenants_count }}</div>
+                <div class="label">Suspended Tenants</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">{{ platform_status.disabled_features|length }}</div>
+                <div class="label">Disabled Features</div>
+            </div>
+        </div>
+        
+        {% if platform_status.maintenance_message %}
+        <div class="warning-box">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>Maintenance Message:</strong><br>
+                {{ platform_status.maintenance_message }}
+                {% if platform_status.maintenance_expected_end %}
+                <br><small>Expected end: {{ platform_status.maintenance_expected_end }}</small>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Platform-Wide Controls -->
+    <div class="control-section">
+        <h3>
+            <i class="fas fa-globe"></i>
+            Platform-Wide Controls
+        </h3>
+        
+        <div class="control-grid">
+            <!-- Read-Only Mode -->
+            <div class="control-item {% if platform_status.is_read_only %}disabled{% endif %}">
+                <div class="control-info">
+                    <h4><i class="fas fa-lock"></i> Read-Only Mode</h4>
+                    <p>Block all write operations</p>
+                </div>
+                {% if platform_status.is_read_only %}
+                    <button class="toggle-btn enable" onclick="showDisableReadOnlyModal()">
+                        <i class="fas fa-unlock"></i> Disable
+                    </button>
+                {% else %}
+                    <button class="toggle-btn disable" onclick="showEnableReadOnlyModal()">
+                        <i class="fas fa-lock"></i> Enable
+                    </button>
+                {% endif %}
+            </div>
+            
+            <!-- Maintenance Mode -->
+            <div class="control-item {% if platform_status.is_maintenance_mode %}disabled{% endif %}">
+                <div class="control-info">
+                    <h4><i class="fas fa-tools"></i> Maintenance Mode</h4>
+                    <p>Block all non-admin access</p>
+                </div>
+                {% if platform_status.is_maintenance_mode %}
+                    <button class="toggle-btn enable" onclick="showDisableMaintenanceModal()">
+                        <i class="fas fa-play"></i> End
+                    </button>
+                {% else %}
+                    <button class="toggle-btn disable" onclick="showEnableMaintenanceModal()">
+                        <i class="fas fa-stop"></i> Start
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Feature Kill Switches -->
+    <div class="control-section">
+        <h3>
+            <i class="fas fa-power-off"></i>
+            Feature Kill Switches
+        </h3>
+        
+        <div class="control-grid">
+            {% for feature in available_features %}
+            <div class="control-item {% if feature.key in platform_status.disabled_features %}disabled{% endif %}">
+                <div class="control-info">
+                    <h4>{{ feature.name }}</h4>
+                    <p>{{ feature.description }}</p>
+                </div>
+                {% if feature.key in platform_status.disabled_features %}
+                    <button class="toggle-btn enable" onclick="showEnableFeatureModal('{{ feature.key }}', '{{ feature.name }}')">
+                        <i class="fas fa-toggle-on"></i> Enable
+                    </button>
+                {% else %}
+                    <button class="toggle-btn disable" onclick="showDisableFeatureModal('{{ feature.key }}', '{{ feature.name }}')">
+                        <i class="fas fa-toggle-off"></i> Disable
+                    </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Emergency Tenant Suspension -->
+    <div class="control-section">
+        <h3>
+            <i class="fas fa-building"></i>
+            Emergency Tenant Suspension
+        </h3>
+        
+        <div style="margin-bottom: 1rem;">
+            <button class="btn btn-danger" onclick="showSuspendTenantModal()">
+                <i class="fas fa-ban"></i> Suspend Tenant
+            </button>
+        </div>
+        
+        {% if suspended_tenants %}
+        <table class="tenant-table">
+            <thead>
+                <tr>
+                    <th>Tenant Name</th>
+                    <th>Suspended At</th>
+                    <th>Reason</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tenant in suspended_tenants %}
+                <tr>
+                    <td><strong>{{ tenant.name }}</strong></td>
+                    <td>{{ tenant.suspended_at|default('N/A') }}</td>
+                    <td>{{ tenant.reason|truncate(50) }}</td>
+                    <td>
+                        <button class="toggle-btn enable" onclick="showLiftSuspensionModal('{{ tenant.id }}', '{{ tenant.name }}')">
+                            <i class="fas fa-unlock"></i> Lift
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #666; text-align: center; padding: 2rem;">
+            <i class="fas fa-check-circle" style="color: var(--success-green);"></i>
+            No tenants are currently emergency suspended.
+        </p>
+        {% endif %}
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="control-section">
+        <h3>
+            <i class="fas fa-history"></i>
+            Recent Emergency Actions
+        </h3>
+        
+        <div class="history-list">
+            {% for control in recent_controls %}
+            <div class="history-item">
+                <div class="history-info">
+                    <h4>
+                        {{ control.action_type.replace('_', ' ').title() }}
+                        {% if control.is_active %}
+                            <span class="badge badge-danger">ACTIVE</span>
+                        {% else %}
+                            <span class="badge badge-success">RESOLVED</span>
+                        {% endif %}
+                    </h4>
+                    <p>
+                        {% if control.target_id %}
+                            Target: {{ control.target_type }} - {{ control.target_id }}
+                        {% else %}
+                            Target: {{ control.target_type }}
+                        {% endif %}
+                        <br>
+                        Reason: {{ control.reason|truncate(100) }}
+                    </p>
+                </div>
+                <div class="history-meta">
+                    <div>{{ control.started_at }}</div>
+                    {% if control.ended_at %}
+                    <div style="color: var(--success-green);">
+                        Ended: {{ control.ended_at }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <p style="color: #666; text-align: center; padding: 2rem;">
+                No emergency actions recorded yet.
+            </p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+
+<!-- Enable Read-Only Mode Modal -->
+<div class="modal-overlay" id="enableReadOnlyModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-lock"></i> Enable Read-Only Mode</h3>
+            <button class="modal-close" onclick="closeModal('enableReadOnlyModal')">&times;</button>
+        </div>
+        
+        <div class="warning-box">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+                <strong>Warning!</strong> This will block ALL write operations platform-wide.
+                Only read operations will be permitted.
+            </div>
+        </div>
+        
+        <form id="enableReadOnlyForm">
+            <div class="form-group">
+                <label for="readOnlyReason">Reason (Required) *</label>
+                <textarea id="readOnlyReason" name="reason" required minlength="10" maxlength="1000"
+                    placeholder="Explain why read-only mode is being enabled..."></textarea>
+                <p class="helper-text">Minimum 10 characters. Be specific about the reason.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="readOnlyMessage">User Message (Optional)</label>
+                <input type="text" id="readOnlyMessage" name="message" maxlength="500"
+                    placeholder="Message to display to users...">
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('enableReadOnlyModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-lock"></i> Enable Read-Only Mode
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Disable Read-Only Mode Modal -->
+<div class="modal-overlay" id="disableReadOnlyModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-unlock"></i> Disable Read-Only Mode</h3>
+            <button class="modal-close" onclick="closeModal('disableReadOnlyModal')">&times;</button>
+        </div>
+        
+        <form id="disableReadOnlyForm">
+            <div class="form-group">
+                <label for="disableReadOnlyReason">Reason (Required) *</label>
+                <textarea id="disableReadOnlyReason" name="reason" required minlength="10" maxlength="1000"
+                    placeholder="Explain why read-only mode is being disabled..."></textarea>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('disableReadOnlyModal')">Cancel</button>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-unlock"></i> Disable Read-Only Mode
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Enable Maintenance Mode Modal -->
+<div class="modal-overlay" id="enableMaintenanceModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-tools"></i> Enable Maintenance Mode</h3>
+            <button class="modal-close" onclick="closeModal('enableMaintenanceModal')">&times;</button>
+        </div>
+        
+        <div class="warning-box">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+                <strong>Warning!</strong> This will block ALL non-admin users from accessing the platform.
+            </div>
+        </div>
+        
+        <form id="enableMaintenanceForm">
+            <div class="form-group">
+                <label for="maintenanceReason">Reason (Required) *</label>
+                <textarea id="maintenanceReason" name="reason" required minlength="10" maxlength="1000"
+                    placeholder="Explain why maintenance is needed..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="maintenanceMessage">User Message (Required) *</label>
+                <input type="text" id="maintenanceMessage" name="message" required minlength="5" maxlength="500"
+                    placeholder="Message to display to users...">
+            </div>
+            
+            <div class="form-group">
+                <label for="maintenanceExpectedEnd">Expected End Time (Optional)</label>
+                <input type="datetime-local" id="maintenanceExpectedEnd" name="expected_end">
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('enableMaintenanceModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-tools"></i> Start Maintenance
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Disable Maintenance Mode Modal -->
+<div class="modal-overlay" id="disableMaintenanceModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-play"></i> End Maintenance Mode</h3>
+            <button class="modal-close" onclick="closeModal('disableMaintenanceModal')">&times;</button>
+        </div>
+        
+        <form id="disableMaintenanceForm">
+            <div class="form-group">
+                <label for="disableMaintenanceReason">Reason (Required) *</label>
+                <textarea id="disableMaintenanceReason" name="reason" required minlength="10" maxlength="1000"
+                    placeholder="Explain why maintenance is ending..."></textarea>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('disableMaintenanceModal')">Cancel</button>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-play"></i> End Maintenance
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Feature Kill Switch Modal -->
+<div class="modal-overlay" id="featureModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="featureModalTitle"><i class="fas fa-power-off"></i> Toggle Feature</h3>
+            <button class="modal-close" onclick="closeModal('featureModal')">&times;</button>
+        </div>
+        
+        <div class="warning-box" id="featureWarningBox">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div id="featureWarningText"></div>
+        </div>
+        
+        <form id="featureForm">
+            <input type="hidden" id="featureKey" name="feature_key">
+            <input type="hidden" id="featureAction" name="action">
+            
+            <div class="form-group">
+                <label for="featureReason">Reason (Required) *</label>
+                <textarea id="featureReason" name="reason" required minlength="10" maxlength="1000"
+                    placeholder="Explain why this feature is being toggled..."></textarea>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('featureModal')">Cancel</button>
+                <button type="submit" class="btn" id="featureSubmitBtn">Confirm</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Suspend Tenant Modal -->
+<div class="modal-overlay" id="suspendTenantModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-ban"></i> Emergency Suspend Tenant</h3>
+            <button class="modal-close" onclick="closeModal('suspendTenantModal')">&times;</button>
+        </div>
+        
+        <div class="warning-box">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+                <strong>Warning!</strong> This will immediately block ALL access for the tenant's users.
+            </div>
+        </div>
+        
+        <form id="suspendTenantForm">
+            <div class="form-group">
+                <label for="tenantId">Tenant ID *</label>
+                <input type="text" id="tenantId" name="tenant_id" required
+                    placeholder="Enter tenant UUID...">
+                <p class="helper-text">You can find tenant IDs in the Tenants section.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="suspendReason">Reason (Required) *</label>
+                <textarea id="suspendReason" name="reason" required minlength="10" maxlength="1000"
+                    placeholder="Explain why this tenant is being suspended..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="notifyUsers" name="notify_users" checked>
+                    Notify tenant users via email
+                </label>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('suspendTenantModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-ban"></i> Suspend Tenant
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lift Suspension Modal -->
+<div class="modal-overlay" id="liftSuspensionModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-unlock"></i> Lift Emergency Suspension</h3>
+            <button class="modal-close" onclick="closeModal('liftSuspensionModal')">&times;</button>
+        </div>
+        
+        <p id="liftSuspensionInfo"></p>
+        
+        <form id="liftSuspensionForm">
+            <input type="hidden" id="liftTenantId" name="tenant_id">
+            
+            <div class="form-group">
+                <label for="liftReason">Reason (Required) *</label>
+                <textarea id="liftReason" name="reason" required minlength="10" maxlength="1000"
+                    placeholder="Explain why suspension is being lifted..."></textarea>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('liftSuspensionModal')">Cancel</button>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-unlock"></i> Lift Suspension
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const API_BASE = '/api/v1/admin/emergency';
+    
+    // Modal functions
+    function showModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+    }
+    
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+    
+    // Toast notifications
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+            <span>${message}</span>
+        `;
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+    
+    // Read-Only Mode
+    function showEnableReadOnlyModal() {
+        showModal('enableReadOnlyModal');
+    }
+    
+    function showDisableReadOnlyModal() {
+        showModal('disableReadOnlyModal');
+    }
+    
+    document.getElementById('enableReadOnlyForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`${API_BASE}/read-only-mode/enable`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reason: formData.get('reason'),
+                    message: formData.get('message') || null
+                })
+            });
+            
+            if (response.ok) {
+                showToast('Read-only mode enabled successfully');
+                closeModal('enableReadOnlyModal');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showToast(error.detail || 'Failed to enable read-only mode', 'error');
+            }
+        } catch (err) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+    
+    document.getElementById('disableReadOnlyForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`${API_BASE}/read-only-mode/disable`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: formData.get('reason') })
+            });
+            
+            if (response.ok) {
+                showToast('Read-only mode disabled successfully');
+                closeModal('disableReadOnlyModal');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showToast(error.detail || 'Failed to disable read-only mode', 'error');
+            }
+        } catch (err) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+    
+    // Maintenance Mode
+    function showEnableMaintenanceModal() {
+        showModal('enableMaintenanceModal');
+    }
+    
+    function showDisableMaintenanceModal() {
+        showModal('disableMaintenanceModal');
+    }
+    
+    document.getElementById('enableMaintenanceForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`${API_BASE}/maintenance-mode/enable`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reason: formData.get('reason'),
+                    message: formData.get('message'),
+                    expected_end: formData.get('expected_end') || null
+                })
+            });
+            
+            if (response.ok) {
+                showToast('Maintenance mode enabled successfully');
+                closeModal('enableMaintenanceModal');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showToast(error.detail || 'Failed to enable maintenance mode', 'error');
+            }
+        } catch (err) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+    
+    document.getElementById('disableMaintenanceForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`${API_BASE}/maintenance-mode/disable`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: formData.get('reason') })
+            });
+            
+            if (response.ok) {
+                showToast('Maintenance mode disabled successfully');
+                closeModal('disableMaintenanceModal');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showToast(error.detail || 'Failed to disable maintenance mode', 'error');
+            }
+        } catch (err) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+    
+    // Feature Kill Switches
+    function showDisableFeatureModal(featureKey, featureName) {
+        document.getElementById('featureModalTitle').innerHTML = `<i class="fas fa-toggle-off"></i> Disable ${featureName}`;
+        document.getElementById('featureWarningText').innerHTML = `<strong>Warning!</strong> This will disable the <strong>${featureName}</strong> feature for ALL users.`;
+        document.getElementById('featureKey').value = featureKey;
+        document.getElementById('featureAction').value = 'disable';
+        document.getElementById('featureSubmitBtn').className = 'btn btn-danger';
+        document.getElementById('featureSubmitBtn').innerHTML = '<i class="fas fa-toggle-off"></i> Disable Feature';
+        showModal('featureModal');
+    }
+    
+    function showEnableFeatureModal(featureKey, featureName) {
+        document.getElementById('featureModalTitle').innerHTML = `<i class="fas fa-toggle-on"></i> Enable ${featureName}`;
+        document.getElementById('featureWarningBox').style.display = 'none';
+        document.getElementById('featureKey').value = featureKey;
+        document.getElementById('featureAction').value = 'enable';
+        document.getElementById('featureSubmitBtn').className = 'btn btn-success';
+        document.getElementById('featureSubmitBtn').innerHTML = '<i class="fas fa-toggle-on"></i> Enable Feature';
+        showModal('featureModal');
+    }
+    
+    document.getElementById('featureForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const featureKey = formData.get('feature_key');
+        const action = formData.get('action');
+        
+        try {
+            const response = await fetch(`${API_BASE}/kill-switch/${featureKey}/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: formData.get('reason') })
+            });
+            
+            if (response.ok) {
+                showToast(`Feature ${action}d successfully`);
+                closeModal('featureModal');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showToast(error.detail || `Failed to ${action} feature`, 'error');
+            }
+        } catch (err) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+    
+    // Tenant Suspension
+    function showSuspendTenantModal() {
+        showModal('suspendTenantModal');
+    }
+    
+    function showLiftSuspensionModal(tenantId, tenantName) {
+        document.getElementById('liftTenantId').value = tenantId;
+        document.getElementById('liftSuspensionInfo').innerHTML = `Lifting suspension for: <strong>${tenantName}</strong>`;
+        showModal('liftSuspensionModal');
+    }
+    
+    document.getElementById('suspendTenantForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`${API_BASE}/tenant/${formData.get('tenant_id')}/emergency-suspend`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reason: formData.get('reason'),
+                    notify_users: document.getElementById('notifyUsers').checked
+                })
+            });
+            
+            if (response.ok) {
+                showToast('Tenant suspended successfully');
+                closeModal('suspendTenantModal');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showToast(error.detail || 'Failed to suspend tenant', 'error');
+            }
+        } catch (err) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+    
+    document.getElementById('liftSuspensionForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`${API_BASE}/tenant/${formData.get('tenant_id')}/lift-suspension`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: formData.get('reason') })
+            });
+            
+            if (response.ok) {
+                showToast('Suspension lifted successfully');
+                closeModal('liftSuspensionModal');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                const error = await response.json();
+                showToast(error.detail || 'Failed to lift suspension', 'error');
+            }
+        } catch (err) {
+            showToast('Network error. Please try again.', 'error');
+        }
+    });
+    
+    // Close modal on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+    });
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+        }
+    });
+</script>
+{% endblock %}

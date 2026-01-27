@@ -393,7 +393,7 @@ async def get_attachments(
 
 @router.post("/check-sla-breaches")
 async def check_sla_breaches(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Check and update SLA breaches for all open tickets (Super Admin only)."""

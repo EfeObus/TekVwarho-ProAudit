@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+
+{% block title %}Legal Holds - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    :root { --ng-green: #008751; --ng-green-dark: #006741; }
+    .btn-primary { background: var(--ng-green); color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; }
+    .btn-primary:hover { background: var(--ng-green-dark); }
+    .btn-danger { background: #dc2626; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; }
+    .btn-danger:hover { background: #b91c1c; }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { background: #e6f5ed; color: var(--ng-green-dark); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; padding: 0.75rem 1rem; text-align: left; }
+    .data-table td { padding: 0.875rem 1rem; font-size: 0.875rem; border-bottom: 1px solid #f3f4f6; }
+    .data-table tr:hover td { background: #fafbfc; }
+    .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-active { background: #fee2e2; color: #991b1b; }
+    .badge-released { background: #dcfce7; color: #166534; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .stat-card { background: white; border-radius: 0.75rem; padding: 1.25rem; border: 1px solid #e5e7eb; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="legalHoldsPage()" class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900">Legal Holds</h1>
+                    <p class="text-sm text-gray-500">Litigation hold management for compliance</p>
+                </div>
+            </div>
+            <button @click="showCreateHoldModal = true" class="btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                Create Legal Hold
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Active Holds</p>
+                <p class="text-2xl font-bold text-red-600" x-text="stats.active">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Pending Review</p>
+                <p class="text-2xl font-bold text-yellow-600" x-text="stats.pending">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Released (30 days)</p>
+                <p class="text-2xl font-bold text-green-600" x-text="stats.released_30d">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Affected Tenants</p>
+                <p class="text-2xl font-bold text-gray-600" x-text="stats.tenants_affected">0</p>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div class="flex flex-wrap gap-4">
+                <input type="text" x-model="searchQuery" @input.debounce.300ms="loadHolds()" placeholder="Search by case number or matter..." class="px-3 py-2 border rounded-lg text-sm w-64 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                <select x-model="filterStatus" @change="loadHolds()" class="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="pending">Pending</option>
+                    <option value="released">Released</option>
+                </select>
+                <button @click="loadHolds()" class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Legal Holds Table -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <!-- Loading State -->
+            <div x-show="loading" class="p-12 text-center">
+                <svg class="animate-spin h-8 w-8 mx-auto text-green-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <p class="mt-2 text-gray-500">Loading legal holds...</p>
+            </div>
+            
+            <table class="data-table" x-show="!loading">
+                <thead>
+                    <tr>
+                        <th>Hold Number</th>
+                        <th>Legal Matter</th>
+                        <th>Organization</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Custodians</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="hold in holds" :key="hold.id">
+                        <tr>
+                            <td class="font-mono text-sm" x-text="hold.hold_number || '-'"></td>
+                            <td x-text="hold.matter_name || 'N/A'"></td>
+                            <td x-text="hold.organization_name || '-'"></td>
+                            <td>
+                                <span class="badge" :class="getStatusBadgeClass(hold.status)" x-text="hold.status"></span>
+                            </td>
+                            <td class="text-gray-500 text-sm" x-text="formatDate(hold.created_at)"></td>
+                            <td x-text="hold.custodian_count || 0"></td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <button @click="viewHold(hold.id)" class="text-gray-400 hover:text-green-600" title="View Details">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                    <button x-show="hold.status === 'active' || hold.status === 'ACTIVE'" @click="confirmReleaseHold(hold)" class="text-gray-400 hover:text-red-600" title="Release Hold">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="holds.length === 0 && !loading">
+                        <td colspan="7" class="text-center text-gray-500 py-12">
+                            <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+                            No legal holds found
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-between" x-show="pagination.total > pagination.limit">
+                <p class="text-sm text-gray-500">
+                    Showing <span x-text="((pagination.page - 1) * pagination.limit) + 1"></span> to 
+                    <span x-text="Math.min(pagination.page * pagination.limit, pagination.total)"></span> of 
+                    <span x-text="pagination.total"></span> holds
+                </p>
+                <div class="flex gap-2">
+                    <button @click="prevPage()" :disabled="pagination.page === 1" 
+                            class="px-3 py-1 border rounded text-sm disabled:opacity-50">Previous</button>
+                    <button @click="nextPage()" :disabled="pagination.page * pagination.limit >= pagination.total" 
+                            class="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Legal Hold Modal -->
+    <div x-show="showCreateHoldModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/50" @click="showCreateHoldModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold mb-4">Create Legal Hold</h3>
+                <form @submit.prevent="createHold">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Matter Name *</label>
+                            <input type="text" x-model="holdForm.matter_name" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500" placeholder="e.g., SEC Investigation">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Matter Reference</label>
+                            <input type="text" x-model="holdForm.matter_reference" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500" placeholder="e.g., LIT-2026-001">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Organization ID *</label>
+                            <input type="text" x-model="holdForm.organization_id" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500" placeholder="Organization UUID">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Hold Type *</label>
+                                <select x-model="holdForm.hold_type" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                                    <option value="litigation">Litigation</option>
+                                    <option value="regulatory">Regulatory</option>
+                                    <option value="investigation">Investigation</option>
+                                    <option value="audit">Audit</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Data Scope *</label>
+                                <select x-model="holdForm.data_scope" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                                    <option value="all">All Data</option>
+                                    <option value="financial">Financial Only</option>
+                                    <option value="communications">Communications</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Preservation Start Date *</label>
+                            <input type="date" x-model="holdForm.preservation_start_date" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Legal Counsel Name</label>
+                            <input type="text" x-model="holdForm.legal_counsel_name" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500" placeholder="Counsel name">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Legal Counsel Email</label>
+                            <input type="email" x-model="holdForm.legal_counsel_email" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500" placeholder="counsel@lawfirm.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea x-model="holdForm.description" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Details about the legal hold..."></textarea>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showCreateHoldModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                        <button type="submit" class="btn-primary" :disabled="creating">
+                            <span x-show="!creating">Create Hold</span>
+                            <span x-show="creating">Creating...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View Hold Details Modal -->
+    <div x-show="showDetailsModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/50" @click="showDetailsModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[80vh] overflow-y-auto">
+                <h3 class="text-lg font-semibold mb-4">Legal Hold Details</h3>
+                <div x-show="selectedHold">
+                    <dl class="space-y-3">
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Hold Number</dt>
+                            <dd class="text-sm font-mono" x-text="selectedHold?.hold_number"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Matter Name</dt>
+                            <dd class="text-sm" x-text="selectedHold?.matter_name"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Status</dt>
+                            <dd><span class="badge" :class="getStatusBadgeClass(selectedHold?.status)" x-text="selectedHold?.status"></span></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Hold Type</dt>
+                            <dd class="text-sm capitalize" x-text="selectedHold?.hold_type"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Data Scope</dt>
+                            <dd class="text-sm capitalize" x-text="selectedHold?.data_scope"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Created</dt>
+                            <dd class="text-sm" x-text="formatDate(selectedHold?.created_at)"></dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Preservation Start</dt>
+                            <dd class="text-sm" x-text="selectedHold?.preservation_start_date"></dd>
+                        </div>
+                        <div x-show="selectedHold?.legal_counsel_name">
+                            <dt class="text-sm text-gray-500 mb-1">Legal Counsel</dt>
+                            <dd class="text-sm" x-text="selectedHold?.legal_counsel_name + (selectedHold?.legal_counsel_email ? ' (' + selectedHold?.legal_counsel_email + ')' : '')"></dd>
+                        </div>
+                        <div x-show="selectedHold?.description">
+                            <dt class="text-sm text-gray-500 mb-1">Description</dt>
+                            <dd class="text-sm bg-gray-50 p-2 rounded" x-text="selectedHold?.description"></dd>
+                        </div>
+                    </dl>
+                </div>
+                <div class="flex justify-end mt-6">
+                    <button @click="showDetailsModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Release Hold Confirmation Modal -->
+    <div x-show="showReleaseModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/50" @click="showReleaseModal = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+                <h3 class="text-lg font-semibold mb-4">Release Legal Hold</h3>
+                <p class="text-sm text-gray-600 mb-4">Are you sure you want to release this legal hold? This action will allow the preserved data to be modified or deleted according to normal retention policies.</p>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Release Reason *</label>
+                    <textarea x-model="releaseReason" required rows="2" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Reason for releasing the hold..."></textarea>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button @click="showReleaseModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                    <button @click="releaseHold()" class="btn-danger" :disabled="releasing || !releaseReason">
+                        <span x-show="!releasing">Release Hold</span>
+                        <span x-show="releasing">Releasing...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function legalHoldsPage() {
+    return {
+        loading: true,
+        creating: false,
+        releasing: false,
+        holds: [],
+        stats: {
+            active: 0,
+            pending: 0,
+            released_30d: 0,
+            tenants_affected: 0
+        },
+        selectedHold: null,
+        holdToRelease: null,
+        releaseReason: '',
+        
+        // Filters
+        searchQuery: '',
+        filterStatus: '',
+        
+        // Pagination
+        pagination: {
+            page: 1,
+            limit: 20,
+            total: 0
+        },
+        
+        // Modals
+        showCreateHoldModal: false,
+        showDetailsModal: false,
+        showReleaseModal: false,
+        
+        // Form
+        holdForm: {
+            organization_id: '',
+            matter_name: '',
+            matter_reference: '',
+            hold_type: 'litigation',
+            data_scope: 'all',
+            preservation_start_date: new Date().toISOString().split('T')[0],
+            legal_counsel_name: '',
+            legal_counsel_email: '',
+            description: ''
+        },
+        
+        async init() {
+            await this.loadStats();
+            await this.loadHolds();
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/v1/legal-holds/stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.stats = {
+                        active: data.active || 0,
+                        pending: data.pending || 0,
+                        released_30d: data.released_30d || data.released || 0,
+                        tenants_affected: data.tenants_affected || data.organizations_affected || 0
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        },
+        
+        async loadHolds() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('page', this.pagination.page);
+                params.append('limit', this.pagination.limit);
+                if (this.filterStatus) params.append('status', this.filterStatus);
+                if (this.searchQuery) params.append('search', this.searchQuery);
+                
+                const response = await fetch(`/api/v1/legal-holds?${params}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.holds = data.holds || data.items || [];
+                    this.pagination.total = data.total || this.holds.length;
+                }
+            } catch (error) {
+                console.error('Error loading holds:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async createHold() {
+            this.creating = true;
+            try {
+                const response = await fetch('/api/v1/legal-holds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.holdForm)
+                });
+                
+                if (response.ok) {
+                    this.showCreateHoldModal = false;
+                    this.resetForm();
+                    await this.loadHolds();
+                    await this.loadStats();
+                    this.showNotification('Legal hold created successfully', 'success');
+                } else {
+                    const error = await response.json();
+                    this.showNotification(error.detail || 'Failed to create legal hold', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating hold:', error);
+                this.showNotification('Failed to create legal hold', 'error');
+            } finally {
+                this.creating = false;
+            }
+        },
+        
+        async viewHold(holdId) {
+            try {
+                const response = await fetch(`/api/v1/legal-holds/${holdId}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    this.selectedHold = await response.json();
+                    this.showDetailsModal = true;
+                } else {
+                    this.showNotification('Failed to load hold details', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading hold:', error);
+                this.showNotification('Failed to load hold details', 'error');
+            }
+        },
+        
+        confirmReleaseHold(hold) {
+            this.holdToRelease = hold;
+            this.releaseReason = '';
+            this.showReleaseModal = true;
+        },
+        
+        async releaseHold() {
+            if (!this.holdToRelease || !this.releaseReason) return;
+            
+            this.releasing = true;
+            try {
+                const response = await fetch(`/api/v1/legal-holds/${this.holdToRelease.id}/release`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ reason: this.releaseReason })
+                });
+                
+                if (response.ok) {
+                    this.showReleaseModal = false;
+                    this.holdToRelease = null;
+                    this.releaseReason = '';
+                    await this.loadHolds();
+                    await this.loadStats();
+                    this.showNotification('Legal hold released successfully', 'success');
+                } else {
+                    const error = await response.json();
+                    this.showNotification(error.detail || 'Failed to release hold', 'error');
+                }
+            } catch (error) {
+                console.error('Error releasing hold:', error);
+                this.showNotification('Failed to release hold', 'error');
+            } finally {
+                this.releasing = false;
+            }
+        },
+        
+        resetForm() {
+            this.holdForm = {
+                organization_id: '',
+                matter_name: '',
+                matter_reference: '',
+                hold_type: 'litigation',
+                data_scope: 'all',
+                preservation_start_date: new Date().toISOString().split('T')[0],
+                legal_counsel_name: '',
+                legal_counsel_email: '',
+                description: ''
+            };
+        },
+        
+        getStatusBadgeClass(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'active') return 'badge-active';
+            if (s === 'released') return 'badge-released';
+            if (s === 'pending') return 'badge-pending';
+            return 'badge-pending';
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString();
+        },
+        
+        showNotification(message, type) {
+            alert(message);
+        },
+        
+        nextPage() {
+            if (this.pagination.page * this.pagination.limit < this.pagination.total) {
+                this.pagination.page++;
+                this.loadHolds();
+            }
+        },
+        
+        prevPage() {
+            if (this.pagination.page > 1) {
+                this.pagination.page--;
+                this.loadHolds();
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

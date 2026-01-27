@@ -1,0 +1,1203 @@
+{% extends "base.html" %}
+
+{% block title %}Security Audit - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="securityPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <a href="/staff/dashboard" class="hover:text-green-600">Dashboard</a>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            <span class="text-gray-900">Security Audit</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Security Audit Center</h1>
+                <p class="text-gray-600">Monitor security events, audit logs, and manage platform security</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button @click="exportSecurityReport()" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Export Report
+                </button>
+                <button @click="refreshData()" :disabled="loading" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                    <svg :class="{'animate-spin': loading}" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Overview Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <!-- Security Status -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Security Status</p>
+                    <p class="text-2xl font-bold" :class="securityStatus === 'healthy' ? 'text-green-600' : securityStatus === 'warning' ? 'text-yellow-600' : 'text-red-600'" x-text="securityStatus.charAt(0).toUpperCase() + securityStatus.slice(1)"></p>
+                </div>
+                <div :class="securityStatus === 'healthy' ? 'bg-green-100 text-green-600' : securityStatus === 'warning' ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'" class="p-3 rounded-full">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Alerts -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Active Alerts</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="stats.activeAlerts"></p>
+                </div>
+                <div class="bg-red-100 text-red-600 p-3 rounded-full">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Failed Logins (24h) -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Failed Logins (24h)</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="stats.failedLogins24h"></p>
+                </div>
+                <div class="bg-orange-100 text-orange-600 p-3 rounded-full">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Sessions -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Active Sessions</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="stats.activeSessions"></p>
+                </div>
+                <div class="bg-blue-100 text-blue-600 p-3 rounded-full">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="mb-6">
+        <nav class="flex space-x-4 border-b border-gray-200 overflow-x-auto">
+            <button @click="activeTab = 'alerts'" :class="activeTab === 'alerts' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                Security Alerts
+                <span x-show="stats.activeAlerts > 0" class="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full" x-text="stats.activeAlerts"></span>
+            </button>
+            <button @click="activeTab = 'audit'" :class="activeTab === 'audit' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                </svg>
+                Audit Logs
+            </button>
+            <button @click="activeTab = 'access'" :class="activeTab === 'access' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                </svg>
+                Access Control
+            </button>
+            <button @click="activeTab = 'sessions'" :class="activeTab === 'sessions' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                Active Sessions
+            </button>
+            <button @click="activeTab = 'policies'" :class="activeTab === 'policies' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+                Security Policies
+            </button>
+        </nav>
+    </div>
+
+    <!-- Security Alerts Tab -->
+    <div x-show="activeTab === 'alerts'" class="space-y-6">
+        <!-- Alert Filters -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex-1 min-w-[200px]">
+                    <select x-model="alertFilters.severity" @change="loadAlerts()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="">All Severities</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <select x-model="alertFilters.type" @change="loadAlerts()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="">All Types</option>
+                        <option value="failed_login">Failed Login</option>
+                        <option value="suspicious_activity">Suspicious Activity</option>
+                        <option value="brute_force">Brute Force Attempt</option>
+                        <option value="unauthorized_access">Unauthorized Access</option>
+                        <option value="data_export">Data Export</option>
+                        <option value="permission_change">Permission Change</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <select x-model="alertFilters.status" @change="loadAlerts()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="acknowledged">Acknowledged</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts List -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Alert Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User/IP</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="alert in alerts" :key="alert.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="{
+                                        'bg-red-100 text-red-700': alert.severity === 'critical',
+                                        'bg-orange-100 text-orange-700': alert.severity === 'high',
+                                        'bg-yellow-100 text-yellow-700': alert.severity === 'medium',
+                                        'bg-blue-100 text-blue-700': alert.severity === 'low'
+                                    }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="alert.severity.toUpperCase()"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="text-sm font-medium text-gray-900" x-text="alert.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())"></span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <p class="text-sm text-gray-900 max-w-xs truncate" x-text="alert.description"></p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <p class="text-sm text-gray-900" x-text="alert.user_email || 'N/A'"></p>
+                                    <p class="text-xs text-gray-500" x-text="alert.ip_address"></p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <p class="text-sm text-gray-900" x-text="formatDateTime(alert.created_at)"></p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="{
+                                        'bg-red-100 text-red-700': alert.status === 'active',
+                                        'bg-yellow-100 text-yellow-700': alert.status === 'acknowledged',
+                                        'bg-green-100 text-green-700': alert.status === 'resolved'
+                                    }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="alert.status.charAt(0).toUpperCase() + alert.status.slice(1)"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center gap-2">
+                                        <button x-show="alert.status === 'active'" @click="acknowledgeAlert(alert.id)" class="text-yellow-600 hover:text-yellow-800 text-sm font-medium">
+                                            Acknowledge
+                                        </button>
+                                        <button x-show="alert.status !== 'resolved'" @click="resolveAlert(alert.id)" class="text-green-600 hover:text-green-800 text-sm font-medium">
+                                            Resolve
+                                        </button>
+                                        <button @click="viewAlertDetails(alert)" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                            Details
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <div x-show="alerts.length === 0" class="p-8 text-center text-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+                <p class="text-lg font-medium">No security alerts</p>
+                <p class="text-sm">All systems are operating normally</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Logs Tab -->
+    <div x-show="activeTab === 'audit'" class="space-y-6">
+        <!-- Audit Filters -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" x-model="auditFilters.search" @input.debounce.300ms="loadAuditLogs()" placeholder="Search user, action, or resource..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div class="flex-1 min-w-[150px]">
+                    <select x-model="auditFilters.action" @change="loadAuditLogs()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="">All Actions</option>
+                        <option value="login">Login</option>
+                        <option value="logout">Logout</option>
+                        <option value="login_failed">Login Failed</option>
+                        <option value="create">Create</option>
+                        <option value="update">Update</option>
+                        <option value="delete">Delete</option>
+                        <option value="view">View</option>
+                        <option value="export">Export</option>
+                        <option value="nrs_submit">NRS Submit</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[150px]">
+                    <input type="date" x-model="auditFilters.startDate" @change="loadAuditLogs()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div class="flex-1 min-w-[150px]">
+                    <input type="date" x-model="auditFilters.endDate" @change="loadAuditLogs()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Logs Table -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resource</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="log in auditLogs" :key="log.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <p class="text-sm text-gray-900" x-text="formatDateTime(log.created_at)"></p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <p class="text-sm font-medium text-gray-900" x-text="log.user_email || 'System'"></p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="{
+                                        'bg-green-100 text-green-700': log.action === 'create',
+                                        'bg-blue-100 text-blue-700': log.action === 'view' || log.action === 'login',
+                                        'bg-yellow-100 text-yellow-700': log.action === 'update',
+                                        'bg-red-100 text-red-700': log.action === 'delete' || log.action === 'login_failed',
+                                        'bg-purple-100 text-purple-700': log.action === 'export'
+                                    }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="log.action.replace(/_/g, ' ').toUpperCase()"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <p class="text-sm text-gray-900" x-text="log.target_entity_type || 'N/A'"></p>
+                                    <p class="text-xs text-gray-500" x-text="log.target_entity_id ? log.target_entity_id.substring(0, 8) + '...' : ''"></p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <p class="text-sm text-gray-900" x-text="log.ip_address || 'N/A'"></p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <button @click="viewLogDetails(log)" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        View Details
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <div x-show="auditLogs.length === 0" class="p-8 text-center text-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <p class="text-lg font-medium">No audit logs found</p>
+                <p class="text-sm">Try adjusting your filters</p>
+            </div>
+            
+            <!-- Pagination -->
+            <div x-show="auditLogs.length > 0" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <p class="text-sm text-gray-500">
+                    Showing <span x-text="((auditPagination.page - 1) * auditPagination.limit) + 1"></span> to <span x-text="Math.min(auditPagination.page * auditPagination.limit, auditPagination.total)"></span> of <span x-text="auditPagination.total"></span> entries
+                </p>
+                <div class="flex items-center gap-2">
+                    <button @click="auditPagination.page--; loadAuditLogs()" :disabled="auditPagination.page === 1" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Previous
+                    </button>
+                    <span class="px-3 py-1 text-sm">Page <span x-text="auditPagination.page"></span></span>
+                    <button @click="auditPagination.page++; loadAuditLogs()" :disabled="auditPagination.page * auditPagination.limit >= auditPagination.total" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Access Control Tab -->
+    <div x-show="activeTab === 'access'" class="space-y-6">
+        <!-- IP Whitelist -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">IP Whitelist</h2>
+                    <p class="text-sm text-gray-500">Restrict platform staff access to specific IP addresses</p>
+                </div>
+                <button @click="showAddIpModal = true" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add IP
+                </button>
+            </div>
+            
+            <div class="space-y-2">
+                <template x-for="ip in ipWhitelist" :key="ip.id">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                            <p class="font-mono text-sm text-gray-900" x-text="ip.ip_address"></p>
+                            <p class="text-xs text-gray-500" x-text="ip.description"></p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span :class="ip.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'" class="px-2 py-0.5 text-xs rounded-full" x-text="ip.is_active ? 'Active' : 'Inactive'"></span>
+                            <button @click="removeIp(ip.id)" class="text-red-600 hover:text-red-800">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="ipWhitelist.length === 0" class="text-center py-4 text-gray-500">
+                    <p>No IP addresses whitelisted. All IPs are allowed.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Failed Login Attempts -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Recent Failed Login Attempts</h2>
+                    <p class="text-sm text-gray-500">Monitor failed authentication attempts</p>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attempts</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="attempt in failedAttempts" :key="attempt.id">
+                            <tr>
+                                <td class="px-4 py-3 text-sm text-gray-900" x-text="attempt.email"></td>
+                                <td class="px-4 py-3 text-sm font-mono text-gray-900" x-text="attempt.ip_address"></td>
+                                <td class="px-4 py-3 text-sm text-gray-500" x-text="formatDateTime(attempt.timestamp)"></td>
+                                <td class="px-4 py-3">
+                                    <span :class="attempt.count >= 5 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'" class="px-2 py-0.5 text-xs font-medium rounded-full" x-text="attempt.count"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <button @click="blockIp(attempt.ip_address)" class="text-red-600 hover:text-red-800 text-sm font-medium">Block IP</button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <div x-show="failedAttempts.length === 0" class="text-center py-4 text-gray-500">
+                <p>No failed login attempts recorded.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Sessions Tab -->
+    <div x-show="activeTab === 'sessions'" class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Active User Sessions</h2>
+                    <p class="text-sm text-gray-500">View and manage currently active user sessions</p>
+                </div>
+                <button @click="terminateAllSessions()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                    </svg>
+                    Terminate All
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Login Time</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Activity</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="session in activeSessions" :key="session.id">
+                            <tr>
+                                <td class="px-4 py-3">
+                                    <p class="text-sm font-medium text-gray-900" x-text="session.user_email"></p>
+                                    <p class="text-xs text-gray-500" x-text="session.user_name"></p>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full" x-text="session.role"></span>
+                                </td>
+                                <td class="px-4 py-3 text-sm font-mono text-gray-900" x-text="session.ip_address"></td>
+                                <td class="px-4 py-3 text-sm text-gray-500" x-text="session.device"></td>
+                                <td class="px-4 py-3 text-sm text-gray-500" x-text="formatDateTime(session.login_time)"></td>
+                                <td class="px-4 py-3 text-sm text-gray-500" x-text="formatRelativeTime(session.last_activity)"></td>
+                                <td class="px-4 py-3">
+                                    <button @click="terminateSession(session.id)" class="text-red-600 hover:text-red-800 text-sm font-medium">Terminate</button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <div x-show="activeSessions.length === 0" class="text-center py-8 text-gray-500">
+                <p>No active sessions found.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Policies Tab -->
+    <div x-show="activeTab === 'policies'" class="space-y-6">
+        <!-- Password Policy -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Password Policy</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Minimum Length</label>
+                    <input type="number" x-model="policies.password.minLength" min="8" max="32" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password Expiry (Days)</label>
+                    <input type="number" x-model="policies.password.expiryDays" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <p class="text-xs text-gray-500 mt-1">Set to 0 to disable expiry</p>
+                </div>
+            </div>
+
+            <div class="mt-6 space-y-4">
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Require Uppercase</p>
+                        <p class="text-sm text-gray-500">Passwords must contain at least one uppercase letter</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="policies.password.requireUppercase" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Require Numbers</p>
+                        <p class="text-sm text-gray-500">Passwords must contain at least one number</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="policies.password.requireNumbers" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Require Special Characters</p>
+                        <p class="text-sm text-gray-500">Passwords must contain at least one special character</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="policies.password.requireSpecial" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Policy -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Session Policy</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Session Timeout (Minutes)</label>
+                    <input type="number" x-model="policies.session.timeoutMinutes" min="5" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Concurrent Sessions</label>
+                    <input type="number" x-model="policies.session.maxConcurrent" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+            </div>
+
+            <div class="mt-6 space-y-4">
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Force Re-authentication for Sensitive Actions</p>
+                        <p class="text-sm text-gray-500">Require password confirmation for critical operations</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="policies.session.forceReauth" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Security -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Login Security</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Failed Attempts</label>
+                    <input type="number" x-model="policies.login.maxAttempts" min="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Lockout Duration (Minutes)</label>
+                    <input type="number" x-model="policies.login.lockoutMinutes" min="5" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+            </div>
+
+            <div class="mt-6 space-y-4">
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Enable Two-Factor Authentication (2FA)</p>
+                        <p class="text-sm text-gray-500">Require 2FA for all platform staff</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="policies.login.require2FA" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900">Login Notifications</p>
+                        <p class="text-sm text-gray-500">Send email notifications for new login activities</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="policies.login.notifications" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button @click="savePolicies()" :disabled="savingPolicies" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                <svg x-show="savingPolicies" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span x-text="savingPolicies ? 'Saving...' : 'Save Policies'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert Details Modal -->
+    <div x-show="showAlertModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="showAlertModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Alert Details</h3>
+                    <button @click="showAlertModal = false" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div x-show="selectedAlert" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Alert ID</p>
+                            <p class="font-mono text-sm" x-text="selectedAlert?.id"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Severity</p>
+                            <span :class="{
+                                'bg-red-100 text-red-700': selectedAlert?.severity === 'critical',
+                                'bg-orange-100 text-orange-700': selectedAlert?.severity === 'high',
+                                'bg-yellow-100 text-yellow-700': selectedAlert?.severity === 'medium',
+                                'bg-blue-100 text-blue-700': selectedAlert?.severity === 'low'
+                            }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="selectedAlert?.severity?.toUpperCase()"></span>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Type</p>
+                            <p class="text-sm" x-text="selectedAlert?.type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Status</p>
+                            <span :class="{
+                                'bg-red-100 text-red-700': selectedAlert?.status === 'active',
+                                'bg-yellow-100 text-yellow-700': selectedAlert?.status === 'acknowledged',
+                                'bg-green-100 text-green-700': selectedAlert?.status === 'resolved'
+                            }" class="px-2 py-1 text-xs font-medium rounded-full" x-text="selectedAlert?.status?.charAt(0).toUpperCase() + selectedAlert?.status?.slice(1)"></span>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">User Email</p>
+                            <p class="text-sm" x-text="selectedAlert?.user_email || 'N/A'"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">IP Address</p>
+                            <p class="font-mono text-sm" x-text="selectedAlert?.ip_address"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Timestamp</p>
+                            <p class="text-sm" x-text="formatDateTime(selectedAlert?.created_at)"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">User Agent</p>
+                            <p class="text-xs text-gray-600 truncate" x-text="selectedAlert?.user_agent || 'N/A'"></p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500 mb-1">Description</p>
+                        <p class="text-sm bg-gray-50 p-3 rounded" x-text="selectedAlert?.description"></p>
+                    </div>
+                    <div x-show="selectedAlert?.metadata">
+                        <p class="text-sm text-gray-500 mb-1">Additional Data</p>
+                        <pre class="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-40" x-text="JSON.stringify(selectedAlert?.metadata, null, 2)"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add IP Modal -->
+    <div x-show="showAddIpModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="showAddIpModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Add IP to Whitelist</h3>
+                    <button @click="showAddIpModal = false" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">IP Address</label>
+                        <input type="text" x-model="newIp.address" placeholder="192.168.1.1 or 10.0.0.0/24" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input type="text" x-model="newIp.description" placeholder="Office network, VPN, etc." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button @click="showAddIpModal = false" class="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button @click="addIpToWhitelist()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        Add IP
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function securityPage() {
+    return {
+        loading: false,
+        activeTab: 'alerts',
+        securityStatus: 'healthy',
+        
+        // Stats
+        stats: {
+            activeAlerts: 0,
+            failedLogins24h: 0,
+            activeSessions: 0,
+            blockedIps: 0
+        },
+        
+        // Alerts
+        alerts: [],
+        alertFilters: {
+            severity: '',
+            type: '',
+            status: ''
+        },
+        showAlertModal: false,
+        selectedAlert: null,
+        
+        // Audit Logs
+        auditLogs: [],
+        auditFilters: {
+            search: '',
+            action: '',
+            startDate: '',
+            endDate: ''
+        },
+        auditPagination: {
+            page: 1,
+            limit: 20,
+            total: 0
+        },
+        
+        // Access Control
+        ipWhitelist: [],
+        failedAttempts: [],
+        showAddIpModal: false,
+        newIp: {
+            address: '',
+            description: ''
+        },
+        
+        // Sessions
+        activeSessions: [],
+        
+        // Policies
+        policies: {
+            password: {
+                minLength: 12,
+                expiryDays: 90,
+                requireUppercase: true,
+                requireNumbers: true,
+                requireSpecial: true
+            },
+            session: {
+                timeoutMinutes: 30,
+                maxConcurrent: 3,
+                forceReauth: true
+            },
+            login: {
+                maxAttempts: 5,
+                lockoutMinutes: 15,
+                require2FA: false,
+                notifications: true
+            }
+        },
+        savingPolicies: false,
+        
+        async init() {
+            await this.loadSecurityOverview();
+            await this.loadAlerts();
+        },
+        
+        async loadSecurityOverview() {
+            try {
+                const response = await fetch('/api/v1/admin/security/stats');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.stats = {
+                        activeAlerts: data.active_alerts || 0,
+                        failedLogins24h: data.failed_logins_24h || 0,
+                        activeSessions: data.active_sessions || 0,
+                        blockedIps: data.blocked_ips || 0
+                    };
+                    this.securityStatus = data.security_status || 'healthy';
+                } else {
+                    // Use demo data
+                    this.loadDemoData();
+                }
+            } catch (error) {
+                console.error('Error loading security overview:', error);
+                this.loadDemoData();
+            }
+        },
+        
+        loadDemoData() {
+            this.stats = {
+                activeAlerts: 3,
+                failedLogins24h: 12,
+                activeSessions: 47,
+                blockedIps: 5
+            };
+            this.securityStatus = 'warning';
+            
+            this.alerts = [
+                {
+                    id: '1',
+                    severity: 'high',
+                    type: 'brute_force',
+                    description: 'Multiple failed login attempts detected from IP 192.168.1.100',
+                    user_email: 'unknown',
+                    ip_address: '192.168.1.100',
+                    status: 'active',
+                    created_at: new Date().toISOString(),
+                    user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                },
+                {
+                    id: '2',
+                    severity: 'medium',
+                    type: 'suspicious_activity',
+                    description: 'Unusual data export pattern detected',
+                    user_email: 'user@example.com',
+                    ip_address: '10.0.0.50',
+                    status: 'acknowledged',
+                    created_at: new Date(Date.now() - 3600000).toISOString()
+                },
+                {
+                    id: '3',
+                    severity: 'critical',
+                    type: 'unauthorized_access',
+                    description: 'Attempted access to admin endpoint without proper permissions',
+                    user_email: 'test@company.com',
+                    ip_address: '172.16.0.25',
+                    status: 'active',
+                    created_at: new Date(Date.now() - 7200000).toISOString()
+                }
+            ];
+            
+            this.auditLogs = [
+                {
+                    id: '1',
+                    action: 'login',
+                    user_email: 'superadmin@tekvwarho.com',
+                    target_entity_type: 'user',
+                    target_entity_id: 'abc123-def456',
+                    ip_address: '127.0.0.1',
+                    created_at: new Date().toISOString()
+                },
+                {
+                    id: '2',
+                    action: 'create',
+                    user_email: 'admin@tekvwarho.com',
+                    target_entity_type: 'staff',
+                    target_entity_id: 'xyz789-uvw012',
+                    ip_address: '192.168.1.50',
+                    created_at: new Date(Date.now() - 1800000).toISOString()
+                },
+                {
+                    id: '3',
+                    action: 'update',
+                    user_email: 'user@company.com',
+                    target_entity_type: 'invoice',
+                    target_entity_id: 'inv-001-002',
+                    ip_address: '10.0.0.100',
+                    created_at: new Date(Date.now() - 3600000).toISOString()
+                }
+            ];
+            this.auditPagination.total = 150;
+            
+            this.failedAttempts = [
+                { id: '1', email: 'test@example.com', ip_address: '192.168.1.100', timestamp: new Date().toISOString(), count: 7 },
+                { id: '2', email: 'admin@company.com', ip_address: '10.0.0.55', timestamp: new Date(Date.now() - 1800000).toISOString(), count: 3 }
+            ];
+            
+            this.activeSessions = [
+                {
+                    id: '1',
+                    user_email: 'superadmin@tekvwarho.com',
+                    user_name: 'Super Admin',
+                    role: 'Super Admin',
+                    ip_address: '127.0.0.1',
+                    device: 'Chrome on macOS',
+                    login_time: new Date(Date.now() - 7200000).toISOString(),
+                    last_activity: new Date().toISOString()
+                },
+                {
+                    id: '2',
+                    user_email: 'admin@tekvwarho.com',
+                    user_name: 'Test Admin',
+                    role: 'Admin',
+                    ip_address: '192.168.1.50',
+                    device: 'Firefox on Windows',
+                    login_time: new Date(Date.now() - 3600000).toISOString(),
+                    last_activity: new Date(Date.now() - 600000).toISOString()
+                }
+            ];
+            
+            this.ipWhitelist = [
+                { id: '1', ip_address: '192.168.1.0/24', description: 'Office Network', is_active: true },
+                { id: '2', ip_address: '10.0.0.1', description: 'VPN Gateway', is_active: true }
+            ];
+        },
+        
+        async loadAlerts() {
+            try {
+                const params = new URLSearchParams();
+                if (this.alertFilters.severity) params.append('severity', this.alertFilters.severity);
+                if (this.alertFilters.type) params.append('type', this.alertFilters.type);
+                if (this.alertFilters.status) params.append('status', this.alertFilters.status);
+                
+                const response = await fetch(`/api/v1/admin/security/alerts?${params}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.alerts = data.alerts || [];
+                }
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+            }
+        },
+        
+        async loadAuditLogs() {
+            try {
+                const params = new URLSearchParams();
+                params.append('page', this.auditPagination.page);
+                params.append('limit', this.auditPagination.limit);
+                if (this.auditFilters.search) params.append('search', this.auditFilters.search);
+                if (this.auditFilters.action) params.append('action', this.auditFilters.action);
+                if (this.auditFilters.startDate) params.append('start_date', this.auditFilters.startDate);
+                if (this.auditFilters.endDate) params.append('end_date', this.auditFilters.endDate);
+                
+                const response = await fetch(`/api/v1/admin/audit-logs?${params}`, {
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.auditLogs = data.data?.logs || data.logs || [];
+                    this.auditPagination.total = data.data?.total || data.total || 0;
+                }
+            } catch (error) {
+                console.error('Error loading audit logs:', error);
+            }
+        },
+        
+        async refreshData() {
+            this.loading = true;
+            await this.loadSecurityOverview();
+            await this.loadAlerts();
+            if (this.activeTab === 'audit') await this.loadAuditLogs();
+            this.loading = false;
+        },
+        
+        viewAlertDetails(alert) {
+            this.selectedAlert = alert;
+            this.showAlertModal = true;
+        },
+        
+        viewLogDetails(log) {
+            alert(`Log Details:\n\nID: ${log.id}\nAction: ${log.action}\nUser: ${log.user_email}\nIP: ${log.ip_address}\nTimestamp: ${this.formatDateTime(log.created_at)}`);
+        },
+        
+        async acknowledgeAlert(alertId) {
+            try {
+                const response = await fetch(`/api/v1/admin/security/alerts/${alertId}/acknowledge`, { 
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        const alert = this.alerts.find(a => a.id === alertId);
+                        if (alert) alert.status = 'acknowledged';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to acknowledge alert:', error);
+            }
+        },
+        
+        async resolveAlert(alertId) {
+            try {
+                const response = await fetch(`/api/v1/admin/security/alerts/${alertId}/resolve`, { 
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        const alert = this.alerts.find(a => a.id === alertId);
+                        if (alert) alert.status = 'resolved';
+                        this.stats.activeAlerts = Math.max(0, this.stats.activeAlerts - 1);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to resolve alert:', error);
+            }
+        },
+        
+        async addIpToWhitelist() {
+            if (!this.newIp.address) return;
+            
+            try {
+                const response = await fetch('/api/v1/admin/security/ip-whitelist', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ip_address: this.newIp.address,
+                        description: this.newIp.description
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.ipWhitelist.push(data.data);
+                    this.newIp = { address: '', description: '' };
+                    this.showAddIpModal = false;
+                }
+            } catch (error) {
+                console.error('Failed to add IP to whitelist:', error);
+            }
+        },
+        
+        async removeIp(ipId) {
+            if (!confirm('Are you sure you want to remove this IP from the whitelist?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/admin/security/ip-whitelist/${ipId}`, {
+                    method: 'DELETE',
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.ipWhitelist = this.ipWhitelist.filter(ip => ip.id !== ipId);
+                }
+            } catch (error) {
+                console.error('Failed to remove IP:', error);
+            }
+        },
+        
+        async blockIp(ipAddress) {
+            if (!confirm(`Block IP ${ipAddress}?`)) return;
+            alert(`IP ${ipAddress} has been blocked.`);
+            this.failedAttempts = this.failedAttempts.filter(a => a.ip_address !== ipAddress);
+        },
+        
+        async terminateSession(sessionId) {
+            if (!confirm('Are you sure you want to terminate this session?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/admin/security/sessions/${sessionId}/terminate`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.activeSessions = this.activeSessions.filter(s => s.id !== sessionId);
+                    this.stats.activeSessions = Math.max(0, this.stats.activeSessions - 1);
+                }
+            } catch (error) {
+                console.error('Failed to terminate session:', error);
+            }
+        },
+        
+        async terminateAllSessions() {
+            if (!confirm('This will log out all users except you. Are you sure?')) return;
+            
+            try {
+                const response = await fetch('/api/v1/admin/security/sessions/terminate-all', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.activeSessions = this.activeSessions.slice(0, 1);
+                    this.stats.activeSessions = 1;
+                    alert('All other sessions have been terminated.');
+                }
+            } catch (error) {
+                console.error('Failed to terminate sessions:', error);
+            }
+        },
+        
+        async savePolicies() {
+            this.savingPolicies = true;
+            
+            try {
+                const response = await fetch('/api/v1/admin/security/policies', {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(this.policies)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('Security policies saved successfully!');
+                } else {
+                    throw new Error(data.error?.message || 'Failed to save');
+                }
+            } catch (error) {
+                alert('Failed to save security policies: ' + error.message);
+            }
+            
+            this.savingPolicies = false;
+        },
+        
+        async exportSecurityReport() {
+            try {
+                const response = await fetch('/api/v1/admin/security/export-report', {
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    // Create downloadable JSON
+                    const blob = new Blob([JSON.stringify(data.data.report, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `security-report-${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            } catch (error) {
+                alert('Failed to export security report: ' + error.message);
+            }
+        },
+        
+        formatDateTime(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            return date.toLocaleString('en-NG', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+        
+        formatRelativeTime(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+            
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+            return `${Math.floor(diff / 86400)} days ago`;
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Onboard Staff - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Breadcrumb -->
+        <nav class="flex mb-6" aria-label="Breadcrumb">
+            <ol class="flex items-center space-x-4">
+                <li>
+                    <a href="/dashboard" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-home"></i>
+                    </a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
+                        <span class="text-gray-700 font-medium">Onboard Staff</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-green-700 to-green-600 rounded-lg shadow-lg p-6 mb-8">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-white/20 rounded-lg p-3">
+                    <i class="fas fa-user-plus text-white text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <h1 class="text-2xl font-bold text-white">Onboard New Staff</h1>
+                    <p class="text-green-100 mt-1">Add a new platform staff member to TekVwarho ProAudit</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Messages -->
+        <div id="alert-container"></div>
+
+        <!-- Onboard Form -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h2 class="text-lg font-semibold text-gray-800">Staff Information</h2>
+                <p class="text-sm text-gray-600 mt-1">Fill in the details for the new staff member</p>
+            </div>
+            
+            <form id="onboard-form" class="p-6 space-y-6">
+                <!-- Name Fields -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">
+                            First Name <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="first_name" name="first_name" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="Enter first name">
+                    </div>
+                    <div>
+                        <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">
+                            Last Name <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="last_name" name="last_name" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            placeholder="Enter last name">
+                    </div>
+                </div>
+
+                <!-- Email -->
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                        Email Address <span class="text-red-500">*</span>
+                    </label>
+                    <input type="email" id="email" name="email" required
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="staff@tekvwarho.com">
+                    <p class="text-sm text-gray-500 mt-1">Use the company email for staff members</p>
+                </div>
+
+                <!-- Phone -->
+                <div>
+                    <label for="phone_number" class="block text-sm font-medium text-gray-700 mb-1">
+                        Phone Number
+                    </label>
+                    <input type="tel" id="phone_number" name="phone_number"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="+234 xxx xxx xxxx">
+                </div>
+
+                <!-- Platform Role -->
+                <div>
+                    <label for="platform_role" class="block text-sm font-medium text-gray-700 mb-1">
+                        Platform Role <span class="text-red-500">*</span>
+                    </label>
+                    <select id="platform_role" name="platform_role" required
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white">
+                        <option value="">Select a role...</option>
+                        {% if user.platform_role.value == 'super_admin' %}
+                        <option value="admin" {% if preset_role == 'admin' %}selected{% endif %}>Admin - High-level operational access</option>
+                        {% endif %}
+                        <option value="it_developer" {% if preset_role == 'it_developer' %}selected{% endif %}>IT/Developer - Backend and infrastructure access</option>
+                        <option value="customer_service" {% if preset_role == 'customer_service' %}selected{% endif %}>Customer Service - View-only and impersonation access</option>
+                        <option value="marketing" {% if preset_role == 'marketing' %}selected{% endif %}>Marketing - Analytics and campaigns</option>
+                    </select>
+                    <p class="text-sm text-gray-500 mt-1">
+                        {% if user.platform_role.value == 'super_admin' %}
+                        As Super Admin, you can onboard all staff types including Admin
+                        {% else %}
+                        As Admin, you can onboard IT, Customer Service, and Marketing staff
+                        {% endif %}
+                    </p>
+                </div>
+
+                <!-- Role Descriptions -->
+                <div id="role-description" class="hidden bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h4 class="font-medium text-gray-800 mb-2" id="role-title"></h4>
+                    <p class="text-sm text-gray-600" id="role-details"></p>
+                    <div class="mt-3">
+                        <span class="text-sm font-medium text-gray-700">Permissions:</span>
+                        <ul id="role-permissions" class="text-sm text-gray-600 mt-1 list-disc list-inside"></ul>
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+                        Temporary Password <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="password" name="password" required minlength="8"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 pr-20"
+                            placeholder="Min 8 characters">
+                        <button type="button" onclick="generatePassword()" 
+                            class="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-green-600 hover:text-green-700 font-medium">
+                            Generate
+                        </button>
+                    </div>
+                    <div class="flex items-center mt-2">
+                        <input type="checkbox" id="show_password" onclick="togglePassword()" class="mr-2">
+                        <label for="show_password" class="text-sm text-gray-600">Show password</label>
+                    </div>
+                    <p class="text-sm text-amber-600 mt-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Staff will be required to change this password on first login
+                    </p>
+                </div>
+
+                <!-- Staff Notes -->
+                <div>
+                    <label for="staff_notes" class="block text-sm font-medium text-gray-700 mb-1">
+                        Internal Notes
+                    </label>
+                    <textarea id="staff_notes" name="staff_notes" rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Optional notes about this staff member (not visible to them)"></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <a href="/dashboard" class="text-gray-600 hover:text-gray-800">
+                        <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+                    </a>
+                    <button type="submit" id="submit-btn"
+                        class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-4 focus:ring-green-200 transition-colors font-medium">
+                        <i class="fas fa-user-plus mr-2"></i>Onboard Staff
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Security Notice -->
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex">
+                <i class="fas fa-shield-alt text-blue-600 mt-0.5"></i>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">Security Notice</h3>
+                    <p class="text-sm text-blue-600 mt-1">
+                        New staff members will receive an email with login instructions. 
+                        They must change their password on first login for security compliance.
+                        All onboarding actions are logged in the audit trail.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Role descriptions and permissions
+const roleInfo = {
+    admin: {
+        title: "Admin",
+        details: "High-level operational access. Can approve organization verifications, manage staff (except Super Admin), and view global analytics.",
+        permissions: [
+            "Onboard IT, CSR, Marketing staff",
+            "Approve/reject organization documents",
+            "View and manage internal staff",
+            "Access platform-wide analytics",
+            "Manage marketing campaigns",
+            "Debug NRS submissions"
+        ]
+    },
+    it_developer: {
+        title: "IT/Developer",
+        details: "Backend and infrastructure access. Responsible for maintaining the codebase, monitoring database health, and ensuring API uptime.",
+        permissions: [
+            "Access backend systems",
+            "Manage codebase and deployments",
+            "Monitor database health",
+            "Manage webhooks (NRS)",
+            "Troubleshoot submissions"
+        ]
+    },
+    customer_service: {
+        title: "Customer Service (CSR)",
+        details: "View-only access with impersonation capability. Assists users with onboarding and troubleshoots failed NRS submissions.",
+        permissions: [
+            "View user data",
+            "Impersonate users (with permission)",
+            "Troubleshoot NRS submissions",
+            "Access help documentation"
+        ]
+    },
+    marketing: {
+        title: "Marketing",
+        details: "Analytics and communication dashboards. Manages targeted campaigns, referral engine, and analyzes user growth trends.",
+        permissions: [
+            "View global analytics",
+            "Manage in-app campaigns",
+            "Manage referral engine",
+            "View user growth statistics"
+        ]
+    }
+};
+
+// Show role description when role is selected
+document.getElementById('platform_role').addEventListener('change', function() {
+    const roleDesc = document.getElementById('role-description');
+    const info = roleInfo[this.value];
+    
+    if (info) {
+        document.getElementById('role-title').textContent = info.title + " Role";
+        document.getElementById('role-details').textContent = info.details;
+        
+        const permsList = document.getElementById('role-permissions');
+        permsList.innerHTML = info.permissions.map(p => `<li>${p}</li>`).join('');
+        
+        roleDesc.classList.remove('hidden');
+    } else {
+        roleDesc.classList.add('hidden');
+    }
+});
+
+// Generate secure password
+function generatePassword() {
+    const length = 16;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    
+    // Ensure at least one of each type
+    password += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
+    password += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)];
+    password += "0123456789"[Math.floor(Math.random() * 10)];
+    password += "!@#$%^&*"[Math.floor(Math.random() * 8)];
+    
+    // Fill the rest
+    for (let i = password.length; i < length; i++) {
+        password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    
+    // Shuffle
+    password = password.split('').sort(() => Math.random() - 0.5).join('');
+    
+    document.getElementById('password').value = password;
+    document.getElementById('password').type = 'text';
+    document.getElementById('show_password').checked = true;
+}
+
+// Toggle password visibility
+function togglePassword() {
+    const input = document.getElementById('password');
+    input.type = document.getElementById('show_password').checked ? 'text' : 'password';
+}
+
+// Show alert message
+function showAlert(type, message) {
+    const alertContainer = document.getElementById('alert-container');
+    const alertClass = type === 'success' 
+        ? 'bg-green-50 border-green-500 text-green-800' 
+        : 'bg-red-50 border-red-500 text-red-800';
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+    
+    alertContainer.innerHTML = `
+        <div class="mb-6 p-4 border-l-4 rounded-lg ${alertClass}">
+            <div class="flex items-center">
+                <i class="fas fa-${icon} mr-3"></i>
+                <span>${message}</span>
+            </div>
+        </div>
+    `;
+    
+    // Auto-hide after 5 seconds for success
+    if (type === 'success') {
+        setTimeout(() => {
+            alertContainer.innerHTML = '';
+        }, 5000);
+    }
+}
+
+// Handle form submission
+document.getElementById('onboard-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submit-btn');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+    submitBtn.disabled = true;
+    
+    const formData = {
+        first_name: document.getElementById('first_name').value,
+        last_name: document.getElementById('last_name').value,
+        email: document.getElementById('email').value,
+        phone_number: document.getElementById('phone_number').value || null,
+        platform_role: document.getElementById('platform_role').value,
+        password: document.getElementById('password').value,
+        staff_notes: document.getElementById('staff_notes').value || null
+    };
+    
+    try {
+        const response = await fetch('/api/v1/staff/onboard', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showAlert('success', `Successfully onboarded ${formData.first_name} ${formData.last_name} as ${roleInfo[formData.platform_role]?.title || formData.platform_role}!`);
+            
+            // Clear form
+            document.getElementById('onboard-form').reset();
+            document.getElementById('role-description').classList.add('hidden');
+            
+            // Redirect to dashboard after 2 seconds
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 2000);
+        } else {
+            const errorMessage = data.detail || data.message || 'Failed to onboard staff member';
+            showAlert('error', errorMessage);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('error', 'An error occurred. Please try again.');
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }
+});
+
+// Trigger role description if preset
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.getElementById('platform_role');
+    if (roleSelect.value) {
+        roleSelect.dispatchEvent(new Event('change'));
+    }
+});
+</script>
+{% endblock %}

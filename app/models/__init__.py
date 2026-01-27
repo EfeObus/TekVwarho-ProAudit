@@ -207,6 +207,19 @@ from app.models.support_ticket import (
     TicketStatus,
     TicketSource,
 )
+# Platform API Keys
+from app.models.platform_api_key import (
+    PlatformApiKey,
+    ApiKeyType,
+    ApiKeyEnvironment,
+)
+# Emergency Controls (Super Admin Kill Switches)
+from app.models.emergency_control import (
+    EmergencyControl,
+    PlatformStatus,
+    EmergencyActionType,
+    FeatureKey,
+)
 
 __all__ = [
     # Base
@@ -401,4 +414,13 @@ __all__ = [
     "TicketPriority",
     "TicketStatus",
     "TicketSource",
+    # Platform API Keys
+    "PlatformApiKey",
+    "ApiKeyType",
+    "ApiKeyEnvironment",
+    # Emergency Controls (Super Admin Kill Switches)
+    "EmergencyControl",
+    "PlatformStatus",
+    "EmergencyActionType",
+    "FeatureKey",
 ]

@@ -30,6 +30,7 @@ class MLJobService:
     async def create_ml_job(
         self,
         job_type: MLJobType,
+        job_name: Optional[str] = None,
         priority: MLJobPriority = MLJobPriority.NORMAL,
         model_id: Optional[uuid.UUID] = None,
         organization_id: Optional[uuid.UUID] = None,
@@ -39,15 +40,21 @@ class MLJobService:
         """Create a new ML job."""
         job_id = await self._generate_job_id()
         
+        # Auto-generate job name if not provided
+        if not job_name:
+            job_name = f"{job_type.value.replace('_', ' ').title()} - {job_id}"
+        
         ml_job = MLJob(
             job_id=job_id,
+            job_name=job_name,
             job_type=job_type,
             status=MLJobStatus.QUEUED,
             priority=priority,
             model_id=model_id,
-            target_organization_id=organization_id,
+            organization_id=organization_id,
             parameters=parameters or {},
             scheduled_for=scheduled_for,
+            queued_at=datetime.utcnow(),
         )
         
         self.db.add(ml_job)

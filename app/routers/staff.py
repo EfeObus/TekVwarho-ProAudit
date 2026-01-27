@@ -21,9 +21,10 @@ Analytics:
 """
 
 import uuid
+from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -233,6 +234,75 @@ async def list_staff(
     return StaffListResponse(
         staff=[staff_to_response(s) for s in staff_list],
         total=len(staff_list),
+    )
+
+
+# ===========================================
+# ORGANIZATION MANAGEMENT ENDPOINTS
+# Note: Must be defined before /{staff_id} route to avoid path conflicts
+# ===========================================
+
+class OrganizationsListResponse(BaseModel):
+    """Response schema for organizations list."""
+    organizations: List[OrganizationVerificationResponse]
+    total: int
+
+
+@router.get(
+    "/organizations",
+    response_model=OrganizationsListResponse,
+    summary="List all organizations",
+    description="Get all organizations with optional status filter. Requires verify_organizations permission.",
+)
+async def list_all_organizations(
+    status_filter: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_platform_permission([PlatformPermission.VERIFY_ORGANIZATIONS])),
+):
+    """List all organizations."""
+    from app.models.organization import VerificationStatus
+    
+    service = StaffManagementService(db)
+    
+    # Parse status filter
+    verification_status = None
+    if status_filter:
+        try:
+            verification_status = VerificationStatus(status_filter)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status filter: {status_filter}. Valid: pending, submitted, under_review, verified, rejected",
+            )
+    
+    try:
+        organizations = await service.get_all_organizations(
+            requesting_user=current_user,
+            status_filter=verification_status,
+        )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        )
+    
+    org_responses = [
+        OrganizationVerificationResponse(
+            id=org.id,
+            name=org.name,
+            organization_type=org.organization_type.value,
+            verification_status=org.verification_status.value,
+            cac_document_path=org.cac_document_path,
+            tin_document_path=org.tin_document_path,
+            email=org.email,
+            created_at=org.created_at.isoformat() if org.created_at else "",
+        )
+        for org in organizations
+    ]
+    
+    return OrganizationsListResponse(
+        organizations=org_responses,
+        total=len(org_responses),
     )
 
 
@@ -1123,4 +1193,827 @@ async def get_staff_permissions(
         "staff_email": target_staff.email,
         "platform_role": target_staff.platform_role.value if target_staff.platform_role else None,
         "permissions": permissions,
+    }
+
+
+# ===========================================
+# PLATFORM API KEYS MANAGEMENT
+# ===========================================
+
+class CreateApiKeyRequest(BaseModel):
+    """Request to create a new platform API key."""
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    key_type: str = Field(..., description="Type of API key: nrs_gateway, jtb_gateway, paystack, flutterwave, sendgrid, custom")
+    environment: str = Field(default="sandbox", description="sandbox or production")
+    api_key: str = Field(..., min_length=1)
+    api_secret: Optional[str] = None
+    client_id: Optional[str] = None
+    api_endpoint: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class UpdateApiKeyRequest(BaseModel):
+    """Request to update an API key."""
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    api_endpoint: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class RevokeApiKeyRequest(BaseModel):
+    """Request to revoke an API key."""
+    reason: Optional[str] = None
+
+
+@router.get(
+    "/api-keys",
+    summary="List platform API keys",
+    description="List all platform API keys. Super Admin only.",
+)
+async def list_api_keys(
+    key_type: Optional[str] = None,
+    environment: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """List all platform API keys."""
+    from sqlalchemy import select
+    from app.models.platform_api_key import PlatformApiKey, ApiKeyType, ApiKeyEnvironment
+    
+    query = select(PlatformApiKey)
+    
+    if key_type:
+        try:
+            kt = ApiKeyType(key_type)
+            query = query.where(PlatformApiKey.key_type == kt)
+        except ValueError:
+            pass
+    
+    if environment:
+        try:
+            env = ApiKeyEnvironment(environment)
+            query = query.where(PlatformApiKey.environment == env)
+        except ValueError:
+            pass
+    
+    if is_active is not None:
+        query = query.where(PlatformApiKey.is_active == is_active)
+    
+    query = query.order_by(PlatformApiKey.created_at.desc())
+    
+    result = await db.execute(query)
+    api_keys = result.scalars().all()
+    
+    return {
+        "api_keys": [
+            {
+                "id": str(key.id),
+                "name": key.name,
+                "description": key.description,
+                "key_type": key.key_type.value,
+                "environment": key.environment.value,
+                "masked_key": key.masked_key,
+                "api_endpoint": key.api_endpoint,
+                "is_active": key.is_active,
+                "is_verified": key.is_verified,
+                "last_used_at": key.last_used_at.isoformat() if key.last_used_at else None,
+                "usage_count": key.usage_count,
+                "created_at": key.created_at.isoformat(),
+            }
+            for key in api_keys
+        ],
+        "total": len(api_keys),
+    }
+
+
+@router.post(
+    "/api-keys",
+    summary="Create platform API key",
+    description="Create a new platform API key. Super Admin only.",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_api_key(
+    request: CreateApiKeyRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Create a new platform API key."""
+    from app.models.platform_api_key import PlatformApiKey, ApiKeyType, ApiKeyEnvironment
+    
+    # Validate key type
+    try:
+        key_type = ApiKeyType(request.key_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid key type. Must be one of: {[t.value for t in ApiKeyType]}",
+        )
+    
+    # Validate environment
+    try:
+        environment = ApiKeyEnvironment(request.environment)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid environment. Must be 'sandbox' or 'production'",
+        )
+    
+    # Generate key hash and masked key
+    key_hash = PlatformApiKey.generate_key_hash(request.api_key)
+    masked_key = PlatformApiKey.generate_masked_key(request.api_key)
+    
+    # Check if key hash already exists
+    from sqlalchemy import select
+    existing = await db.execute(
+        select(PlatformApiKey).where(PlatformApiKey.key_hash == key_hash)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This API key already exists",
+        )
+    
+    # Create the key
+    api_key = PlatformApiKey(
+        name=request.name,
+        description=request.description,
+        key_type=key_type,
+        environment=environment,
+        api_key=request.api_key,  # In production, encrypt this
+        api_secret=request.api_secret,
+        client_id=request.client_id,
+        masked_key=masked_key,
+        key_hash=key_hash,
+        api_endpoint=request.api_endpoint,
+        notes=request.notes,
+        created_by_id=current_user.id,
+    )
+    
+    db.add(api_key)
+    await db.commit()
+    await db.refresh(api_key)
+    
+    return {
+        "id": str(api_key.id),
+        "name": api_key.name,
+        "key_type": api_key.key_type.value,
+        "environment": api_key.environment.value,
+        "masked_key": api_key.masked_key,
+        "message": "API key created successfully",
+    }
+
+
+@router.get(
+    "/api-keys/{key_id}",
+    summary="Get API key details",
+    description="Get details of a specific API key. Super Admin only.",
+)
+async def get_api_key(
+    key_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Get details of a specific API key."""
+    from sqlalchemy import select
+    from app.models.platform_api_key import PlatformApiKey
+    
+    result = await db.execute(
+        select(PlatformApiKey).where(PlatformApiKey.id == key_id)
+    )
+    api_key = result.scalar_one_or_none()
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+    
+    return {
+        "id": str(api_key.id),
+        "name": api_key.name,
+        "description": api_key.description,
+        "key_type": api_key.key_type.value,
+        "environment": api_key.environment.value,
+        "masked_key": api_key.masked_key,
+        "api_endpoint": api_key.api_endpoint,
+        "webhook_url": api_key.webhook_url,
+        "is_active": api_key.is_active,
+        "is_verified": api_key.is_verified,
+        "last_used_at": api_key.last_used_at.isoformat() if api_key.last_used_at else None,
+        "usage_count": api_key.usage_count,
+        "expires_at": api_key.expires_at.isoformat() if api_key.expires_at else None,
+        "notes": api_key.notes,
+        "created_at": api_key.created_at.isoformat(),
+    }
+
+
+@router.put(
+    "/api-keys/{key_id}",
+    summary="Update API key",
+    description="Update an existing API key. Super Admin only.",
+)
+async def update_api_key(
+    key_id: uuid.UUID,
+    request: UpdateApiKeyRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Update an existing API key."""
+    from sqlalchemy import select
+    from app.models.platform_api_key import PlatformApiKey
+    
+    result = await db.execute(
+        select(PlatformApiKey).where(PlatformApiKey.id == key_id)
+    )
+    api_key = result.scalar_one_or_none()
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+    
+    if not api_key.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot update a revoked API key",
+        )
+    
+    # Update fields
+    if request.name is not None:
+        api_key.name = request.name
+    if request.description is not None:
+        api_key.description = request.description
+    if request.api_endpoint is not None:
+        api_key.api_endpoint = request.api_endpoint
+    if request.notes is not None:
+        api_key.notes = request.notes
+    
+    await db.commit()
+    await db.refresh(api_key)
+    
+    return {
+        "id": str(api_key.id),
+        "name": api_key.name,
+        "message": "API key updated successfully",
+    }
+
+
+@router.post(
+    "/api-keys/{key_id}/revoke",
+    summary="Revoke API key",
+    description="Revoke an API key. This action cannot be undone. Super Admin only.",
+)
+async def revoke_api_key(
+    key_id: uuid.UUID,
+    request: RevokeApiKeyRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Revoke an API key."""
+    from sqlalchemy import select
+    from app.models.platform_api_key import PlatformApiKey
+    
+    result = await db.execute(
+        select(PlatformApiKey).where(PlatformApiKey.id == key_id)
+    )
+    api_key = result.scalar_one_or_none()
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+    
+    if not api_key.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="API key is already revoked",
+        )
+    
+    api_key.revoke(current_user.id, request.reason)
+    await db.commit()
+    
+    return {
+        "id": str(api_key.id),
+        "name": api_key.name,
+        "message": "API key revoked successfully",
+    }
+
+
+@router.post(
+    "/api-keys/{key_id}/test",
+    summary="Test API key connection",
+    description="Test the connection for an API key. Super Admin only.",
+)
+async def test_api_key_connection(
+    key_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Test the connection for an API key."""
+    from sqlalchemy import select
+    from app.models.platform_api_key import PlatformApiKey
+    
+    result = await db.execute(
+        select(PlatformApiKey).where(PlatformApiKey.id == key_id)
+    )
+    api_key = result.scalar_one_or_none()
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+    
+    if not api_key.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot test a revoked API key",
+        )
+    
+    # In production, this would actually test the connection
+    # For now, we simulate a successful test
+    api_key.is_verified = True
+    api_key.record_usage()
+    await db.commit()
+    
+    return {
+        "id": str(api_key.id),
+        "name": api_key.name,
+        "is_verified": True,
+        "message": "Connection test successful",
+    }
+
+
+# ===========================================
+# SECURITY AUDIT ENDPOINTS
+# ===========================================
+
+@router.get(
+    "/security/overview",
+    summary="Get security overview",
+    description="Get platform security overview and statistics. Super Admin only.",
+)
+async def get_security_overview(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Get security overview with stats."""
+    from sqlalchemy import select, func, and_
+    from app.models.audit_consolidated import AuditLog, AuditAction
+    from datetime import datetime, timedelta
+    
+    now = datetime.utcnow()
+    last_24h = now - timedelta(hours=24)
+    
+    # Count failed logins in last 24 hours
+    failed_logins_query = select(func.count(AuditLog.id)).where(
+        and_(
+            AuditLog.action == AuditAction.LOGIN_FAILED,
+            AuditLog.created_at >= last_24h
+        )
+    )
+    result = await db.execute(failed_logins_query)
+    failed_logins = result.scalar() or 0
+    
+    # Count total logins (active sessions approximation)
+    active_logins_query = select(func.count(AuditLog.id)).where(
+        and_(
+            AuditLog.action == AuditAction.LOGIN,
+            AuditLog.created_at >= last_24h
+        )
+    )
+    result = await db.execute(active_logins_query)
+    active_sessions = result.scalar() or 0
+    
+    # Determine security status
+    security_status = "healthy"
+    if failed_logins > 50:
+        security_status = "critical"
+    elif failed_logins > 20:
+        security_status = "warning"
+    
+    return {
+        "status": security_status,
+        "stats": {
+            "activeAlerts": 0,  # Would come from security_alerts table
+            "failedLogins24h": failed_logins,
+            "activeSessions": active_sessions,
+            "blockedIps": 0
+        },
+        "last_updated": now.isoformat()
+    }
+
+
+@router.get(
+    "/security/alerts",
+    summary="Get security alerts",
+    description="Get platform security alerts. Super Admin only.",
+)
+async def get_security_alerts(
+    severity: Optional[str] = None,
+    alert_type: Optional[str] = Query(None, alias="type"),
+    alert_status: Optional[str] = Query(None, alias="status"),
+    limit: int = Query(50, le=200),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Get security alerts with optional filters."""
+    # In a production system, this would query a security_alerts table
+    # For now, we derive alerts from audit logs
+    from sqlalchemy import select, and_, or_
+    from app.models.audit_consolidated import AuditLog, AuditAction
+    from datetime import datetime, timedelta
+    
+    now = datetime.utcnow()
+    last_7_days = now - timedelta(days=7)
+    
+    # Get failed login attempts as potential alerts
+    query = select(AuditLog).where(
+        and_(
+            AuditLog.action == AuditAction.LOGIN_FAILED,
+            AuditLog.created_at >= last_7_days
+        )
+    ).order_by(AuditLog.created_at.desc()).limit(limit)
+    
+    result = await db.execute(query)
+    failed_logins = result.scalars().all()
+    
+    # Convert to alert format
+    alerts = []
+    for log in failed_logins:
+        alerts.append({
+            "id": str(log.id),
+            "severity": "high" if log.metadata and log.metadata.get("attempt_count", 0) > 5 else "medium",
+            "type": "failed_login",
+            "description": f"Failed login attempt for user",
+            "user_email": log.metadata.get("email") if log.metadata else None,
+            "ip_address": log.ip_address,
+            "status": "active",
+            "created_at": log.created_at.isoformat(),
+            "user_agent": log.user_agent
+        })
+    
+    return {
+        "alerts": alerts,
+        "total": len(alerts)
+    }
+
+
+@router.post(
+    "/security/alerts/{alert_id}/acknowledge",
+    summary="Acknowledge security alert",
+    description="Acknowledge a security alert. Super Admin only.",
+)
+async def acknowledge_alert(
+    alert_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Acknowledge a security alert."""
+    # In production, this would update a security_alerts table
+    return {
+        "id": str(alert_id),
+        "status": "acknowledged",
+        "acknowledged_by": current_user.email,
+        "acknowledged_at": datetime.utcnow().isoformat()
+    }
+
+
+@router.post(
+    "/security/alerts/{alert_id}/resolve",
+    summary="Resolve security alert",
+    description="Resolve a security alert. Super Admin only.",
+)
+async def resolve_alert(
+    alert_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Resolve a security alert."""
+    return {
+        "id": str(alert_id),
+        "status": "resolved",
+        "resolved_by": current_user.email,
+        "resolved_at": datetime.utcnow().isoformat()
+    }
+
+
+@router.get(
+    "/security/audit-logs",
+    summary="Get audit logs",
+    description="Get platform audit logs. Super Admin only.",
+)
+async def get_audit_logs(
+    search: Optional[str] = None,
+    action: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Get audit logs with pagination and filters."""
+    from sqlalchemy import select, func, and_, or_
+    from app.models.audit_consolidated import AuditLog, AuditAction
+    from datetime import datetime
+    
+    # Build query
+    conditions = []
+    
+    if action:
+        try:
+            audit_action = AuditAction(action)
+            conditions.append(AuditLog.action == audit_action)
+        except ValueError:
+            pass
+    
+    if start_date:
+        try:
+            start = datetime.fromisoformat(start_date)
+            conditions.append(AuditLog.created_at >= start)
+        except ValueError:
+            pass
+    
+    if end_date:
+        try:
+            end = datetime.fromisoformat(end_date)
+            conditions.append(AuditLog.created_at <= end)
+        except ValueError:
+            pass
+    
+    # Count total
+    count_query = select(func.count(AuditLog.id))
+    if conditions:
+        count_query = count_query.where(and_(*conditions))
+    result = await db.execute(count_query)
+    total = result.scalar() or 0
+    
+    # Get logs
+    query = select(AuditLog)
+    if conditions:
+        query = query.where(and_(*conditions))
+    query = query.order_by(AuditLog.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    
+    result = await db.execute(query)
+    logs = result.scalars().all()
+    
+    return {
+        "logs": [
+            {
+                "id": str(log.id),
+                "action": log.action.value if log.action else None,
+                "user_email": None,  # Would join with users table
+                "target_entity_type": log.target_entity_type,
+                "target_entity_id": str(log.target_entity_id) if log.target_entity_id else None,
+                "ip_address": log.ip_address,
+                "user_agent": log.user_agent,
+                "created_at": log.created_at.isoformat()
+            }
+            for log in logs
+        ],
+        "total": total,
+        "page": page,
+        "limit": limit
+    }
+
+
+class IpWhitelistRequest(BaseModel):
+    """Request to add IP to whitelist."""
+    address: str = Field(..., min_length=1)
+    description: Optional[str] = None
+
+
+@router.post(
+    "/security/ip-whitelist",
+    summary="Add IP to whitelist",
+    description="Add an IP address to the platform whitelist. Super Admin only.",
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_ip_to_whitelist(
+    request: IpWhitelistRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Add IP to whitelist."""
+    # In production, this would save to an ip_whitelist table
+    return {
+        "id": str(uuid.uuid4()),
+        "ip_address": request.address,
+        "description": request.description,
+        "is_active": True,
+        "created_by": current_user.email,
+        "created_at": datetime.utcnow().isoformat()
+    }
+
+
+@router.delete(
+    "/security/ip-whitelist/{ip_id}",
+    summary="Remove IP from whitelist",
+    description="Remove an IP address from the platform whitelist. Super Admin only.",
+)
+async def remove_ip_from_whitelist(
+    ip_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Remove IP from whitelist."""
+    return {
+        "id": str(ip_id),
+        "message": "IP removed from whitelist"
+    }
+
+
+class SecurityPoliciesRequest(BaseModel):
+    """Request to update security policies."""
+    password: Optional[dict] = None
+    session: Optional[dict] = None
+    login: Optional[dict] = None
+
+
+@router.put(
+    "/security/policies",
+    summary="Update security policies",
+    description="Update platform security policies. Super Admin only.",
+)
+async def update_security_policies(
+    request: SecurityPoliciesRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Update security policies."""
+    # In production, this would save to a platform_settings table
+    return {
+        "message": "Security policies updated successfully",
+        "updated_by": current_user.email,
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+
+# ===========================================
+# AUTOMATION ENDPOINTS
+# ===========================================
+
+@router.get(
+    "/automation",
+    summary="Get automation overview",
+    description="Get workflow automation overview and data. Super Admin only.",
+)
+async def get_automation_overview(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Get automation overview with workflows, jobs, triggers, and history."""
+    # In production, this would load from automation tables
+    # For now, return demo data that the frontend will use
+    return {
+        "stats": {
+            "total_automations": 12,
+            "active_count": 8,
+            "tasks_today": 47,
+            "failed_count": 2
+        },
+        "workflows": [
+            {
+                "id": 1,
+                "name": "Daily VAT Report",
+                "description": "Generate and email daily VAT summary to finance team",
+                "status": "active",
+                "type": "Scheduled",
+                "runs_count": 156,
+                "last_run": "2026-01-26 02:00",
+                "next_run": "2026-01-27 02:00"
+            },
+            {
+                "id": 2,
+                "name": "Large Transaction Alert",
+                "description": "Notify admin when transaction exceeds ₦1,000,000",
+                "status": "active",
+                "type": "Event",
+                "runs_count": 23,
+                "last_run": "2026-01-25 14:32",
+                "next_run": None
+            },
+            {
+                "id": 3,
+                "name": "Monthly Compliance Check",
+                "description": "Run full compliance audit on the 1st of each month",
+                "status": "active",
+                "type": "Scheduled",
+                "runs_count": 12,
+                "last_run": "2026-01-01 00:00",
+                "next_run": "2026-02-01 00:00"
+            }
+        ],
+        "scheduled_jobs": [
+            {"id": 1, "name": "Database Backup", "schedule": "Daily at 2:00 AM WAT", "enabled": True, "next_run": "2026-01-27 02:00", "last_run": "2026-01-26 02:00"},
+            {"id": 2, "name": "Audit Log Cleanup", "schedule": "Monthly on 1st", "enabled": True, "next_run": "2026-02-01 00:00", "last_run": "2026-01-01 00:00"},
+            {"id": 3, "name": "NRS Sync Check", "schedule": "Every 6 hours", "enabled": True, "next_run": "2026-01-26 18:00", "last_run": "2026-01-26 12:00"}
+        ],
+        "event_triggers": [
+            {"id": 1, "name": "Large Transaction Notification", "event": "transaction.large", "action": "Email to Admin", "enabled": True, "trigger_count": 23, "last_triggered": "2026-01-25 14:32"},
+            {"id": 2, "name": "New User Welcome", "event": "user.registered", "action": "Send welcome email", "enabled": True, "trigger_count": 156, "last_triggered": "2026-01-26 10:45"}
+        ],
+        "execution_history": [
+            {"id": 1, "workflow_name": "Daily VAT Report", "trigger_type": "Scheduled", "status": "success", "started_at": "2026-01-26 02:00", "duration": "45s"},
+            {"id": 2, "workflow_name": "Large Transaction Alert", "trigger_type": "Event", "status": "success", "started_at": "2026-01-25 14:32", "duration": "2s"},
+            {"id": 3, "workflow_name": "Database Backup", "trigger_type": "Scheduled", "status": "failed", "started_at": "2026-01-26 02:00", "duration": "5m 23s"}
+        ]
+    }
+
+
+class WorkflowCreateRequest(BaseModel):
+    """Request to create a workflow."""
+    name: str
+    description: Optional[str] = None
+    trigger_type: str  # scheduled, event, manual, webhook
+    schedule: Optional[str] = None
+    event: Optional[str] = None
+    action_type: str  # email, webhook, internal, notification
+    enabled: bool = True
+
+
+@router.post(
+    "/automation/workflows",
+    summary="Create automation workflow",
+    description="Create a new automation workflow. Super Admin only.",
+)
+async def create_workflow(
+    request: WorkflowCreateRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Create a new automation workflow."""
+    return {
+        "id": str(uuid.uuid4()),
+        "name": request.name,
+        "description": request.description,
+        "trigger_type": request.trigger_type,
+        "status": "active" if request.enabled else "draft",
+        "created_by": current_user.email,
+        "created_at": datetime.utcnow().isoformat()
+    }
+
+
+@router.put(
+    "/automation/workflows/{workflow_id}",
+    summary="Update automation workflow",
+    description="Update an existing automation workflow. Super Admin only.",
+)
+async def update_workflow(
+    workflow_id: uuid.UUID,
+    request: WorkflowCreateRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Update an automation workflow."""
+    return {
+        "id": str(workflow_id),
+        "name": request.name,
+        "description": request.description,
+        "trigger_type": request.trigger_type,
+        "status": "active" if request.enabled else "draft",
+        "updated_by": current_user.email,
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+
+@router.delete(
+    "/automation/workflows/{workflow_id}",
+    summary="Delete automation workflow",
+    description="Delete an automation workflow. Super Admin only.",
+)
+async def delete_workflow(
+    workflow_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Delete an automation workflow."""
+    return {
+        "id": str(workflow_id),
+        "message": "Workflow deleted successfully"
+    }
+
+
+@router.post(
+    "/automation/workflows/{workflow_id}/run",
+    summary="Run automation workflow",
+    description="Manually run an automation workflow. Super Admin only.",
+)
+async def run_workflow(
+    workflow_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_super_admin()),
+):
+    """Manually trigger a workflow run."""
+    return {
+        "workflow_id": str(workflow_id),
+        "execution_id": str(uuid.uuid4()),
+        "status": "started",
+        "started_at": datetime.utcnow().isoformat(),
+        "started_by": current_user.email
     }

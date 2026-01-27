@@ -231,19 +231,19 @@ FEATURE_UPGRADE_PROMPTS: Dict[str, Dict[str, str]] = {
         "title": "Bank Reconciliation",
         "description": "Automatically match bank statements with transactions.",
         "required_tier": "professional",
-        "icon": "🏦",
+        "icon": "",
     },
     "fixed_assets": {
         "title": "Fixed Asset Management",
         "description": "Track and depreciate fixed assets according to Nigerian tax rules.",
         "required_tier": "professional",
-        "icon": "🏗️",
+        "icon": "",
     },
     "expense_claims": {
         "title": "Expense Claims",
         "description": "Employee expense submission and approval workflows.",
         "required_tier": "professional",
-        "icon": "🧾",
+        "icon": "",
     },
     "worm_vault": {
         "title": "Compliance Vault",
@@ -261,13 +261,13 @@ FEATURE_UPGRADE_PROMPTS: Dict[str, Dict[str, str]] = {
         "title": "Intercompany Transactions",
         "description": "Handle transactions between related entities with automatic elimination.",
         "required_tier": "enterprise",
-        "icon": "🔄",
+        "icon": "",
     },
     "ml_anomaly_detection": {
         "title": "AI Anomaly Detection",
         "description": "Machine learning powered detection of unusual transactions.",
         "required_tier": "intelligence",
-        "icon": "🤖",
+        "icon": "",
     },
     "benfords_law": {
         "title": "Benford's Law Analysis",
@@ -279,7 +279,7 @@ FEATURE_UPGRADE_PROMPTS: Dict[str, Dict[str, str]] = {
         "title": "OCR Document Extraction",
         "description": "Automatically extract data from invoices and receipts.",
         "required_tier": "intelligence",
-        "icon": "📄",
+        "icon": "",
     },
 }
 

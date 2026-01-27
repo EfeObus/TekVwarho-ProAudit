@@ -7,6 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.0] - 2026-01-27
+
+### Super Admin Dashboard - Full Platform Management Release
+
+This release delivers a complete Super Admin Dashboard with 31 API endpoints for platform-wide 
+management, emergency controls, cross-tenant operations, and health monitoring.
+
+### Added
+
+#### Emergency Controls - Kill Switches (IMPL-001)
+- `POST /admin/emergency/platform/read-only` - Toggle platform read-only mode
+- `GET /admin/emergency/platform/status` - Get platform emergency status
+- `POST /admin/emergency/tenant/{tenant_id}/suspend` - Emergency suspend tenant
+- `DELETE /admin/emergency/tenant/{tenant_id}/suspend` - Lift tenant suspension
+- `POST /admin/emergency/feature/{feature_name}/disable` - Disable feature globally
+- `DELETE /admin/emergency/feature/{feature_name}/disable` - Re-enable feature
+- New router: `app/routers/admin_emergency.py` (22KB)
+
+#### Cross-Tenant User Search (IMPL-002)
+- `GET /admin/users/search` - Search users across all tenants with filters
+- `GET /admin/users/{user_id}` - Get user details
+- `GET /admin/users/{user_id}/activity` - Get user activity history
+- `POST /admin/users/{user_id}/suspend` - Suspend/unsuspend user
+- New router: `app/routers/admin_user_search.py` (9.7KB)
+- New service: `app/services/admin_user_search_service.py` (15KB)
+
+#### Platform Staff Management (IMPL-003)
+- `GET /admin/staff` - List all platform staff
+- `POST /admin/staff` - Create new platform staff
+- `GET /admin/staff/{staff_id}` - Get staff details
+- `PUT /admin/staff/{staff_id}` - Update staff
+- New router: `app/routers/admin_platform_staff.py` (17.5KB)
+- New service: `app/services/staff_management_service.py` (22KB)
+
+#### Organization Verification Workflow (IMPL-004)
+- `GET /admin/verifications` - List pending verifications
+- `GET /admin/verifications/{org_id}` - Get verification details
+- `POST /admin/verifications/{org_id}/approve` - Approve organization
+- `POST /admin/verifications/{org_id}/reject` - Reject organization
+- New router: `app/routers/admin_verification.py` (17KB)
+
+#### Global Audit Log Viewer (IMPL-005)
+- `GET /admin/audit-logs` - List all audit logs (paginated)
+- `GET /admin/audit-logs/stats` - Get audit statistics
+- `GET /admin/audit-logs/{log_id}` - Get specific log details
+- `GET /admin/audit-logs/export` - Export audit logs (CSV/JSON)
+- New router: `app/routers/admin_audit_logs.py` (12.2KB)
+- New service: `app/services/admin_audit_log_service.py` (21KB)
+
+#### Platform Health Metrics (IMPL-006)
+- `GET /admin/health` - Overall platform health
+- `GET /admin/health/database` - Database health metrics
+- `GET /admin/health/services` - External service status
+- `GET /admin/health/metrics` - Detailed system metrics
+- `GET /admin/health/tenants/summary` - Tenant health summary
+- `GET /admin/health/alerts` - Active platform alerts
+- New router: `app/routers/admin_health.py` (5.6KB)
+- New service: `app/services/admin_health_service.py` (21KB)
+
+#### Admin Tenant Management
+- `GET /admin/tenants` - List all tenants with filters
+- `GET /admin/tenants/{tenant_id}` - Get tenant details
+- `PUT /admin/tenants/{tenant_id}` - Update tenant
+- Router: `app/routers/admin_tenants.py` (14.7KB)
+
+#### Admin SKU/Billing Management
+- Router: `app/routers/admin_sku.py` (34.4KB)
+- Platform-level SKU configuration
+
+### Fixed
+
+#### Bug Fix in admin_tenants.py
+- Fixed references to non-existent Organization model fields
+- `Organization.is_active` → `not Organization.is_emergency_suspended`
+- `Organization.contact_email` → `Organization.email`
+- `Organization.suspended_reason` → `Organization.emergency_suspension_reason`
+- `Organization.suspended_at` → `Organization.emergency_suspended_at`
+
+### Documentation Updated
+- `SUPER_ADMIN_IMPLEMENTATION_ROADMAP.md` - Updated with implementation status
+- `TECHNICAL_ARCHITECTURE.md` - Added Super Admin API endpoints (v2.2)
+- `SECURITY_ARCHITECTURE.md` - Added platform security controls
+- `RBAC_DOCUMENTATION.md` - Added Super Admin dashboard endpoints (v2.2)
+- `BUILD_PROGRESS.md` - Added Super Admin section (v2.3.0)
+
+### Test Results
+- **31/31 Super Admin endpoints passing** (100% pass rate)
+- New audit script: `scripts/audit_super_admin.py`
+- All endpoints tested with live database
+
+---
+
 ## [2.5.0] - 2026-01-22
 
 ### Commercial SKU System & Multi-Tier Monetization Release

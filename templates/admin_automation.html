@@ -1,0 +1,851 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Automation - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div x-data="automationPage()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    Workflow Automation
+                </h1>
+                <p class="text-gray-600 mt-1">Configure automated tasks, scheduled jobs, and workflow triggers</p>
+            </div>
+            <button @click="showCreateModal = true" 
+                    class="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Create Automation
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <!-- Total Automations -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Total Automations</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="stats.total_automations">0</p>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Active</p>
+                    <p class="text-2xl font-bold text-green-600" x-text="stats.active_count">0</p>
+                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks Run Today -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Tasks Run Today</p>
+                    <p class="text-2xl font-bold text-purple-600" x-text="stats.tasks_today">0</p>
+                </div>
+                <div class="p-3 bg-purple-100 rounded-full">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Failed Tasks -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Failed Tasks (24h)</p>
+                    <p class="text-2xl font-bold" :class="stats.failed_count > 0 ? 'text-red-600' : 'text-gray-600'" x-text="stats.failed_count">0</p>
+                </div>
+                <div class="p-3" :class="stats.failed_count > 0 ? 'bg-red-100' : 'bg-gray-100'" class="rounded-full">
+                    <svg class="w-6 h-6" :class="stats.failed_count > 0 ? 'text-red-600' : 'text-gray-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+                <button @click="activeTab = 'workflows'" 
+                        :class="activeTab === 'workflows' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Workflows
+                </button>
+                <button @click="activeTab = 'scheduled'" 
+                        :class="activeTab === 'scheduled' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Scheduled Jobs
+                </button>
+                <button @click="activeTab = 'triggers'" 
+                        :class="activeTab === 'triggers' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Event Triggers
+                </button>
+                <button @click="activeTab = 'history'" 
+                        :class="activeTab === 'history' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Execution History
+                </button>
+                <button @click="activeTab = 'templates'" 
+                        :class="activeTab === 'templates' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Templates
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="p-6">
+            <!-- Workflows Tab -->
+            <div x-show="activeTab === 'workflows'">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <input type="text" x-model="searchQuery" 
+                                   placeholder="Search workflows..." 
+                                   class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 w-64">
+                            <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                        </div>
+                        <select x-model="filterStatus" class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="paused">Paused</option>
+                            <option value="draft">Draft</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Workflows List -->
+                <div class="space-y-4">
+                    <template x-for="workflow in filteredWorkflows" :key="workflow.id">
+                        <div class="border border-gray-200 rounded-lg p-4 hover:border-green-300 transition">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-2 rounded-lg" :class="{
+                                        'bg-green-100': workflow.status === 'active',
+                                        'bg-yellow-100': workflow.status === 'paused',
+                                        'bg-gray-100': workflow.status === 'draft'
+                                    }">
+                                        <svg class="w-6 h-6" :class="{
+                                            'text-green-600': workflow.status === 'active',
+                                            'text-yellow-600': workflow.status === 'paused',
+                                            'text-gray-600': workflow.status === 'draft'
+                                        }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-900" x-text="workflow.name"></h3>
+                                        <p class="text-sm text-gray-500" x-text="workflow.description"></p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                          :class="{
+                                              'bg-green-100 text-green-800': workflow.status === 'active',
+                                              'bg-yellow-100 text-yellow-800': workflow.status === 'paused',
+                                              'bg-gray-100 text-gray-800': workflow.status === 'draft'
+                                          }"
+                                          x-text="workflow.status.charAt(0).toUpperCase() + workflow.status.slice(1)"></span>
+                                    <span class="text-sm text-gray-500">
+                                        <span x-text="workflow.runs_count"></span> runs
+                                    </span>
+                                    <div class="flex items-center space-x-2">
+                                        <button @click="toggleWorkflow(workflow)" 
+                                                class="p-1 text-gray-400 hover:text-green-600 transition"
+                                                :title="workflow.status === 'active' ? 'Pause' : 'Activate'">
+                                            <svg x-show="workflow.status === 'active'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <svg x-show="workflow.status !== 'active'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                        </button>
+                                        <button @click="editWorkflow(workflow)" class="p-1 text-gray-400 hover:text-blue-600 transition">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                        </button>
+                                        <button @click="runWorkflow(workflow)" class="p-1 text-gray-400 hover:text-purple-600 transition" title="Run Now">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                            </svg>
+                                        </button>
+                                        <button @click="deleteWorkflow(workflow)" class="p-1 text-gray-400 hover:text-red-600 transition">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 flex items-center space-x-4 text-sm text-gray-500">
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Last run: <span x-text="workflow.last_run || 'Never'"></span>
+                                </span>
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    Next run: <span x-text="workflow.next_run || 'Not scheduled'"></span>
+                                </span>
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                                    </svg>
+                                    Type: <span x-text="workflow.type"></span>
+                                </span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Empty State -->
+                    <div x-show="filteredWorkflows.length === 0" class="text-center py-12">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                        </svg>
+                        <h3 class="mt-4 text-lg font-medium text-gray-900">No workflows found</h3>
+                        <p class="mt-2 text-gray-500">Create your first workflow to automate tasks</p>
+                        <button @click="showCreateModal = true" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                            Create Workflow
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scheduled Jobs Tab -->
+            <div x-show="activeTab === 'scheduled'">
+                <div class="space-y-4">
+                    <template x-for="job in scheduledJobs" :key="job.id">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-2 bg-purple-100 rounded-lg">
+                                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-900" x-text="job.name"></h3>
+                                        <p class="text-sm text-gray-500" x-text="'Schedule: ' + job.schedule"></p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                          :class="job.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                                          x-text="job.enabled ? 'Enabled' : 'Disabled'"></span>
+                                    <button @click="toggleJob(job)" class="p-1 text-gray-400 hover:text-green-600 transition">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-sm text-gray-500">
+                                <span>Next run: <span x-text="job.next_run"></span></span>
+                                <span class="ml-4">Last run: <span x-text="job.last_run || 'Never'"></span></span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Pre-built Scheduled Jobs -->
+                    <div class="mt-6 border-t pt-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Pre-built Scheduled Jobs</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="border border-dashed border-gray-300 rounded-lg p-4 hover:border-green-400 cursor-pointer transition">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-2 bg-blue-100 rounded-lg">
+                                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900">Daily Backup</h4>
+                                        <p class="text-sm text-gray-500">Backup database daily at 2:00 AM</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="border border-dashed border-gray-300 rounded-lg p-4 hover:border-green-400 cursor-pointer transition">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-2 bg-green-100 rounded-lg">
+                                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900">Compliance Check</h4>
+                                        <p class="text-sm text-gray-500">Run compliance checks every Monday</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="border border-dashed border-gray-300 rounded-lg p-4 hover:border-green-400 cursor-pointer transition">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-2 bg-yellow-100 rounded-lg">
+                                        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900">Tax Deadline Reminders</h4>
+                                        <p class="text-sm text-gray-500">Send reminders 7 days before deadlines</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="border border-dashed border-gray-300 rounded-lg p-4 hover:border-green-400 cursor-pointer transition">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-2 bg-red-100 rounded-lg">
+                                        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900">Data Cleanup</h4>
+                                        <p class="text-sm text-gray-500">Clean old audit logs monthly</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Event Triggers Tab -->
+            <div x-show="activeTab === 'triggers'">
+                <div class="space-y-4">
+                    <template x-for="trigger in eventTriggers" :key="trigger.id">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-2 bg-orange-100 rounded-lg">
+                                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-900" x-text="trigger.name"></h3>
+                                        <p class="text-sm text-gray-500">
+                                            On: <span class="font-medium" x-text="trigger.event"></span>
+                                            → <span x-text="trigger.action"></span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                          :class="trigger.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                                          x-text="trigger.enabled ? 'Active' : 'Inactive'"></span>
+                                    <button @click="editTrigger(trigger)" class="p-1 text-gray-400 hover:text-blue-600 transition">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                        </svg>
+                                    </button>
+                                    <button @click="deleteTrigger(trigger)" class="p-1 text-gray-400 hover:text-red-600 transition">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-sm text-gray-500">
+                                <span>Triggered: <span x-text="trigger.trigger_count"></span> times</span>
+                                <span class="ml-4">Last: <span x-text="trigger.last_triggered || 'Never'"></span></span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Available Events -->
+                    <div class="mt-6 border-t pt-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Event Triggers</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="border border-gray-200 rounded-lg p-4">
+                                <h4 class="font-medium text-gray-900 mb-2">Transaction Events</h4>
+                                <ul class="text-sm text-gray-500 space-y-1">
+                                    <li>• Transaction Created</li>
+                                    <li>• Large Transaction (&gt; ₦1M)</li>
+                                    <li>• Transaction Approved</li>
+                                    <li>• Transaction Rejected</li>
+                                </ul>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-4">
+                                <h4 class="font-medium text-gray-900 mb-2">Invoice Events</h4>
+                                <ul class="text-sm text-gray-500 space-y-1">
+                                    <li>• Invoice Created</li>
+                                    <li>• Invoice Paid</li>
+                                    <li>• Invoice Overdue</li>
+                                    <li>• NRS Submission</li>
+                                </ul>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-4">
+                                <h4 class="font-medium text-gray-900 mb-2">User Events</h4>
+                                <ul class="text-sm text-gray-500 space-y-1">
+                                    <li>• User Registered</li>
+                                    <li>• Failed Login Attempt</li>
+                                    <li>• Role Changed</li>
+                                    <li>• Document Uploaded</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Execution History Tab -->
+            <div x-show="activeTab === 'history'">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Started</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="execution in executionHistory" :key="execution.id">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900" x-text="execution.workflow_name"></div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-gray-500" x-text="execution.trigger_type"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                              :class="{
+                                                  'bg-green-100 text-green-800': execution.status === 'success',
+                                                  'bg-red-100 text-red-800': execution.status === 'failed',
+                                                  'bg-yellow-100 text-yellow-800': execution.status === 'running',
+                                                  'bg-gray-100 text-gray-800': execution.status === 'pending'
+                                              }"
+                                              x-text="execution.status.charAt(0).toUpperCase() + execution.status.slice(1)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="execution.started_at"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="execution.duration"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button @click="viewExecutionDetails(execution)" class="text-green-600 hover:text-green-900">View Details</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                <div x-show="executionHistory.length === 0" class="text-center py-12">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    <h3 class="mt-4 text-lg font-medium text-gray-900">No execution history</h3>
+                    <p class="mt-2 text-gray-500">Workflow executions will appear here</p>
+                </div>
+            </div>
+
+            <!-- Templates Tab -->
+            <div x-show="activeTab === 'templates'">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <template x-for="template in workflowTemplates" :key="template.id">
+                        <div class="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition">
+                            <div class="flex items-center space-x-3 mb-4">
+                                <div class="p-2 rounded-lg" :class="template.color">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="template.icon"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold text-gray-900" x-text="template.name"></h3>
+                                    <span class="text-xs text-gray-500" x-text="template.category"></span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-600 mb-4" x-text="template.description"></p>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-500" x-text="template.steps + ' steps'"></span>
+                                <button @click="useTemplate(template)" class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition">
+                                    Use Template
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Workflow Modal -->
+    <div x-show="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" x-cloak>
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900" x-text="editingWorkflow ? 'Edit Workflow' : 'Create Workflow'"></h3>
+                <button @click="showCreateModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <form @submit.prevent="saveWorkflow">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Workflow Name</label>
+                            <input type="text" x-model="workflowForm.name" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea x-model="workflowForm.description" rows="3"
+                                      class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Trigger Type</label>
+                            <select x-model="workflowForm.trigger_type"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <option value="scheduled">Scheduled</option>
+                                <option value="event">Event-based</option>
+                                <option value="manual">Manual</option>
+                                <option value="webhook">Webhook</option>
+                            </select>
+                        </div>
+                        <div x-show="workflowForm.trigger_type === 'scheduled'">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Schedule (Cron Expression)</label>
+                            <input type="text" x-model="workflowForm.schedule" placeholder="0 2 * * *"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <p class="text-xs text-gray-500 mt-1">Example: "0 2 * * *" = Daily at 2:00 AM</p>
+                        </div>
+                        <div x-show="workflowForm.trigger_type === 'event'">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Event</label>
+                            <select x-model="workflowForm.event"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <option value="">Select event...</option>
+                                <option value="transaction.created">Transaction Created</option>
+                                <option value="transaction.large">Large Transaction (&gt; ₦1M)</option>
+                                <option value="invoice.created">Invoice Created</option>
+                                <option value="invoice.overdue">Invoice Overdue</option>
+                                <option value="user.registered">User Registered</option>
+                                <option value="login.failed">Failed Login</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Action Type</label>
+                            <select x-model="workflowForm.action_type"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <option value="email">Send Email</option>
+                                <option value="webhook">Call Webhook</option>
+                                <option value="internal">Internal Task</option>
+                                <option value="notification">Push Notification</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" x-model="workflowForm.enabled" id="workflow-enabled"
+                                   class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded">
+                            <label for="workflow-enabled" class="ml-2 block text-sm text-gray-700">Enable workflow immediately</label>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showCreateModal = false"
+                                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                            <span x-text="editingWorkflow ? 'Update' : 'Create'"></span> Workflow
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function automationPage() {
+    return {
+        activeTab: 'workflows',
+        searchQuery: '',
+        filterStatus: '',
+        showCreateModal: false,
+        editingWorkflow: null,
+        
+        // Stats
+        stats: {
+            total_automations: 12,
+            active_count: 8,
+            tasks_today: 47,
+            failed_count: 2
+        },
+        
+        // Form data
+        workflowForm: {
+            name: '',
+            description: '',
+            trigger_type: 'scheduled',
+            schedule: '',
+            event: '',
+            action_type: 'email',
+            enabled: true
+        },
+        
+        // Workflows (demo data)
+        workflows: [
+            {
+                id: 1,
+                name: 'Daily VAT Report',
+                description: 'Generate and email daily VAT summary to finance team',
+                status: 'active',
+                type: 'Scheduled',
+                runs_count: 156,
+                last_run: '2026-01-26 02:00',
+                next_run: '2026-01-27 02:00'
+            },
+            {
+                id: 2,
+                name: 'Large Transaction Alert',
+                description: 'Notify admin when transaction exceeds ₦1,000,000',
+                status: 'active',
+                type: 'Event',
+                runs_count: 23,
+                last_run: '2026-01-25 14:32',
+                next_run: null
+            },
+            {
+                id: 3,
+                name: 'Monthly Compliance Check',
+                description: 'Run full compliance audit on the 1st of each month',
+                status: 'active',
+                type: 'Scheduled',
+                runs_count: 12,
+                last_run: '2026-01-01 00:00',
+                next_run: '2026-02-01 00:00'
+            },
+            {
+                id: 4,
+                name: 'Invoice Reminder',
+                description: 'Send reminder emails for overdue invoices',
+                status: 'paused',
+                type: 'Scheduled',
+                runs_count: 89,
+                last_run: '2026-01-20 09:00',
+                next_run: null
+            },
+            {
+                id: 5,
+                name: 'Failed Login Alert',
+                description: 'Alert security team on 5+ failed login attempts',
+                status: 'active',
+                type: 'Event',
+                runs_count: 7,
+                last_run: '2026-01-24 11:15',
+                next_run: null
+            }
+        ],
+        
+        // Scheduled jobs
+        scheduledJobs: [
+            { id: 1, name: 'Database Backup', schedule: 'Daily at 2:00 AM WAT', enabled: true, next_run: '2026-01-27 02:00', last_run: '2026-01-26 02:00' },
+            { id: 2, name: 'Audit Log Cleanup', schedule: 'Monthly on 1st', enabled: true, next_run: '2026-02-01 00:00', last_run: '2026-01-01 00:00' },
+            { id: 3, name: 'NRS Sync Check', schedule: 'Every 6 hours', enabled: true, next_run: '2026-01-26 18:00', last_run: '2026-01-26 12:00' },
+            { id: 4, name: 'Tax Deadline Reminders', schedule: 'Daily at 9:00 AM WAT', enabled: false, next_run: null, last_run: '2026-01-15 09:00' }
+        ],
+        
+        // Event triggers
+        eventTriggers: [
+            { id: 1, name: 'Large Transaction Notification', event: 'transaction.large', action: 'Email to Admin', enabled: true, trigger_count: 23, last_triggered: '2026-01-25 14:32' },
+            { id: 2, name: 'New User Welcome', event: 'user.registered', action: 'Send welcome email', enabled: true, trigger_count: 156, last_triggered: '2026-01-26 10:45' },
+            { id: 3, name: 'Failed Login Alert', event: 'login.failed.multiple', action: 'Security alert', enabled: true, trigger_count: 7, last_triggered: '2026-01-24 11:15' },
+            { id: 4, name: 'Invoice Overdue Notice', event: 'invoice.overdue', action: 'Email customer', enabled: true, trigger_count: 34, last_triggered: '2026-01-26 00:00' }
+        ],
+        
+        // Execution history
+        executionHistory: [
+            { id: 1, workflow_name: 'Daily VAT Report', trigger_type: 'Scheduled', status: 'success', started_at: '2026-01-26 02:00', duration: '45s' },
+            { id: 2, workflow_name: 'Large Transaction Alert', trigger_type: 'Event', status: 'success', started_at: '2026-01-25 14:32', duration: '2s' },
+            { id: 3, workflow_name: 'NRS Sync Check', trigger_type: 'Scheduled', status: 'success', started_at: '2026-01-26 12:00', duration: '12s' },
+            { id: 4, workflow_name: 'Database Backup', trigger_type: 'Scheduled', status: 'failed', started_at: '2026-01-26 02:00', duration: '5m 23s' },
+            { id: 5, workflow_name: 'Failed Login Alert', trigger_type: 'Event', status: 'success', started_at: '2026-01-24 11:15', duration: '1s' }
+        ],
+        
+        // Templates
+        workflowTemplates: [
+            { id: 1, name: 'Tax Deadline Reminder', category: 'Compliance', description: 'Automatically remind users about upcoming tax deadlines', steps: 3, color: 'bg-blue-600', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+            { id: 2, name: 'Invoice Follow-up', category: 'Finance', description: 'Send automated follow-ups for unpaid invoices', steps: 4, color: 'bg-green-600', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+            { id: 3, name: 'Security Alert', category: 'Security', description: 'Alert on suspicious activities like multiple failed logins', steps: 2, color: 'bg-red-600', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
+            { id: 4, name: 'Daily Report', category: 'Reports', description: 'Generate and email daily financial summaries', steps: 3, color: 'bg-purple-600', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+            { id: 5, name: 'Customer Onboarding', category: 'CRM', description: 'Automated welcome sequence for new customers', steps: 5, color: 'bg-yellow-600', icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z' },
+            { id: 6, name: 'Backup & Archive', category: 'System', description: 'Automated backup and archival of old records', steps: 4, color: 'bg-gray-600', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' }
+        ],
+        
+        get filteredWorkflows() {
+            return this.workflows.filter(w => {
+                const matchesSearch = !this.searchQuery || 
+                    w.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                    w.description.toLowerCase().includes(this.searchQuery.toLowerCase());
+                const matchesStatus = !this.filterStatus || w.status === this.filterStatus;
+                return matchesSearch && matchesStatus;
+            });
+        },
+        
+        async init() {
+            // Load data from API
+            await this.loadAutomations();
+        },
+        
+        async loadAutomations() {
+            try {
+                const response = await fetch('/api/v1/admin/automation', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.rules) this.workflows = data.rules.map(r => ({
+                        id: r.id,
+                        name: r.name,
+                        description: r.description,
+                        type: r.trigger_type,
+                        status: r.status,
+                        runs_count: r.execution_count || 0,
+                        last_run: r.last_executed_at,
+                        success_rate: r.success_rate || 100
+                    }));
+                    if (data.stats) this.stats = data.stats;
+                }
+            } catch (error) {
+                console.log('Using demo data for automation');
+            }
+        },
+        
+        toggleWorkflow(workflow) {
+            workflow.status = workflow.status === 'active' ? 'paused' : 'active';
+            // API call would go here
+        },
+        
+        editWorkflow(workflow) {
+            this.editingWorkflow = workflow;
+            this.workflowForm = {
+                name: workflow.name,
+                description: workflow.description,
+                trigger_type: workflow.type.toLowerCase(),
+                schedule: '',
+                event: '',
+                action_type: 'email',
+                enabled: workflow.status === 'active'
+            };
+            this.showCreateModal = true;
+        },
+        
+        runWorkflow(workflow) {
+            alert(`Running workflow: ${workflow.name}`);
+            // API call would go here
+        },
+        
+        deleteWorkflow(workflow) {
+            if (confirm(`Are you sure you want to delete "${workflow.name}"?`)) {
+                this.workflows = this.workflows.filter(w => w.id !== workflow.id);
+                // API call would go here
+            }
+        },
+        
+        toggleJob(job) {
+            job.enabled = !job.enabled;
+            // API call would go here
+        },
+        
+        editTrigger(trigger) {
+            alert(`Edit trigger: ${trigger.name}`);
+        },
+        
+        deleteTrigger(trigger) {
+            if (confirm(`Are you sure you want to delete "${trigger.name}"?`)) {
+                this.eventTriggers = this.eventTriggers.filter(t => t.id !== trigger.id);
+            }
+        },
+        
+        viewExecutionDetails(execution) {
+            alert(`Execution details for: ${execution.workflow_name}\nStatus: ${execution.status}\nDuration: ${execution.duration}`);
+        },
+        
+        useTemplate(template) {
+            this.workflowForm = {
+                name: template.name,
+                description: template.description,
+                trigger_type: 'scheduled',
+                schedule: '',
+                event: '',
+                action_type: 'email',
+                enabled: true
+            };
+            this.showCreateModal = true;
+        },
+        
+        async saveWorkflow() {
+            // API call would go here
+            const newWorkflow = {
+                id: Date.now(),
+                name: this.workflowForm.name,
+                description: this.workflowForm.description,
+                status: this.workflowForm.enabled ? 'active' : 'draft',
+                type: this.workflowForm.trigger_type.charAt(0).toUpperCase() + this.workflowForm.trigger_type.slice(1),
+                runs_count: 0,
+                last_run: null,
+                next_run: this.workflowForm.trigger_type === 'scheduled' ? 'Pending' : null
+            };
+            
+            if (this.editingWorkflow) {
+                const index = this.workflows.findIndex(w => w.id === this.editingWorkflow.id);
+                if (index !== -1) {
+                    this.workflows[index] = { ...this.workflows[index], ...newWorkflow };
+                }
+            } else {
+                this.workflows.push(newWorkflow);
+            }
+            
+            this.showCreateModal = false;
+            this.editingWorkflow = null;
+            this.workflowForm = {
+                name: '',
+                description: '',
+                trigger_type: 'scheduled',
+                schedule: '',
+                event: '',
+                action_type: 'email',
+                enabled: true
+            };
+        }
+    }
+}
+</script>
+{% endblock %}

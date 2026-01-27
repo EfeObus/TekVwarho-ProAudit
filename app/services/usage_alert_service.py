@@ -241,7 +241,7 @@ class UsageAlertService:
         
         if threshold == AlertThreshold.EXCEEDED_100:
             return (
-                f"🚨 {metric_name} limit exceeded! "
+                f"[ALERT] {metric_name} limit exceeded! "
                 f"You have used {current_usage:,} of your {limit:,} monthly limit ({percentage:.1f}%). "
                 f"Please upgrade your plan to continue using this feature."
             )
@@ -253,7 +253,7 @@ class UsageAlertService:
             )
         else:  # 80%
             return (
-                f"ℹ️ {metric_name} usage approaching limit. "
+                f"[INFO] {metric_name} usage approaching limit. "
                 f"You have used {current_usage:,} of your {limit:,} monthly limit ({percentage:.1f}%). "
                 f"You may want to consider upgrading your plan."
             )

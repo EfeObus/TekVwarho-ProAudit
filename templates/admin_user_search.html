@@ -1,0 +1,1160 @@
+{% extends "base.html" %}
+
+{% block title %}Cross-Tenant User Search - Super Admin - TekVwarho ProAudit{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Nigerian theme colors */
+    :root {
+        --ng-green: #008751;
+        --ng-green-light: #00a863;
+        --ng-green-dark: #006b40;
+        --ng-white: #ffffff;
+        --ng-gray-100: #f8f9fa;
+        --ng-gray-200: #e9ecef;
+        --ng-gray-700: #495057;
+        --ng-gray-900: #212529;
+    }
+
+    .admin-header {
+        background: linear-gradient(135deg, var(--ng-green) 0%, var(--ng-green-dark) 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .admin-header h1 {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .admin-header p {
+        opacity: 0.9;
+        margin-bottom: 0;
+    }
+
+    .stats-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid var(--ng-gray-200);
+        height: 100%;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,135,81,0.15);
+    }
+
+    .stats-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--ng-green);
+    }
+
+    .stats-card .stat-label {
+        font-size: 0.875rem;
+        color: var(--ng-gray-700);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .search-section {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid var(--ng-gray-200);
+        margin-bottom: 1.5rem;
+    }
+
+    .search-section .form-control,
+    .search-section .form-select {
+        border: 2px solid var(--ng-gray-200);
+        border-radius: 8px;
+        padding: 0.625rem 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-section .form-control:focus,
+    .search-section .form-select:focus {
+        border-color: var(--ng-green);
+        box-shadow: 0 0 0 3px rgba(0,135,81,0.15);
+    }
+
+    .btn-ng-primary {
+        background: var(--ng-green);
+        border: none;
+        color: white;
+        padding: 0.625rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .btn-ng-primary:hover {
+        background: var(--ng-green-dark);
+        color: white;
+    }
+
+    .btn-ng-outline {
+        background: transparent;
+        border: 2px solid var(--ng-green);
+        color: var(--ng-green);
+        padding: 0.5rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .btn-ng-outline:hover {
+        background: var(--ng-green);
+        color: white;
+    }
+
+    .results-section {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid var(--ng-gray-200);
+        overflow: hidden;
+    }
+
+    .results-header {
+        background: var(--ng-gray-100);
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--ng-gray-200);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .results-table {
+        margin-bottom: 0;
+    }
+
+    .results-table th {
+        background: var(--ng-gray-100);
+        font-weight: 600;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--ng-gray-700);
+        border-bottom: 2px solid var(--ng-gray-200);
+        padding: 1rem;
+    }
+
+    .results-table td {
+        padding: 1rem;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--ng-gray-200);
+    }
+
+    .results-table tr:hover {
+        background: rgba(0,135,81,0.05);
+    }
+
+    .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--ng-green);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .badge-role {
+        padding: 0.375rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .badge-super-admin {
+        background: #dc3545;
+        color: white;
+    }
+
+    .badge-admin {
+        background: #fd7e14;
+        color: white;
+    }
+
+    .badge-staff {
+        background: #6f42c1;
+        color: white;
+    }
+
+    .badge-owner {
+        background: var(--ng-green);
+        color: white;
+    }
+
+    .badge-accountant {
+        background: #0dcaf0;
+        color: #000;
+    }
+
+    .badge-default {
+        background: var(--ng-gray-200);
+        color: var(--ng-gray-700);
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-inactive {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .status-verified {
+        background: #cce5ff;
+        color: #004085;
+    }
+
+    .status-unverified {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .org-badge {
+        background: var(--ng-gray-100);
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.813rem;
+        color: var(--ng-gray-700);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .org-badge i {
+        color: var(--ng-green);
+    }
+
+    .pagination-section {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--ng-gray-200);
+        background: var(--ng-gray-100);
+    }
+
+    .page-link {
+        color: var(--ng-green);
+        border: 1px solid var(--ng-gray-200);
+        padding: 0.5rem 0.875rem;
+    }
+
+    .page-link:hover {
+        background: var(--ng-green-light);
+        color: white;
+        border-color: var(--ng-green-light);
+    }
+
+    .page-item.active .page-link {
+        background: var(--ng-green);
+        border-color: var(--ng-green);
+    }
+
+    .filter-badge {
+        background: var(--ng-green-light);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.813rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        margin: 0.25rem;
+    }
+
+    .filter-badge button {
+        background: none;
+        border: none;
+        color: white;
+        padding: 0;
+        font-size: 1rem;
+        line-height: 1;
+        cursor: pointer;
+        opacity: 0.8;
+    }
+
+    .filter-badge button:hover {
+        opacity: 1;
+    }
+
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .loading-overlay.show {
+        display: flex;
+    }
+
+    .spinner-ng {
+        color: var(--ng-green);
+    }
+
+    .user-detail-modal .modal-header {
+        background: var(--ng-green);
+        color: white;
+    }
+
+    .user-detail-modal .modal-header .btn-close {
+        filter: brightness(0) invert(1);
+    }
+
+    .detail-item {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--ng-gray-200);
+    }
+
+    .detail-item:last-child {
+        border-bottom: none;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        color: var(--ng-gray-700);
+        font-size: 0.875rem;
+    }
+
+    .detail-value {
+        color: var(--ng-gray-900);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--ng-gray-700);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: var(--ng-gray-200);
+        margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .admin-header {
+            padding: 1.5rem;
+        }
+
+        .stats-card .stat-value {
+            font-size: 1.5rem;
+        }
+
+        .results-table {
+            font-size: 0.875rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="admin-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1><i class="bi bi-people-fill me-2"></i>Cross-Tenant User Search</h1>
+                <p>Search and view users across all organizations</p>
+            </div>
+            <a href="/super-admin" class="btn btn-light">
+                <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="stats-card">
+                <div class="stat-value" id="totalUsers">{{ stats.total_users }}</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="stats-card">
+                <div class="stat-value" id="activeUsers">{{ stats.active_users }}</div>
+                <div class="stat-label">Active</div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="stats-card">
+                <div class="stat-value" id="verifiedUsers">{{ stats.verified_users }}</div>
+                <div class="stat-label">Verified</div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="stats-card">
+                <div class="stat-value" id="platformStaff">{{ stats.platform_staff }}</div>
+                <div class="stat-label">Platform Staff</div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="stats-card">
+                <div class="stat-value" id="orgUsers">{{ stats.organization_users }}</div>
+                <div class="stat-label">Org Users</div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="stats-card">
+                <div class="stat-value" id="recentSignups">{{ stats.recent_signups_7d }}</div>
+                <div class="stat-label">New (7 days)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Section -->
+    <div class="search-section">
+        <form id="searchForm" onsubmit="searchUsers(event)">
+            <div class="row g-3">
+                <!-- Text Search -->
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label fw-semibold">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" 
+                               id="searchQuery" 
+                               class="form-control border-start-0"
+                               placeholder="Email, name, or phone...">
+                    </div>
+                </div>
+
+                <!-- Organization Filter -->
+                <div class="col-lg-2 col-md-6">
+                    <label class="form-label fw-semibold">Organization</label>
+                    <select id="organizationFilter" class="form-select">
+                        <option value="">All Organizations</option>
+                        {% for org in organizations %}
+                        <option value="{{ org.id }}">{{ org.name }} ({{ org.user_count }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- User Type Filter -->
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label fw-semibold">User Type</label>
+                    <select id="userTypeFilter" class="form-select" onchange="updateRoleFilter()">
+                        <option value="">All Types</option>
+                        <option value="staff">Platform Staff</option>
+                        <option value="org">Organization Users</option>
+                    </select>
+                </div>
+
+                <!-- Role Filter -->
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label fw-semibold">Role</label>
+                    <select id="roleFilter" class="form-select">
+                        <option value="">All Roles</option>
+                        <!-- Will be populated based on user type -->
+                    </select>
+                </div>
+
+                <!-- Status Filter -->
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label fw-semibold">Status</label>
+                    <select id="statusFilter" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="verified">Verified</option>
+                        <option value="unverified">Unverified</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+                <!-- Date Range -->
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label fw-semibold">Created After</label>
+                    <input type="date" id="createdAfter" class="form-control">
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label fw-semibold">Created Before</label>
+                    <input type="date" id="createdBefore" class="form-control">
+                </div>
+
+                <!-- Sort -->
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label fw-semibold">Sort By</label>
+                    <select id="sortBy" class="form-select">
+                        <option value="created_at">Date Created</option>
+                        <option value="email">Email</option>
+                        <option value="first_name">First Name</option>
+                        <option value="last_name">Last Name</option>
+                    </select>
+                </div>
+                <div class="col-lg-1 col-md-2">
+                    <label class="form-label fw-semibold">Order</label>
+                    <select id="sortOrder" class="form-select">
+                        <option value="desc">Desc</option>
+                        <option value="asc">Asc</option>
+                    </select>
+                </div>
+
+                <!-- Search Buttons -->
+                <div class="col-lg-5 col-md-6 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-ng-primary">
+                        <i class="bi bi-search me-1"></i> Search
+                    </button>
+                    <button type="button" class="btn btn-ng-outline" onclick="clearFilters()">
+                        <i class="bi bi-x-circle me-1"></i> Clear
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="exportResults()">
+                        <i class="bi bi-download me-1"></i> Export
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Active Filters -->
+        <div id="activeFilters" class="mt-3" style="display: none;">
+            <span class="text-muted me-2">Active Filters:</span>
+            <div id="filterBadges" class="d-inline"></div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results-section position-relative">
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner-border spinner-ng" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div class="results-header">
+            <div>
+                <span class="fw-semibold" id="resultCount">0</span> users found
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <label class="d-flex align-items-center gap-2 mb-0">
+                    <span class="text-muted">Show:</span>
+                    <select id="pageSize" class="form-select form-select-sm" style="width: auto;" onchange="searchUsers()">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table results-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Organization</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                    <!-- Results will be populated here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <i class="bi bi-search"></i>
+            <h5>No users found</h5>
+            <p class="text-muted">Try adjusting your search criteria or filters</p>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-section" id="paginationSection" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-muted" id="paginationInfo">
+                    Showing 1-20 of 0 users
+                </div>
+                <nav>
+                    <ul class="pagination mb-0" id="paginationList">
+                        <!-- Pagination will be populated here -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Detail Modal -->
+<div class="modal fade user-detail-modal" id="userDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-fill me-2"></i>
+                    <span id="modalUserName">User Details</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="userDetailContent">
+                <!-- User details will be populated here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Role data from server
+    const platformRoles = {{ platform_roles | tojson }};
+    const orgRoles = {{ org_roles | tojson }};
+    
+    // Current page state
+    let currentPage = 1;
+    let totalPages = 1;
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        searchUsers();
+    });
+
+    // Update role filter based on user type selection
+    function updateRoleFilter() {
+        const userType = document.getElementById('userTypeFilter').value;
+        const roleSelect = document.getElementById('roleFilter');
+        
+        // Clear current options
+        roleSelect.innerHTML = '<option value="">All Roles</option>';
+        
+        let roles = [];
+        if (userType === 'staff') {
+            roles = platformRoles;
+        } else if (userType === 'org') {
+            roles = orgRoles;
+        }
+        
+        roles.forEach(role => {
+            const option = document.createElement('option');
+            option.value = role;
+            option.textContent = formatRoleName(role);
+            roleSelect.appendChild(option);
+        });
+    }
+
+    // Format role name for display
+    function formatRoleName(role) {
+        return role.split('_').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        ).join(' ');
+    }
+
+    // Search users
+    async function searchUsers(event) {
+        if (event) event.preventDefault();
+        
+        showLoading(true);
+        
+        try {
+            const params = new URLSearchParams();
+            
+            const query = document.getElementById('searchQuery').value;
+            if (query) params.append('query', query);
+            
+            const orgId = document.getElementById('organizationFilter').value;
+            if (orgId) params.append('organization_id', orgId);
+            
+            const userType = document.getElementById('userTypeFilter').value;
+            const role = document.getElementById('roleFilter').value;
+            
+            if (userType === 'staff') {
+                params.append('is_platform_staff', 'true');
+                if (role) params.append('platform_role', role);
+            } else if (userType === 'org') {
+                params.append('is_platform_staff', 'false');
+                if (role) params.append('org_role', role);
+            } else if (role) {
+                // If no user type but role selected, assume org role
+                params.append('org_role', role);
+            }
+            
+            const status = document.getElementById('statusFilter').value;
+            if (status === 'active') params.append('is_active', 'true');
+            if (status === 'inactive') params.append('is_active', 'false');
+            if (status === 'verified') params.append('is_verified', 'true');
+            if (status === 'unverified') params.append('is_verified', 'false');
+            
+            const createdAfter = document.getElementById('createdAfter').value;
+            if (createdAfter) params.append('created_after', createdAfter);
+            
+            const createdBefore = document.getElementById('createdBefore').value;
+            if (createdBefore) params.append('created_before', createdBefore);
+            
+            params.append('sort_by', document.getElementById('sortBy').value);
+            params.append('sort_order', document.getElementById('sortOrder').value);
+            params.append('page', currentPage);
+            params.append('page_size', document.getElementById('pageSize').value);
+            
+            const response = await fetch(`/api/v1/admin/users/search?${params}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                displayResults(data.data);
+                updateActiveFilters();
+            } else {
+                showError(data.detail || 'Search failed');
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+            showError('Failed to search users. Please try again.');
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    // Display search results
+    function displayResults(data) {
+        const tbody = document.getElementById('resultsBody');
+        const emptyState = document.getElementById('emptyState');
+        const paginationSection = document.getElementById('paginationSection');
+        const resultCount = document.getElementById('resultCount');
+        
+        const users = data.users;
+        const pagination = data.pagination;
+        
+        resultCount.textContent = pagination.total_count;
+        
+        if (users.length === 0) {
+            tbody.innerHTML = '';
+            emptyState.style.display = 'block';
+            paginationSection.style.display = 'none';
+            return;
+        }
+        
+        emptyState.style.display = 'none';
+        paginationSection.style.display = 'flex';
+        
+        tbody.innerHTML = users.map(user => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="user-avatar">
+                            ${getInitials(user.first_name, user.last_name)}
+                        </div>
+                        <div>
+                            <div class="fw-semibold">${escapeHtml(user.full_name || 'N/A')}</div>
+                            <div class="text-muted small">${escapeHtml(user.email)}</div>
+                            ${user.phone_number ? `<div class="text-muted small">${escapeHtml(user.phone_number)}</div>` : ''}
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    ${user.organization ? `
+                        <span class="org-badge">
+                            <i class="bi bi-building"></i>
+                            ${escapeHtml(user.organization.name)}
+                        </span>
+                    ` : `
+                        <span class="badge badge-staff">Platform Staff</span>
+                    `}
+                </td>
+                <td>
+                    ${user.is_platform_staff ? `
+                        <span class="badge-role badge-${getRoleBadgeClass(user.platform_role)}">
+                            ${formatRoleName(user.platform_role || 'staff')}
+                        </span>
+                    ` : `
+                        <span class="badge-role badge-${getRoleBadgeClass(user.role)}">
+                            ${formatRoleName(user.role || 'user')}
+                        </span>
+                    `}
+                </td>
+                <td>
+                    <div class="d-flex flex-column gap-1">
+                        <span class="status-badge ${user.is_active ? 'status-active' : 'status-inactive'}">
+                            ${user.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                        <span class="status-badge ${user.is_verified ? 'status-verified' : 'status-unverified'}">
+                            ${user.is_verified ? 'Verified' : 'Unverified'}
+                        </span>
+                    </div>
+                </td>
+                <td>
+                    <div class="text-muted small">
+                        ${formatDate(user.created_at)}
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-ng-outline" onclick="viewUserDetails('${user.id}')" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+        
+        // Update pagination
+        updatePagination(pagination);
+    }
+
+    // Get initials from name
+    function getInitials(firstName, lastName) {
+        const first = firstName ? firstName.charAt(0).toUpperCase() : '';
+        const last = lastName ? lastName.charAt(0).toUpperCase() : '';
+        return first + last || '?';
+    }
+
+    // Get badge class for role
+    function getRoleBadgeClass(role) {
+        const roleClasses = {
+            'super_admin': 'super-admin',
+            'admin': 'admin',
+            'it_developer': 'staff',
+            'customer_service': 'staff',
+            'marketing': 'staff',
+            'owner': 'owner',
+            'accountant': 'accountant',
+        };
+        return roleClasses[role?.toLowerCase()] || 'default';
+    }
+
+    // Format date
+    function formatDate(dateStr) {
+        if (!dateStr) return 'N/A';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+
+    // Escape HTML
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // Update pagination UI
+    function updatePagination(pagination) {
+        const paginationList = document.getElementById('paginationList');
+        const paginationInfo = document.getElementById('paginationInfo');
+        
+        currentPage = pagination.page;
+        totalPages = pagination.total_pages;
+        
+        const start = (pagination.page - 1) * pagination.page_size + 1;
+        const end = Math.min(pagination.page * pagination.page_size, pagination.total_count);
+        paginationInfo.textContent = `Showing ${start}-${end} of ${pagination.total_count} users`;
+        
+        let html = '';
+        
+        // Previous button
+        html += `
+            <li class="page-item ${!pagination.has_previous ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="goToPage(${pagination.page - 1}); return false;">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+        `;
+        
+        // Page numbers
+        const maxPages = 5;
+        let startPage = Math.max(1, pagination.page - Math.floor(maxPages / 2));
+        let endPage = Math.min(totalPages, startPage + maxPages - 1);
+        
+        if (endPage - startPage + 1 < maxPages) {
+            startPage = Math.max(1, endPage - maxPages + 1);
+        }
+        
+        if (startPage > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1); return false;">1</a></li>`;
+            if (startPage > 2) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <li class="page-item ${i === pagination.page ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>
+                </li>
+            `;
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages}); return false;">${totalPages}</a></li>`;
+        }
+        
+        // Next button
+        html += `
+            <li class="page-item ${!pagination.has_next ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="goToPage(${pagination.page + 1}); return false;">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        `;
+        
+        paginationList.innerHTML = html;
+    }
+
+    // Go to specific page
+    function goToPage(page) {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        searchUsers();
+    }
+
+    // Update active filters display
+    function updateActiveFilters() {
+        const container = document.getElementById('activeFilters');
+        const badges = document.getElementById('filterBadges');
+        
+        const filters = [];
+        
+        const query = document.getElementById('searchQuery').value;
+        if (query) filters.push({ key: 'searchQuery', label: `Search: ${query}` });
+        
+        const orgId = document.getElementById('organizationFilter').value;
+        if (orgId) {
+            const orgSelect = document.getElementById('organizationFilter');
+            filters.push({ key: 'organizationFilter', label: `Org: ${orgSelect.options[orgSelect.selectedIndex].text}` });
+        }
+        
+        const userType = document.getElementById('userTypeFilter').value;
+        if (userType) filters.push({ key: 'userTypeFilter', label: `Type: ${userType === 'staff' ? 'Platform Staff' : 'Org Users'}` });
+        
+        const role = document.getElementById('roleFilter').value;
+        if (role) filters.push({ key: 'roleFilter', label: `Role: ${formatRoleName(role)}` });
+        
+        const status = document.getElementById('statusFilter').value;
+        if (status) filters.push({ key: 'statusFilter', label: `Status: ${status}` });
+        
+        if (filters.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        
+        container.style.display = 'block';
+        badges.innerHTML = filters.map(f => `
+            <span class="filter-badge">
+                ${escapeHtml(f.label)}
+                <button onclick="clearFilter('${f.key}')">&times;</button>
+            </span>
+        `).join('');
+    }
+
+    // Clear specific filter
+    function clearFilter(key) {
+        const element = document.getElementById(key);
+        if (element.tagName === 'SELECT') {
+            element.value = '';
+        } else {
+            element.value = '';
+        }
+        if (key === 'userTypeFilter') {
+            updateRoleFilter();
+        }
+        currentPage = 1;
+        searchUsers();
+    }
+
+    // Clear all filters
+    function clearFilters() {
+        document.getElementById('searchQuery').value = '';
+        document.getElementById('organizationFilter').value = '';
+        document.getElementById('userTypeFilter').value = '';
+        document.getElementById('roleFilter').innerHTML = '<option value="">All Roles</option>';
+        document.getElementById('statusFilter').value = '';
+        document.getElementById('createdAfter').value = '';
+        document.getElementById('createdBefore').value = '';
+        document.getElementById('sortBy').value = 'created_at';
+        document.getElementById('sortOrder').value = 'desc';
+        currentPage = 1;
+        searchUsers();
+    }
+
+    // View user details
+    async function viewUserDetails(userId) {
+        try {
+            const response = await fetch(`/api/v1/admin/users/${userId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                showUserDetailModal(data.data);
+            } else {
+                showError(data.detail || 'Failed to load user details');
+            }
+        } catch (error) {
+            console.error('Error loading user details:', error);
+            showError('Failed to load user details');
+        }
+    }
+
+    // Show user detail modal
+    function showUserDetailModal(user) {
+        document.getElementById('modalUserName').textContent = user.full_name || user.email;
+        
+        const content = document.getElementById('userDetailContent');
+        content.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Basic Information</h6>
+                    <div class="detail-item">
+                        <div class="detail-label">Full Name</div>
+                        <div class="detail-value">${escapeHtml(user.full_name || 'N/A')}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Email</div>
+                        <div class="detail-value">${escapeHtml(user.email)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Phone</div>
+                        <div class="detail-value">${escapeHtml(user.phone_number || 'N/A')}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">User ID</div>
+                        <div class="detail-value"><code>${user.id}</code></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Account Status</h6>
+                    <div class="detail-item">
+                        <div class="detail-label">Active</div>
+                        <div class="detail-value">
+                            <span class="status-badge ${user.is_active ? 'status-active' : 'status-inactive'}">
+                                ${user.is_active ? 'Yes' : 'No'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Verified</div>
+                        <div class="detail-value">
+                            <span class="status-badge ${user.is_verified ? 'status-verified' : 'status-unverified'}">
+                                ${user.is_verified ? 'Yes' : 'No'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Email Verified At</div>
+                        <div class="detail-value">${user.email_verified_at ? formatDate(user.email_verified_at) : 'Not verified'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Must Reset Password</div>
+                        <div class="detail-value">${user.must_reset_password ? 'Yes' : 'No'}</div>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Role & Organization</h6>
+                    <div class="detail-item">
+                        <div class="detail-label">User Type</div>
+                        <div class="detail-value">${user.is_platform_staff ? 'Platform Staff' : 'Organization User'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Role</div>
+                        <div class="detail-value">
+                            <span class="badge-role badge-${getRoleBadgeClass(user.platform_role || user.role)}">
+                                ${formatRoleName(user.platform_role || user.role || 'user')}
+                            </span>
+                        </div>
+                    </div>
+                    ${user.organization ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Organization</div>
+                            <div class="detail-value">
+                                <span class="org-badge">
+                                    <i class="bi bi-building"></i>
+                                    ${escapeHtml(user.organization.name)}
+                                </span>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Timestamps</h6>
+                    <div class="detail-item">
+                        <div class="detail-label">Created</div>
+                        <div class="detail-value">${formatDate(user.created_at)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Last Updated</div>
+                        <div class="detail-value">${formatDate(user.updated_at)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Entity Access Count</div>
+                        <div class="detail-value">${user.entity_access_count || 0}</div>
+                    </div>
+                </div>
+            </div>
+            ${user.can_be_impersonated ? `
+                <hr>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    This user can be impersonated.
+                    ${user.impersonation_expires_at ? `Impersonation expires: ${formatDate(user.impersonation_expires_at)}` : ''}
+                </div>
+            ` : ''}
+        `;
+        
+        const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
+        modal.show();
+    }
+
+    // Export results (placeholder)
+    function exportResults() {
+        showInfo('Export functionality coming soon');
+    }
+
+    // Show loading
+    function showLoading(show) {
+        document.getElementById('loadingOverlay').classList.toggle('show', show);
+    }
+
+    // Show error toast
+    function showError(message) {
+        // Use existing toast or create simple alert
+        alert('Error: ' + message);
+    }
+
+    // Show info toast
+    function showInfo(message) {
+        alert(message);
+    }
+</script>
+{% endblock %}

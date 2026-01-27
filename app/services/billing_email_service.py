@@ -948,17 +948,17 @@ Best regards,
         if threshold == "100":
             severity = "CRITICAL"
             alert_class = "danger"
-            icon = "🚨"
+            icon = "[!]"
             subject = f"[CRITICAL] {metric_name} Limit Exceeded - {self.company_name}"
         elif threshold == "90":
             severity = "WARNING"
             alert_class = "warning"
-            icon = "⚠️"
+            icon = "[*]"
             subject = f"[WARNING] {metric_name} Usage at {percentage:.0f}% - {self.company_name}"
         else:  # 80%
             severity = "NOTICE"
             alert_class = "highlight"
-            icon = "ℹ️"
+            icon = "[i]"
             subject = f"{metric_name} Usage Approaching Limit - {self.company_name}"
         
         remaining = limit - current_usage

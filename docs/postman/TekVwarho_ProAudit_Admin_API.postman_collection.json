@@ -1,0 +1,1277 @@
+{
+  "info": {
+    "_postman_id": "tekvwarho-proaudit-admin-api",
+    "name": "TekVwarho ProAudit - Super Admin Dashboard API",
+    "description": "Complete API collection for the TekVwarho ProAudit Super Admin Dashboard. Includes all 50+ endpoints for platform management, security, tenant administration, and system monitoring.\n\n## Authentication\nAll endpoints require Super Admin authentication via JWT Bearer token or HTTP-only cookie.\n\n## Base URL\n- Development: `http://localhost:5120`\n- Production: `https://api.tekvwarho.com`\n\n## Super Admin Credentials (Dev)\n- Email: `superadmin@tekvwarho.com`\n- Password: `TekVwarho2026!`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5120",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tenant_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "alert_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "api_key_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rule_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Super Admin authentication endpoints",
+      "item": [
+        {
+          "name": "Login (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.access_token) {",
+                  "        pm.collectionVariables.set('access_token', jsonData.access_token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"superadmin@tekvwarho.com\",\n    \"password\": \"TekVwarho2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Authenticate as Super Admin and receive JWT token"
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "me"]
+            },
+            "description": "Get current authenticated user details"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "logout"]
+            },
+            "description": "Logout and invalidate session"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenant Management",
+      "description": "Manage organizations/tenants across the platform",
+      "item": [
+        {
+          "name": "List All Tenants",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/tenants?page=1&limit=20&status=active",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "tenants"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "status", "value": "active"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tenant Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/tenants/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "tenants", "{{tenant_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Suspend Tenant",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Policy violation - pending investigation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/tenants/{{tenant_id}}/suspend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "tenants", "{{tenant_id}}", "suspend"]
+            }
+          }
+        },
+        {
+          "name": "Reactivate Tenant",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/tenants/{{tenant_id}}/reactivate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "tenants", "{{tenant_id}}", "reactivate"]
+            }
+          }
+        },
+        {
+          "name": "Update Tenant SKU",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sku_tier\": \"enterprise\",\n    \"reason\": \"Manual upgrade by Super Admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/tenants/{{tenant_id}}/sku",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "tenants", "{{tenant_id}}", "sku"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Search",
+      "description": "Cross-tenant user discovery and management",
+      "item": [
+        {
+          "name": "Search Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/users/search?q=john&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "users", "search"],
+              "query": [
+                {"key": "q", "value": "john"},
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "users", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Impersonate User",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Support ticket #12345 - investigating login issues\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/users/{{user_id}}/impersonate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "users", "{{user_id}}", "impersonate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Emergency Controls",
+      "description": "Platform-wide emergency operations (kill switches, maintenance mode)",
+      "item": [
+        {
+          "name": "Get Platform Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/emergency/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "emergency", "status"]
+            }
+          }
+        },
+        {
+          "name": "Get Emergency Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/emergency/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "emergency", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Enable Read-Only Mode",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Database maintenance scheduled\",\n    \"message\": \"Platform is temporarily in read-only mode for maintenance.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/emergency/read-only-mode/enable",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "emergency", "read-only-mode", "enable"]
+            }
+          }
+        },
+        {
+          "name": "Disable Read-Only Mode",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Maintenance completed successfully\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/emergency/read-only-mode/disable",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "emergency", "read-only-mode", "disable"]
+            }
+          }
+        },
+        {
+          "name": "Disable Feature (Kill Switch)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Security vulnerability detected in payments module\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/emergency/kill-switch/payments/disable",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "emergency", "kill-switch", "payments", "disable"]
+            }
+          }
+        },
+        {
+          "name": "Enable Feature (Kill Switch)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Vulnerability patched and verified\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/emergency/kill-switch/payments/enable",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "emergency", "kill-switch", "payments", "enable"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Platform Settings",
+      "description": "Configure platform-wide settings",
+      "item": [
+        {
+          "name": "Get General Settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/general",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "general"]
+            }
+          }
+        },
+        {
+          "name": "Update General Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"platform_name\": \"TekVwarho ProAudit\",\n    \"support_email\": \"support@tekvwarho.com\",\n    \"default_currency\": \"NGN\",\n    \"default_timezone\": \"Africa/Lagos\",\n    \"maintenance_mode\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/general",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "general"]
+            }
+          }
+        },
+        {
+          "name": "Get Trial Settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/trial",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "trial"]
+            }
+          }
+        },
+        {
+          "name": "Update Trial Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"trial_period_days\": 14,\n    \"grace_period_days\": 3,\n    \"default_trial_tier\": \"professional\",\n    \"allow_trial_extensions\": true,\n    \"max_extensions\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/trial",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "trial"]
+            }
+          }
+        },
+        {
+          "name": "Get NRS Settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/nrs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "nrs"]
+            }
+          }
+        },
+        {
+          "name": "Update NRS Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"enabled\": true,\n    \"endpoint\": \"https://nrs.firs.gov.ng/api/v1\",\n    \"api_key\": \"your-nrs-api-key\",\n    \"environment\": \"sandbox\",\n    \"timeout_seconds\": 30\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/nrs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "nrs"]
+            }
+          }
+        },
+        {
+          "name": "Test NRS Connection",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/test-nrs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "test-nrs"]
+            }
+          }
+        },
+        {
+          "name": "Get Billing Settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/billing",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "billing"]
+            }
+          }
+        },
+        {
+          "name": "Update Billing Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"paystack_public_key\": \"pk_test_xxx\",\n    \"paystack_secret_key\": \"sk_test_xxx\",\n    \"auto_charge_enabled\": true,\n    \"invoice_prefix\": \"INV\",\n    \"tax_rate_percent\": 7.5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/billing",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "billing"]
+            }
+          }
+        },
+        {
+          "name": "Get Security Settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/security",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "security"]
+            }
+          }
+        },
+        {
+          "name": "Update Security Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mfa_required\": false,\n    \"session_timeout_minutes\": 60,\n    \"password_min_length\": 8,\n    \"password_require_special\": true,\n    \"max_login_attempts\": 5,\n    \"lockout_duration_minutes\": 30,\n    \"geo_fencing_enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/security",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "security"]
+            }
+          }
+        },
+        {
+          "name": "Get Notification Settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/notifications",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "notifications"]
+            }
+          }
+        },
+        {
+          "name": "Update Notification Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email_enabled\": true,\n    \"smtp_host\": \"smtp.mailgun.org\",\n    \"smtp_port\": 587,\n    \"smtp_user\": \"postmaster@tekvwarho.com\",\n    \"smtp_password\": \"your-smtp-password\",\n    \"from_email\": \"noreply@tekvwarho.com\",\n    \"from_name\": \"TekVwarho ProAudit\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/notifications",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "notifications"]
+            }
+          }
+        },
+        {
+          "name": "Test Email Configuration",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"test_email\": \"admin@tekvwarho.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/settings/test-email",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "settings", "test-email"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security Audit",
+      "description": "Security monitoring, alerts, sessions, and policies",
+      "item": [
+        {
+          "name": "Get Security Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "stats"]
+            }
+          }
+        },
+        {
+          "name": "List Security Alerts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/alerts?status=active&severity=high",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "alerts"],
+              "query": [
+                {"key": "status", "value": "active"},
+                {"key": "severity", "value": "high"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Alert Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/alerts/{{alert_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "alerts", "{{alert_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Acknowledge Alert",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/alerts/{{alert_id}}/acknowledge",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "alerts", "{{alert_id}}", "acknowledge"]
+            }
+          }
+        },
+        {
+          "name": "Resolve Alert",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resolution_notes\": \"Confirmed false positive - user on VPN\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/alerts/{{alert_id}}/resolve",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "alerts", "{{alert_id}}", "resolve"]
+            }
+          }
+        },
+        {
+          "name": "List Active Sessions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/sessions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "sessions"]
+            }
+          }
+        },
+        {
+          "name": "Terminate Session",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/sessions/session-123/terminate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "sessions", "session-123", "terminate"]
+            }
+          }
+        },
+        {
+          "name": "Terminate All Sessions",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/sessions/terminate-all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "sessions", "terminate-all"]
+            }
+          }
+        },
+        {
+          "name": "List IP Whitelist",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/ip-whitelist",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "ip-whitelist"]
+            }
+          }
+        },
+        {
+          "name": "Add IP to Whitelist",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ip_address\": \"196.23.45.67\",\n    \"description\": \"Lagos office static IP\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/ip-whitelist",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "ip-whitelist"]
+            }
+          }
+        },
+        {
+          "name": "Remove IP from Whitelist",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/ip-whitelist/ip-entry-id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "ip-whitelist", "ip-entry-id"]
+            }
+          }
+        },
+        {
+          "name": "Get Security Policies",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/policies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "policies"]
+            }
+          }
+        },
+        {
+          "name": "Update Security Policies",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"password_min_length\": 12,\n    \"password_require_uppercase\": true,\n    \"password_require_number\": true,\n    \"password_require_special\": true,\n    \"mfa_required_for_admins\": true,\n    \"session_timeout_minutes\": 30,\n    \"max_concurrent_sessions\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/policies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "policies"]
+            }
+          }
+        },
+        {
+          "name": "Export Security Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/security/export-report",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "security", "export-report"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Keys",
+      "description": "Platform API key management for external integrations",
+      "item": [
+        {
+          "name": "List API Keys",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys?include_revoked=false",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys"],
+              "query": [
+                {"key": "include_revoked", "value": "false"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create API Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set('api_key_id', jsonData.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Partner Integration Key\",\n    \"description\": \"API key for partner access\",\n    \"scopes\": [\"read\", \"write\"],\n    \"expires_in_days\": 365,\n    \"rate_limit_per_minute\": 60\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys"]
+            }
+          }
+        },
+        {
+          "name": "Get API Key Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys/{{api_key_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys", "{{api_key_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update API Key",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Partner Key\",\n    \"description\": \"Updated description\",\n    \"scopes\": [\"read\"],\n    \"rate_limit_per_minute\": 30\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys/{{api_key_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys", "{{api_key_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys/{{api_key_id}}/revoke?reason=Security%20concern",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys", "{{api_key_id}}", "revoke"],
+              "query": [
+                {"key": "reason", "value": "Security concern"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Regenerate API Key",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys/{{api_key_id}}/regenerate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys", "{{api_key_id}}", "regenerate"]
+            }
+          }
+        },
+        {
+          "name": "Get API Key Usage",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys/{{api_key_id}}/usage?days=30",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys", "{{api_key_id}}", "usage"],
+              "query": [
+                {"key": "days", "value": "30"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Available Scopes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/api-keys/scopes/available",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "api-keys", "scopes", "available"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Automation Rules",
+      "description": "Workflow automation and scheduled tasks",
+      "item": [
+        {
+          "name": "List Automation Rules",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation?status_filter=active",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation"],
+              "query": [
+                {"key": "status_filter", "value": "active"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Automation Rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set('rule_id', jsonData.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Trial Expiry Reminder\",\n    \"description\": \"Send reminder when trial is about to expire\",\n    \"trigger\": {\n        \"type\": \"scheduled\",\n        \"cron_expression\": \"0 9 * * *\"\n    },\n    \"conditions\": [\n        {\n            \"field\": \"trial_days_remaining\",\n            \"operator\": \"less_than\",\n            \"value\": 7\n        }\n    ],\n    \"actions\": [\n        {\n            \"type\": \"send_email\",\n            \"email_template\": \"trial_expiry_warning\",\n            \"email_recipients\": [\"{{organization.admin_email}}\"]\n        }\n    ],\n    \"priority\": 7,\n    \"max_executions_per_hour\": 50\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation"]
+            }
+          }
+        },
+        {
+          "name": "Get Automation Rule",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/{{rule_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "{{rule_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Automation Rule",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Trial Reminder\",\n    \"priority\": 8,\n    \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/{{rule_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "{{rule_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Automation Rule",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/{{rule_id}}/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "{{rule_id}}", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "Execute Automation Rule (Manual)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/{{rule_id}}/execute",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "{{rule_id}}", "execute"]
+            }
+          }
+        },
+        {
+          "name": "Get Rule Execution Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/{{rule_id}}/logs?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "{{rule_id}}", "logs"],
+              "query": [
+                {"key": "limit", "value": "50"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Automation Rule",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/{{rule_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "{{rule_id}}"]
+            }
+          }
+        },
+        {
+          "name": "List Trigger Types",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/triggers/types",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "triggers", "types"]
+            }
+          }
+        },
+        {
+          "name": "List Action Types",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/automation/actions/types",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "automation", "actions", "types"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Platform Health",
+      "description": "System monitoring and health metrics",
+      "item": [
+        {
+          "name": "Get Platform Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "health"]
+            }
+          }
+        },
+        {
+          "name": "Get Detailed Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/health/metrics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "health", "metrics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "description": "Global audit log viewer",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/audit-logs?page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "audit-logs"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "50"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Audit Log Entry",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/audit-logs/log-id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "audit-logs", "log-id"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verification",
+      "description": "Organization verification (CAC/TIN document review)",
+      "item": [
+        {
+          "name": "List Pending Verifications",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/verifications?status=pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "verifications"],
+              "query": [
+                {"key": "status", "value": "pending"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Verification",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"notes\": \"Documents verified successfully\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/verifications/verification-id/approve",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "verifications", "verification-id", "approve"]
+            }
+          }
+        },
+        {
+          "name": "Reject Verification",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"CAC document is expired\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/verifications/verification-id/reject",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "verifications", "verification-id", "reject"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Support Tickets",
+      "description": "Customer support ticket management",
+      "item": [
+        {
+          "name": "List Support Tickets",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/support/tickets?status=open&priority=high",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "support", "tickets"],
+              "query": [
+                {"key": "status", "value": "open"},
+                {"key": "priority", "value": "high"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Ticket Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/support/tickets/ticket-id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "support", "tickets", "ticket-id"]
+            }
+          }
+        },
+        {
+          "name": "Reply to Ticket",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"message\": \"Thank you for contacting support. We're looking into your issue.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/support/tickets/ticket-id/reply",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "support", "tickets", "ticket-id", "reply"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Legal Holds",
+      "description": "Compliance and data preservation",
+      "item": [
+        {
+          "name": "List Legal Holds",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/legal-holds",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "legal-holds"]
+            }
+          }
+        },
+        {
+          "name": "Create Legal Hold",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"EFCC Investigation - Case 2024-001\",\n    \"description\": \"Legal hold for regulatory investigation\",\n    \"custodians\": [\"user-id-1\", \"user-id-2\"],\n    \"data_sources\": [\"transactions\", \"audit_logs\", \"documents\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/legal-holds",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "legal-holds"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Risk Signals",
+      "description": "Platform monitoring and early warning",
+      "item": [
+        {
+          "name": "List Risk Signals",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/risk-signals?severity=high",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "risk-signals"],
+              "query": [
+                {"key": "severity", "value": "high"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Risk Dashboard",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/risk-signals/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "risk-signals", "dashboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ML Jobs",
+      "description": "Machine learning operations and model management",
+      "item": [
+        {
+          "name": "List ML Jobs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/ml/jobs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ml", "jobs"]
+            }
+          }
+        },
+        {
+          "name": "Get ML Model Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/ml/models",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ml", "models"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upsell",
+      "description": "Revenue expansion opportunities",
+      "item": [
+        {
+          "name": "List Upsell Opportunities",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/upsell/opportunities",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "upsell", "opportunities"]
+            }
+          }
+        },
+        {
+          "name": "Get Upsell Analytics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/upsell/analytics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "upsell", "analytics"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

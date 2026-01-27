@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Support Tickets - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    :root { --ng-green: #008751; --ng-green-dark: #006741; }
+    .btn-primary { background: var(--ng-green); color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; }
+    .btn-primary:hover { background: var(--ng-green-dark); }
+    .btn-secondary { background: white; color: var(--ng-green); border: 1px solid var(--ng-green); padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { background: #e6f5ed; color: var(--ng-green-dark); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; padding: 0.75rem 1rem; text-align: left; }
+    .data-table td { padding: 0.875rem 1rem; font-size: 0.875rem; border-bottom: 1px solid #f3f4f6; }
+    .data-table tr:hover td { background: #fafbfc; }
+    .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f3f4f6; color: #4b5563; }
+    .stat-card { background: white; border-radius: 0.75rem; padding: 1.25rem; border: 1px solid #e5e7eb; }
+    .priority-critical { border-left: 4px solid #ef4444; }
+    .priority-high { border-left: 4px solid #f59e0b; }
+    .priority-medium { border-left: 4px solid #3b82f6; }
+    .priority-low { border-left: 4px solid #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="supportPage()" class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900">Support Tickets</h1>
+                    <p class="text-sm text-gray-500">Manage customer support requests</p>
+                </div>
+            </div>
+            <button @click="showNewTicketModal = true" class="btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Create Ticket
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Open</p>
+                <p class="text-2xl font-bold text-blue-600">{{ dashboard.support_tickets.open if dashboard.support_tickets else 0 }}</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Critical</p>
+                <p class="text-2xl font-bold text-red-600">{{ dashboard.support_tickets.critical if dashboard.support_tickets else 0 }}</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">SLA Breached</p>
+                <p class="text-2xl font-bold text-orange-600">{{ dashboard.support_tickets.sla_breached if dashboard.support_tickets else 0 }}</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Resolved Today</p>
+                <p class="text-2xl font-bold text-green-600">{{ dashboard.support_tickets.resolved_today if dashboard.support_tickets else 0 }}</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Avg Response</p>
+                <p class="text-2xl font-bold text-gray-700">{{ dashboard.support_tickets.avg_response_time or '2h' if dashboard.support_tickets else '2h' }}</p>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            <div class="flex items-center gap-4">
+                <div class="flex-1">
+                    <input type="text" x-model="search" placeholder="Search tickets..." class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-green-500">
+                </div>
+                <select x-model="statusFilter" class="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-green-500">
+                    <option value="">All Status</option>
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="pending">Pending Customer</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <select x-model="priorityFilter" class="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-green-500">
+                    <option value="">All Priority</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Tickets Table -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Subject</th>
+                        <th>Requester</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if dashboard.support_tickets_list %}
+                    {% for ticket in dashboard.support_tickets_list %}
+                    <tr class="priority-{{ ticket.priority or 'medium' }}">
+                        <td class="font-mono text-xs text-gray-600">{{ ticket.ticket_number }}</td>
+                        <td>
+                            <div class="font-medium text-gray-900">{{ ticket.subject }}</div>
+                            <div class="text-xs text-gray-500">{{ ticket.category or 'General' }}</div>
+                        </td>
+                        <td>
+                            <div class="text-sm">{{ ticket.requester_name or 'Unknown' }}</div>
+                            <div class="text-xs text-gray-500">{{ ticket.requester_email }}</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ 'danger' if ticket.priority == 'critical' else 'warning' if ticket.priority == 'high' else 'info' if ticket.priority == 'medium' else 'gray' }}">
+                                {{ ticket.priority or 'medium' }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if ticket.status == 'resolved' else 'info' if ticket.status == 'in_progress' else 'warning' if ticket.status == 'pending' else 'gray' }}">
+                                {{ ticket.status or 'open' }}
+                            </span>
+                        </td>
+                        <td class="text-gray-500 text-sm">{{ ticket.created_at }}</td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <button @click="viewTicket('{{ ticket.id }}')" class="text-gray-400 hover:text-green-600" title="View">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </button>
+                                <button @click="assignTicket('{{ ticket.id }}')" class="text-gray-400 hover:text-blue-600" title="Assign">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                </button>
+                                <button @click="resolveTicket('{{ ticket.id }}')" class="text-gray-400 hover:text-green-600" title="Resolve">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-gray-500 py-12">No support tickets found</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function supportPage() {
+    return {
+        search: '',
+        statusFilter: '',
+        priorityFilter: '',
+        showNewTicketModal: false,
+        
+        viewTicket(id) {
+            // Open ticket details - can implement a modal or navigate
+            alert('View ticket details: ' + id);
+        },
+        
+        async assignTicket(id) {
+            const assigneeId = prompt('Enter the staff member ID to assign this ticket to:');
+            if (!assigneeId) return;
+            try {
+                const response = await fetch(`/api/v1/support-tickets/${id}/assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ assigned_to_id: assigneeId })
+                });
+                if (response.ok) {
+                    alert('Ticket assigned successfully');
+                    window.location.reload();
+                } else {
+                    const data = await response.json();
+                    alert(data.detail || 'Failed to assign ticket');
+                }
+            } catch (e) {
+                alert('Error assigning ticket');
+            }
+        },
+        
+        async resolveTicket(id) {
+            if (!confirm('Mark this ticket as resolved?')) return;
+            try {
+                const response = await fetch(`/api/v1/support-tickets/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ status: 'RESOLVED', resolution_notes: 'Resolved via admin panel' })
+                });
+                if (response.ok) {
+                    alert('Ticket resolved');
+                    window.location.reload();
+                } else {
+                    const data = await response.json();
+                    alert(data.detail || 'Failed to resolve ticket');
+                }
+            } catch (e) {
+                alert('Error resolving ticket');
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

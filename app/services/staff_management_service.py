@@ -335,6 +335,35 @@ class StaffManagementService:
         )
         return list(result.scalars().all())
     
+    async def get_all_organizations(
+        self,
+        requesting_user: User,
+        status_filter: Optional[VerificationStatus] = None,
+    ) -> List[Organization]:
+        """
+        Get all organizations with optional status filter.
+        
+        Args:
+            requesting_user: Admin performing the request
+            status_filter: Optional filter by verification status
+            
+        Returns:
+            List of organizations
+        """
+        if not has_platform_permission(
+            requesting_user.platform_role,
+            PlatformPermission.VERIFY_ORGANIZATIONS
+        ):
+            raise PermissionError("You don't have permission to view organizations")
+        
+        query = select(Organization).order_by(Organization.created_at.desc())
+        
+        if status_filter:
+            query = query.where(Organization.verification_status == status_filter)
+        
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
     async def verify_organization(
         self,
         requesting_user: User,

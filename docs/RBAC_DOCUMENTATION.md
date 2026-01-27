@@ -1,7 +1,7 @@
 # TekVwarho ProAudit - Role-Based Access Control (RBAC) Documentation
 
-**Document Version:** 2.1  
-**Last Updated:** January 6, 2026  
+**Document Version:** 2.2  
+**Last Updated:** January 27, 2026  
 **Status:** Production
 
 ## Overview
@@ -43,9 +43,26 @@ Platform staff are internal TekVwarho employees who manage the platform. They ar
 - Managing API keys for government gateways (NRS, JTB)
 - Handling manual escalations
 - Onboarding Admin and all other staff (highest access)
+- **Emergency controls and kill switches** ✅ NEW
+- **Cross-tenant user management** ✅ NEW
+- **Organization verification approvals** ✅ NEW
+- **Platform health monitoring** ✅ NEW
+- **Global audit log viewing** ✅ NEW
 
 **Permissions:**
 - All platform permissions
+
+**Implemented API Endpoints (31 total):**
+
+| Category | Endpoints | Status |
+|----------|-----------|--------|
+| Emergency Controls | 6 | ✅ Implemented |
+| User Search | 4 | ✅ Implemented |
+| Staff Management | 4 | ✅ Implemented |
+| Verification | 4 | ✅ Implemented |
+| Audit Logs | 4 | ✅ Implemented |
+| Health Metrics | 6 | ✅ Implemented |
+| Tenant Management | 3 | ✅ Implemented |
 
 ### Admin
 
@@ -467,6 +484,76 @@ Organization users see a business-focused dashboard with:
 |----------|--------|-------------|----------|
 | `/api/v1/staff/dashboard` | GET | Platform staff dashboard data | Platform staff |
 | `/api/v1/entities/{id}/reports/dashboard` | GET | Organization dashboard data | Organization user |
+
+### Super Admin Dashboard API Endpoints (NEW)
+
+The following API endpoints are available exclusively to Super Admin and authorized platform staff:
+
+#### Emergency Controls (`/admin/emergency/`)
+
+| Endpoint | Method | Description | Required Role |
+|----------|--------|-------------|---------------|
+| `/admin/emergency/platform/read-only` | POST | Toggle platform read-only mode | Super Admin |
+| `/admin/emergency/platform/status` | GET | Get platform emergency status | Super Admin, IT Dev |
+| `/admin/emergency/tenant/{tenant_id}/suspend` | POST | Emergency suspend a tenant | Super Admin |
+| `/admin/emergency/tenant/{tenant_id}/suspend` | DELETE | Lift tenant suspension | Super Admin |
+| `/admin/emergency/feature/{feature_name}/disable` | POST | Disable feature globally | Super Admin |
+| `/admin/emergency/feature/{feature_name}/disable` | DELETE | Re-enable feature | Super Admin |
+
+#### Cross-Tenant User Search (`/admin/users/`)
+
+| Endpoint | Method | Description | Required Role |
+|----------|--------|-------------|---------------|
+| `/admin/users/search` | GET | Search users across all tenants | Super Admin, CSR |
+| `/admin/users/{user_id}` | GET | Get user details | Super Admin, CSR |
+| `/admin/users/{user_id}/activity` | GET | Get user activity history | Super Admin |
+| `/admin/users/{user_id}/suspend` | POST | Suspend/unsuspend user | Super Admin |
+
+#### Platform Staff Management (`/admin/staff/`)
+
+| Endpoint | Method | Description | Required Role |
+|----------|--------|-------------|---------------|
+| `/admin/staff` | GET | List all platform staff | Super Admin |
+| `/admin/staff` | POST | Create new platform staff | Super Admin |
+| `/admin/staff/{staff_id}` | GET | Get staff details | Super Admin |
+| `/admin/staff/{staff_id}` | PUT | Update staff | Super Admin |
+
+#### Organization Verification (`/admin/verifications/`)
+
+| Endpoint | Method | Description | Required Role |
+|----------|--------|-------------|---------------|
+| `/admin/verifications` | GET | List pending verifications | Super Admin, Admin |
+| `/admin/verifications/{org_id}` | GET | Get verification details | Super Admin, Admin |
+| `/admin/verifications/{org_id}/approve` | POST | Approve organization | Super Admin, Admin |
+| `/admin/verifications/{org_id}/reject` | POST | Reject organization | Super Admin, Admin |
+
+#### Global Audit Log Viewer (`/admin/audit-logs/`)
+
+| Endpoint | Method | Description | Required Role |
+|----------|--------|-------------|---------------|
+| `/admin/audit-logs` | GET | List all audit logs (paginated) | Super Admin, IT Dev |
+| `/admin/audit-logs/stats` | GET | Get audit statistics | Super Admin |
+| `/admin/audit-logs/{log_id}` | GET | Get specific log details | Super Admin, IT Dev |
+| `/admin/audit-logs/export` | GET | Export audit logs | Super Admin |
+
+#### Platform Health Metrics (`/admin/health/`)
+
+| Endpoint | Method | Description | Required Role |
+|----------|--------|-------------|---------------|
+| `/admin/health` | GET | Overall platform health | Super Admin, IT Dev |
+| `/admin/health/database` | GET | Database health metrics | Super Admin, IT Dev |
+| `/admin/health/services` | GET | External service status | Super Admin, IT Dev |
+| `/admin/health/metrics` | GET | Detailed system metrics | Super Admin, IT Dev |
+| `/admin/health/tenants/summary` | GET | Tenant health summary | Super Admin |
+| `/admin/health/alerts` | GET | Active platform alerts | Super Admin, IT Dev |
+
+#### Tenant Management (`/admin/tenants/`)
+
+| Endpoint | Method | Description | Required Role |
+|----------|--------|-------------|---------------|
+| `/admin/tenants` | GET | List all tenants | Super Admin, CSR |
+| `/admin/tenants/{tenant_id}` | GET | Get tenant details | Super Admin, CSR |
+| `/admin/tenants/{tenant_id}` | PUT | Update tenant | Super Admin |
 
 ### Authentication for Dashboards
 

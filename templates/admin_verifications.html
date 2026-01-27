@@ -1,0 +1,1036 @@
+{% extends "base.html" %}
+{% block title %}Organization Verifications - TekVwarho ProAudit{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Breadcrumb -->
+        <nav class="flex mb-6" aria-label="Breadcrumb">
+            <ol class="flex items-center space-x-4">
+                <li>
+                    <a href="/dashboard" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-home"></i>
+                    </a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
+                        <span class="text-gray-700 font-medium">Organization Verifications</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-green-700 to-green-600 rounded-lg shadow-lg p-6 mb-8">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-white/20 rounded-lg p-3">
+                        <i class="fas fa-shield-check text-white text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h1 class="text-2xl font-bold text-white">Organization Verifications</h1>
+                        <p class="text-green-100 mt-1">Review CAC/TIN documents and approve organizations</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="refreshVerifications()" class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Messages -->
+        <div id="alert-container"></div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+            <div class="bg-white rounded-lg shadow-md p-5">
+                <div class="flex items-center">
+                    <div class="p-3 bg-yellow-100 rounded-full">
+                        <i class="fas fa-clock text-yellow-600 text-lg"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-xs text-gray-500 uppercase">Submitted</p>
+                        <p id="submitted-count" class="text-xl font-bold text-gray-800">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-5">
+                <div class="flex items-center">
+                    <div class="p-3 bg-blue-100 rounded-full">
+                        <i class="fas fa-search text-blue-600 text-lg"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-xs text-gray-500 uppercase">Under Review</p>
+                        <p id="under-review-count" class="text-xl font-bold text-gray-800">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-5">
+                <div class="flex items-center">
+                    <div class="p-3 bg-green-100 rounded-full">
+                        <i class="fas fa-check-circle text-green-600 text-lg"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-xs text-gray-500 uppercase">Verified</p>
+                        <p id="verified-count" class="text-xl font-bold text-gray-800">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-5">
+                <div class="flex items-center">
+                    <div class="p-3 bg-red-100 rounded-full">
+                        <i class="fas fa-times-circle text-red-600 text-lg"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-xs text-gray-500 uppercase">Rejected</p>
+                        <p id="rejected-count" class="text-xl font-bold text-gray-800">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-5">
+                <div class="flex items-center">
+                    <div class="p-3 bg-gray-100 rounded-full">
+                        <i class="fas fa-building text-gray-600 text-lg"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-xs text-gray-500 uppercase">Total</p>
+                        <p id="total-count" class="text-xl font-bold text-gray-800">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="flex -mb-px overflow-x-auto" aria-label="Tabs">
+                    <button onclick="filterByStatus('pending_review')" 
+                        class="filter-tab active px-5 py-4 text-sm font-medium border-b-2 border-green-600 text-green-700 whitespace-nowrap"
+                        data-status="pending_review">
+                        <i class="fas fa-clock mr-2"></i>Pending Review
+                        <span id="tab-pending-badge" class="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">0</span>
+                    </button>
+                    <button onclick="filterByStatus('submitted')" 
+                        class="filter-tab px-5 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap"
+                        data-status="submitted">
+                        <i class="fas fa-file-alt mr-2"></i>Submitted
+                    </button>
+                    <button onclick="filterByStatus('under_review')" 
+                        class="filter-tab px-5 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap"
+                        data-status="under_review">
+                        <i class="fas fa-search mr-2"></i>Under Review
+                    </button>
+                    <button onclick="filterByStatus('verified')" 
+                        class="filter-tab px-5 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap"
+                        data-status="verified">
+                        <i class="fas fa-check-circle mr-2"></i>Verified
+                    </button>
+                    <button onclick="filterByStatus('rejected')" 
+                        class="filter-tab px-5 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap"
+                        data-status="rejected">
+                        <i class="fas fa-times-circle mr-2"></i>Rejected
+                    </button>
+                    <button onclick="filterByStatus('')" 
+                        class="filter-tab px-5 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap"
+                        data-status="">
+                        <i class="fas fa-list mr-2"></i>All
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Organizations Table -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-800">Organizations</h2>
+                <div class="flex items-center space-x-4">
+                    <input type="text" id="search-input" placeholder="Search by name or email..." 
+                        class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm w-64"
+                        onkeyup="debounceSearch()">
+                </div>
+            </div>
+            
+            <div id="organizations-loading" class="p-12 text-center">
+                <i class="fas fa-spinner fa-spin text-4xl text-gray-400"></i>
+                <p class="mt-4 text-gray-500">Loading organizations...</p>
+            </div>
+            
+            <div id="organizations-empty" class="hidden p-12 text-center">
+                <i class="fas fa-inbox text-4xl text-gray-300"></i>
+                <p class="mt-4 text-gray-500">No organizations found</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table id="organizations-table" class="min-w-full divide-y divide-gray-200 hidden">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documents</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="organizations-body" class="bg-white divide-y divide-gray-200">
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div id="pagination" class="hidden px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div class="text-sm text-gray-500">
+                    Showing <span id="showing-start">0</span> to <span id="showing-end">0</span> of <span id="showing-total">0</span> organizations
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="prev-btn" onclick="prevPage()" disabled class="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-chevron-left mr-1"></i>Previous
+                    </button>
+                    <span id="page-info" class="text-sm text-gray-600">Page 1</span>
+                    <button id="next-btn" onclick="nextPage()" disabled class="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Next<i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Review Modal -->
+<div id="review-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-green-700 to-green-600">
+            <h3 class="text-lg font-semibold text-white">
+                <i class="fas fa-shield-check mr-2"></i>Review Organization
+            </h3>
+            <button onclick="closeModal()" class="text-white/80 hover:text-white">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <div class="p-6">
+            <!-- Organization Details -->
+            <div class="mb-6">
+                <h4 class="text-sm font-medium text-gray-500 uppercase mb-3 flex items-center">
+                    <i class="fas fa-building mr-2"></i>Organization Details
+                </h4>
+                <div class="bg-gray-50 rounded-lg p-4 grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-xs text-gray-500">Name</span>
+                        <p id="modal-org-name" class="font-medium text-gray-800"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Type</span>
+                        <p id="modal-org-type" class="font-medium text-gray-800"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Email</span>
+                        <p id="modal-org-email" class="font-medium text-gray-800"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Status</span>
+                        <p id="modal-org-status" class="font-medium"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Created</span>
+                        <p id="modal-org-date" class="font-medium text-gray-800"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Users</span>
+                        <p id="modal-org-users" class="font-medium text-gray-800"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Contact -->
+            <div id="modal-admin-section" class="mb-6 hidden">
+                <h4 class="text-sm font-medium text-gray-500 uppercase mb-3 flex items-center">
+                    <i class="fas fa-user-tie mr-2"></i>Admin Contact
+                </h4>
+                <div class="bg-gray-50 rounded-lg p-4 grid grid-cols-3 gap-4">
+                    <div>
+                        <span class="text-xs text-gray-500">Name</span>
+                        <p id="modal-admin-name" class="font-medium text-gray-800"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Email</span>
+                        <p id="modal-admin-email" class="font-medium text-gray-800"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Phone</span>
+                        <p id="modal-admin-phone" class="font-medium text-gray-800"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents -->
+            <div class="mb-6">
+                <h4 class="text-sm font-medium text-gray-500 uppercase mb-3 flex items-center">
+                    <i class="fas fa-folder-open mr-2"></i>Verification Documents
+                </h4>
+                <div class="space-y-3">
+                    <div id="modal-cac-doc" class="flex items-center justify-between bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex items-center">
+                            <i class="fas fa-file-pdf text-red-500 mr-3 text-xl"></i>
+                            <div>
+                                <span class="text-gray-700 font-medium">CAC Certificate</span>
+                                <p class="text-xs text-gray-500">Corporate Affairs Commission Registration</p>
+                            </div>
+                        </div>
+                        <span class="text-gray-400 text-sm">Not uploaded</span>
+                    </div>
+                    <div id="modal-tin-doc" class="flex items-center justify-between bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex items-center">
+                            <i class="fas fa-file-invoice text-blue-500 mr-3 text-xl"></i>
+                            <div>
+                                <span class="text-gray-700 font-medium">TIN Certificate</span>
+                                <p class="text-xs text-gray-500">Tax Identification Number</p>
+                            </div>
+                        </div>
+                        <span class="text-gray-400 text-sm">Not uploaded</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Previous Notes -->
+            <div id="modal-notes-section" class="mb-6 hidden">
+                <h4 class="text-sm font-medium text-gray-500 uppercase mb-3 flex items-center">
+                    <i class="fas fa-sticky-note mr-2"></i>Previous Notes
+                </h4>
+                <div id="modal-prev-notes" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-gray-700">
+                </div>
+            </div>
+
+            <!-- Action Notes -->
+            <div class="mb-6">
+                <label for="action-notes" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-comment mr-2"></i>Notes <span class="text-gray-400">(required for rejection)</span>
+                </label>
+                <textarea id="action-notes" rows="3" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="Add notes about your decision..."></textarea>
+            </div>
+
+            <!-- Request Documents Section -->
+            <div id="request-docs-section" class="mb-6 hidden">
+                <button onclick="toggleRequestDocs()" class="text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center">
+                    <i class="fas fa-plus-circle mr-2"></i>Request Additional Documents
+                </button>
+                <div id="request-docs-form" class="hidden mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div class="mb-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select documents to request:</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="requested_doc" value="Updated CAC Certificate" class="mr-2 text-green-600 focus:ring-green-500">
+                                Updated CAC Certificate
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="requested_doc" value="TIN Certificate" class="mr-2 text-green-600 focus:ring-green-500">
+                                TIN Certificate
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="requested_doc" value="Proof of Address" class="mr-2 text-green-600 focus:ring-green-500">
+                                Proof of Address (Utility Bill)
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="requested_doc" value="Director ID" class="mr-2 text-green-600 focus:ring-green-500">
+                                Director's ID (National ID/Passport)
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="requested_doc" value="Board Resolution" class="mr-2 text-green-600 focus:ring-green-500">
+                                Board Resolution
+                            </label>
+                        </div>
+                    </div>
+                    <button onclick="requestDocuments()" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-paper-plane mr-2"></i>Send Document Request
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div id="action-buttons" class="flex justify-end space-x-4 pt-4 border-t border-gray-200">
+                <button onclick="closeModal()" 
+                    class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button id="btn-start-review" onclick="startReview()" 
+                    class="hidden px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-search mr-2"></i>Start Review
+                </button>
+                <button id="btn-reject" onclick="rejectOrganization()" 
+                    class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                    <i class="fas fa-times mr-2"></i>Reject
+                </button>
+                <button id="btn-approve" onclick="approveOrganization()" 
+                    class="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    <i class="fas fa-check mr-2"></i>Approve
+                </button>
+            </div>
+
+            <!-- Reset Button (Super Admin only for rejected) -->
+            <div id="reset-section" class="hidden mt-4 pt-4 border-t border-gray-200">
+                <button onclick="resetVerification()" 
+                    class="w-full px-5 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
+                    <i class="fas fa-undo mr-2"></i>Reset to Submitted (Allow Re-Review)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History Modal -->
+<div id="history-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-history mr-2"></i>Verification History
+            </h3>
+            <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="p-6">
+            <p id="history-org-name" class="text-sm text-gray-500 mb-4"></p>
+            <div id="history-content" class="space-y-4">
+            </div>
+            <div id="history-empty" class="hidden text-center py-8 text-gray-500">
+                <i class="fas fa-inbox text-4xl mb-4"></i>
+                <p>No verification history found</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let organizations = [];
+let currentFilter = 'pending_review';
+let currentPage = 1;
+let pageSize = 20;
+let totalOrgs = 0;
+let selectedOrgId = null;
+let selectedOrgData = null;
+let searchTimeout = null;
+
+const API_BASE = '/api/v1/admin/verifications';
+
+function getAccessToken() {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'access_token') {
+            return value.replace('Bearer ', '');
+        }
+    }
+    return null;
+}
+
+async function apiCall(endpoint, method = 'GET', body = null) {
+    const token = getAccessToken();
+    if (!token) {
+        window.location.href = '/login';
+        return null;
+    }
+    
+    const options = {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    };
+    
+    if (body) {
+        options.body = JSON.stringify(body);
+    }
+    
+    const res = await fetch(endpoint, options);
+    
+    if (res.status === 401) {
+        window.location.href = '/login';
+        return null;
+    }
+    
+    return res;
+}
+
+function showAlert(message, type = 'success') {
+    const container = document.getElementById('alert-container');
+    const bgClass = type === 'error' ? 'bg-red-100 border-red-500 text-red-700' : 
+                   type === 'warning' ? 'bg-yellow-100 border-yellow-500 text-yellow-700' :
+                   'bg-green-100 border-green-500 text-green-700';
+    const iconClass = type === 'error' ? 'fa-exclamation-circle' : 
+                     type === 'warning' ? 'fa-exclamation-triangle' :
+                     'fa-check-circle';
+    
+    container.innerHTML = `
+        <div class="border-l-4 ${bgClass} p-4 mb-6 rounded-r-lg shadow-sm">
+            <div class="flex items-center">
+                <i class="fas ${iconClass} mr-3"></i>
+                <p>${message}</p>
+                <button onclick="this.parentElement.parentElement.remove()" class="ml-auto">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    setTimeout(() => { container.innerHTML = ''; }, 5000);
+}
+
+function formatOrgType(type) {
+    const types = {
+        'sme': 'SME',
+        'small_business': 'Small Business',
+        'school': 'School',
+        'non_profit': 'Non-Profit',
+        'individual': 'Individual',
+        'corporation': 'Corporation',
+        'enterprise': 'Enterprise'
+    };
+    return types[type] || type || 'N/A';
+}
+
+function formatStatus(status) {
+    const statuses = {
+        'pending': { label: 'Pending', class: 'bg-gray-100 text-gray-800', icon: 'fa-hourglass-half' },
+        'submitted': { label: 'Submitted', class: 'bg-yellow-100 text-yellow-800', icon: 'fa-file-alt' },
+        'under_review': { label: 'Under Review', class: 'bg-blue-100 text-blue-800', icon: 'fa-search' },
+        'verified': { label: 'Verified', class: 'bg-green-100 text-green-800', icon: 'fa-check-circle' },
+        'rejected': { label: 'Rejected', class: 'bg-red-100 text-red-800', icon: 'fa-times-circle' }
+    };
+    const s = statuses[status] || { label: status, class: 'bg-gray-100 text-gray-800', icon: 'fa-question' };
+    return `<span class="px-2 py-1 rounded-full text-xs font-medium ${s.class}"><i class="fas ${s.icon} mr-1"></i>${s.label}</span>`;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatDateTime(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-GB', { 
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+}
+
+async function fetchStats() {
+    const res = await apiCall(`${API_BASE}/stats`);
+    if (res && res.ok) {
+        const stats = await res.json();
+        document.getElementById('submitted-count').textContent = stats.submitted || 0;
+        document.getElementById('under-review-count').textContent = stats.under_review || 0;
+        document.getElementById('verified-count').textContent = stats.verified || 0;
+        document.getElementById('rejected-count').textContent = stats.rejected || 0;
+        document.getElementById('total-count').textContent = stats.total || 0;
+        document.getElementById('tab-pending-badge').textContent = (stats.submitted || 0) + (stats.under_review || 0);
+    }
+}
+
+async function fetchOrganizations() {
+    const loading = document.getElementById('organizations-loading');
+    const table = document.getElementById('organizations-table');
+    const empty = document.getElementById('organizations-empty');
+    const pagination = document.getElementById('pagination');
+    
+    loading.classList.remove('hidden');
+    table.classList.add('hidden');
+    empty.classList.add('hidden');
+    pagination.classList.add('hidden');
+    
+    const search = document.getElementById('search-input').value;
+    const params = new URLSearchParams({
+        page: currentPage,
+        page_size: pageSize
+    });
+    
+    if (currentFilter) {
+        params.append('status_filter', currentFilter);
+    }
+    if (search) {
+        params.append('search', search);
+    }
+    
+    const res = await apiCall(`${API_BASE}?${params.toString()}`);
+    
+    loading.classList.add('hidden');
+    
+    if (res && res.ok) {
+        const data = await res.json();
+        organizations = data.organizations || [];
+        totalOrgs = data.total || 0;
+        
+        renderOrganizations();
+        updatePagination();
+    } else {
+        showAlert('Failed to load organizations', 'error');
+    }
+}
+
+function renderOrganizations() {
+    const table = document.getElementById('organizations-table');
+    const empty = document.getElementById('organizations-empty');
+    const tbody = document.getElementById('organizations-body');
+    
+    if (organizations.length === 0) {
+        empty.classList.remove('hidden');
+        table.classList.add('hidden');
+        return;
+    }
+    
+    empty.classList.add('hidden');
+    table.classList.remove('hidden');
+    
+    tbody.innerHTML = organizations.map(org => {
+        const canReview = ['submitted', 'under_review'].includes(org.verification_status);
+        
+        return `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-building text-green-600"></i>
+                    </div>
+                    <div class="ml-4">
+                        <div class="text-sm font-medium text-gray-900">${org.name}</div>
+                        <div class="text-sm text-gray-500">${org.email || 'No email'}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="text-sm text-gray-600">${formatOrgType(org.organization_type)}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                ${formatStatus(org.verification_status)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center space-x-3">
+                    ${org.cac_document_path 
+                        ? '<span class="text-green-600" title="CAC Uploaded"><i class="fas fa-file-check"></i></span>' 
+                        : '<span class="text-gray-400" title="CAC Missing"><i class="fas fa-file-times"></i></span>'}
+                    ${org.tin_document_path 
+                        ? '<span class="text-green-600" title="TIN Uploaded"><i class="fas fa-file-check"></i></span>' 
+                        : '<span class="text-gray-400" title="TIN Missing"><i class="fas fa-file-times"></i></span>'}
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                ${formatDate(org.created_at)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <div class="flex items-center justify-end space-x-2">
+                    ${canReview ? `
+                        <button onclick="openReviewModal('${org.id}')" 
+                            class="text-green-600 hover:text-green-800 px-2 py-1 rounded hover:bg-green-50">
+                            <i class="fas fa-search mr-1"></i>Review
+                        </button>
+                    ` : `
+                        <button onclick="openReviewModal('${org.id}')" 
+                            class="text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-50">
+                            <i class="fas fa-eye mr-1"></i>View
+                        </button>
+                    `}
+                    <button onclick="viewHistory('${org.id}')" 
+                        class="text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50" title="View History">
+                        <i class="fas fa-history"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+        `;
+    }).join('');
+}
+
+function updatePagination() {
+    const pagination = document.getElementById('pagination');
+    const totalPages = Math.ceil(totalOrgs / pageSize);
+    
+    if (totalOrgs > pageSize) {
+        pagination.classList.remove('hidden');
+        
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, totalOrgs);
+        
+        document.getElementById('showing-start').textContent = start;
+        document.getElementById('showing-end').textContent = end;
+        document.getElementById('showing-total').textContent = totalOrgs;
+        document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+        
+        document.getElementById('prev-btn').disabled = currentPage === 1;
+        document.getElementById('next-btn').disabled = currentPage >= totalPages;
+    } else {
+        pagination.classList.add('hidden');
+    }
+}
+
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        fetchOrganizations();
+    }
+}
+
+function nextPage() {
+    const totalPages = Math.ceil(totalOrgs / pageSize);
+    if (currentPage < totalPages) {
+        currentPage++;
+        fetchOrganizations();
+    }
+}
+
+function filterByStatus(status) {
+    currentFilter = status;
+    currentPage = 1;
+    
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+        if (tab.dataset.status === status) {
+            tab.classList.add('border-green-600', 'text-green-700');
+            tab.classList.remove('border-transparent', 'text-gray-500');
+        } else {
+            tab.classList.remove('border-green-600', 'text-green-700');
+            tab.classList.add('border-transparent', 'text-gray-500');
+        }
+    });
+    
+    fetchOrganizations();
+}
+
+function debounceSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        currentPage = 1;
+        fetchOrganizations();
+    }, 300);
+}
+
+function refreshVerifications() {
+    fetchStats();
+    fetchOrganizations();
+}
+
+async function openReviewModal(orgId) {
+    selectedOrgId = orgId;
+    
+    const res = await apiCall(`${API_BASE}/${orgId}`);
+    if (!res || !res.ok) {
+        showAlert('Failed to load organization details', 'error');
+        return;
+    }
+    
+    selectedOrgData = await res.json();
+    const org = selectedOrgData;
+    
+    document.getElementById('modal-org-name').textContent = org.name;
+    document.getElementById('modal-org-type').textContent = formatOrgType(org.organization_type);
+    document.getElementById('modal-org-email').textContent = org.email || 'Not provided';
+    document.getElementById('modal-org-status').innerHTML = formatStatus(org.verification_status);
+    document.getElementById('modal-org-date').textContent = formatDate(org.created_at);
+    document.getElementById('modal-org-users').textContent = org.user_count || 0;
+    
+    if (org.admin_contact && org.admin_contact.name) {
+        document.getElementById('modal-admin-section').classList.remove('hidden');
+        document.getElementById('modal-admin-name').textContent = org.admin_contact.name || '-';
+        document.getElementById('modal-admin-email').textContent = org.admin_contact.email || '-';
+        document.getElementById('modal-admin-phone').textContent = org.admin_contact.phone || '-';
+    } else {
+        document.getElementById('modal-admin-section').classList.add('hidden');
+    }
+    
+    const cacDoc = document.getElementById('modal-cac-doc');
+    if (org.documents.cac_document_path) {
+        cacDoc.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-file-pdf text-red-500 mr-3 text-xl"></i>
+                <div>
+                    <span class="text-gray-700 font-medium">CAC Certificate</span>
+                    <p class="text-xs text-green-600"><i class="fas fa-check mr-1"></i>Uploaded</p>
+                </div>
+            </div>
+            <a href="${org.documents.cac_document_path}" target="_blank" 
+                class="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm">
+                <i class="fas fa-external-link-alt mr-1"></i>View
+            </a>
+        `;
+    } else {
+        cacDoc.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-file-times text-gray-400 mr-3 text-xl"></i>
+                <div>
+                    <span class="text-gray-700 font-medium">CAC Certificate</span>
+                    <p class="text-xs text-gray-500">Corporate Affairs Commission Registration</p>
+                </div>
+            </div>
+            <span class="text-red-500 text-sm"><i class="fas fa-exclamation-circle mr-1"></i>Not uploaded</span>
+        `;
+    }
+    
+    const tinDoc = document.getElementById('modal-tin-doc');
+    if (org.documents.tin_document_path) {
+        tinDoc.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-file-invoice text-blue-500 mr-3 text-xl"></i>
+                <div>
+                    <span class="text-gray-700 font-medium">TIN Certificate</span>
+                    <p class="text-xs text-green-600"><i class="fas fa-check mr-1"></i>Uploaded</p>
+                </div>
+            </div>
+            <a href="${org.documents.tin_document_path}" target="_blank" 
+                class="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm">
+                <i class="fas fa-external-link-alt mr-1"></i>View
+            </a>
+        `;
+    } else {
+        tinDoc.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-file-times text-gray-400 mr-3 text-xl"></i>
+                <div>
+                    <span class="text-gray-700 font-medium">TIN Certificate</span>
+                    <p class="text-xs text-gray-500">Tax Identification Number</p>
+                </div>
+            </div>
+            <span class="text-red-500 text-sm"><i class="fas fa-exclamation-circle mr-1"></i>Not uploaded</span>
+        `;
+    }
+    
+    if (org.verification_notes) {
+        document.getElementById('modal-notes-section').classList.remove('hidden');
+        document.getElementById('modal-prev-notes').textContent = org.verification_notes;
+    } else {
+        document.getElementById('modal-notes-section').classList.add('hidden');
+    }
+    
+    document.getElementById('action-notes').value = '';
+    
+    const canReview = ['submitted', 'under_review'].includes(org.verification_status);
+    const isSubmitted = org.verification_status === 'submitted';
+    const isRejected = org.verification_status === 'rejected';
+    
+    document.getElementById('btn-start-review').classList.toggle('hidden', !isSubmitted);
+    document.getElementById('btn-reject').classList.toggle('hidden', !canReview);
+    document.getElementById('btn-approve').classList.toggle('hidden', !canReview);
+    document.getElementById('request-docs-section').classList.toggle('hidden', !canReview);
+    document.getElementById('reset-section').classList.toggle('hidden', !isRejected);
+    document.getElementById('action-buttons').classList.toggle('hidden', !canReview && !isRejected);
+    
+    document.getElementById('review-modal').classList.remove('hidden');
+    document.getElementById('review-modal').classList.add('flex');
+}
+
+function closeModal() {
+    document.getElementById('review-modal').classList.add('hidden');
+    document.getElementById('review-modal').classList.remove('flex');
+    selectedOrgId = null;
+    selectedOrgData = null;
+    document.getElementById('request-docs-form').classList.add('hidden');
+}
+
+async function startReview() {
+    if (!selectedOrgId) return;
+    
+    const notes = document.getElementById('action-notes').value || null;
+    
+    const res = await apiCall(`${API_BASE}/${selectedOrgId}/start-review`, 'POST', { notes });
+    
+    if (res && res.ok) {
+        closeModal();
+        showAlert('Review started - organization is now under review', 'success');
+        refreshVerifications();
+    } else {
+        const data = await res.json();
+        showAlert(data.detail || 'Failed to start review', 'error');
+    }
+}
+
+async function approveOrganization() {
+    if (!selectedOrgId) return;
+    
+    const notes = document.getElementById('action-notes').value || null;
+    
+    const res = await apiCall(`${API_BASE}/${selectedOrgId}/approve`, 'POST', { notes });
+    
+    if (res && res.ok) {
+        closeModal();
+        showAlert('Organization verified successfully!', 'success');
+        refreshVerifications();
+    } else {
+        const data = await res.json();
+        showAlert(data.detail || 'Failed to approve organization', 'error');
+    }
+}
+
+async function rejectOrganization() {
+    if (!selectedOrgId) return;
+    
+    const reason = document.getElementById('action-notes').value;
+    
+    if (!reason || reason.length < 5) {
+        showAlert('Please provide a reason for rejection (minimum 5 characters)', 'error');
+        return;
+    }
+    
+    const res = await apiCall(`${API_BASE}/${selectedOrgId}/reject`, 'POST', { reason });
+    
+    if (res && res.ok) {
+        closeModal();
+        showAlert('Organization verification rejected', 'success');
+        refreshVerifications();
+    } else {
+        const data = await res.json();
+        showAlert(data.detail || 'Failed to reject organization', 'error');
+    }
+}
+
+function toggleRequestDocs() {
+    const form = document.getElementById('request-docs-form');
+    form.classList.toggle('hidden');
+}
+
+async function requestDocuments() {
+    if (!selectedOrgId) return;
+    
+    const checkboxes = document.querySelectorAll('input[name="requested_doc"]:checked');
+    const requestedDocs = Array.from(checkboxes).map(cb => cb.value);
+    const notes = document.getElementById('action-notes').value;
+    
+    if (requestedDocs.length === 0) {
+        showAlert('Please select at least one document to request', 'warning');
+        return;
+    }
+    
+    if (!notes || notes.length < 10) {
+        showAlert('Please provide instructions for the organization (minimum 10 characters)', 'warning');
+        return;
+    }
+    
+    const res = await apiCall(`${API_BASE}/${selectedOrgId}/request-documents`, 'POST', {
+        requested_documents: requestedDocs,
+        notes: notes
+    });
+    
+    if (res && res.ok) {
+        closeModal();
+        showAlert('Document request sent to organization', 'success');
+        refreshVerifications();
+    } else {
+        const data = await res.json();
+        showAlert(data.detail || 'Failed to send document request', 'error');
+    }
+}
+
+async function resetVerification() {
+    if (!selectedOrgId) return;
+    
+    const reason = document.getElementById('action-notes').value;
+    
+    if (!reason || reason.length < 5) {
+        showAlert('Please provide a reason for reset (minimum 5 characters)', 'error');
+        return;
+    }
+    
+    const res = await apiCall(`${API_BASE}/${selectedOrgId}/reset`, 'POST', { reason });
+    
+    if (res && res.ok) {
+        closeModal();
+        showAlert('Verification status reset to SUBMITTED', 'success');
+        refreshVerifications();
+    } else {
+        const data = await res.json();
+        showAlert(data.detail || 'Failed to reset verification status', 'error');
+    }
+}
+
+async function viewHistory(orgId) {
+    const res = await apiCall(`${API_BASE}/${orgId}/history`);
+    
+    if (!res || !res.ok) {
+        showAlert('Failed to load verification history', 'error');
+        return;
+    }
+    
+    const data = await res.json();
+    
+    document.getElementById('history-org-name').textContent = `Organization: ${data.organization_name}`;
+    
+    const content = document.getElementById('history-content');
+    const empty = document.getElementById('history-empty');
+    
+    if (!data.history || data.history.length === 0) {
+        content.classList.add('hidden');
+        empty.classList.remove('hidden');
+    } else {
+        empty.classList.add('hidden');
+        content.classList.remove('hidden');
+        
+        content.innerHTML = data.history.map(entry => {
+            const actionLabels = {
+                'verification_start_review': { label: 'Started Review', icon: 'fa-search', color: 'blue' },
+                'verification_approve': { label: 'Approved', icon: 'fa-check-circle', color: 'green' },
+                'verification_reject': { label: 'Rejected', icon: 'fa-times-circle', color: 'red' },
+                'verification_request_documents': { label: 'Requested Documents', icon: 'fa-file-upload', color: 'yellow' },
+                'verification_reset_status': { label: 'Reset Status', icon: 'fa-undo', color: 'yellow' }
+            };
+            
+            const actionInfo = actionLabels[entry.action] || { label: entry.action, icon: 'fa-info-circle', color: 'gray' };
+            
+            return `
+                <div class="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex-shrink-0 w-10 h-10 bg-${actionInfo.color}-100 rounded-full flex items-center justify-center">
+                        <i class="fas ${actionInfo.icon} text-${actionInfo.color}-600"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="font-medium text-gray-800">${actionInfo.label}</span>
+                                <p class="text-sm text-gray-500">${entry.user_email || 'System'}</p>
+                            </div>
+                            <span class="text-xs text-gray-400">${formatDateTime(entry.created_at)}</span>
+                        </div>
+                        ${entry.details && entry.details.notes ? `
+                            <p class="mt-2 text-sm text-gray-600">${entry.details.notes}</p>
+                        ` : ''}
+                        ${entry.details && entry.details.old_status ? `
+                            <p class="mt-1 text-xs text-gray-400">
+                                Status: ${entry.details.old_status} → ${entry.details.new_status}
+                            </p>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    document.getElementById('history-modal').classList.remove('hidden');
+    document.getElementById('history-modal').classList.add('flex');
+}
+
+function closeHistoryModal() {
+    document.getElementById('history-modal').classList.add('hidden');
+    document.getElementById('history-modal').classList.remove('flex');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    fetchStats();
+    fetchOrganizations();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeModal();
+        closeHistoryModal();
+    }
+});
+
+document.getElementById('review-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModal();
+});
+document.getElementById('history-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeHistoryModal();
+});
+</script>
+{% endblock %}

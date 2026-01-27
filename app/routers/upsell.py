@@ -118,7 +118,7 @@ class AddActivityRequest(BaseModel):
 @router.post("", response_model=UpsellOpportunityResponse, status_code=status.HTTP_201_CREATED)
 async def create_upsell_opportunity(
     request: CreateUpsellOpportunityRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Create a new upsell opportunity (Super Admin only)."""
@@ -158,7 +158,7 @@ async def list_upsell_opportunities(
     assigned_to_id: Optional[uuid.UUID] = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """List all upsell opportunities (Super Admin only)."""
@@ -182,7 +182,7 @@ async def list_upsell_opportunities(
 
 @router.get("/stats", response_model=UpsellStatsResponse)
 async def get_upsell_stats(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get upsell statistics (Super Admin only)."""
@@ -193,7 +193,7 @@ async def get_upsell_stats(
 
 @router.get("/by-type")
 async def get_opportunities_by_type(
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get upsell opportunities grouped by type (Super Admin only)."""
@@ -205,7 +205,7 @@ async def get_opportunities_by_type(
 @router.get("/{opportunity_id}", response_model=UpsellOpportunityResponse)
 async def get_upsell_opportunity(
     opportunity_id: uuid.UUID,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get a specific upsell opportunity (Super Admin only)."""
@@ -225,7 +225,7 @@ async def get_upsell_opportunity(
 async def update_opportunity_status(
     opportunity_id: uuid.UUID,
     request: UpdateStatusRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Update upsell opportunity status (Super Admin only)."""
@@ -250,7 +250,7 @@ async def update_opportunity_status(
 async def assign_opportunity(
     opportunity_id: uuid.UUID,
     request: AssignOpportunityRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Assign an upsell opportunity (Super Admin only)."""
@@ -273,7 +273,7 @@ async def assign_opportunity(
 async def add_activity(
     opportunity_id: uuid.UUID,
     request: AddActivityRequest,
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Add an activity to an upsell opportunity (Super Admin only)."""
@@ -308,7 +308,7 @@ async def add_activity(
 async def get_activities(
     opportunity_id: uuid.UUID,
     limit: int = Query(50, ge=1, le=200),
-    current_user: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin()),
     db: AsyncSession = Depends(get_async_session),
 ):
     """Get activities for an upsell opportunity (Super Admin only)."""

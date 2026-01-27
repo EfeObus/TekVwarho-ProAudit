@@ -236,6 +236,13 @@ async def dashboard(
     except PermissionError as e:
         return RedirectResponse(url="/login?error=permission", status_code=status.HTTP_302_FOUND)
     except Exception as e:
+        # Log the exception for debugging
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f"Dashboard error for {user.email}: {type(e).__name__}: {e}")
+        logger.debug(traceback.format_exc())
+        
         # Fallback to basic dashboard
         if not entity_id and not user.is_platform_staff:
             return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
@@ -493,6 +500,473 @@ async def settings_page(
         return redirect
     
     return templates.TemplateResponse("settings.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+
+
+# ===========================================
+# ADMIN / STAFF MANAGEMENT PAGES
+# ===========================================
+
+@router.get("/admin/verifications", response_class=HTMLResponse)
+async def admin_verifications_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Organization verifications page (Admin and Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Only platform staff with Admin or Super Admin role can verify organizations
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("admin_verifications.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/settings", response_class=HTMLResponse)
+async def admin_settings_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Platform settings page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Only Super Admin can access platform settings
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("admin_settings.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/api-keys", response_class=HTMLResponse)
+async def admin_api_keys_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Platform API keys management page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Only Super Admin can manage API keys
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("admin_api_keys.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/security", response_class=HTMLResponse)
+async def admin_security_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Security audit page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Only Super Admin can access security audit
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("admin_security.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/automation", response_class=HTMLResponse)
+async def admin_automation_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Workflow automation page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Only Super Admin can access automation
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("admin_automation.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/tenants", response_class=HTMLResponse)
+async def admin_tenants_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Tenant management page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff or user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard(user) if user.platform_role == PlatformRole.SUPER_ADMIN else {}
+    
+    return templates.TemplateResponse("admin_tenants.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/support", response_class=HTMLResponse)
+async def admin_support_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Support tickets management page."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard(user) if user.platform_role == PlatformRole.SUPER_ADMIN else {}
+    
+    return templates.TemplateResponse("admin_support.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/ml-jobs", response_class=HTMLResponse)
+async def admin_ml_jobs_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """ML Jobs management page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard(user)
+    
+    return templates.TemplateResponse("admin_ml_jobs.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/legal-holds", response_class=HTMLResponse)
+async def admin_legal_holds_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Legal Holds management page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard(user)
+    
+    return templates.TemplateResponse("admin_legal_holds.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/risk-signals", response_class=HTMLResponse)
+async def admin_risk_signals_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Risk Signals management page (Super Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard(user)
+    
+    return templates.TemplateResponse("admin_risk_signals.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/emergency-controls", response_class=HTMLResponse)
+async def admin_emergency_controls_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Emergency Controls page (Super Admin only) - Kill switches, maintenance mode, feature toggles."""
+    from app.models.user import PlatformRole
+    from app.services.emergency_control_service import EmergencyControlService
+    from app.models.emergency_control import FeatureKey
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    # Get emergency control data
+    emergency_service = EmergencyControlService(db)
+    
+    # Get platform status
+    platform_status = await emergency_service.get_platform_status()
+    
+    # Get stats
+    stats = await emergency_service.get_emergency_stats()
+    
+    # Get active controls
+    active_controls = await emergency_service.get_active_emergency_controls()
+    
+    # Get recent history
+    recent_controls = await emergency_service.get_emergency_control_history(limit=20)
+    
+    # Build available features list for display
+    available_features = [
+        {
+            "key": FeatureKey.TRANSACTIONS.value,
+            "name": "Transactions",
+            "description": "All transaction recording"
+        },
+        {
+            "key": FeatureKey.INVOICING.value,
+            "name": "Invoicing",
+            "description": "Invoice creation and management"
+        },
+        {
+            "key": FeatureKey.PAYMENTS.value,
+            "name": "Payments",
+            "description": "Payment processing"
+        },
+        {
+            "key": FeatureKey.REPORTS.value,
+            "name": "Reports",
+            "description": "Financial reporting"
+        },
+        {
+            "key": FeatureKey.TAX_FILING.value,
+            "name": "Tax Filing",
+            "description": "Tax submission to FIRS"
+        },
+        {
+            "key": FeatureKey.NRS_SUBMISSION.value,
+            "name": "NRS Submission",
+            "description": "NRS invoice submission"
+        },
+        {
+            "key": FeatureKey.PAYROLL.value,
+            "name": "Payroll",
+            "description": "Payroll processing"
+        },
+        {
+            "key": FeatureKey.BULK_OPERATIONS.value,
+            "name": "Bulk Operations",
+            "description": "Bulk imports/exports"
+        },
+        {
+            "key": FeatureKey.API_ACCESS.value,
+            "name": "API Access",
+            "description": "External API access"
+        },
+        {
+            "key": FeatureKey.USER_SIGNUP.value,
+            "name": "User Signup",
+            "description": "New user registration"
+        },
+        {
+            "key": FeatureKey.ML_PROCESSING.value,
+            "name": "ML Processing",
+            "description": "Machine learning jobs"
+        },
+        {
+            "key": FeatureKey.AUDIT_LOGS.value,
+            "name": "Audit Logs",
+            "description": "Audit log recording"
+        },
+    ]
+    
+    # Get suspended tenants count from active controls
+    suspended_tenants_count = len([
+        c for c in active_controls 
+        if c.action_type.value == "TENANT_EMERGENCY_SUSPEND"
+    ])
+    
+    # Get list of suspended tenants for display (simplified)
+    suspended_tenants = []
+    for control in active_controls:
+        if control.action_type.value == "TENANT_EMERGENCY_SUSPEND" and control.target_id:
+            suspended_tenants.append({
+                "id": str(control.target_id),
+                "name": f"Tenant {str(control.target_id)[:8]}...",  # Placeholder
+                "suspended_at": control.started_at.strftime("%Y-%m-%d %H:%M") if control.started_at else "Unknown",
+                "reason": control.reason or "No reason provided"
+            })
+    
+    # Format recent controls for template
+    recent_controls_formatted = []
+    for control in recent_controls:
+        recent_controls_formatted.append({
+            "action_type": control.action_type.value,
+            "target_type": control.target_type or "Platform",
+            "target_id": str(control.target_id) if control.target_id else None,
+            "reason": control.reason or "No reason provided",
+            "is_active": control.is_active,
+            "started_at": control.started_at.strftime("%Y-%m-%d %H:%M") if control.started_at else "Unknown",
+            "ended_at": control.ended_at.strftime("%Y-%m-%d %H:%M") if control.ended_at else None,
+        })
+    
+    return templates.TemplateResponse("admin_emergency_controls.html", {
+        "request": request,
+        "platform_status": platform_status,
+        "active_controls_count": stats.get("active_emergency_controls", 0),
+        "suspended_tenants_count": suspended_tenants_count,
+        "suspended_tenants": suspended_tenants,
+        "available_features": available_features,
+        "recent_controls": recent_controls_formatted,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/staff/onboard", response_class=HTMLResponse)
+async def staff_onboard_page(
+    request: Request,
+    role: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Staff onboarding page (Super Admin and Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    # Only platform staff with Admin or Super Admin role can onboard
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("staff_onboard.html", {
+        "request": request,
+        "preset_role": role,  # Pre-select role if passed in URL
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/users/search", response_class=HTMLResponse)
+async def admin_user_search_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """User search page (Super Admin and Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("admin_user_search.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+
+
+@router.get("/admin/platform-staff", response_class=HTMLResponse)
+async def admin_platform_staff_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Platform staff management page (Super Admin and Admin only)."""
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect:
+        return redirect
+    
+    if not user.is_platform_staff:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    if user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    return templates.TemplateResponse("admin_platform_staff.html", {
         "request": request,
         **get_auth_context(user, entity_id),
     })
@@ -938,5 +1412,153 @@ async def payment_failed_page(
         "tier": tier,
         "error_message": error,
         **get_auth_context(user, entity_id),
+    })
+
+
+# ===========================================
+# HTMX PARTIAL ENDPOINTS (for dashboard refresh)
+# ===========================================
+
+@router.get("/api/v1/partials/legal-holds-table", response_class=HTMLResponse)
+async def legal_holds_table_partial(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    HTMX partial endpoint for legal holds table.
+    Returns just the table HTML for HTMX refresh.
+    """
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect or not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return HTMLResponse(status_code=403, content="<tr><td colspan='7'>Access Denied</td></tr>")
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard()
+    
+    return templates.TemplateResponse("partials/super_admin/legal_holds.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+    })
+
+
+@router.get("/api/v1/partials/risk-signals-table", response_class=HTMLResponse)
+async def risk_signals_table_partial(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    HTMX partial endpoint for risk signals table.
+    Returns just the table HTML for HTMX refresh.
+    """
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect or not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return HTMLResponse(status_code=403, content="<tr><td colspan='8'>Access Denied</td></tr>")
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard()
+    
+    return templates.TemplateResponse("partials/super_admin/risk_signals.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+    })
+
+
+@router.get("/api/v1/partials/ml-jobs-table", response_class=HTMLResponse)
+async def ml_jobs_table_partial(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    HTMX partial endpoint for ML jobs table.
+    Returns just the table HTML for HTMX refresh.
+    """
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect or not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return HTMLResponse(status_code=403, content="<tr><td colspan='7'>Access Denied</td></tr>")
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard()
+    
+    return templates.TemplateResponse("partials/super_admin/ml_jobs.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+    })
+
+
+@router.get("/api/v1/partials/ml-models-grid", response_class=HTMLResponse)
+async def ml_models_grid_partial(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    HTMX partial endpoint for ML models grid.
+    Returns just the grid HTML for HTMX refresh.
+    """
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect or not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return HTMLResponse(status_code=403, content="<div>Access Denied</div>")
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard()
+    
+    return templates.TemplateResponse("partials/super_admin/models.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+    })
+
+
+@router.get("/api/v1/partials/upsell-table", response_class=HTMLResponse)
+async def upsell_table_partial(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    HTMX partial endpoint for upsell opportunities table.
+    Returns just the table HTML for HTMX refresh.
+    """
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect or not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return HTMLResponse(status_code=403, content="<tr><td colspan='8'>Access Denied</td></tr>")
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard()
+    
+    return templates.TemplateResponse("partials/super_admin/upsell.html", {
+        "request": request,
+        "dashboard": dashboard_data,
+    })
+
+
+@router.get("/api/v1/partials/support-tickets-table", response_class=HTMLResponse)
+async def support_tickets_table_partial(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    HTMX partial endpoint for support tickets table.
+    Returns just the table HTML for HTMX refresh.
+    """
+    from app.models.user import PlatformRole
+    
+    user, entity_id, redirect = await require_auth(request, db, require_entity=False)
+    if redirect or not user.is_platform_staff or user.platform_role != PlatformRole.SUPER_ADMIN:
+        return HTMLResponse(status_code=403, content="<tr><td colspan='8'>Access Denied</td></tr>")
+    
+    dashboard_service = DashboardService(db)
+    dashboard_data = await dashboard_service.get_super_admin_dashboard()
+    
+    return templates.TemplateResponse("partials/super_admin/support.html", {
+        "request": request,
+        "dashboard": dashboard_data,
     })
 
