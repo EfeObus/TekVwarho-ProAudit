@@ -220,6 +220,34 @@ from app.models.emergency_control import (
     EmergencyActionType,
     FeatureKey,
 )
+# Report Templates
+from app.models.report_template import (
+    ReportTemplate,
+    ReportTemplateSection,
+    ReportGenerationLog,
+)
+# Core Accounting Models
+from app.models.accounting import (
+    ChartOfAccounts,
+    FiscalYear,
+    FiscalPeriod,
+    JournalEntry,
+    JournalEntryLine,
+    AccountBalance,
+    RecurringJournalEntry,
+    GLIntegrationLog,
+    FXRevaluation,
+    FXExposureSummary,
+    # Enums
+    AccountType,
+    AccountSubType,
+    NormalBalance,
+    JournalEntryStatus,
+    JournalEntryType,
+    FiscalPeriodStatus,
+    FXRevaluationType,
+    FXAccountType,
+)
 
 __all__ = [
     # Base
@@ -423,4 +451,27 @@ __all__ = [
     "PlatformStatus",
     "EmergencyActionType",
     "FeatureKey",
+    # Report Templates
+    "ReportTemplate",
+    "ReportTemplateSection",
+    "ReportGenerationLog",
+    # Core Accounting Models
+    "ChartOfAccounts",
+    "FiscalYear",
+    "FiscalPeriod",
+    "JournalEntry",
+    "JournalEntryLine",
+    "AccountBalance",
+    "RecurringJournalEntry",
+    "GLIntegrationLog",
+    "FXRevaluation",
+    "FXExposureSummary",
+    "AccountType",
+    "AccountSubType",
+    "NormalBalance",
+    "JournalEntryStatus",
+    "JournalEntryType",
+    "FiscalPeriodStatus",
+    "FXRevaluationType",
+    "FXAccountType",
 ]

@@ -97,10 +97,20 @@
                         <svg x-show="loading.pnl" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         Generate Report
                     </button>
-                    <button x-show="reports.pnl" @click="exportPDF('profit-loss')" class="border border-green-600 text-green-600 px-3 py-2 text-sm rounded-md hover:bg-green-50 flex items-center gap-1">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        PDF
-                    </button>
+                    <!-- Export Dropdown -->
+                    <div x-show="reports.pnl" class="relative" x-data="{ exportOpen: false }">
+                        <button @click="exportOpen = !exportOpen" class="border border-green-600 text-green-600 px-3 py-2 text-sm rounded-md hover:bg-green-50 flex items-center gap-1">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Export
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div x-show="exportOpen" @click.away="exportOpen = false" x-cloak
+                             class="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-10 border">
+                            <button @click="exportReport('profit-loss', 'pdf'); exportOpen = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">PDF</button>
+                            <button @click="exportReport('profit-loss', 'excel'); exportOpen = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Excel</button>
+                            <button @click="exportReport('profit-loss', 'csv'); exportOpen = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">CSV</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div x-show="reports.pnl" class="p-6">
@@ -166,8 +176,21 @@
                         <svg x-show="loading.trialBalance" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         Generate Report
                     </button>
-                    <button x-show="reports.trialBalance" @click="exportPDF('trial-balance')" class="border border-green-600 text-green-600 px-3 py-2 text-sm rounded-md hover:bg-green-50 flex items-center gap-1">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <!-- Export Dropdown -->
+                    <div x-show="reports.trialBalance" class="relative" x-data="{ exportOpen: false }">
+                        <button @click="exportOpen = !exportOpen" class="border border-green-600 text-green-600 px-3 py-2 text-sm rounded-md hover:bg-green-50 flex items-center gap-1">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Export
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div x-show="exportOpen" @click.away="exportOpen = false" x-cloak
+                             class="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-10 border">
+                            <button @click="exportReport('trial-balance', 'pdf'); exportOpen = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">PDF</button>
+                            <button @click="exportReport('trial-balance', 'excel'); exportOpen = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Excel</button>
+                            <button @click="exportReport('trial-balance', 'csv'); exportOpen = false" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">CSV</button>
+                        </div>
+                    </div>
+                </div>
                         PDF
                     </button>
                 </div>
@@ -1535,21 +1558,32 @@ function reportsPage() {
             }
         },
         
-        async exportPDF(reportType) {
-            let url;
+        async exportReport(reportType, format = 'pdf') {
+            // Build base URL based on report type
+            let baseUrl = `/api/v1/entities/${this.entityId}/reports/export/${reportType}`;
+            let params = new URLSearchParams();
+            params.append('format', format);
+            
+            // Add date parameters based on report type
             switch(reportType) {
                 case 'profit-loss':
-                    url = `/api/v1/entities/${this.entityId}/reports/profit-loss/pdf?start_date=${this.startDate}&end_date=${this.endDate}`;
+                case 'income-statement':
+                    params.append('start_date', this.startDate);
+                    params.append('end_date', this.endDate);
                     break;
                 case 'trial-balance':
-                    url = `/api/v1/entities/${this.entityId}/reports/trial-balance/pdf?as_of_date=${this.asOfDate}`;
-                    break;
+                case 'balance-sheet':
                 case 'fixed-assets':
-                    url = `/api/v1/entities/${this.entityId}/reports/fixed-assets/pdf?as_of_date=${this.asOfDate}`;
+                    params.append('as_of_date', this.asOfDate);
                     break;
-                default:
-                    return;
+                case 'general-ledger':
+                case 'journal-entries':
+                    params.append('start_date', this.startDate);
+                    params.append('end_date', this.endDate);
+                    break;
             }
+            
+            const url = `${baseUrl}?${params.toString()}`;
             
             try {
                 const response = await authFetch(url, {
@@ -1561,19 +1595,29 @@ function reportsPage() {
                     const downloadUrl = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = downloadUrl;
-                    a.download = `${reportType}_${this.asOfDate || this.endDate}.pdf`;
+                    
+                    // Determine file extension
+                    let extension = format;
+                    if (format === 'excel') extension = 'xlsx';
+                    
+                    a.download = `${reportType}_${this.asOfDate || this.endDate}.${extension}`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(downloadUrl);
                 } else {
-                    console.error('Failed to export PDF');
-                    alert('Failed to export PDF. Please try again.');
+                    console.error(`Failed to export ${format.toUpperCase()}`);
+                    alert(`Failed to export ${format.toUpperCase()}. Please try again.`);
                 }
             } catch (error) {
-                console.error('Failed to export PDF:', error);
-                alert('Failed to export PDF. Please try again.');
+                console.error(`Failed to export ${format.toUpperCase()}:`, error);
+                alert(`Failed to export ${format.toUpperCase()}. Please try again.`);
             }
+        },
+        
+        // Legacy exportPDF function for backward compatibility
+        async exportPDF(reportType) {
+            await this.exportReport(reportType, 'pdf');
         },
         
         formatCurrency(amount) {

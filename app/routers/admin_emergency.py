@@ -126,6 +126,30 @@ class DisableMaintenanceModeRequest(BaseModel):
     )
 
 
+class EnableLoginLockdownRequest(BaseModel):
+    """Request to enable login lockdown."""
+    reason: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Mandatory reason for enabling login lockdown"
+    )
+    allow_admin_login: bool = Field(
+        default=True,
+        description="Whether to allow admin logins during lockdown"
+    )
+
+
+class DisableLoginLockdownRequest(BaseModel):
+    """Request to disable login lockdown."""
+    reason: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Reason for disabling login lockdown"
+    )
+
+
 class PlatformStatusResponse(BaseModel):
     """Current platform status response."""
     is_read_only: bool
@@ -607,6 +631,86 @@ async def disable_maintenance_mode(
             )
         
         raise HTTPException(status_code=404, detail="No active maintenance mode found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ========= LOGIN LOCKDOWN =========
+
+@router.post("/login-lockdown/enable", response_model=EmergencyControlResponse)
+async def enable_login_lockdown(
+    request: EnableLoginLockdownRequest,
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Enable platform-wide login lockdown.
+    
+    CRITICAL: This will prevent ALL non-admin users from logging in.
+    
+    Use cases:
+    - Active security breach
+    - Suspected credential compromise
+    - Emergency system maintenance
+    """
+    service = EmergencyControlService(db)
+    
+    try:
+        control, status = await service.enable_login_lockdown(
+            admin_id=current_user.id,
+            reason=request.reason,
+            allow_admin_login=request.allow_admin_login,
+        )
+        
+        return EmergencyControlResponse(
+            id=control.id,
+            action_type=control.action_type.value,
+            target_type=control.target_type,
+            target_id=control.target_id,
+            reason=control.reason,
+            started_at=control.started_at,
+            is_active=control.is_active,
+            initiated_by_id=control.initiated_by_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/login-lockdown/disable", response_model=EmergencyControlResponse)
+async def disable_login_lockdown(
+    request: DisableLoginLockdownRequest,
+    current_user: User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Disable platform-wide login lockdown.
+    
+    This restores normal login capability for all users.
+    """
+    service = EmergencyControlService(db)
+    
+    try:
+        control, status = await service.disable_login_lockdown(
+            admin_id=current_user.id,
+            reason=request.reason,
+        )
+        
+        if control:
+            return EmergencyControlResponse(
+                id=control.id,
+                action_type=control.action_type.value,
+                target_type=control.target_type,
+                target_id=control.target_id,
+                reason=control.reason,
+                started_at=control.started_at,
+                ended_at=control.ended_at,
+                is_active=control.is_active,
+                initiated_by_id=control.initiated_by_id,
+                ended_by_id=control.ended_by_id,
+                end_reason=control.end_reason,
+            )
+        
+        raise HTTPException(status_code=404, detail="No active login lockdown found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

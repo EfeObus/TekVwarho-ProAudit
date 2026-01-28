@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}Budget Management - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    .budget-card { transition: all 0.2s; }
+    .budget-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    .variance-positive { color: #059669; }
+    .variance-negative { color: #dc2626; }
+    .progress-bar { transition: width 0.5s ease-in-out; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="budgetManagement()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Budget Management</h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Create budgets, track spending, and analyze variance against actuals
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0 flex space-x-3">
+                <a href="/accounting" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Back to Accounting
+                </a>
+                <button @click="showCreateModal = true" 
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Create Budget
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-8">
+            <button @click="activeTab = 'overview'" 
+                    :class="activeTab === 'overview' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Overview
+            </button>
+            <button @click="activeTab = 'variance'" 
+                    :class="activeTab === 'variance' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Variance Analysis
+            </button>
+            <button @click="activeTab = 'forecast'" 
+                    :class="activeTab === 'forecast' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Forecast
+            </button>
+        </nav>
+    </div>
+
+    <!-- Loading State -->
+    <template x-if="loading">
+        <div class="text-center py-12">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading budgets...</p>
+        </div>
+    </template>
+
+    <!-- Overview Tab -->
+    <div x-show="activeTab === 'overview' && !loading" x-cloak>
+        <!-- Active Budget Summary -->
+        <template x-if="activeBudget">
+            <div class="bg-gradient-to-r from-green-600 to-green-700 rounded-lg shadow-lg p-6 mb-6 text-white">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-xl font-bold" x-text="activeBudget.name"></h2>
+                        <p class="text-green-100 mt-1">
+                            <span x-text="activeBudget.fiscal_year"></span> | 
+                            <span x-text="formatDate(activeBudget.start_date)"></span> - <span x-text="formatDate(activeBudget.end_date)"></span>
+                        </p>
+                    </div>
+                    <span class="px-3 py-1 bg-green-500 rounded-full text-sm font-medium">Active</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+                    <div class="bg-white/10 rounded-lg p-4">
+                        <p class="text-green-100 text-sm">Total Budget</p>
+                        <p class="text-2xl font-bold mt-1" x-text="formatCurrency(activeBudget.total_amount)"></p>
+                    </div>
+                    <div class="bg-white/10 rounded-lg p-4">
+                        <p class="text-green-100 text-sm">Spent to Date</p>
+                        <p class="text-2xl font-bold mt-1" x-text="formatCurrency(varianceData?.total_actual || 0)"></p>
+                    </div>
+                    <div class="bg-white/10 rounded-lg p-4">
+                        <p class="text-green-100 text-sm">Remaining</p>
+                        <p class="text-2xl font-bold mt-1" x-text="formatCurrency((activeBudget.total_amount || 0) - (varianceData?.total_actual || 0))"></p>
+                    </div>
+                    <div class="bg-white/10 rounded-lg p-4">
+                        <p class="text-green-100 text-sm">Utilization</p>
+                        <p class="text-2xl font-bold mt-1" x-text="((varianceData?.total_actual || 0) / (activeBudget.total_amount || 1) * 100).toFixed(1) + '%'"></p>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- No Active Budget -->
+        <template x-if="!activeBudget && budgets.length === 0">
+            <div class="text-center py-12 bg-white rounded-lg shadow">
+                <svg class="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                <h3 class="text-lg font-medium text-gray-900 mt-4">No Budgets Yet</h3>
+                <p class="text-gray-500 mt-2">Create your first budget to start tracking expenses</p>
+                <button @click="showCreateModal = true" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                    Create Budget
+                </button>
+            </div>
+        </template>
+
+        <!-- Budgets List -->
+        <div x-show="budgets.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <template x-for="budget in budgets" :key="budget.id">
+                <div class="budget-card bg-white rounded-lg shadow p-6 cursor-pointer" @click="selectBudget(budget)">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="font-semibold text-gray-900" x-text="budget.name"></h3>
+                            <p class="text-sm text-gray-500" x-text="'FY ' + budget.fiscal_year"></p>
+                        </div>
+                        <span :class="{
+                            'bg-green-100 text-green-800': budget.status === 'active',
+                            'bg-yellow-100 text-yellow-800': budget.status === 'draft',
+                            'bg-blue-100 text-blue-800': budget.status === 'approved',
+                            'bg-gray-100 text-gray-800': budget.status === 'closed'
+                        }" class="px-2 py-1 rounded-full text-xs font-medium" x-text="budget.status"></span>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-500">Total Budget</span>
+                            <span class="font-medium" x-text="formatCurrency(budget.total_amount)"></span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-500">Period</span>
+                            <span x-text="formatDate(budget.start_date) + ' - ' + formatDate(budget.end_date)"></span>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex space-x-2">
+                        <button @click.stop="viewVariance(budget)" class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200">
+                            View Variance
+                        </button>
+                        <template x-if="budget.status === 'draft'">
+                            <button @click.stop="approveBudget(budget.id)" class="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                                Approve
+                            </button>
+                        </template>
+                        <template x-if="budget.status === 'approved'">
+                            <button @click.stop="activateBudget(budget.id)" class="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                                Activate
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Variance Analysis Tab -->
+    <div x-show="activeTab === 'variance' && !loading" x-cloak>
+        <template x-if="!selectedBudget">
+            <div class="text-center py-12 bg-white rounded-lg shadow">
+                <p class="text-gray-500">Select a budget from the Overview tab to view variance analysis</p>
+            </div>
+        </template>
+
+        <template x-if="selectedBudget && varianceData">
+            <div class="space-y-6">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm text-gray-500">Total Budget</p>
+                        <p class="text-xl font-bold text-gray-900" x-text="formatCurrency(varianceData.total_budget)"></p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm text-gray-500">Total Actual</p>
+                        <p class="text-xl font-bold text-gray-900" x-text="formatCurrency(varianceData.total_actual)"></p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm text-gray-500">Variance</p>
+                        <p class="text-xl font-bold" 
+                           :class="varianceData.total_variance >= 0 ? 'variance-positive' : 'variance-negative'"
+                           x-text="formatCurrency(varianceData.total_variance)"></p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm text-gray-500">Variance %</p>
+                        <p class="text-xl font-bold" 
+                           :class="varianceData.variance_percentage >= 0 ? 'variance-positive' : 'variance-negative'"
+                           x-text="varianceData.variance_percentage?.toFixed(1) + '%'"></p>
+                    </div>
+                </div>
+
+                <!-- Line Items Table -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-900">Budget Line Items</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Budget</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actual</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Variance</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">%</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="item in varianceData.line_items || []" :key="item.account_id">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4">
+                                            <div class="text-sm font-medium text-gray-900" x-text="item.account_name"></div>
+                                            <div class="text-xs text-gray-500" x-text="item.account_code"></div>
+                                        </td>
+                                        <td class="px-6 py-4 text-right text-sm" x-text="formatCurrency(item.budget_amount)"></td>
+                                        <td class="px-6 py-4 text-right text-sm" x-text="formatCurrency(item.actual_amount)"></td>
+                                        <td class="px-6 py-4 text-right text-sm" 
+                                            :class="item.variance >= 0 ? 'variance-positive' : 'variance-negative'"
+                                            x-text="formatCurrency(item.variance)"></td>
+                                        <td class="px-6 py-4 text-right text-sm"
+                                            :class="item.variance_percentage >= 0 ? 'variance-positive' : 'variance-negative'"
+                                            x-text="item.variance_percentage?.toFixed(1) + '%'"></td>
+                                        <td class="px-6 py-4">
+                                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                                <div class="progress-bar h-2 rounded-full"
+                                                     :class="item.utilization > 100 ? 'bg-red-500' : item.utilization > 80 ? 'bg-yellow-500' : 'bg-green-500'"
+                                                     :style="'width: ' + Math.min(item.utilization || 0, 100) + '%'"></div>
+                                            </div>
+                                            <span class="text-xs text-gray-500" x-text="(item.utilization || 0).toFixed(0) + '%'"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Alerts -->
+                <template x-if="varianceData.alerts && varianceData.alerts.length > 0">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Variance Alerts</h3>
+                        <div class="space-y-3">
+                            <template x-for="alert in varianceData.alerts" :key="alert.id">
+                                <div class="flex items-center p-3 rounded-lg"
+                                     :class="{
+                                         'bg-red-50 border-l-4 border-red-500': alert.severity === 'high',
+                                         'bg-yellow-50 border-l-4 border-yellow-500': alert.severity === 'medium',
+                                         'bg-blue-50 border-l-4 border-blue-500': alert.severity === 'low'
+                                     }">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium" x-text="alert.message"></p>
+                                        <p class="text-xs text-gray-500" x-text="alert.account_name"></p>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- Forecast Tab -->
+    <div x-show="activeTab === 'forecast' && !loading" x-cloak>
+        <template x-if="!selectedBudget">
+            <div class="text-center py-12 bg-white rounded-lg shadow">
+                <p class="text-gray-500">Select a budget to view forecast</p>
+            </div>
+        </template>
+
+        <template x-if="selectedBudget && forecastData">
+            <div class="space-y-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Budget Performance Forecast</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="text-center p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-500">Projected Year-End Spend</p>
+                            <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(forecastData.projected_total)"></p>
+                        </div>
+                        <div class="text-center p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-500">Budget Remaining</p>
+                            <p class="text-2xl font-bold" 
+                               :class="forecastData.projected_variance >= 0 ? 'text-green-600' : 'text-red-600'"
+                               x-text="formatCurrency(forecastData.projected_variance)"></p>
+                        </div>
+                        <div class="text-center p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-500">Risk Level</p>
+                            <p class="text-2xl font-bold"
+                               :class="{
+                                   'text-green-600': forecastData.risk_level === 'low',
+                                   'text-yellow-600': forecastData.risk_level === 'medium',
+                                   'text-red-600': forecastData.risk_level === 'high'
+                               }"
+                               x-text="forecastData.risk_level?.toUpperCase()"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Create Budget Modal -->
+    <div x-show="showCreateModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showCreateModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Create New Budget</h3>
+                <form @submit.prevent="createBudget()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Budget Name</label>
+                            <input type="text" x-model="budgetForm.name" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Fiscal Year</label>
+                            <input type="number" x-model="budgetForm.fiscal_year" min="2020" max="2030" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Start Date</label>
+                                <input type="date" x-model="budgetForm.start_date" required
+                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">End Date</label>
+                                <input type="date" x-model="budgetForm.end_date" required
+                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Period Type</label>
+                            <select x-model="budgetForm.period_type"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="annual">Annual</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Description</label>
+                            <textarea x-model="budgetForm.description" rows="3"
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"></textarea>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showCreateModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="saving" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                            <span x-show="!saving">Create Budget</span>
+                            <span x-show="saving">Creating...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function budgetManagement() {
+    return {
+        entityId: localStorage.getItem('currentEntityId'),
+        loading: true,
+        saving: false,
+        activeTab: 'overview',
+        budgets: [],
+        activeBudget: null,
+        selectedBudget: null,
+        varianceData: null,
+        forecastData: null,
+        showCreateModal: false,
+        budgetForm: {
+            name: '',
+            fiscal_year: new Date().getFullYear(),
+            start_date: '',
+            end_date: '',
+            period_type: 'monthly',
+            description: ''
+        },
+
+        async init() {
+            await this.loadBudgets();
+            await this.loadActiveBudget();
+        },
+
+        async loadBudgets() {
+            this.loading = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/budgets`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.budgets = data.budgets || data || [];
+                }
+            } catch (error) {
+                console.error('Failed to load budgets:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadActiveBudget() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/budgets/active`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.activeBudget = await response.json();
+                    if (this.activeBudget) {
+                        this.selectedBudget = this.activeBudget;
+                        await this.loadVariance(this.activeBudget.id);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load active budget:', error);
+            }
+        },
+
+        async createBudget() {
+            this.saving = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/budgets`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.budgetForm)
+                });
+                if (response.ok) {
+                    this.showCreateModal = false;
+                    this.budgetForm = { name: '', fiscal_year: new Date().getFullYear(), start_date: '', end_date: '', period_type: 'monthly', description: '' };
+                    await this.loadBudgets();
+                    alert('Budget created successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to create budget');
+                }
+            } catch (error) {
+                console.error('Failed to create budget:', error);
+                alert('Failed to create budget');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async approveBudget(budgetId) {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/budgets/${budgetId}/approve`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    await this.loadBudgets();
+                    alert('Budget approved!');
+                }
+            } catch (error) {
+                console.error('Failed to approve budget:', error);
+            }
+        },
+
+        async activateBudget(budgetId) {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/budgets/${budgetId}/activate`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    await this.loadBudgets();
+                    await this.loadActiveBudget();
+                    alert('Budget activated!');
+                }
+            } catch (error) {
+                console.error('Failed to activate budget:', error);
+            }
+        },
+
+        selectBudget(budget) {
+            this.selectedBudget = budget;
+            this.loadVariance(budget.id);
+            this.loadForecast(budget.id);
+        },
+
+        async viewVariance(budget) {
+            this.selectedBudget = budget;
+            await this.loadVariance(budget.id);
+            this.activeTab = 'variance';
+        },
+
+        async loadVariance(budgetId) {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/budgets/${budgetId}/variance`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.varianceData = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load variance:', error);
+            }
+        },
+
+        async loadForecast(budgetId) {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/budgets/${budgetId}/forecast`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.forecastData = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load forecast:', error);
+            }
+        },
+
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount || 0);
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+    };
+}
+</script>
+{% endblock %}

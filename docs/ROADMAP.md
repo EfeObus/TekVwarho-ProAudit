@@ -1,8 +1,9 @@
 # TekVwarho ProAudit - Project Roadmap
 
-**Document Version:** 1.0  
-**Date:** January 3, 2026  
+**Document Version:** 1.2  
+**Date:** January 27, 2026  
 **Planning Horizon:** 18 Months  
+**Status:** Phase 2 Complete - SKU Enforcement Live
 
 ---
 
@@ -93,36 +94,39 @@ applications for Windows and macOS platforms.
 
 | Feature | Priority | Status |
 |---------|----------|--------|
-| User authentication (email) | P0 | Planned |
-| Business profile setup | P0 | Planned |
-| Expense recording (manual) | P0 | Planned |
-| OCR receipt scanning | P0 | Planned |
-| Income recording | P0 | Planned |
-| WREN expense classification | P0 | Planned |
-| Invoice creation | P0 | Planned |
-| NRS e-invoice submission | P0 | Planned |
-| IRN & QR code embedding | P0 | Planned |
-| Vendor management | P1 | Planned |
-| TIN verification | P1 | Planned |
-| Output VAT tracking | P0 | Planned |
-| Basic Input VAT tracking | P1 | Planned |
-| P&L report | P0 | Planned |
-| Trial balance | P0 | Planned |
-| Dashboard with alerts | P0 | Planned |
-| Mobile-responsive web | P0 | Planned |
+| User authentication (email) | P0 | ✅ Complete |
+| Business profile setup | P0 | ✅ Complete |
+| Expense recording (manual) | P0 | ✅ Complete |
+| OCR receipt scanning | P0 | ✅ Complete |
+| Income recording | P0 | ✅ Complete |
+| WREN expense classification | P0 | ✅ Complete |
+| Invoice creation | P0 | ✅ Complete |
+| NRS e-invoice submission | P0 | ✅ Complete |
+| IRN & QR code embedding | P0 | ✅ Complete |
+| Vendor management | P1 | ✅ Complete |
+| TIN verification | P1 | ✅ Complete |
+| Output VAT tracking | P0 | ✅ Complete |
+| Basic Input VAT tracking | P1 | ✅ Complete |
+| P&L report | P0 | ✅ Complete |
+| Trial balance | P0 | ✅ Complete |
+| Dashboard with alerts | P0 | ✅ Complete |
+| Mobile-responsive web | P0 | ✅ Complete |
+| **Multi-Currency / FX** | P1 | ✅ Complete |
+| **Budget Management** | P1 | ✅ Complete |
+| **SKU Feature Gating** | P0 | ✅ Complete |
 
 #### Deferred from MVP
 
-| Feature | Reason | Target Phase |
-|---------|--------|--------------|
-| Desktop app (Windows/macOS) | Web-first approach | Phase 3 |
-| Full PAYE/Payroll | Complexity | Phase 3 |
-| Bank sync | Third-party dependency | Phase 4 |
-| Multi-entity support | Enterprise feature | Phase 5 |
-| Asset depreciation | Not critical for launch | Phase 4 |
-| Self-assessment export | Requires full year data | Phase 4 |
-| Inventory management | Not core to compliance | Phase 3 |
-| WHT management | Lower priority | Phase 3 |
+| Feature | Reason | Target Phase | Status |
+|---------|--------|--------------|--------|
+| Desktop app (Windows/macOS) | Web-first approach | Phase 3 | Planned |
+| Full PAYE/Payroll | Complexity | Phase 3 | ✅ Delivered Early |
+| Bank sync | Third-party dependency | Phase 4 | ✅ Delivered Early |
+| Multi-entity support | Enterprise feature | Phase 5 | ✅ Delivered Early |
+| Asset depreciation | Not critical for launch | Phase 4 | ✅ Delivered Early |
+| Self-assessment export | Requires full year data | Phase 4 | Planned |
+| Inventory management | Not core to compliance | Phase 3 | ✅ Delivered Early |
+| WHT management | Lower priority | Phase 3 | ✅ Delivered Early |
 
 Note: No mobile application is planned for any phase. The product will be 
 web-only initially, with native desktop apps (Windows/macOS) in Phase 3.

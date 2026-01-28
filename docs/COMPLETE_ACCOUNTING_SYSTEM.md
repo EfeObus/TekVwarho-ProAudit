@@ -1,7 +1,7 @@
 # TekVwarho ProAudit - Complete Accounting System Documentation
 
-**Version:** 2.4.0  
-**Last Updated:** January 19, 2026  
+**Version:** 2.5.0  
+**Last Updated:** January 27, 2026  
 **Status:** Production-Ready  
 **Market:** Nigerian Business Context
 
@@ -12,13 +12,16 @@
 1. [System Architecture](#1-system-architecture)
 2. [Core Accounting Modules](#2-core-accounting-modules)
 3. [Bank Reconciliation (The Control Spine)](#3-bank-reconciliation-the-control-spine)
-4. [Nigerian Tax Integration](#4-nigerian-tax-integration)
-5. [Month-End Close Workflow](#5-month-end-close-workflow)
-6. [Database Design](#6-database-design)
-7. [API Reference](#7-api-reference)
-8. [Frontend Guide](#8-frontend-guide)
-9. [Security & Compliance](#9-security--compliance)
-10. [Audit Trail & Controls](#10-audit-trail--controls)
+4. [Multi-Currency / FX Module](#4-multi-currency--fx-module)
+5. [Budget Management](#5-budget-management)
+6. [Nigerian Tax Integration](#6-nigerian-tax-integration)
+7. [Month-End Close Workflow](#7-month-end-close-workflow)
+8. [Database Design](#8-database-design)
+9. [API Reference](#9-api-reference)
+10. [Frontend Guide](#10-frontend-guide)
+11. [Security & Compliance](#11-security--compliance)
+12. [Audit Trail & Controls](#12-audit-trail--controls)
+13. [SKU Feature Matrix](#13-sku-feature-matrix)
 
 ---
 
@@ -441,7 +444,191 @@ Outstanding items automatically carry forward to the next reconciliation period.
 
 ---
 
-## 4. Nigerian Tax Integration
+## 4. Multi-Currency / FX Module
+
+> **SKU Requirement:** Professional tier or higher (`Feature.MULTI_CURRENCY`)
+
+The Foreign Exchange module provides IAS 21 compliant multi-currency support for Nigerian businesses dealing with foreign transactions.
+
+### Functional Currency
+
+Each business entity has a designated **functional currency** (typically NGN for Nigerian entities). All foreign currency transactions are translated to the functional currency.
+
+### Supported Currencies
+
+| Currency | Code | Description |
+|----------|------|-------------|
+| Nigerian Naira | NGN | Default functional currency |
+| US Dollar | USD | Common for imports/exports |
+| Euro | EUR | European trade |
+| British Pound | GBP | UK trade |
+
+### FX Transaction Flow
+
+```
+Foreign Currency Transaction
+        ↓
+Record at Spot Rate (Transaction Date)
+        ↓
+Monitor Rate Changes
+        ↓
+Settlement/Period-End
+        ↓
+Calculate FX Gain/Loss
+        ↓
+Post to GL (7100/7200 accounts)
+```
+
+### Realized FX Gains/Losses
+
+When foreign currency transactions are settled:
+
+```
+Original USD Invoice: $1,000 @ 1,500 = ₦1,500,000
+Payment Rate: $1,000 @ 1,520 = ₦1,520,000
+FX Gain: ₦20,000
+
+Journal Entry:
+Dr Cash (1010)           ₦1,520,000
+Cr AR (1200)             ₦1,500,000
+Cr Realized FX Gain (7100)  ₦20,000
+```
+
+### Period-End Revaluation
+
+Monetary items (AR, AP, Cash) are revalued at closing rates:
+
+```
+Open USD AR: $5,000 @ 1,500 = ₦7,500,000
+Closing Rate: 1,480 NGN/USD
+Revalued: $5,000 @ 1,480 = ₦7,400,000
+Unrealized Loss: ₦100,000
+
+Journal Entry:
+Dr Unrealized FX Loss (7210)  ₦100,000
+Cr Accounts Receivable (1200) ₦100,000
+```
+
+### GL Account Structure
+
+| Account | Name | Type |
+|---------|------|------|
+| 7100 | Realized FX Gain | Income |
+| 7110 | Unrealized FX Gain | Income |
+| 7200 | Realized FX Loss | Expense |
+| 7210 | Unrealized FX Loss | Expense |
+
+### API Endpoints
+
+```
+GET  /api/v1/entities/{entity_id}/fx/exchange-rates
+POST /api/v1/entities/{entity_id}/fx/exchange-rates
+POST /api/v1/entities/{entity_id}/fx/convert
+POST /api/v1/entities/{entity_id}/fx/realized-gain-loss
+POST /api/v1/entities/{entity_id}/fx/revaluation
+GET  /api/v1/entities/{entity_id}/fx/exposure-report
+```
+
+**Connection to Bank Reconciliation:**
+- FX differences detected during bank import reconciliation
+- Multi-currency bank accounts reconciled in transaction currency
+- FX gains/losses auto-calculated and posted
+
+---
+
+## 5. Budget Management
+
+> **SKU Requirement:** Professional tier or higher (`Feature.BUDGET_MANAGEMENT`)
+
+The Budget Module enables comprehensive financial planning with variance analysis and rolling forecasts.
+
+### Budget Structure
+
+```
+Budget (FY2026)
+├── Budget Periods (Monthly/Quarterly/Annual)
+│   ├── Revenue Line Items
+│   ├── Expense Line Items
+│   └── CapEx Line Items
+└── Budget Versions
+    ├── v1 - Original
+    └── v2 - Mid-year Revision
+```
+
+### Budget Status Lifecycle
+
+```
+DRAFT → SUBMITTED → PENDING_APPROVAL → APPROVED → ACTIVE
+              ↓
+          REJECTED → DRAFT (revision required)
+```
+
+### Variance Analysis
+
+| Variance Type | Formula | Favorable When |
+|---------------|---------|----------------|
+| Revenue | Actual - Budget | Actual > Budget |
+| Expense | Budget - Actual | Actual < Budget |
+| Percentage | (Variance / Budget) × 100 | Depends on type |
+
+### Variance Example
+
+```
+Q1 Sales Revenue:
+Budget:  ₦100,000,000
+Actual:  ₦108,000,000
+Variance: ₦8,000,000 (8% Favorable)
+
+Q1 Salaries Expense:
+Budget:  ₦30,000,000
+Actual:  ₦32,000,000
+Variance: -₦2,000,000 (6.67% Unfavorable)
+```
+
+### Approval Workflows
+
+Supports M-of-N approval with multiple modes:
+
+| Mode | Description |
+|------|-------------|
+| **Sequential** | Approvers must approve in order |
+| **Parallel** | All approvers can approve simultaneously |
+| **Any** | Any single approver can approve |
+
+### Rolling Forecasts
+
+Combine actuals with projections:
+
+```
+YTD Actual (Jan-Jun): ₦225,000,000
+Original Annual Budget: ₦500,000,000
+Remaining Budget (Jul-Dec): ₦275,000,000
+Adjusted Forecast Q3: ₦140,000,000
+Adjusted Forecast Q4: ₦165,000,000
+Forecast Annual: ₦530,000,000 (+6%)
+```
+
+### API Endpoints
+
+```
+POST /api/v1/entities/{entity_id}/budgets
+GET  /api/v1/entities/{entity_id}/budgets
+GET  /api/v1/entities/{entity_id}/budgets/{id}
+POST /api/v1/entities/{entity_id}/budgets/{id}/line-items
+POST /api/v1/entities/{entity_id}/budgets/{id}/submit
+POST /api/v1/entities/{entity_id}/budgets/{id}/approve
+GET  /api/v1/entities/{entity_id}/budgets/{id}/variance
+POST /api/v1/entities/{entity_id}/budgets/{id}/forecast
+```
+
+**Connection to GL:**
+- Variance analysis pulls actual amounts from GL
+- Budget accounts linked to Chart of Accounts
+- Department/cost center budgets tied to accounting dimensions
+
+---
+
+## 6. Nigerian Tax Integration
 
 ### VAT Integration
 
@@ -1121,3 +1308,86 @@ ValueError: "Cannot post to closed period 'January 2026'. Reopen the period or u
 - `create_journal_entry()` - Validates before creating
 - `post_journal_entry()` - Validates before posting
 - `reverse_journal_entry()` - Validates reversal date period
+---
+
+## 16. SKU Feature Matrix (v2.5.0)
+
+### Commercial Tier Structure
+
+| Tier | Monthly Price (NGN) | Target Users |
+|------|---------------------|--------------|
+| **Core** | ₦25,000 - ₦75,000 | 1-5 users, SMEs |
+| **Professional** | ₦150,000 - ₦400,000 | 5-25 users, Growing businesses |
+| **Enterprise** | ₦1,000,000 - ₦5,000,000+ | 25+ users, Multi-entity |
+
+### Accounting Module Feature Availability
+
+| Feature | Core | Professional | Enterprise |
+|---------|:----:|:------------:|:----------:|
+| General Ledger | ✅ | ✅ | ✅ |
+| Chart of Accounts | ✅ | ✅ | ✅ |
+| Journal Entries | ✅ | ✅ | ✅ |
+| Basic Invoicing | ✅ | ✅ | ✅ |
+| Customer/Vendor Mgmt | ✅ | ✅ | ✅ |
+| Basic Reports | ✅ | ✅ | ✅ |
+| Basic Inventory | ✅ | ✅ | ✅ |
+| Bank Reconciliation | ❌ | ✅ | ✅ |
+| **Multi-Currency / FX** | ❌ | ✅ | ✅ |
+| **Budget Management** | ❌ | ✅ | ✅ |
+| Fixed Assets | ❌ | ✅ | ✅ |
+| Payroll | ❌ | ✅ | ✅ |
+| Advanced Reports | ❌ | ✅ | ✅ |
+| E-Invoicing / NRS | ❌ | ✅ | ✅ |
+| WORM Audit Vault | ❌ | ❌ | ✅ |
+| Intercompany | ❌ | ❌ | ✅ |
+| Multi-Entity | ❌ | ❌ | ✅ |
+| Consolidation | ❌ | ❌ | ✅ |
+| Segregation of Duties | ❌ | ❌ | ✅ |
+
+### Feature Gate Implementation
+
+All tier-restricted features use the `require_feature()` dependency:
+
+```python
+from app.dependencies import require_feature
+from app.models.sku_enums import Feature
+
+# Router-level enforcement
+fx_feature_gate = require_feature([Feature.MULTI_CURRENCY])
+
+router = APIRouter(
+    prefix="/api/v1/entities/{entity_id}/fx",
+    dependencies=[Depends(fx_feature_gate)],
+)
+```
+
+### Error Response for Unauthorized Access
+
+When a Core tier user attempts to access Professional/Enterprise features:
+
+```json
+HTTP 403 Forbidden
+{
+  "detail": "Feature 'multi_currency' requires ProAudit Professional tier. Current tier: Core. Upgrade to access this feature."
+}
+```
+
+### Intelligence Add-on Features
+
+For ML/AI capabilities, the Intelligence Add-on (₦250,000 - ₦1,000,000/mo) is required:
+
+| Feature | Standard | Advanced |
+|---------|:--------:|:--------:|
+| ML Anomaly Detection | ✅ | ✅ |
+| Benford's Law Analysis | ✅ | ✅ |
+| Z-Score Analysis | ✅ | ✅ |
+| Fraud Detection | ✅ | ✅ |
+| OCR Extraction | ✅ | ✅ |
+| Predictive Forecasting | ✅ | ✅ |
+| Custom ML Training | ❌ | ✅ |
+| Behavioral Analytics | ❌ | ✅ |
+| NLP Processing | ❌ | ✅ |
+
+---
+
+*Document End*

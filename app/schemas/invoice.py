@@ -96,6 +96,11 @@ class InvoiceCreateRequest(BaseModel):
     invoice_date: date = Field(..., description="Date of invoice")
     due_date: date = Field(..., description="Payment due date")
     
+    # Multi-Currency Support (IAS 21)
+    currency: str = Field("NGN", min_length=3, max_length=3, description="Invoice currency code (USD, EUR, GBP, NGN)")
+    exchange_rate: Optional[float] = Field(None, gt=0, description="Exchange rate at invoice date (1 FC = X NGN). Auto-fetched if not provided.")
+    exchange_rate_source: Optional[str] = Field(None, description="Rate source: CBN, manual, spot, contract")
+    
     # VAT Treatment
     vat_treatment: VATTreatment = VATTreatment.STANDARD
     vat_rate: float = Field(7.5, ge=0, le=100, description="VAT rate for standard treatment")
@@ -104,7 +109,7 @@ class InvoiceCreateRequest(BaseModel):
     line_items: List[InvoiceLineItemCreate] = Field(..., min_length=1)
     
     # Optional discount
-    discount_amount: float = Field(0, ge=0, description="Discount amount")
+    discount_amount: float = Field(0, ge=0, description="Discount amount in invoice currency")
     
     # Notes
     notes: Optional[str] = Field(None, max_length=1000)
@@ -138,11 +143,15 @@ class InvoiceUpdateRequest(BaseModel):
 
 class PaymentRecordRequest(BaseModel):
     """Schema for recording a payment against an invoice."""
-    amount: float = Field(..., gt=0, description="Payment amount")
+    amount: float = Field(..., gt=0, description="Payment amount in payment currency")
     payment_date: date = Field(..., description="Date of payment")
     payment_method: str = Field("bank_transfer", description="Payment method used")
     reference: Optional[str] = Field(None, max_length=100, description="Payment reference")
     notes: Optional[str] = Field(None, max_length=500)
+    
+    # Multi-Currency Payment Support
+    payment_currency: Optional[str] = Field(None, min_length=3, max_length=3, description="Currency of payment (defaults to invoice currency)")
+    payment_exchange_rate: Optional[float] = Field(None, gt=0, description="Exchange rate at payment date (for calculating FX gain/loss)")
 
 
 class InvoiceSendRequest(BaseModel):
@@ -173,13 +182,33 @@ class InvoiceResponse(BaseModel):
     invoice_date: date
     due_date: date
     
-    # Amounts
+    # Multi-Currency (IAS 21)
+    currency: str = "NGN"
+    exchange_rate: float = 1.0
+    exchange_rate_source: Optional[str] = None
+    is_foreign_currency: bool = False
+    
+    # Amounts in original currency
     subtotal: float
     vat_amount: float
     discount_amount: float
     total_amount: float
     amount_paid: float
     balance_due: float
+    
+    # Functional currency amounts (NGN)
+    functional_subtotal: float = 0.0
+    functional_vat_amount: float = 0.0
+    functional_total_amount: float = 0.0
+    functional_amount_paid: float = 0.0
+    functional_balance_due: float = 0.0
+    
+    # FX Gain/Loss
+    realized_fx_gain_loss: float = 0.0
+    unrealized_fx_gain_loss: float = 0.0
+    last_revaluation_date: Optional[date] = None
+    last_revaluation_rate: Optional[float] = None
+    needs_fx_revaluation: bool = False
     
     # VAT
     vat_treatment: str

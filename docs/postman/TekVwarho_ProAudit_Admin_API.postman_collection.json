@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "tekvwarho-proaudit-admin-api",
     "name": "TekVwarho ProAudit - Super Admin Dashboard API",
-    "description": "Complete API collection for the TekVwarho ProAudit Super Admin Dashboard. Includes all 50+ endpoints for platform management, security, tenant administration, and system monitoring.\n\n## Authentication\nAll endpoints require Super Admin authentication via JWT Bearer token or HTTP-only cookie.\n\n## Base URL\n- Development: `http://localhost:5120`\n- Production: `https://api.tekvwarho.com`\n\n## Super Admin Credentials (Dev)\n- Email: `superadmin@tekvwarho.com`\n- Password: `TekVwarho2026!`",
+    "description": "Complete API collection for the TekVwarho ProAudit Super Admin Dashboard. Includes all 50+ endpoints for platform management, security, tenant administration, and system monitoring.\n\n## Authentication\nAll endpoints require Super Admin authentication via JWT Bearer token or HTTP-only cookie.\n\n## Base URL\n- Development: `http://localhost:5120`\n- Production: `https://api.tekvwarho.com`\n\n## Super Admin Credentials (Dev)\n- Email: `superadmin@tekvwarho.com`\n- Password: `SuperAdmin@TekVwarho2026!`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "version": "1.0.0"
   },
@@ -89,7 +89,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"email\": \"superadmin@tekvwarho.com\",\n    \"password\": \"TekVwarho2026!\"\n}"
+              "raw": "{\n    \"email\": \"superadmin@tekvwarho.com\",\n    \"password\": \"SuperAdmin@TekVwarho2026!\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/login",

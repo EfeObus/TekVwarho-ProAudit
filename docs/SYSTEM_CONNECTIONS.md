@@ -1,5 +1,8 @@
 # TekVwarho ProAudit - System Architecture Documentation
 
+> **Document Version:** 1.2  
+> **Last Updated:** January 27, 2026
+
 ## Overview
 
 TekVwarho ProAudit is a **world-class Nigerian tax compliance and business management platform** built for the 2026 Tax Reform Era. It implements NTAA 2025 (Nigerian Tax Administration Act) compliance standards and integrates with FIRS (Federal Inland Revenue Service) systems.
@@ -30,56 +33,131 @@ TekVwarho ProAudit is a **world-class Nigerian tax compliance and business manag
 
 ### Financial Modules
 
-| Module | Purpose |
-|--------|---------|
-| **Transactions** | Record all financial movements (income, expense, transfer) |
-| **Invoices** | Generate and track sales invoices with NRS integration |
-| **Sales** | Point-of-sale recording with instant VAT calculation |
-| **Vendors** | Supplier management with WHT tracking |
-| **Customers** | Client management with credit tracking |
-| **Inventory** | Stock management with FIFO/LIFO costing |
-| **Fixed Assets** | Capital asset register with depreciation schedules |
-| **Bank Reconciliation** | Match bank statements with system transactions |
-| **Expense Claims** | Employee reimbursement workflow |
+| Module | Purpose | SKU Tier |
+|--------|---------|----------|
+| **Transactions** | Record all financial movements (income, expense, transfer) | Core+ |
+| **Invoices** | Generate and track sales invoices with NRS integration | Core+ |
+| **Sales** | Point-of-sale recording with instant VAT calculation | Core+ |
+| **Vendors** | Supplier management with WHT tracking | Core+ |
+| **Customers** | Client management with credit tracking | Core+ |
+| **Inventory** | Stock management with FIFO/LIFO costing | Core+ |
+| **Fixed Assets** | Capital asset register with depreciation schedules | Professional+ |
+| **Bank Reconciliation** | Match bank statements with system transactions | Professional+ |
+| **Multi-Currency / FX** | Exchange rate management, FX gain/loss, revaluation | Professional+ |
+| **Budget Management** | Budget planning, variance analysis, rolling forecasts | Professional+ |
+| **Expense Claims** | Employee reimbursement workflow | Professional+ |
+| **Payroll** | Salary processing with PAYE/Pension calculations | Professional+ |
+| **Intercompany** | Inter-entity transactions for consolidation | Enterprise |
+| **Consolidation** | Multi-entity consolidated reporting | Enterprise |
 
 ---
 
 ## System Connections & Data Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        TekVwarho ProAudit Platform                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐               │
-│  │  Customers  │◄───►│   Sales     │◄───►│  Inventory  │               │
-│  └─────────────┘     └─────────────┘     └─────────────┘               │
-│         │                   │                   │                       │
-│         ▼                   ▼                   ▼                       │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐               │
-│  │  Invoices   │◄───►│Transactions │◄───►│   Vendors   │               │
-│  └─────────────┘     └─────────────┘     └─────────────┘               │
-│         │                   │                   │                       │
-│         ▼                   ▼                   ▼                       │
-│  ┌─────────────────────────────────────────────────────┐               │
-│  │                    AUDIT SYSTEM                      │               │
-│  │  • Immutable Logs • Forensic Analysis • WORM Vault  │               │
-│  └─────────────────────────────────────────────────────┘               │
-│         │                   │                   │                       │
-│         ▼                   ▼                   ▼                       │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐               │
-│  │   Tax 2026  │◄───►│   Payroll   │◄───►│ Fixed Assets│               │
-│  │  (NRS/IRN)  │     │   (PAYE)    │     │(Depreciation)│              │
-│  └─────────────┘     └─────────────┘     └─────────────┘               │
-│                             │                                           │
-│                             ▼                                           │
-│                    ┌─────────────────┐                                  │
-│                    │   ML/AI Engine  │                                  │
-│                    │  • Forecasting  │                                  │
-│                    │  • OCR          │                                  │
-│                    │  • Predictions  │                                  │
-│                    └─────────────────┘                                  │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TekVwarho ProAudit Platform                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                   │
+│  │  Customers  │◄───►│   Sales     │◄───►│  Inventory  │                   │
+│  └─────────────┘     └─────────────┘     └─────────────┘                   │
+│         │                   │                   │                           │
+│         ▼                   ▼                   ▼                           │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                   │
+│  │  Invoices   │◄───►│Transactions │◄───►│   Vendors   │                   │
+│  └─────────────┘     └─────────────┘     └─────────────┘                   │
+│         │                   │                   │                           │
+│         ▼                   ▼                   ▼                           │
+│  ┌─────────────────────────────────────────────────────────────┐           │
+│  │                    GENERAL LEDGER                            │           │
+│  │  • Double-Entry • Trial Balance • Financial Statements      │           │
+│  └─────────────────────────────────────────────────────────────┘           │
+│         │                   │                   │                           │
+│    ┌────┴────┐         ┌────┴────┐         ┌────┴────┐                     │
+│    ▼         ▼         ▼         ▼         ▼         ▼                     │
+│ ┌──────┐ ┌──────┐ ┌──────────┐ ┌────────┐ ┌──────┐ ┌──────────┐           │
+│ │ FX   │ │Budget│ │Bank Recon│ │Payroll │ │Assets│ │ Tax 2026 │           │
+│ │Module│ │Mgmt  │ │ (Spine)  │ │ (PAYE) │ │Depr. │ │(NRS/IRN) │           │
+│ └──────┘ └──────┘ └──────────┘ └────────┘ └──────┘ └──────────┘           │
+│    PRO+    PRO+       PRO+        PRO+      PRO+      PRO+                 │
+│                             │                                               │
+│                             ▼                                               │
+│  ┌─────────────────────────────────────────────────────────────┐           │
+│  │                    AUDIT SYSTEM (ENTERPRISE)                 │           │
+│  │  • Immutable Logs • Forensic Analysis • WORM Vault          │           │
+│  └─────────────────────────────────────────────────────────────┘           │
+│                             │                                               │
+│                             ▼                                               │
+│                    ┌─────────────────┐                                      │
+│                    │   ML/AI Engine  │                                      │
+│                    │ (Intelligence)  │                                      │
+│                    │  • Forecasting  │                                      │
+│                    │  • OCR / NLP    │                                      │
+│                    │  • Benford's    │                                      │
+│                    └─────────────────┘                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Legend: PRO+ = Professional tier or higher required
+```
+
+---
+
+## FX Module Connections
+
+The Multi-Currency / Foreign Exchange module integrates with multiple systems:
+
+```
+┌─────────────────┐
+│ Exchange Rates  │───────────────────────────────────┐
+│   (Daily Feed)  │                                   │
+└────────┬────────┘                                   │
+         │                                            │
+         ▼                                            ▼
+┌─────────────────┐     ┌─────────────────┐    ┌────────────────┐
+│   Invoices      │────►│  FX Module      │───►│ General Ledger │
+│ (USD/EUR/GBP)   │     │ • Conversion    │    │ 7100: FX Gain  │
+└─────────────────┘     │ • Revaluation   │    │ 7200: FX Loss  │
+                        │ • Gain/Loss     │    └────────────────┘
+┌─────────────────┐     └─────────────────┘           │
+│ AR/AP Balances  │────►        │                     │
+│ (Foreign Curr)  │             │                     ▼
+└─────────────────┘             │            ┌────────────────┐
+                                └───────────►│ Bank Recon     │
+                                             │ (Multi-curr)   │
+                                             └────────────────┘
+```
+
+---
+
+## Budget Module Connections
+
+The Budget Management module connects variance analysis to actuals:
+
+```
+┌─────────────────┐
+│  Budget Setup   │
+│ (Annual/Qtr/Mo) │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│ Budget Line     │────►│ Chart of        │
+│ Items           │     │ Accounts        │
+└────────┬────────┘     └─────────────────┘
+         │                      │
+         ▼                      ▼
+┌─────────────────────────────────────────┐
+│          Variance Analysis              │
+│  Budget Amount vs GL Actual Amount      │
+└────────────────────┬────────────────────┘
+                     │
+         ┌───────────┼───────────┐
+         ▼           ▼           ▼
+┌──────────────┐ ┌──────────┐ ┌──────────────┐
+│ Favorable    │ │Unfavorable│ │ Rolling     │
+│ Variances    │ │ Alerts   │ │ Forecasts   │
+└──────────────┘ └──────────┘ └──────────────┘
 ```
 
 ---

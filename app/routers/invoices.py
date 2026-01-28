@@ -324,13 +324,24 @@ async def create_invoice(
     _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.INVOICES)),
 ):
     """
-    Create a new invoice.
+    Create a new invoice with multi-currency support.
     
     Invoice is created in DRAFT status and can be edited until finalized.
+    
+    Multi-Currency Features (IAS 21 Compliant):
+    - currency: Invoice currency (defaults to NGN)
+    - exchange_rate: Exchange rate to functional currency (NGN)
+    - Functional currency amounts auto-calculated
     """
     await verify_entity_access(entity_id, current_user, db)
     
     invoice_service = InvoiceService(db)
+    
+    # Get FX service for rate lookups if needed
+    fx_service = None
+    if request.currency and request.currency != "NGN":
+        from app.services.fx_service import FXService
+        fx_service = FXService(db)
     
     # Convert vat_treatment string to enum
     try:
@@ -364,6 +375,11 @@ async def create_invoice(
         discount_amount=request.discount_amount,
         notes=request.notes,
         terms=request.terms,
+        # Multi-currency support
+        currency=request.currency,
+        exchange_rate=request.exchange_rate,
+        exchange_rate_source=request.exchange_rate_source,
+        fx_service=fx_service,
     )
     
     # Record usage metering for SKU tier limits
@@ -692,13 +708,24 @@ async def record_payment(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Record a payment against an invoice.
+    Record a payment against an invoice with multi-currency support.
     
     Automatically updates invoice status to PAID or PARTIALLY_PAID.
+    
+    Multi-Currency Features (IAS 21 Compliant):
+    - payment_currency: Currency of the payment (defaults to invoice currency)
+    - payment_exchange_rate: Exchange rate to functional currency (NGN)
+    - Automatic FX gain/loss calculation when rates differ
     """
     await verify_entity_access(entity_id, current_user, db)
     
     invoice_service = InvoiceService(db)
+    
+    # Get FX service for rate lookups if needed
+    fx_service = None
+    if request.payment_currency or request.payment_exchange_rate:
+        from app.services.fx_service import FXService
+        fx_service = FXService(db)
     
     try:
         invoice = await invoice_service.record_payment(
@@ -710,6 +737,10 @@ async def record_payment(
             payment_method=request.payment_method,
             reference=request.reference,
             notes=request.notes,
+            # Multi-currency support
+            payment_currency=request.payment_currency,
+            payment_exchange_rate=request.payment_exchange_rate,
+            fx_service=fx_service,
         )
     except ValueError as e:
         raise HTTPException(

@@ -613,6 +613,128 @@ class EmergencyControlService:
         return control, status
     
     # ==========================================
+    # LOGIN LOCKDOWN
+    # ==========================================
+    
+    async def enable_login_lockdown(
+        self,
+        admin_id: uuid.UUID,
+        reason: str,
+        allow_admin_login: bool = True,
+    ) -> Tuple[EmergencyControl, PlatformStatus]:
+        """
+        Enable platform-wide login lockdown.
+        
+        In login lockdown mode:
+        - All non-admin users are blocked from logging in
+        - Existing sessions may optionally be terminated
+        - Only Super Admins can access the system
+        
+        Args:
+            admin_id: ID of the Super Admin initiating the action
+            reason: Mandatory reason for enabling login lockdown
+            allow_admin_login: Whether to allow admin logins during lockdown
+            
+        Returns:
+            Tuple of (EmergencyControl log entry, updated PlatformStatus)
+        """
+        # Check if already in login lockdown
+        status = await self.get_platform_status()
+        if status.is_login_locked:
+            raise ValueError("Platform is already in login lockdown")
+        
+        # Create emergency control log
+        control = EmergencyControl(
+            action_type=EmergencyActionType.LOGIN_LOCKDOWN,
+            target_type="platform",
+            target_id=None,
+            initiated_by_id=admin_id,
+            reason=reason,
+            started_at=datetime.utcnow(),
+            is_active=True,
+            action_metadata={"allow_admin_login": allow_admin_login},
+        )
+        self.db.add(control)
+        
+        # Update platform status
+        status = await self._update_platform_status(
+            admin_id,
+            is_login_locked=True,
+        )
+        
+        # Create audit log
+        await self._create_audit_log(
+            admin_id,
+            AuditAction.CREATE,
+            "emergency_control",
+            control.id,
+            {"action": "enable_login_lockdown", "reason": reason, "allow_admin_login": allow_admin_login},
+        )
+        
+        await self.db.commit()
+        await self.db.refresh(control)
+        
+        return control, status
+    
+    async def disable_login_lockdown(
+        self,
+        admin_id: uuid.UUID,
+        reason: str,
+    ) -> Tuple[Optional[EmergencyControl], PlatformStatus]:
+        """
+        Disable platform-wide login lockdown.
+        
+        Args:
+            admin_id: ID of the Super Admin ending the action
+            reason: Reason for disabling login lockdown
+            
+        Returns:
+            Tuple of (updated EmergencyControl log entry, updated PlatformStatus)
+        """
+        # Check if in login lockdown
+        status = await self.get_platform_status()
+        if not status.is_login_locked:
+            raise ValueError("Platform is not in login lockdown")
+        
+        # Find active login lockdown control
+        result = await self.db.execute(
+            select(EmergencyControl).where(
+                and_(
+                    EmergencyControl.action_type == EmergencyActionType.LOGIN_LOCKDOWN,
+                    EmergencyControl.is_active == True,
+                )
+            ).order_by(EmergencyControl.started_at.desc()).limit(1)
+        )
+        control = result.scalar_one_or_none()
+        
+        if control:
+            control.ended_at = datetime.utcnow()
+            control.ended_by_id = admin_id
+            control.end_reason = reason
+            control.is_active = False
+        
+        # Update platform status
+        status = await self._update_platform_status(
+            admin_id,
+            is_login_locked=False,
+        )
+        
+        # Create audit log
+        await self._create_audit_log(
+            admin_id,
+            AuditAction.UPDATE,
+            "emergency_control",
+            control.id if control else None,
+            {"action": "disable_login_lockdown", "reason": reason},
+        )
+        
+        await self.db.commit()
+        if control:
+            await self.db.refresh(control)
+        
+        return control, status
+    
+    # ==========================================
     # QUERY METHODS
     # ==========================================
     

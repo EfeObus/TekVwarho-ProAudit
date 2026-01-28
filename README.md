@@ -31,6 +31,77 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 ---
 
+## Version 2.6.0 - Multi-Currency FX & Budget Management (January 2026)
+
+### Overview
+This release adds **Multi-Currency/Foreign Exchange** and **Budget Management** modules with full SKU feature gating enforcement.
+
+### Multi-Currency / FX Module (Professional+)
+Complete foreign exchange management integrated with the General Ledger:
+
+| Feature | Description |
+|---------|-------------|
+| **Exchange Rate Management** | Daily/weekly rate feeds, manual entry, historical rates |
+| **Foreign Currency Invoices** | Issue invoices in USD, EUR, GBP, etc. |
+| **AR/AP Revaluation** | Period-end revaluation with gain/loss recognition |
+| **Realized FX Gain/Loss** | Automatic recognition on payment receipt/disbursement |
+| **Unrealized FX Gain/Loss** | Period-end mark-to-market adjustments |
+| **Multi-Currency Bank Recon** | Reconcile foreign currency bank accounts |
+
+**GL Integration:**
+- Account 7100: Foreign Exchange Gains (Revenue)
+- Account 7200: Foreign Exchange Losses (Expense)
+- Compliant with IAS 21 (Effects of Changes in Foreign Exchange Rates)
+
+**API Endpoints:**
+```
+GET  /api/v1/entities/{id}/fx/rates              # List exchange rates
+POST /api/v1/entities/{id}/fx/rates              # Add exchange rate
+GET  /api/v1/entities/{id}/fx/rates/history      # Historical rates
+POST /api/v1/entities/{id}/fx/convert            # Currency conversion
+POST /api/v1/entities/{id}/fx/revalue            # Period-end revaluation
+GET  /api/v1/entities/{id}/fx/exposure           # Currency exposure report
+```
+
+### Budget Management Module (Professional+)
+Comprehensive budgeting with variance analysis:
+
+| Feature | Description |
+|---------|-------------|
+| **Budget Creation** | Annual, quarterly, monthly budgets |
+| **Budget Line Items** | Linked to Chart of Accounts |
+| **Variance Analysis** | Budget vs Actual comparison |
+| **Rolling Forecasts** | Adjust budgets based on actuals |
+| **Department Budgets** | Cost center budget allocation |
+| **Approval Workflows** | Multi-level budget approval |
+
+**API Endpoints:**
+```
+GET  /api/v1/entities/{id}/budgets               # List budgets
+POST /api/v1/entities/{id}/budgets               # Create budget
+GET  /api/v1/entities/{id}/budgets/{id}          # Get budget details
+GET  /api/v1/entities/{id}/budgets/{id}/variance # Variance analysis
+POST /api/v1/entities/{id}/budgets/{id}/forecast # Rolling forecast
+```
+
+### SKU Feature Gating
+All features now enforced via `require_feature()` dependency:
+
+```python
+# Example: FX endpoints require MULTI_CURRENCY feature
+fx_feature_gate = require_feature([Feature.MULTI_CURRENCY])
+router = APIRouter(dependencies=[Depends(fx_feature_gate)])
+```
+
+**Tier Access Matrix:**
+| Feature | Core | Professional | Enterprise |
+|---------|:----:|:------------:|:----------:|
+| Multi-Currency/FX | ❌ | ✅ | ✅ |
+| Budget Management | ❌ | ✅ | ✅ |
+| Budget Variance | ❌ | ✅ | ✅ |
+
+---
+
 ## Version 2.5.0 - Commercial SKU System & Multi-Tier Monetization
 
 ### Pricing Tiers (Nigerian Naira)
@@ -46,16 +117,18 @@ With Nigeria's historic 2026 tax reforms introducing:
 
 | Feature | Core | Professional | Enterprise |
 |---------|:----:|:------------:|:----------:|
-| General Ledger & Chart of Accounts | Yes | Yes | Yes |
-| Journal Entries & Basic Reports | Yes | Yes | Yes |
-| Tax Engine & Invoicing | Yes | Yes | Yes |
-| Payroll & Bank Reconciliation | No | Yes | Yes |
-| Fixed Assets & Expense Claims | No | Yes | Yes |
-| E-Invoicing / NRS Compliance | No | Yes | Yes |
-| WORM Audit Vault | No | No | Yes |
-| Multi-Entity & Intercompany | No | No | Yes |
-| SOX/IFRS Compliance | No | No | Yes |
-| Full API Access | No | No | Yes |
+| General Ledger & Chart of Accounts | ✅ | ✅ | ✅ |
+| Journal Entries & Basic Reports | ✅ | ✅ | ✅ |
+| Tax Engine & Invoicing | ✅ | ✅ | ✅ |
+| **Multi-Currency / FX** | ❌ | ✅ | ✅ |
+| **Budget Management** | ❌ | ✅ | ✅ |
+| Payroll & Bank Reconciliation | ❌ | ✅ | ✅ |
+| Fixed Assets & Expense Claims | ❌ | ✅ | ✅ |
+| E-Invoicing / NRS Compliance | ❌ | ✅ | ✅ |
+| WORM Audit Vault | ❌ | ❌ | ✅ |
+| Multi-Entity & Intercompany | ❌ | ❌ | ✅ |
+| SOX/IFRS Compliance | ❌ | ❌ | ✅ |
+| Full API Access | ❌ | ❌ | ✅ |
 
 ### Billing & Payments
 - **Payment Provider:** Paystack (Nigerian market leader)

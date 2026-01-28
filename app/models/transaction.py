@@ -68,28 +68,93 @@ class Transaction(BaseModel, AuditMixin):
     # Date
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     
-    # Amount (in Kobo for precision)
+    # ===========================================
+    # MULTI-CURRENCY SUPPORT (IAS 21 COMPLIANT)
+    # ===========================================
+    
+    # Original transaction currency
+    currency: Mapped[str] = mapped_column(
+        String(3),
+        default="NGN",
+        nullable=False,
+        comment="Transaction currency code (e.g., USD, EUR, GBP, NGN)",
+    )
+    
+    # Exchange rate at transaction date
+    exchange_rate: Mapped[Decimal] = mapped_column(
+        Numeric(precision=12, scale=6),
+        default=Decimal("1.000000"),
+        nullable=False,
+        comment="Exchange rate at transaction date: 1 FC = X NGN",
+    )
+    
+    # Exchange rate source
+    exchange_rate_source: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Rate source: CBN, manual, spot, contract",
+    )
+    
+    # Amount in original currency (may be foreign currency)
     amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
-        comment="Transaction amount in Naira",
+        comment="Transaction amount in original currency",
     )
     vat_amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         default=Decimal("0.00"),
         nullable=False,
-        comment="VAT amount in Naira",
+        comment="VAT amount in original currency",
     )
     wht_amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         default=Decimal("0.00"),
         nullable=False,
-        comment="Withholding Tax amount in Naira",
+        comment="Withholding Tax amount in original currency",
     )
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
-        comment="Total amount including VAT",
+        comment="Total amount in original currency",
+    )
+    
+    # Functional currency amounts (NGN - for financial reporting)
+    functional_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Base amount converted to NGN at booking rate",
+    )
+    functional_vat_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="VAT converted to NGN at booking rate",
+    )
+    functional_total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Total converted to NGN at booking rate",
+    )
+    
+    # FX gain/loss tracking (for payment settlements)
+    realized_fx_gain_loss: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Realized FX gain/loss on settlement",
+    )
+    settlement_exchange_rate: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(precision=12, scale=6),
+        nullable=True,
+        comment="Exchange rate at payment/settlement",
+    )
+    settlement_date: Mapped[Optional[date]] = mapped_column(
+        Date,
+        nullable=True,
+        comment="Date of payment/settlement",
     )
     
     # Description
@@ -214,9 +279,19 @@ class Transaction(BaseModel, AuditMixin):
         return self.transaction_type == TransactionType.INCOME
     
     @property
+    def is_foreign_currency(self) -> bool:
+        """Check if transaction is in foreign currency."""
+        return self.currency != "NGN"
+    
+    @property
     def is_tax_deductible(self) -> bool:
         """Check if expense is tax deductible (WREN compliant)."""
         return self.wren_status == WRENStatus.COMPLIANT
+    
+    @property
+    def is_settled(self) -> bool:
+        """Check if transaction has been settled/paid."""
+        return self.settlement_date is not None
     
     def __repr__(self) -> str:
         return f"<Transaction(id={self.id}, type={self.transaction_type}, amount={self.amount})>"

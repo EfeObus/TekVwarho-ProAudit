@@ -196,7 +196,14 @@ async def create_transaction(
     db: AsyncSession = Depends(get_async_session),
     _limit_check: User = Depends(require_within_usage_limit(UsageMetricType.TRANSACTIONS)),
 ):
-    """Create a new transaction."""
+    """
+    Create a new transaction with multi-currency support.
+    
+    Multi-Currency Features (IAS 21 Compliant):
+    - currency: Transaction currency (defaults to NGN)
+    - exchange_rate: Exchange rate to functional currency (NGN)
+    - Functional currency amounts auto-calculated for GL posting
+    """
     entity_service = EntityService(db)
     entity = await entity_service.get_entity_by_id(entity_id, current_user)
     if not entity:
@@ -214,6 +221,12 @@ async def create_transaction(
     
     transaction_service = TransactionService(db)
     
+    # Get FX service for rate lookups if needed
+    fx_service = None
+    if request.currency and request.currency != "NGN":
+        from app.services.fx_service import FXService
+        fx_service = FXService(db)
+    
     try:
         tx_type = TransactionType(request.transaction_type.value)
         
@@ -229,6 +242,11 @@ async def create_transaction(
             category_id=request.category_id,
             vendor_id=request.vendor_id,
             receipt_url=request.receipt_url,
+            # Multi-currency support
+            currency=request.currency,
+            exchange_rate=request.exchange_rate,
+            exchange_rate_source=request.exchange_rate_source,
+            fx_service=fx_service,
         )
     except ValueError as e:
         raise HTTPException(
@@ -238,20 +256,26 @@ async def create_transaction(
     
     # Audit log for transaction creation
     audit_service = AuditService(db)
+    audit_values = {
+        "transaction_type": request.transaction_type.value,
+        "amount": float(request.amount),
+        "vat_amount": float(request.vat_amount),
+        "description": request.description,
+        "reference": request.reference,
+        "transaction_date": str(request.transaction_date),
+    }
+    # Add FX info to audit if foreign currency
+    if request.currency and request.currency != "NGN":
+        audit_values["currency"] = request.currency
+        audit_values["exchange_rate"] = request.exchange_rate
+    
     await audit_service.log_action(
         business_entity_id=entity_id,
         entity_type="transaction",
         entity_id=str(transaction.id),
         action=AuditAction.CREATE,
         user_id=current_user.id,
-        new_values={
-            "transaction_type": request.transaction_type.value,
-            "amount": float(request.amount),
-            "vat_amount": float(request.vat_amount),
-            "description": request.description,
-            "reference": request.reference,
-            "transaction_date": str(request.transaction_date),
-        },
+        new_values=audit_values,
     )
     
     # Record usage metering for SKU tier limits
@@ -285,6 +309,14 @@ async def create_transaction(
         receipt_url=transaction.receipt_url,
         created_at=transaction.created_at,
         updated_at=transaction.updated_at,
+        # Multi-currency fields
+        currency=transaction.currency,
+        exchange_rate=transaction.exchange_rate,
+        exchange_rate_source=transaction.exchange_rate_source,
+        functional_amount=transaction.functional_amount,
+        functional_vat_amount=transaction.functional_vat_amount,
+        functional_total_amount=transaction.functional_total_amount,
+        realized_fx_gain_loss=transaction.realized_fx_gain_loss,
     )
 
 

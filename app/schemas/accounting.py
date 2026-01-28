@@ -803,3 +803,166 @@ class GLAccountReconciliation(BaseModel):
     is_reconciled: bool
     notes: Optional[str] = None
     last_reconciled: Optional[date] = None
+
+
+# =============================================================================
+# FX (FOREIGN EXCHANGE) SCHEMAS
+# =============================================================================
+
+class FXRevaluationType(str, Enum):
+    """Type of FX revaluation."""
+    REALIZED = "realized"
+    UNREALIZED = "unrealized"
+    SETTLEMENT = "settlement"
+
+
+class FXAccountType(str, Enum):
+    """Types of accounts with FX exposure."""
+    BANK = "bank"
+    RECEIVABLE = "receivable"
+    PAYABLE = "payable"
+    LOAN = "loan"
+    INTERCOMPANY = "intercompany"
+
+
+class ExchangeRateCreate(BaseModel):
+    """Schema for creating exchange rate."""
+    from_currency: str = Field(..., min_length=3, max_length=3)
+    to_currency: str = Field(..., min_length=3, max_length=3)
+    rate: Decimal = Field(..., gt=0)
+    rate_date: date
+    source: str = "manual"
+    is_billing_rate: bool = False
+
+
+class ExchangeRateResponse(BaseModel):
+    """Schema for exchange rate response."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    from_currency: str
+    to_currency: str
+    rate: Decimal
+    rate_date: date
+    source: Optional[str]
+    is_billing_rate: bool
+    created_at: datetime
+
+
+class CurrencyConversionRequest(BaseModel):
+    """Schema for currency conversion."""
+    amount: Decimal
+    from_currency: str = Field(..., min_length=3, max_length=3)
+    to_currency: str = Field(..., min_length=3, max_length=3)
+    rate_date: Optional[date] = None
+    exchange_rate: Optional[Decimal] = None
+
+
+class CurrencyConversionResponse(BaseModel):
+    """Schema for currency conversion response."""
+    original_amount: Decimal
+    from_currency: str
+    to_currency: str
+    converted_amount: Decimal
+    exchange_rate: Decimal
+    rate_date: date
+
+
+class FXExposureAccount(BaseModel):
+    """Individual account FX exposure."""
+    account_code: str
+    account_name: str
+    account_type: str
+    balance: Decimal
+
+
+class FXExposureByCurrency(BaseModel):
+    """FX exposure for a single currency."""
+    currency: str
+    bank_balance: Decimal
+    receivable_balance: Decimal
+    payable_balance: Decimal
+    loan_balance: Decimal
+    net_fc_exposure: Decimal
+    current_rate: Optional[Decimal]
+    ngn_equivalent: Decimal
+    accounts: List[FXExposureAccount]
+
+
+class FXExposureReport(BaseModel):
+    """Complete FX exposure report."""
+    entity_id: UUID
+    as_of_date: date
+    functional_currency: str = "NGN"
+    exposures: List[FXExposureByCurrency]
+    total_net_exposure_ngn: Decimal
+
+
+class RealizedFXGainLossRequest(BaseModel):
+    """Request to calculate realized FX gain/loss."""
+    account_id: UUID
+    fc_amount: Decimal
+    original_rate: Decimal
+    settlement_rate: Decimal
+    settlement_date: date
+    source_document_type: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    auto_post: bool = True
+    notes: Optional[str] = None
+
+
+class PeriodEndRevaluationRequest(BaseModel):
+    """Request for period-end FX revaluation."""
+    period_id: UUID
+    revaluation_date: date
+    auto_post: bool = True
+
+
+class FXRevaluationResponse(BaseModel):
+    """Response for FX revaluation."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    revaluation_date: date
+    revaluation_type: str
+    foreign_currency: str
+    original_fc_amount: Decimal
+    original_exchange_rate: Decimal
+    original_ngn_amount: Decimal
+    revaluation_rate: Decimal
+    revalued_ngn_amount: Decimal
+    fx_gain_loss: Decimal
+    is_gain: bool
+    journal_entry_id: Optional[UUID]
+    created_at: datetime
+
+
+class FXRevaluationSummary(BaseModel):
+    """Summary of period-end revaluation."""
+    entity_id: UUID
+    period_id: UUID
+    revaluation_date: date
+    accounts_revalued: int
+    total_unrealized_gain: Decimal
+    total_unrealized_loss: Decimal
+    net_fx_impact: Decimal
+    journal_entries_created: List[UUID]
+    errors: List[str]
+
+
+class FXGainLossByType(BaseModel):
+    """FX gain/loss breakdown."""
+    total_gain: Decimal
+    total_loss: Decimal
+    net: Decimal
+    by_currency: dict
+
+
+class FXGainLossReport(BaseModel):
+    """FX gain/loss report for a period."""
+    period_start: date
+    period_end: date
+    realized: FXGainLossByType
+    unrealized: FXGainLossByType
+    total_fx_impact: Decimal
+    details: List[dict]

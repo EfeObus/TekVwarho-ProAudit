@@ -45,10 +45,15 @@ class TransactionCreateRequest(BaseModel):
     transaction_type: TransactionType = Field(..., description="'income' or 'expense'")
     date: date = Field(..., description="Transaction date")
     
-    # Amounts
-    amount: float = Field(..., gt=0, description="Net amount before VAT/taxes")
-    vat_amount: float = Field(0, ge=0, description="VAT amount")
-    wht_amount: float = Field(0, ge=0, description="Withholding Tax amount")
+    # Multi-Currency Support (IAS 21)
+    currency: str = Field("NGN", min_length=3, max_length=3, description="Transaction currency code (USD, EUR, GBP, NGN)")
+    exchange_rate: Optional[float] = Field(None, gt=0, description="Exchange rate at transaction date (1 FC = X NGN). Auto-fetched if not provided.")
+    exchange_rate_source: Optional[str] = Field(None, description="Rate source: CBN, manual, spot, contract")
+    
+    # Amounts (in transaction currency)
+    amount: float = Field(..., gt=0, description="Net amount before VAT/taxes in transaction currency")
+    vat_amount: float = Field(0, ge=0, description="VAT amount in transaction currency")
+    wht_amount: float = Field(0, ge=0, description="Withholding Tax amount in transaction currency")
     
     # Description
     description: str = Field(..., min_length=1, max_length=500)
@@ -118,11 +123,28 @@ class TransactionResponse(BaseModel):
     transaction_type: str
     date: date
     
-    # Amounts
+    # Multi-Currency (IAS 21)
+    currency: str = "NGN"
+    exchange_rate: float = 1.0
+    exchange_rate_source: Optional[str] = None
+    is_foreign_currency: bool = False
+    
+    # Amounts in original currency
     amount: float
     vat_amount: float
     wht_amount: float
     total_amount: float
+    
+    # Functional currency amounts (NGN)
+    functional_amount: float = 0.0
+    functional_vat_amount: float = 0.0
+    functional_total_amount: float = 0.0
+    
+    # FX Gain/Loss
+    realized_fx_gain_loss: float = 0.0
+    settlement_exchange_rate: Optional[float] = None
+    settlement_date: Optional[date] = None
+    is_settled: bool = False
     
     # Description
     description: str

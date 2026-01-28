@@ -32,6 +32,9 @@ redis>=5.0.1
 weasyprint>=60.2
 reportlab>=4.0.8
 
+# Excel Generation
+openpyxl>=3.1.2
+
 # QR Code
 qrcode[pil]>=7.4.2
 

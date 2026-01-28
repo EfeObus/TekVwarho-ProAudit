@@ -7,12 +7,17 @@ GL Integration:
 - When expenses are recorded, posts to GL: Dr Expense, Cr AP
 - When income is recorded (if not via invoice), posts to GL: Dr AR/Bank, Cr Revenue
 - Supports VAT Input tracking for expense recoveries
+
+Multi-Currency Support (IAS 21):
+- Transactions can be recorded in foreign currencies
+- Functional currency amounts calculated at booking date rate
+- FX gain/loss calculated on settlement
 """
 
 import uuid
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +26,9 @@ from sqlalchemy.orm import selectinload
 from app.models.transaction import Transaction, TransactionType, WRENStatus
 from app.models.category import Category
 from app.models.vendor import Vendor
+
+if TYPE_CHECKING:
+    from app.services.fx_service import FXService
 
 
 # Nigerian Standard COA Account Codes
@@ -151,10 +159,15 @@ class TransactionService:
         notes: Optional[str] = None,
         post_to_gl: bool = True,
         gl_expense_account: Optional[str] = None,
+        # Multi-currency support (IAS 21 compliant)
+        currency: Optional[str] = None,
+        exchange_rate: Optional[float] = None,
+        exchange_rate_source: Optional[str] = None,
+        fx_service: Optional["FXService"] = None,
         **kwargs,
     ) -> Transaction:
         """
-        Create a new transaction with GL posting.
+        Create a new transaction with GL posting and multi-currency support.
         
         For Expenses (Vendor Bills):
         - Dr Expense Account (from category or default)
@@ -166,15 +179,20 @@ class TransactionService:
         - Cr Revenue
         - Cr VAT Output (if applicable)
         
+        Multi-Currency (IAS 21):
+        - All amounts stored in both transaction currency and functional currency (NGN)
+        - Exchange rate captured at booking date
+        - FX gain/loss calculated on settlement
+        
         Args:
             entity_id: Business entity ID
             user_id: User creating the transaction
             transaction_type: INCOME or EXPENSE
             transaction_date: Date of transaction
-            amount: Base amount (before VAT)
+            amount: Base amount (before VAT) in transaction currency
             description: Transaction description
             category_id: Category ID for expense mapping
-            vat_amount: VAT amount
+            vat_amount: VAT amount in transaction currency
             wht_amount: WHT amount (for expenses with WHT deducted)
             reference: External reference number
             vendor_id: Vendor ID (for expenses)
@@ -182,8 +200,57 @@ class TransactionService:
             notes: Additional notes
             post_to_gl: Whether to post to GL (default True)
             gl_expense_account: Override GL account for expense
+            currency: Transaction currency (defaults to NGN)
+            exchange_rate: Exchange rate to functional currency (NGN)
+            exchange_rate_source: Source of rate (manual, cbn, api)
+            fx_service: Optional FXService for rate lookup
         """
-        total_amount = Decimal(str(amount)) + Decimal(str(vat_amount))
+        functional_currency = "NGN"
+        currency = currency or functional_currency
+        
+        # Convert amounts to Decimal for precision
+        amount_decimal = Decimal(str(amount))
+        vat_decimal = Decimal(str(vat_amount))
+        total_amount = amount_decimal + vat_decimal
+        
+        # ===========================================
+        # MULTI-CURRENCY PROCESSING (IAS 21)
+        # ===========================================
+        is_foreign_currency = currency != functional_currency
+        
+        if is_foreign_currency:
+            # Get exchange rate
+            if exchange_rate:
+                rate = Decimal(str(exchange_rate))
+            elif fx_service:
+                # Auto-fetch rate from FX service
+                rate_result = await fx_service.get_exchange_rate(
+                    from_currency=currency,
+                    to_currency=functional_currency,
+                    rate_date=transaction_date,
+                )
+                if rate_result:
+                    rate = Decimal(str(rate_result.rate))
+                    exchange_rate_source = exchange_rate_source or "api"
+                else:
+                    raise ValueError(f"Exchange rate not available for {currency} to {functional_currency}")
+            else:
+                raise ValueError(f"Exchange rate required for {currency} transactions")
+            
+            # Calculate functional currency amounts
+            functional_amount = (amount_decimal * rate).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            functional_vat_amount = (vat_decimal * rate).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            functional_total_amount = functional_amount + functional_vat_amount
+        else:
+            # NGN transaction - no conversion needed
+            rate = Decimal("1.0")
+            functional_amount = amount_decimal
+            functional_vat_amount = vat_decimal
+            functional_total_amount = total_amount
         
         # Get WREN status from category
         wren_status = WRENStatus.REVIEW_REQUIRED
@@ -218,13 +285,20 @@ class TransactionService:
             vat_recoverable=vat_amount > 0 and transaction_type == TransactionType.EXPENSE,
             receipt_url=receipt_url,
             created_by_id=user_id,
+            # Multi-currency fields
+            currency=currency,
+            exchange_rate=float(rate) if rate else None,
+            exchange_rate_source=exchange_rate_source or ("manual" if exchange_rate else None),
+            functional_amount=float(functional_amount),
+            functional_vat_amount=float(functional_vat_amount),
+            functional_total_amount=float(functional_total_amount),
         )
         
         self.db.add(transaction)
         await self.db.commit()
         await self.db.refresh(transaction)
         
-        # Post to GL if enabled
+        # Post to GL if enabled (always post in functional currency)
         if post_to_gl:
             try:
                 if transaction_type == TransactionType.EXPENSE:
@@ -273,45 +347,56 @@ class TransactionService:
         user_id: uuid.UUID,
     ) -> Dict[str, Any]:
         """
-        Post expense transaction to General Ledger.
+        Post expense transaction to General Ledger in functional currency (NGN).
         
-        Journal Entry:
-        Dr Expense Account       [amount]
-        Dr VAT Input (1180)      [vat_amount] - if recoverable
-        Cr Accounts Payable      [total - wht]
+        Journal Entry (all amounts in NGN functional currency):
+        Dr Expense Account       [functional_amount]
+        Dr VAT Input (1180)      [functional_vat_amount] - if recoverable
+        Cr Accounts Payable      [functional_total - wht]
         Cr WHT Payable (2140)    [wht_amount] - if applicable
+        
+        Note: GL entries are always posted in functional currency (NGN) per IAS 21.
         """
         from app.services.accounting_service import AccountingService
         from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
         
         accounting_service = AccountingService(self.db)
         
+        # Use functional currency amounts for GL posting
+        expense_amount = Decimal(str(transaction.functional_amount or transaction.amount))
+        vat_amount = Decimal(str(transaction.functional_vat_amount or transaction.vat_amount))
+        total_amount = Decimal(str(transaction.functional_total_amount or transaction.total_amount))
+        wht_amount = Decimal(str(transaction.wht_amount or 0))
+        
         # Build journal lines
         lines = []
         
-        # Debit: Expense Account
+        # Debit: Expense Account (functional currency)
         expense_account_id = await self._get_gl_account_id(entity_id, expense_gl_account)
         if expense_account_id:
+            description = f"Expense: {transaction.description}"
+            if transaction.currency and transaction.currency != "NGN":
+                description += f" ({transaction.currency} {transaction.amount:,.2f} @ {transaction.exchange_rate})"
             lines.append(JournalEntryLineCreate(
                 account_id=expense_account_id,
-                debit_amount=Decimal(str(transaction.amount)),
+                debit_amount=expense_amount,
                 credit_amount=Decimal("0"),
-                description=f"Expense: {transaction.description}",
+                description=description,
             ))
         
-        # Debit: VAT Input (if recoverable)
-        if transaction.vat_recoverable and transaction.vat_amount > 0:
+        # Debit: VAT Input (if recoverable) - functional currency
+        if transaction.vat_recoverable and vat_amount > 0:
             vat_input_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["vat_input"])
             if vat_input_id:
                 lines.append(JournalEntryLineCreate(
                     account_id=vat_input_id,
-                    debit_amount=Decimal(str(transaction.vat_amount)),
+                    debit_amount=vat_amount,
                     credit_amount=Decimal("0"),
                     description=f"VAT Input recoverable: {transaction.description}",
                 ))
         
-        # Credit: Accounts Payable (total less WHT)
-        payable_amount = Decimal(str(transaction.total_amount)) - Decimal(str(transaction.wht_amount or 0))
+        # Credit: Accounts Payable (total less WHT) - functional currency
+        payable_amount = total_amount - wht_amount
         ap_account_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["accounts_payable"])
         if ap_account_id and payable_amount > 0:
             lines.append(JournalEntryLineCreate(
@@ -322,7 +407,7 @@ class TransactionService:
             ))
         
         # Credit: WHT Payable (if WHT deducted from payment)
-        if transaction.wht_amount and transaction.wht_amount > 0:
+        if wht_amount > 0:
             wht_payable_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["wht_payable"])
             if wht_payable_id:
                 lines.append(JournalEntryLineCreate(
@@ -361,52 +446,62 @@ class TransactionService:
         user_id: uuid.UUID,
     ) -> Dict[str, Any]:
         """
-        Post income transaction to General Ledger.
+        Post income transaction to General Ledger in functional currency (NGN).
         
         Note: This is for income not recorded via invoices (e.g., miscellaneous income).
         Invoice-based income should use InvoiceService which handles GL posting.
         
-        Journal Entry:
-        Dr Accounts Receivable   [total_amount]
-        Cr Revenue               [amount]
-        Cr VAT Output (2130)     [vat_amount] - if applicable
+        Journal Entry (all amounts in NGN functional currency):
+        Dr Accounts Receivable   [functional_total_amount]
+        Cr Revenue               [functional_amount]
+        Cr VAT Output (2130)     [functional_vat_amount] - if applicable
+        
+        Note: GL entries are always posted in functional currency (NGN) per IAS 21.
         """
         from app.services.accounting_service import AccountingService
         from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
         
         accounting_service = AccountingService(self.db)
         
+        # Use functional currency amounts for GL posting
+        revenue_amount = Decimal(str(transaction.functional_amount or transaction.amount))
+        vat_amount = Decimal(str(transaction.functional_vat_amount or transaction.vat_amount))
+        total_amount = Decimal(str(transaction.functional_total_amount or transaction.total_amount))
+        
         # Build journal lines
         lines = []
         
-        # Debit: Accounts Receivable
+        # Debit: Accounts Receivable (functional currency)
         ar_account_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["accounts_receivable"])
         if ar_account_id:
+            description = f"Income receivable: {transaction.description}"
+            if transaction.currency and transaction.currency != "NGN":
+                description += f" ({transaction.currency} {transaction.total_amount:,.2f} @ {transaction.exchange_rate})"
             lines.append(JournalEntryLineCreate(
                 account_id=ar_account_id,
-                debit_amount=Decimal(str(transaction.total_amount)),
+                debit_amount=total_amount,
                 credit_amount=Decimal("0"),
-                description=f"Income receivable: {transaction.description}",
+                description=description,
             ))
         
-        # Credit: Revenue
+        # Credit: Revenue (functional currency)
         revenue_account_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["revenue"])
         if revenue_account_id:
             lines.append(JournalEntryLineCreate(
                 account_id=revenue_account_id,
                 debit_amount=Decimal("0"),
-                credit_amount=Decimal(str(transaction.amount)),
+                credit_amount=revenue_amount,
                 description=f"Revenue: {transaction.description}",
             ))
         
-        # Credit: VAT Output (if applicable)
-        if transaction.vat_amount and transaction.vat_amount > 0:
+        # Credit: VAT Output (if applicable) - functional currency
+        if vat_amount > 0:
             vat_output_id = await self._get_gl_account_id(entity_id, GL_ACCOUNTS["vat_output"])
             if vat_output_id:
                 lines.append(JournalEntryLineCreate(
                     account_id=vat_output_id,
                     debit_amount=Decimal("0"),
-                    credit_amount=Decimal(str(transaction.vat_amount)),
+                    credit_amount=vat_amount,
                     description=f"VAT Output: {transaction.description}",
                 ))
         
@@ -414,10 +509,14 @@ class TransactionService:
             return {"success": False, "error": "No GL accounts found for posting"}
         
         # Create GL posting request
+        description = f"Income: {transaction.description}"
+        if transaction.currency and transaction.currency != "NGN":
+            description += f" ({transaction.currency})"
+        
         gl_request = GLPostingRequest(
             entry_date=transaction.transaction_date,
             reference=transaction.reference or f"INC-{str(transaction.id)[:8]}",
-            description=f"Income: {transaction.description}",
+            description=description,
             source_document_type="income",
             source_document_id=str(transaction.id),
             lines=lines,

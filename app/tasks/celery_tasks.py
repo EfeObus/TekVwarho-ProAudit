@@ -1189,3 +1189,537 @@ async def _process_scheduled_usage_reports() -> Dict[str, Any]:
         await db.commit()
         return result
 
+
+# ===========================================
+# FX RATE DAILY UPDATE TASK
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.fx_rate_daily_update_task')
+def fx_rate_daily_update_task() -> Dict[str, Any]:
+    """
+    Daily FX rate update task.
+    
+    - Fetches latest exchange rates from CBN and market sources
+    - Updates the exchange rate table for all tracked currency pairs
+    - Caches rates for quick access
+    - Triggers revaluation if rates changed significantly (>1%)
+    
+    Should run daily at 6:00 AM WAT before market opens.
+    """
+    return run_async(_fx_rate_daily_update())
+
+
+async def _fx_rate_daily_update() -> Dict[str, Any]:
+    """Async implementation of FX rate daily update."""
+    from decimal import Decimal
+    
+    async with async_session_factory() as db:
+        try:
+            from app.services.fx_service import FXService
+            
+            fx_service = FXService(db)
+            
+            # Currencies to update (NGN base pairs)
+            currency_pairs = [
+                ("USD", "NGN"),
+                ("EUR", "NGN"),
+                ("GBP", "NGN"),
+                ("NGN", "USD"),
+                ("NGN", "EUR"),
+                ("NGN", "GBP"),
+            ]
+            
+            updated_rates = []
+            rate_changes = []
+            
+            for from_currency, to_currency in currency_pairs:
+                try:
+                    # Get previous rate
+                    old_rate = await fx_service.get_exchange_rate(from_currency, to_currency)
+                    
+                    # Fetch new rate (this would integrate with external API)
+                    new_rate = await fx_service.fetch_latest_rate(from_currency, to_currency)
+                    
+                    if new_rate:
+                        # Calculate change percentage
+                        if old_rate and old_rate > 0:
+                            change_pct = abs((new_rate - old_rate) / old_rate * 100)
+                        else:
+                            change_pct = 0
+                        
+                        # Store the rate
+                        await fx_service.store_exchange_rate(
+                            from_currency=from_currency,
+                            to_currency=to_currency,
+                            rate=new_rate,
+                            source="daily_update"
+                        )
+                        
+                        updated_rates.append({
+                            "pair": f"{from_currency}/{to_currency}",
+                            "rate": float(new_rate),
+                            "change_pct": float(change_pct)
+                        })
+                        
+                        # Flag significant changes (>1%)
+                        if change_pct > 1.0:
+                            rate_changes.append({
+                                "pair": f"{from_currency}/{to_currency}",
+                                "old_rate": float(old_rate) if old_rate else 0,
+                                "new_rate": float(new_rate),
+                                "change_pct": float(change_pct)
+                            })
+                
+                except Exception as e:
+                    logger.error(f"Failed to update rate for {from_currency}/{to_currency}: {e}")
+            
+            await db.commit()
+            
+            # Trigger revaluation if significant changes detected
+            if rate_changes:
+                logger.warning(f"Significant FX rate changes detected: {len(rate_changes)} pairs")
+                # Could trigger fx_revaluation_task here
+            
+            logger.info(f"FX rate update complete: {len(updated_rates)} rates updated")
+            return {
+                "success": True,
+                "rates_updated": len(updated_rates),
+                "updated_rates": updated_rates,
+                "significant_changes": rate_changes,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            logger.error(f"FX rate daily update failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+
+# ===========================================
+# FX REVALUATION TASK
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.fx_revaluation_task')
+def fx_revaluation_task(entity_ids: List[str] = None) -> Dict[str, Any]:
+    """
+    FX revaluation task for foreign currency monetary items.
+    
+    - Identifies all foreign currency monetary assets and liabilities
+    - Revalues at current exchange rates
+    - Creates journal entries for FX gains/losses
+    - Updates unrealized FX gain/loss accounts
+    
+    Args:
+        entity_ids: Optional list of entity IDs to revalue. If None, processes all entities.
+    
+    Should run monthly at period-end or on-demand when rates change significantly.
+    """
+    return run_async(_fx_revaluation(entity_ids))
+
+
+async def _fx_revaluation(entity_ids: List[str] = None) -> Dict[str, Any]:
+    """Async implementation of FX revaluation."""
+    from decimal import Decimal
+    from uuid import UUID
+    
+    async with async_session_factory() as db:
+        try:
+            from app.services.fx_service import FXService
+            from app.models.entity import BusinessEntity
+            from sqlalchemy import select
+            
+            fx_service = FXService(db)
+            
+            # Get entities to process
+            if entity_ids:
+                entities = [UUID(eid) for eid in entity_ids]
+            else:
+                result = await db.execute(
+                    select(BusinessEntity.id).where(BusinessEntity.is_active == True)
+                )
+                entities = [row[0] for row in result.all()]
+            
+            revaluation_results = []
+            total_gain_loss = Decimal("0")
+            
+            for entity_id in entities:
+                try:
+                    result = await fx_service.perform_revaluation(
+                        entity_id=entity_id,
+                        revaluation_date=date.today()
+                    )
+                    
+                    if result:
+                        revaluation_results.append({
+                            "entity_id": str(entity_id),
+                            "gain_loss": float(result.get("net_gain_loss", 0)),
+                            "items_revalued": result.get("items_revalued", 0),
+                            "journal_entry_id": str(result.get("journal_entry_id")) if result.get("journal_entry_id") else None
+                        })
+                        total_gain_loss += Decimal(str(result.get("net_gain_loss", 0)))
+                
+                except Exception as e:
+                    logger.error(f"FX revaluation failed for entity {entity_id}: {e}")
+                    revaluation_results.append({
+                        "entity_id": str(entity_id),
+                        "error": str(e)
+                    })
+            
+            await db.commit()
+            
+            logger.info(f"FX revaluation complete: {len(revaluation_results)} entities processed, total gain/loss: {total_gain_loss}")
+            return {
+                "success": True,
+                "entities_processed": len(revaluation_results),
+                "total_gain_loss": float(total_gain_loss),
+                "results": revaluation_results,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            logger.error(f"FX revaluation task failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+
+# ===========================================
+# CONSOLIDATION SCHEDULE TASK
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.consolidation_schedule_task')
+def consolidation_schedule_task(group_id: str = None) -> Dict[str, Any]:
+    """
+    Automated consolidation run task.
+    
+    - Runs consolidation for entity groups on scheduled basis
+    - Performs intercompany eliminations
+    - Generates consolidated trial balance
+    - Creates consolidation worksheet
+    
+    Args:
+        group_id: Optional specific group ID to consolidate. If None, processes all groups.
+    
+    Should run monthly after all subsidiaries have closed their books.
+    """
+    return run_async(_consolidation_schedule(group_id))
+
+
+async def _consolidation_schedule(group_id: str = None) -> Dict[str, Any]:
+    """Async implementation of scheduled consolidation."""
+    from uuid import UUID
+    
+    async with async_session_factory() as db:
+        try:
+            from app.services.consolidation_service import ConsolidationService
+            from app.models.multi_entity import EntityGroup
+            from sqlalchemy import select
+            
+            consol_service = ConsolidationService(db)
+            
+            # Get groups to process
+            if group_id:
+                groups = [UUID(group_id)]
+            else:
+                result = await db.execute(
+                    select(EntityGroup.id).where(EntityGroup.is_active == True)
+                )
+                groups = [row[0] for row in result.all()]
+            
+            consolidation_results = []
+            as_of_date = date.today().replace(day=1) - timedelta(days=1)  # Last day of previous month
+            
+            for gid in groups:
+                try:
+                    # Run consolidation
+                    result = await consol_service.run_consolidation(
+                        group_id=gid,
+                        as_of_date=as_of_date
+                    )
+                    
+                    consolidation_results.append({
+                        "group_id": str(gid),
+                        "as_of_date": as_of_date.isoformat(),
+                        "success": True,
+                        "eliminations_count": result.get("eliminations_count", 0),
+                        "total_assets": float(result.get("total_assets", 0)),
+                        "total_liabilities": float(result.get("total_liabilities", 0))
+                    })
+                
+                except Exception as e:
+                    logger.error(f"Consolidation failed for group {gid}: {e}")
+                    consolidation_results.append({
+                        "group_id": str(gid),
+                        "success": False,
+                        "error": str(e)
+                    })
+            
+            await db.commit()
+            
+            successful = sum(1 for r in consolidation_results if r.get("success"))
+            logger.info(f"Consolidation schedule complete: {successful}/{len(consolidation_results)} groups processed")
+            
+            return {
+                "success": True,
+                "groups_processed": len(consolidation_results),
+                "successful_consolidations": successful,
+                "results": consolidation_results,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            logger.error(f"Consolidation schedule task failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+
+# ===========================================
+# BUDGET VARIANCE ALERT TASK
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.budget_variance_alert_task')
+def budget_variance_alert_task(alert_threshold: float = 10.0) -> Dict[str, Any]:
+    """
+    Budget variance alert task.
+    
+    - Checks all active budgets for variance thresholds
+    - Sends notifications when budget lines exceed threshold
+    - Creates alerts for over-budget conditions
+    
+    Args:
+        alert_threshold: Percentage threshold for triggering alerts (default 10%)
+    
+    Should run weekly or monthly based on business requirements.
+    """
+    return run_async(_budget_variance_alert(alert_threshold))
+
+
+async def _budget_variance_alert(alert_threshold: float = 10.0) -> Dict[str, Any]:
+    """Async implementation of budget variance alert."""
+    from decimal import Decimal
+    
+    async with async_session_factory() as db:
+        try:
+            from app.services.budget_service import BudgetService
+            from app.services.notification_service import NotificationService
+            from app.models.budget import Budget, BudgetStatus
+            from app.models.user import User, UserEntityAccess
+            from sqlalchemy import select
+            
+            budget_service = BudgetService(db)
+            notification_service = NotificationService(db)
+            
+            # Get active budgets
+            result = await db.execute(
+                select(Budget).where(Budget.status == BudgetStatus.APPROVED)
+            )
+            active_budgets = result.scalars().all()
+            
+            alerts_created = 0
+            budgets_checked = 0
+            all_alerts = []
+            
+            current_month = date.today().month
+            
+            for budget in active_budgets:
+                try:
+                    # Get YTD variance analysis
+                    variance_data = await budget_service.get_budget_vs_actual(
+                        entity_id=budget.entity_id,
+                        budget_id=budget.id,
+                        through_month=current_month,
+                        group_by="account"
+                    )
+                    
+                    budgets_checked += 1
+                    budget_alerts = []
+                    
+                    # Check each line item for variance
+                    for item in variance_data.get("line_items", []):
+                        variance_pct = abs(item.get("variance_percent", 0))
+                        
+                        if variance_pct >= alert_threshold:
+                            alert_info = {
+                                "budget_id": str(budget.id),
+                                "budget_name": budget.name,
+                                "account_name": item.get("account_name"),
+                                "budgeted": item.get("budgeted_amount"),
+                                "actual": item.get("actual_amount"),
+                                "variance_percent": item.get("variance_percent"),
+                                "is_over_budget": item.get("actual_amount", 0) > item.get("budgeted_amount", 0),
+                                "severity": "high" if variance_pct >= 25 else "medium" if variance_pct >= 15 else "low"
+                            }
+                            budget_alerts.append(alert_info)
+                            all_alerts.append(alert_info)
+                    
+                    # Send notifications if alerts found
+                    if budget_alerts:
+                        # Get users with access to entity
+                        users_result = await db.execute(
+                            select(UserEntityAccess.user_id)
+                            .where(UserEntityAccess.entity_id == budget.entity_id)
+                        )
+                        user_ids = [row[0] for row in users_result.all()]
+                        
+                        for user_id in user_ids:
+                            await notification_service.create_notification(
+                                user_id=user_id,
+                                entity_id=budget.entity_id,
+                                notification_type="budget_alert",
+                                title=f"Budget Alert: {budget.name}",
+                                message=f"{len(budget_alerts)} line items exceed {alert_threshold}% variance threshold",
+                                data={
+                                    "budget_id": str(budget.id),
+                                    "alerts_count": len(budget_alerts),
+                                    "threshold": alert_threshold
+                                },
+                                priority="high" if any(a.get("severity") == "high" for a in budget_alerts) else "normal"
+                            )
+                            alerts_created += 1
+                
+                except Exception as e:
+                    logger.error(f"Budget variance check failed for budget {budget.id}: {e}")
+            
+            await db.commit()
+            
+            logger.info(f"Budget variance alerts complete: {budgets_checked} budgets checked, {alerts_created} notifications sent")
+            return {
+                "success": True,
+                "budgets_checked": budgets_checked,
+                "alerts_created": alerts_created,
+                "variance_alerts": all_alerts[:50],  # Limit to first 50
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            logger.error(f"Budget variance alert task failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+
+# ===========================================
+# YEAR-END REMINDER TASK
+# ===========================================
+
+@shared_task(name='app.tasks.celery_tasks.year_end_reminder_task')
+def year_end_reminder_task() -> Dict[str, Any]:
+    """
+    Year-end closing reminder task.
+    
+    - Checks for fiscal years approaching end
+    - Sends reminders for year-end tasks (30, 14, 7 days before)
+    - Lists pending tasks: depreciation, accruals, inventory count, etc.
+    
+    Should run daily during year-end period.
+    """
+    return run_async(_year_end_reminder())
+
+
+async def _year_end_reminder() -> Dict[str, Any]:
+    """Async implementation of year-end reminder."""
+    async with async_session_factory() as db:
+        try:
+            from app.models.accounting import FiscalYear, FiscalYearStatus
+            from app.services.notification_service import NotificationService
+            from app.models.user import User, UserEntityAccess
+            from sqlalchemy import select
+            
+            notification_service = NotificationService(db)
+            today = date.today()
+            reminder_days = [30, 14, 7, 3, 1]  # Days before year-end to send reminders
+            
+            # Get active fiscal years
+            result = await db.execute(
+                select(FiscalYear).where(FiscalYear.status == FiscalYearStatus.ACTIVE)
+            )
+            fiscal_years = result.scalars().all()
+            
+            reminders_sent = 0
+            entities_notified = []
+            
+            for fy in fiscal_years:
+                days_until_end = (fy.end_date - today).days
+                
+                if days_until_end in reminder_days:
+                    # Get users with access to entity
+                    users_result = await db.execute(
+                        select(UserEntityAccess.user_id)
+                        .where(UserEntityAccess.entity_id == fy.entity_id)
+                    )
+                    user_ids = [row[0] for row in users_result.all()]
+                    
+                    # Build reminder message
+                    if days_until_end <= 3:
+                        urgency = "URGENT"
+                        priority = "high"
+                    elif days_until_end <= 7:
+                        urgency = "Important"
+                        priority = "high"
+                    else:
+                        urgency = "Reminder"
+                        priority = "normal"
+                    
+                    year_end_tasks = [
+                        "Review and post all pending journal entries",
+                        "Complete depreciation calculations",
+                        "Post accrued expenses and prepaid adjustments",
+                        "Perform inventory count and adjustments",
+                        "Review aged receivables and allowances",
+                        "Reconcile all bank accounts",
+                        "Post payroll accruals",
+                        "Review and finalize intercompany transactions"
+                    ]
+                    
+                    for user_id in user_ids:
+                        await notification_service.create_notification(
+                            user_id=user_id,
+                            entity_id=fy.entity_id,
+                            notification_type="year_end_reminder",
+                            title=f"{urgency}: Fiscal Year Ending in {days_until_end} Days",
+                            message=f"Fiscal year {fy.year} ends on {fy.end_date.strftime('%B %d, %Y')}. Please complete year-end closing tasks.",
+                            data={
+                                "fiscal_year_id": str(fy.id),
+                                "fiscal_year": fy.year,
+                                "end_date": fy.end_date.isoformat(),
+                                "days_remaining": days_until_end,
+                                "pending_tasks": year_end_tasks
+                            },
+                            priority=priority
+                        )
+                        reminders_sent += 1
+                    
+                    entities_notified.append({
+                        "entity_id": str(fy.entity_id),
+                        "fiscal_year": fy.year,
+                        "days_remaining": days_until_end,
+                        "users_notified": len(user_ids)
+                    })
+            
+            await db.commit()
+            
+            logger.info(f"Year-end reminders complete: {reminders_sent} reminders sent to {len(entities_notified)} entities")
+            return {
+                "success": True,
+                "reminders_sent": reminders_sent,
+                "entities_notified": entities_notified,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            logger.error(f"Year-end reminder task failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }

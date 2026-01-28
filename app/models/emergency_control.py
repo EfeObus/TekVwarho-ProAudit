@@ -35,19 +35,39 @@ class EmergencyActionType(str, Enum):
 
 class FeatureKey(str, Enum):
     """Platform features that can be disabled via kill switch."""
+    # Core financial features
+    TRANSACTIONS = "transactions"
     PAYMENTS = "payments"
     INVOICING = "invoicing"
     PAYROLL = "payroll"
+    REPORTS = "reports"
+    
+    # Tax & Compliance
+    TAX_FILING = "tax_filing"
+    NRS_SUBMISSION = "nrs_submission"
+    AUDIT_LOGS = "audit_logs"
+    AUDIT_REPORTS = "audit_reports"
+    
+    # Banking features
     BANK_RECONCILIATION = "bank_reconciliation"
     EXPENSE_CLAIMS = "expense_claims"
-    TAX_FILING = "tax_filing"
-    AUDIT_REPORTS = "audit_reports"
+    
+    # User & Access features
     USER_REGISTRATION = "user_registration"
+    USER_SIGNUP = "user_signup"
     API_ACCESS = "api_access"
+    
+    # Operations
+    BULK_OPERATIONS = "bulk_operations"
     EXPORTS = "exports"
     FILE_UPLOADS = "file_uploads"
     INTEGRATIONS = "integrations"
+    
+    # AI/ML features
+    ML_PROCESSING = "ml_processing"
     ML_INFERENCE = "ml_inference"
+    
+    # Other
     NOTIFICATIONS = "notifications"
 
 

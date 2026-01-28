@@ -4,10 +4,10 @@
 
 | Attribute | Value |
 |-----------|-------|
-| Version | 1.0.0 |
-| Last Updated | January 2026 |
+| Version | 1.1.0 |
+| Last Updated | January 27, 2026 |
 | Classification | Internal / Audit |
-| Compliance | NTAA 2025, IFRS, Nigerian GAAP |
+| Compliance | NTAA 2025, IFRS, Nigerian GAAP, IAS 21 |
 
 ---
 

@@ -207,6 +207,11 @@ class BusinessEntity(BaseModel):
         back_populates="entity",
         cascade="all, delete-orphan",
     )
+    report_templates: Mapped[List["ReportTemplate"]] = relationship(
+        "ReportTemplate",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+    )
     
     @property
     def full_address(self) -> str:

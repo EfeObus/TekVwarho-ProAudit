@@ -3,12 +3,13 @@ TekVwarho ProAudit - Invoice Service
 
 Business logic for invoice management with NRS e-invoicing support.
 Includes full GL integration for double-entry accounting.
+Multi-currency support with IAS 21 compliance.
 """
 
 import json
 import uuid
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 
 from sqlalchemy import select, func, and_, or_
@@ -22,6 +23,7 @@ from app.models.accounting import ChartOfAccounts, AccountType
 
 if TYPE_CHECKING:
     from app.services.accounting_service import AccountingService
+    from app.services.fx_service import FXService
 
 
 # ===========================================
@@ -204,12 +206,47 @@ class InvoiceService:
         discount_amount: float = 0,
         notes: Optional[str] = None,
         terms: Optional[str] = None,
+        currency: str = "NGN",
+        exchange_rate: Optional[float] = None,
+        exchange_rate_source: Optional[str] = None,
     ) -> Invoice:
-        """Create a new invoice with line items."""
+        """
+        Create a new invoice with line items.
+        
+        Multi-Currency Support (IAS 21):
+        - currency: Invoice currency (NGN, USD, EUR, GBP)
+        - exchange_rate: Rate at invoice date (1 FC = X NGN). Auto-fetched if not provided.
+        - exchange_rate_source: Rate source (CBN, manual, spot, contract)
+        """
         # Generate invoice number
         invoice_number = await self.generate_invoice_number(entity_id)
         
-        # Calculate totals
+        # Handle exchange rate for foreign currency invoices
+        final_exchange_rate = Decimal("1.000000")
+        final_rate_source = exchange_rate_source
+        
+        if currency != "NGN":
+            if exchange_rate is not None:
+                final_exchange_rate = Decimal(str(exchange_rate))
+                final_rate_source = exchange_rate_source or "manual"
+            else:
+                # Auto-fetch rate from FXService
+                from app.services.fx_service import FXService
+                fx_service = FXService(self.db)
+                fetched_rate = await fx_service.get_exchange_rate(
+                    from_currency=currency,
+                    to_currency="NGN",
+                    rate_date=invoice_date
+                )
+                if fetched_rate is None:
+                    raise ValueError(
+                        f"No exchange rate found for {currency}/NGN on {invoice_date}. "
+                        f"Please provide an exchange rate or add the rate to the system."
+                    )
+                final_exchange_rate = fetched_rate
+                final_rate_source = "system"
+        
+        # Calculate totals in original currency
         subtotal = Decimal("0")
         total_vat = Decimal("0")
         
@@ -225,17 +262,41 @@ class InvoiceService:
         
         total_amount = subtotal + total_vat - Decimal(str(discount_amount))
         
-        # Create invoice
+        # Calculate functional currency amounts (NGN) - IAS 21
+        functional_subtotal = (subtotal * final_exchange_rate).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        functional_vat_amount = (total_vat * final_exchange_rate).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        functional_total_amount = (total_amount * final_exchange_rate).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        
+        # Create invoice with FX fields
         invoice = Invoice(
             entity_id=entity_id,
             invoice_number=invoice_number,
             customer_id=customer_id,
             invoice_date=invoice_date,
             due_date=due_date,
+            # Original currency amounts
+            currency=currency,
+            exchange_rate=final_exchange_rate,
+            exchange_rate_source=final_rate_source,
             subtotal=subtotal,
             vat_amount=total_vat,
             discount_amount=Decimal(str(discount_amount)),
             total_amount=total_amount,
+            # Functional currency amounts (NGN)
+            functional_subtotal=functional_subtotal,
+            functional_vat_amount=functional_vat_amount,
+            functional_total_amount=functional_total_amount,
+            functional_amount_paid=Decimal("0.00"),
+            # FX gain/loss tracking
+            realized_fx_gain_loss=Decimal("0.00"),
+            unrealized_fx_gain_loss=Decimal("0.00"),
+            # Other fields
             vat_treatment=vat_treatment,
             vat_rate=Decimal(str(vat_rate)),
             status=InvoiceStatus.DRAFT,
@@ -625,17 +686,32 @@ class InvoiceService:
         bank_account_id: Optional[uuid.UUID] = None,
         wht_amount: float = 0,
         post_to_gl: bool = True,
+        # Multi-currency payment support (IAS 21 compliant)
+        payment_currency: Optional[str] = None,
+        payment_exchange_rate: Optional[float] = None,
+        fx_service: Optional["FXService"] = None,
     ) -> Invoice:
         """
-        Record a payment against an invoice.
+        Record a payment against an invoice with multi-currency support.
         
         When post_to_gl=True (default), creates GL journal entry:
-            Dr Bank (1120)                - Cash received
+            Dr Bank (1120)                - Cash received (functional currency)
             Dr WHT Receivable (1170)      - If WHT deducted
             Cr Accounts Receivable (1130) - Reduce AR
+            Dr/Cr FX Gain/Loss (4500)     - If FX difference exists
+        
+        Multi-Currency Logic (IAS 21):
+        - If payment is in a different currency or rate differs from booking rate,
+          calculate realized FX gain/loss
+        - Realized FX Gain/Loss = Payment Amount in Functional Currency - 
+          Equivalent Invoice Amount at Booking Rate
         
         Args:
+            amount: Payment amount in the payment currency
             wht_amount: Amount withheld by customer (WHT deduction)
+            payment_currency: Currency of the payment (defaults to invoice currency)
+            payment_exchange_rate: Exchange rate for payment (auto-fetched if not provided)
+            fx_service: Optional FXService instance for rate lookup
         """
         invoice = await self.get_invoice_by_id(invoice_id, entity_id)
         
@@ -651,6 +727,94 @@ class InvoiceService:
         payment_amount = Decimal(str(amount))
         wht_decimal = Decimal(str(wht_amount))
         total_settled = payment_amount + wht_decimal
+        
+        # ===========================================
+        # MULTI-CURRENCY PAYMENT PROCESSING (IAS 21)
+        # ===========================================
+        invoice_currency = invoice.currency or "NGN"
+        payment_currency = payment_currency or invoice_currency
+        functional_currency = "NGN"
+        
+        # Determine if this is a foreign currency transaction
+        is_fx_payment = payment_currency != functional_currency
+        
+        # Get exchange rates
+        invoice_rate = Decimal(str(invoice.exchange_rate)) if invoice.exchange_rate else Decimal("1.0")
+        
+        if payment_exchange_rate:
+            payment_rate = Decimal(str(payment_exchange_rate))
+        elif is_fx_payment and fx_service:
+            # Auto-fetch rate from FX service
+            rate_result = await fx_service.get_exchange_rate(
+                from_currency=payment_currency,
+                to_currency=functional_currency,
+                rate_date=payment_date,
+            )
+            if rate_result:
+                payment_rate = Decimal(str(rate_result.rate))
+            else:
+                # Fallback to invoice rate if same currency, else raise error
+                if payment_currency == invoice_currency:
+                    payment_rate = invoice_rate
+                else:
+                    raise ValueError(f"Exchange rate not available for {payment_currency} to {functional_currency}")
+        else:
+            # Use invoice rate if same currency, or 1.0 for NGN
+            if payment_currency == invoice_currency:
+                payment_rate = invoice_rate
+            elif payment_currency == functional_currency:
+                payment_rate = Decimal("1.0")
+            else:
+                payment_rate = invoice_rate  # Fallback
+        
+        # Calculate functional currency amounts
+        if payment_currency == functional_currency:
+            functional_payment = payment_amount
+            functional_wht = wht_decimal
+        else:
+            functional_payment = (payment_amount * payment_rate).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            functional_wht = (wht_decimal * payment_rate).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        
+        functional_total_settled = functional_payment + functional_wht
+        
+        # ===========================================
+        # REALIZED FX GAIN/LOSS CALCULATION (IAS 21)
+        # ===========================================
+        realized_fx_gain_loss = Decimal("0.00")
+        
+        # Calculate FX gain/loss only for foreign currency invoices/payments
+        if invoice_currency != functional_currency or payment_currency != functional_currency:
+            # The FX gain/loss is the difference between:
+            # 1. Payment amount converted at payment date rate
+            # 2. Payment amount converted at invoice booking rate
+            
+            if payment_currency == invoice_currency:
+                # Payment in same currency as invoice - compare rates
+                payment_at_booking_rate = (payment_amount * invoice_rate).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                payment_at_payment_rate = functional_payment
+                
+                # Positive = gain (received more NGN than expected)
+                # Negative = loss (received less NGN than expected)
+                realized_fx_gain_loss = payment_at_payment_rate - payment_at_booking_rate
+            elif payment_currency != invoice_currency:
+                # Cross-currency payment (e.g., EUR invoice paid in USD)
+                # Convert payment to invoice currency first, then compare
+                # This is a more complex scenario - for now, record the functional difference
+                invoice_amount_in_functional = (payment_amount * invoice_rate).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                ) if payment_currency == invoice_currency else functional_payment
+                
+                realized_fx_gain_loss = functional_payment - invoice_amount_in_functional
+        
+        # ===========================================
+        # UPDATE INVOICE BALANCES
+        # ===========================================
         new_amount_paid = invoice.amount_paid + total_settled
         
         if new_amount_paid > invoice.total_amount:
@@ -658,18 +822,40 @@ class InvoiceService:
         
         invoice.amount_paid = new_amount_paid
         
+        # Update functional currency tracking
+        current_functional_paid = invoice.functional_amount_paid or Decimal("0.00")
+        invoice.functional_amount_paid = current_functional_paid + functional_total_settled
+        
+        # Accumulate realized FX gain/loss
+        current_realized_fx = invoice.realized_fx_gain_loss or Decimal("0.00")
+        invoice.realized_fx_gain_loss = current_realized_fx + realized_fx_gain_loss
+        
         # Update status based on payment
         if new_amount_paid >= invoice.total_amount:
             invoice.status = InvoiceStatus.PAID
         elif new_amount_paid > 0:
             invoice.status = InvoiceStatus.PARTIALLY_PAID
         
-        # Add payment note
-        payment_note = f"Payment received: N{amount:,.2f} on {payment_date} via {payment_method}"
+        # ===========================================
+        # ADD PAYMENT NOTE
+        # ===========================================
+        currency_symbol = "₦" if payment_currency == "NGN" else payment_currency
+        payment_note = f"Payment received: {currency_symbol}{amount:,.2f} on {payment_date} via {payment_method}"
         if wht_amount > 0:
-            payment_note += f" (WHT deducted: N{wht_amount:,.2f})"
+            wht_symbol = "₦" if payment_currency == "NGN" else payment_currency
+            payment_note += f" (WHT deducted: {wht_symbol}{wht_amount:,.2f})"
         if reference:
             payment_note += f" (Ref: {reference})"
+        
+        # Add FX details to note
+        if is_fx_payment or realized_fx_gain_loss != 0:
+            payment_note += f"\n  Exchange Rate: {payment_rate}"
+            payment_note += f" | Functional Amount: ₦{functional_payment:,.2f}"
+            if realized_fx_gain_loss > 0:
+                payment_note += f" | FX Gain: ₦{realized_fx_gain_loss:,.2f}"
+            elif realized_fx_gain_loss < 0:
+                payment_note += f" | FX Loss: ₦{abs(realized_fx_gain_loss):,.2f}"
+        
         invoice.notes = f"{invoice.notes or ''}\n\n{payment_note}".strip()
         
         invoice.updated_by = user_id
@@ -680,8 +866,11 @@ class InvoiceService:
         # Post to General Ledger
         if post_to_gl:
             gl_result = await self._post_payment_to_gl(
-                invoice, entity_id, user_id, payment_amount, wht_decimal,
-                payment_date, reference, bank_account_id
+                invoice, entity_id, user_id, 
+                functional_payment,  # Use functional amount for GL
+                functional_wht,
+                payment_date, reference, bank_account_id,
+                realized_fx_gain_loss=realized_fx_gain_loss,  # Pass FX gain/loss
             )
             if not gl_result.get("success"):
                 import logging
@@ -699,14 +888,21 @@ class InvoiceService:
         payment_date: date,
         reference: Optional[str],
         bank_account_id: Optional[uuid.UUID],
+        realized_fx_gain_loss: Decimal = Decimal("0.00"),
     ) -> Dict[str, Any]:
         """
-        Post payment receipt to General Ledger.
+        Post payment receipt to General Ledger with FX gain/loss handling.
         
         Creates double-entry journal:
             Dr Bank                   (Cash Amount)
             Dr WHT Receivable         (WHT Amount) - if applicable
-            Cr Accounts Receivable    (Total Settled)
+            Dr FX Loss                (FX Loss) - if applicable
+            Cr Accounts Receivable    (Total Settled at booking rate)
+            Cr FX Gain                (FX Gain) - if applicable
+            
+        IAS 21 Compliance:
+        - FX gains/losses are recognized in profit or loss
+        - Exchange differences arising on settlement are recognized in the period
         """
         from app.services.accounting_service import AccountingService
         from app.schemas.accounting import GLPostingRequest, JournalEntryLineCreate
@@ -724,12 +920,16 @@ class InvoiceService:
                 "message": "Required GL accounts not found (AR or Bank). Initialize Chart of Accounts first.",
             }
         
+        # Get FX Gain/Loss account (4500 series - typically 4500 for gain, 5500 for loss)
+        # Using a single FX Gain/Loss account with Dr for loss, Cr for gain
+        fx_gain_loss_account = await self._get_gl_account_id(entity_id, "4500")  # FX Gain/Loss
+        
         total_settled = cash_amount + wht_amount
         
         # Build journal entry lines
         lines = []
         
-        # Debit: Bank (cash received)
+        # Debit: Bank (cash received in functional currency)
         lines.append(JournalEntryLineCreate(
             account_id=bank_account,
             description=f"Receipt - Invoice {invoice.invoice_number}",
@@ -748,23 +948,62 @@ class InvoiceService:
                 customer_id=invoice.customer_id,
             ))
         
-        # Credit: Accounts Receivable (total settled)
+        # Handle FX Gain/Loss (IAS 21)
+        # If FX loss (negative): Debit FX Loss account
+        # If FX gain (positive): Credit FX Gain account
+        if realized_fx_gain_loss != 0 and fx_gain_loss_account:
+            if realized_fx_gain_loss < 0:
+                # FX Loss - Debit
+                lines.append(JournalEntryLineCreate(
+                    account_id=fx_gain_loss_account,
+                    description=f"Realized FX Loss - Invoice {invoice.invoice_number}",
+                    debit_amount=abs(realized_fx_gain_loss),
+                    credit_amount=Decimal("0.00"),
+                    customer_id=invoice.customer_id,
+                ))
+            else:
+                # FX Gain - Credit
+                lines.append(JournalEntryLineCreate(
+                    account_id=fx_gain_loss_account,
+                    description=f"Realized FX Gain - Invoice {invoice.invoice_number}",
+                    debit_amount=Decimal("0.00"),
+                    credit_amount=realized_fx_gain_loss,
+                    customer_id=invoice.customer_id,
+                ))
+        
+        # Credit: Accounts Receivable
+        # When there's FX gain/loss, the AR credit equals cash + WHT + FX loss (or - FX gain)
+        # This ensures the journal balances
+        ar_credit_amount = total_settled
+        if realized_fx_gain_loss < 0:
+            # FX Loss: AR was recorded at booking rate, we received less
+            ar_credit_amount = total_settled + abs(realized_fx_gain_loss)
+        elif realized_fx_gain_loss > 0:
+            # FX Gain: AR was recorded at booking rate, we received more
+            ar_credit_amount = total_settled - realized_fx_gain_loss
+        
         lines.append(JournalEntryLineCreate(
             account_id=ar_account,
             description=f"Payment - Invoice {invoice.invoice_number}",
             debit_amount=Decimal("0.00"),
-            credit_amount=total_settled,
+            credit_amount=ar_credit_amount,
             customer_id=invoice.customer_id,
         ))
         
         # Create GL posting request
+        description = f"Payment Receipt - Invoice {invoice.invoice_number}"
+        if realized_fx_gain_loss > 0:
+            description += f" (FX Gain: ₦{realized_fx_gain_loss:,.2f})"
+        elif realized_fx_gain_loss < 0:
+            description += f" (FX Loss: ₦{abs(realized_fx_gain_loss):,.2f})"
+        
         gl_request = GLPostingRequest(
             source_module="receipts",
             source_document_type="payment",
             source_document_id=invoice.id,
             source_reference=reference or f"PMT-{invoice.invoice_number}",
             entry_date=payment_date,
-            description=f"Payment Receipt - Invoice {invoice.invoice_number}",
+            description=description,
             lines=lines,
             auto_post=True,
         )

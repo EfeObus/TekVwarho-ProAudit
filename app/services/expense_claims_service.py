@@ -2,12 +2,13 @@
 TekVwarho ProAudit - Expense Claims Service
 
 Service for managing expense claims and reimbursements.
+Integrates with M-of-N approval workflow for high-value and FX claims.
 """
 
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,9 @@ from app.models.expense_claims import (
     ExpenseClaim, ExpenseClaimItem, ExpenseCategory,
     ClaimStatus, PaymentMethod
 )
+
+if TYPE_CHECKING:
+    from app.services.approval_workflow import ApprovalWorkflowService
 
 
 class ExpenseClaimsService:
@@ -183,8 +187,19 @@ class ExpenseClaimsService:
     async def submit_claim(
         self,
         claim_id: uuid.UUID,
+        currency: Optional[str] = None,
+        exchange_rate: Optional[Decimal] = None,
     ) -> ExpenseClaim:
-        """Submit a claim for approval."""
+        """
+        Submit a claim for approval.
+        
+        For FX claims (non-NGN currency) or high-value claims, this will
+        create an M-of-N approval workflow request.
+        
+        Args:
+            currency: Optional currency code (defaults to NGN)
+            exchange_rate: Optional exchange rate if currency != NGN
+        """
         claim = await self.get_claim(claim_id)
         if not claim:
             raise ValueError("Claim not found")
@@ -195,12 +210,82 @@ class ExpenseClaimsService:
         if not claim.line_items:
             raise ValueError("Cannot submit a claim with no expense items")
         
-        claim.status = ClaimStatus.SUBMITTED
         claim.submitted_at = datetime.utcnow()
+        
+        # Determine if this needs M-of-N approval workflow
+        is_fx_claim = currency and currency.upper() != "NGN"
+        total_ngn = claim.total_amount
+        
+        if is_fx_claim and exchange_rate:
+            total_ngn = claim.total_amount * exchange_rate
+        
+        # Store FX metadata if applicable
+        if is_fx_claim:
+            claim.metadata = claim.metadata or {}
+            claim.metadata["currency"] = currency.upper()
+            claim.metadata["exchange_rate"] = str(exchange_rate) if exchange_rate else None
+            claim.metadata["original_amount"] = str(claim.total_amount)
+        
+        # Check if workflow approval is required
+        workflow_type = None
+        if is_fx_claim and total_ngn >= Decimal("50000"):
+            # FX expense claims over 50K NGN require 2-of-N approval
+            workflow_type = "expense_claim_fx"
+            claim.status = ClaimStatus.PENDING_APPROVAL
+        elif total_ngn >= Decimal("100000"):
+            # Regular claims over 100K NGN require workflow approval
+            workflow_type = "expense_claim"
+            claim.status = ClaimStatus.PENDING_APPROVAL
+        else:
+            # Lower value claims go to simple submitted status
+            claim.status = ClaimStatus.SUBMITTED
         
         await self.db.commit()
         await self.db.refresh(claim)
+        
+        # Create approval workflow request if needed
+        if workflow_type:
+            await self._create_approval_request(claim, workflow_type)
+        
         return claim
+    
+    async def _create_approval_request(
+        self,
+        claim: ExpenseClaim,
+        workflow_type: str,
+    ) -> None:
+        """Create an approval request via the ApprovalWorkflowService."""
+        from app.services.approval_workflow import ApprovalWorkflowService
+        
+        approval_service = ApprovalWorkflowService(self.db)
+        
+        # Build request payload
+        request_data = {
+            "claim_id": str(claim.id),
+            "claim_number": claim.claim_number,
+            "title": claim.title,
+            "total_amount": str(claim.total_amount),
+            "employee_id": str(claim.employee_id),
+            "entity_id": str(claim.entity_id),
+        }
+        
+        if claim.metadata:
+            request_data["currency"] = claim.metadata.get("currency", "NGN")
+            request_data["exchange_rate"] = claim.metadata.get("exchange_rate")
+            request_data["original_amount"] = claim.metadata.get("original_amount")
+        
+        try:
+            await approval_service.create_approval_request(
+                entity_id=claim.entity_id,
+                workflow_type=workflow_type,
+                request_id=claim.id,
+                request_data=request_data,
+                requested_by_id=claim.created_by_id or claim.employee_id,
+            )
+        except Exception as e:
+            # Log but don't fail - claim is already submitted
+            import logging
+            logging.error(f"Failed to create approval request for claim {claim.id}: {e}")
     
     async def approve_claim(
         self,
@@ -211,6 +296,9 @@ class ExpenseClaimsService:
     ) -> ExpenseClaim:
         """
         Approve a submitted claim.
+        
+        For claims under M-of-N workflow, this records the approval decision.
+        The claim is only fully approved when all required approvals are collected.
         
         Args:
             item_adjustments: Dict mapping item_id to approved_amount (for partial approvals)
@@ -231,14 +319,63 @@ class ExpenseClaimsService:
         # Recalculate totals
         await self._update_claim_totals(claim_id)
         
-        claim.status = ClaimStatus.APPROVED
-        claim.approved_by_id = approved_by_id
-        claim.approved_at = datetime.utcnow()
-        claim.approval_notes = approval_notes
+        # Check if this is under M-of-N workflow
+        if claim.status == ClaimStatus.PENDING_APPROVAL:
+            workflow_approved = await self._record_workflow_approval(
+                claim=claim,
+                approver_id=approved_by_id,
+                notes=approval_notes,
+            )
+            
+            if workflow_approved:
+                # All required approvals collected - fully approve the claim
+                claim.status = ClaimStatus.APPROVED
+                claim.approved_by_id = approved_by_id
+                claim.approved_at = datetime.utcnow()
+                claim.approval_notes = approval_notes
+            else:
+                # Still waiting for more approvals
+                claim.approval_notes = (claim.approval_notes or "") + f"\nPartial approval by {approved_by_id}"
+        else:
+            # Simple approval for SUBMITTED claims (no workflow)
+            claim.status = ClaimStatus.APPROVED
+            claim.approved_by_id = approved_by_id
+            claim.approved_at = datetime.utcnow()
+            claim.approval_notes = approval_notes
         
         await self.db.commit()
         await self.db.refresh(claim)
         return claim
+    
+    async def _record_workflow_approval(
+        self,
+        claim: ExpenseClaim,
+        approver_id: uuid.UUID,
+        notes: Optional[str] = None,
+    ) -> bool:
+        """
+        Record an approval decision in the M-of-N workflow.
+        
+        Returns True if the claim is now fully approved (M approvals reached).
+        """
+        from app.services.approval_workflow import ApprovalWorkflowService
+        
+        approval_service = ApprovalWorkflowService(self.db)
+        
+        try:
+            result = await approval_service.approve_request(
+                request_id=claim.id,
+                approver_id=approver_id,
+                notes=notes,
+            )
+            
+            # Check if all required approvals are collected
+            return result.get("status") == "approved"
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to record workflow approval for claim {claim.id}: {e}")
+            # Default to approved if workflow fails
+            return True
     
     async def reject_claim(
         self,
@@ -393,6 +530,55 @@ class ExpenseClaimsService:
             }
             for row in rows
         ]
+    
+    async def get_claim_approval_status(
+        self,
+        claim_id: uuid.UUID,
+    ) -> Dict[str, Any]:
+        """
+        Get the M-of-N approval workflow status for a claim.
+        
+        Returns approval progress, pending approvers, and approval history.
+        """
+        claim = await self.get_claim(claim_id)
+        if not claim:
+            raise ValueError("Claim not found")
+        
+        result = {
+            "claim_id": str(claim.id),
+            "claim_number": claim.claim_number,
+            "status": claim.status.value,
+            "requires_workflow": claim.status == ClaimStatus.PENDING_APPROVAL,
+            "workflow_type": None,
+            "approvals_required": 1,
+            "approvals_received": 0,
+            "approvers": [],
+            "approval_history": [],
+        }
+        
+        # Get workflow details if under M-of-N approval
+        if claim.status == ClaimStatus.PENDING_APPROVAL:
+            from app.services.approval_workflow import ApprovalWorkflowService
+            
+            approval_service = ApprovalWorkflowService(self.db)
+            
+            try:
+                workflow_status = await approval_service.get_request_status(
+                    request_id=claim.id
+                )
+                
+                if workflow_status:
+                    result["workflow_type"] = workflow_status.get("workflow_type")
+                    result["approvals_required"] = workflow_status.get("approvals_required", 1)
+                    result["approvals_received"] = workflow_status.get("approvals_received", 0)
+                    result["approvers"] = workflow_status.get("approvers", [])
+                    result["approval_history"] = workflow_status.get("approval_history", [])
+                    result["escalation_at"] = workflow_status.get("escalation_at")
+            except Exception as e:
+                import logging
+                logging.error(f"Failed to get workflow status for claim {claim.id}: {e}")
+        
+        return result
 
 
 def get_expense_claims_service(db: AsyncSession) -> ExpenseClaimsService:

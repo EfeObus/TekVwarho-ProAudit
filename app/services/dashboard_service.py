@@ -801,6 +801,19 @@ class DashboardService:
         if user.role in [UserRole.INVENTORY_MANAGER, UserRole.OWNER, UserRole.ADMIN]:
             dashboard["inventory_summary"] = await self._get_inventory_summary(entity.id if entity else None)
         
+        # ===== NEW ADVANCED ACCOUNTING WIDGETS =====
+        # Add FX, consolidation, and budget widgets for appropriate roles
+        if user.role in [UserRole.OWNER, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.EXTERNAL_ACCOUNTANT]:
+            # FX Exposure Widget - Shows currency exposure and unrealized gains/losses
+            dashboard["fx_exposure"] = await self._get_fx_exposure_widget(entity.id if entity else None)
+            
+            # Budget Variance Widget - Shows YTD budget vs actual performance
+            dashboard["budget_variance"] = await self._get_budget_variance_widget(entity.id if entity else None)
+        
+        # Consolidated Summary Widget - Only for owners/admins with multi-entity groups
+        if user.role in [UserRole.OWNER, UserRole.ADMIN]:
+            dashboard["consolidated_summary"] = await self._get_consolidated_summary_widget(user.organization_id)
+        
         # Permission-based view restrictions (Maker-Checker SoD)
         dashboard["view_restrictions"] = self._get_view_restrictions(user.role, org_type)
         
@@ -1393,6 +1406,270 @@ class DashboardService:
             "total_value": float(total_value),
         }
     
+    async def _get_fx_exposure_widget(
+        self, 
+        entity_id: Optional[uuid.UUID]
+    ) -> Dict[str, Any]:
+        """
+        Get FX exposure summary widget for the entity.
+        
+        Shows currency exposures, unrealized gains/losses, and hedging status.
+        """
+        if not entity_id:
+            return {
+                "total_exposure_ngn": 0,
+                "currencies": [],
+                "unrealized_gain_loss": 0,
+                "hedging_coverage": 0,
+                "risk_level": "low",
+            }
+        
+        try:
+            from app.services.fx_service import FXService
+            fx_service = FXService(self.db)
+            
+            # Get FX exposure by currency
+            exposure_data = await fx_service.get_exposure_summary(entity_id)
+            
+            currencies = []
+            total_exposure = Decimal("0")
+            unrealized_gl = Decimal("0")
+            
+            for currency, data in exposure_data.get("exposures", {}).items():
+                exposure_ngn = Decimal(str(data.get("exposure_ngn", 0)))
+                total_exposure += exposure_ngn
+                unrealized_gl += Decimal(str(data.get("unrealized_gain_loss", 0)))
+                
+                currencies.append({
+                    "currency": currency,
+                    "exposure_amount": float(data.get("exposure_amount", 0)),
+                    "exposure_ngn": float(exposure_ngn),
+                    "exchange_rate": float(data.get("exchange_rate", 0)),
+                    "direction": "long" if data.get("exposure_amount", 0) > 0 else "short"
+                })
+            
+            # Calculate risk level
+            if total_exposure > Decimal("100000000"):  # 100M NGN
+                risk_level = "high"
+            elif total_exposure > Decimal("50000000"):  # 50M NGN
+                risk_level = "medium"
+            else:
+                risk_level = "low"
+            
+            return {
+                "total_exposure_ngn": float(total_exposure),
+                "currencies": sorted(currencies, key=lambda x: x["exposure_ngn"], reverse=True)[:5],
+                "unrealized_gain_loss": float(unrealized_gl),
+                "hedging_coverage": exposure_data.get("hedging_coverage_percent", 0),
+                "risk_level": risk_level,
+                "last_revaluation": exposure_data.get("last_revaluation_date"),
+            }
+        
+        except Exception as e:
+            import logging
+            logging.error(f"Error getting FX exposure widget: {e}")
+            return {
+                "total_exposure_ngn": 0,
+                "currencies": [],
+                "unrealized_gain_loss": 0,
+                "hedging_coverage": 0,
+                "risk_level": "low",
+                "error": str(e)
+            }
+    
+    async def _get_consolidated_summary_widget(
+        self, 
+        organization_id: Optional[uuid.UUID]
+    ) -> Dict[str, Any]:
+        """
+        Get consolidated financial summary for entity groups.
+        
+        Shows group-level summary including total assets, liabilities, and equity.
+        """
+        if not organization_id:
+            return {
+                "has_group": False,
+                "entities_count": 0,
+                "total_assets": 0,
+                "total_liabilities": 0,
+                "total_equity": 0,
+                "intercompany_balance": 0,
+            }
+        
+        try:
+            from app.services.consolidation_service import ConsolidationService
+            from app.models.multi_entity import EntityGroup
+            
+            consol_service = ConsolidationService(self.db)
+            
+            # Check if organization has any entity groups
+            result = await self.db.execute(
+                select(EntityGroup)
+                .where(
+                    and_(
+                        EntityGroup.organization_id == organization_id,
+                        EntityGroup.is_active == True
+                    )
+                )
+                .limit(1)
+            )
+            group = result.scalar_one_or_none()
+            
+            if not group:
+                return {
+                    "has_group": False,
+                    "entities_count": 0,
+                    "total_assets": 0,
+                    "total_liabilities": 0,
+                    "total_equity": 0,
+                    "intercompany_balance": 0,
+                }
+            
+            # Get consolidated summary
+            as_of_date = date.today()
+            summary = await consol_service.get_consolidated_balance_sheet(
+                group_id=group.id,
+                as_of_date=as_of_date
+            )
+            
+            # Get entity count in group
+            members = await consol_service.get_group_members(group.id)
+            
+            return {
+                "has_group": True,
+                "group_name": group.name,
+                "group_id": str(group.id),
+                "entities_count": len(members) if members else 0,
+                "total_assets": float(summary.get("total_assets", 0)),
+                "total_liabilities": float(summary.get("total_liabilities", 0)),
+                "total_equity": float(summary.get("total_equity", 0)),
+                "intercompany_balance": float(summary.get("intercompany_eliminations", 0)),
+                "as_of_date": as_of_date.isoformat(),
+                "minority_interest": float(summary.get("minority_interest", 0)),
+            }
+        
+        except Exception as e:
+            import logging
+            logging.error(f"Error getting consolidated summary widget: {e}")
+            return {
+                "has_group": False,
+                "entities_count": 0,
+                "total_assets": 0,
+                "total_liabilities": 0,
+                "total_equity": 0,
+                "intercompany_balance": 0,
+                "error": str(e)
+            }
+    
+    async def _get_budget_variance_widget(
+        self, 
+        entity_id: Optional[uuid.UUID]
+    ) -> Dict[str, Any]:
+        """
+        Get budget variance summary widget for the entity.
+        
+        Shows YTD budget performance, variances, and alerts.
+        """
+        if not entity_id:
+            return {
+                "has_active_budget": False,
+                "ytd_budget": 0,
+                "ytd_actual": 0,
+                "variance_percent": 0,
+                "status": "no_budget",
+                "alerts_count": 0,
+            }
+        
+        try:
+            from app.services.budget_service import BudgetService
+            from app.models.budget import Budget, BudgetStatus
+            
+            budget_service = BudgetService(self.db)
+            
+            # Get active budget for current fiscal year
+            current_year = date.today().year
+            result = await self.db.execute(
+                select(Budget)
+                .where(
+                    and_(
+                        Budget.entity_id == entity_id,
+                        Budget.status == BudgetStatus.APPROVED,
+                        Budget.fiscal_year == current_year
+                    )
+                )
+                .limit(1)
+            )
+            budget = result.scalar_one_or_none()
+            
+            if not budget:
+                return {
+                    "has_active_budget": False,
+                    "ytd_budget": 0,
+                    "ytd_actual": 0,
+                    "variance_percent": 0,
+                    "status": "no_budget",
+                    "alerts_count": 0,
+                }
+            
+            # Get YTD variance analysis
+            current_month = date.today().month
+            variance_data = await budget_service.get_budget_vs_actual(
+                entity_id=entity_id,
+                budget_id=budget.id,
+                through_month=current_month,
+                group_by="summary"
+            )
+            
+            ytd_budget = float(variance_data.get("total_budgeted", 0))
+            ytd_actual = float(variance_data.get("total_actual", 0))
+            
+            # Calculate variance percentage
+            if ytd_budget > 0:
+                variance_pct = ((ytd_actual - ytd_budget) / ytd_budget) * 100
+            else:
+                variance_pct = 0
+            
+            # Determine status
+            if abs(variance_pct) <= 5:
+                status = "on_track"
+            elif variance_pct > 5:
+                status = "over_budget"
+            else:
+                status = "under_budget"
+            
+            # Count alerts (items with > 10% variance)
+            alerts_count = 0
+            for item in variance_data.get("line_items", []):
+                if abs(item.get("variance_percent", 0)) >= 10:
+                    alerts_count += 1
+            
+            return {
+                "has_active_budget": True,
+                "budget_name": budget.name,
+                "budget_id": str(budget.id),
+                "fiscal_year": budget.fiscal_year,
+                "ytd_budget": ytd_budget,
+                "ytd_actual": ytd_actual,
+                "variance_amount": ytd_actual - ytd_budget,
+                "variance_percent": round(variance_pct, 2),
+                "status": status,
+                "alerts_count": alerts_count,
+                "through_month": current_month,
+            }
+        
+        except Exception as e:
+            import logging
+            logging.error(f"Error getting budget variance widget: {e}")
+            return {
+                "has_active_budget": False,
+                "ytd_budget": 0,
+                "ytd_actual": 0,
+                "variance_percent": 0,
+                "status": "error",
+                "alerts_count": 0,
+                "error": str(e)
+            }
+
     async def _get_tin_cac_vault(
         self,
         entity: Optional["BusinessEntity"],

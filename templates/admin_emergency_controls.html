@@ -1,1210 +1,784 @@
 {% extends "base.html" %}
 
-{% block title %}Emergency Controls - Super Admin{% endblock %}
+{% block title %}Emergency Controls - TekVwarho ProAudit{% endblock %}
 
-{% block extra_css %}
+{% block head %}
 <style>
-    :root {
-        --nigeria-green: #008751;
-        --nigeria-green-dark: #006340;
-        --danger-red: #dc3545;
-        --warning-orange: #fd7e14;
-        --success-green: #28a745;
-    }
-    
-    .emergency-header {
-        background: linear-gradient(135deg, var(--danger-red) 0%, #a71d2a 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 12px;
-        margin-bottom: 2rem;
-    }
-    
-    .emergency-header h1 {
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-    
-    .emergency-header .subtitle {
-        opacity: 0.9;
-        margin-top: 0.5rem;
-    }
-    
-    .status-card {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .status-card.active-danger {
-        border-left: 4px solid var(--danger-red);
-        background: #fff5f5;
-    }
-    
-    .status-card.active-warning {
-        border-left: 4px solid var(--warning-orange);
-        background: #fff8f0;
-    }
-    
-    .status-card.normal {
-        border-left: 4px solid var(--success-green);
-    }
-    
-    .status-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.875rem;
-    }
-    
-    .status-indicator.active {
-        background: var(--danger-red);
-        color: white;
-    }
-    
-    .status-indicator.inactive {
-        background: var(--success-green);
-        color: white;
-    }
-    
-    .control-section {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .control-section h3 {
-        color: #333;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 2px solid #f0f0f0;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .control-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 1rem;
-    }
-    
-    .control-item {
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: all 0.2s;
-    }
-    
-    .control-item:hover {
-        border-color: var(--nigeria-green);
-        box-shadow: 0 2px 8px rgba(0,135,81,0.1);
-    }
-    
-    .control-item.disabled {
-        background: #ffebee;
-        border-color: var(--danger-red);
-    }
-    
-    .control-info h4 {
-        margin: 0 0 0.25rem 0;
-        font-size: 0.95rem;
-    }
-    
-    .control-info p {
-        margin: 0;
-        font-size: 0.8rem;
-        color: #666;
-    }
-    
-    .toggle-btn {
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        border: none;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        font-size: 0.8rem;
-    }
-    
-    .toggle-btn.enable {
-        background: var(--success-green);
-        color: white;
-    }
-    
-    .toggle-btn.disable {
-        background: var(--danger-red);
-        color: white;
-    }
-    
-    .toggle-btn:hover {
-        transform: scale(1.05);
-    }
-    
-    .tenant-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    
-    .tenant-table th,
-    .tenant-table td {
-        padding: 0.75rem 1rem;
-        text-align: left;
-        border-bottom: 1px solid #e0e0e0;
-    }
-    
-    .tenant-table th {
-        background: #f8f9fa;
-        font-weight: 600;
-        color: #333;
-    }
-    
-    .tenant-table tr:hover {
-        background: #f8f9fa;
-    }
-    
-    .history-list {
-        max-height: 400px;
-        overflow-y: auto;
-    }
-    
-    .history-item {
-        padding: 1rem;
-        border-bottom: 1px solid #e0e0e0;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-    }
-    
-    .history-item:last-child {
-        border-bottom: none;
-    }
-    
-    .history-info h4 {
-        margin: 0 0 0.25rem 0;
-        font-size: 0.95rem;
-    }
-    
-    .history-info p {
-        margin: 0;
-        font-size: 0.8rem;
-        color: #666;
-    }
-    
-    .history-meta {
-        text-align: right;
-        font-size: 0.8rem;
-        color: #888;
-    }
-    
-    .badge {
-        display: inline-block;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    
-    .badge-danger {
-        background: #ffebee;
-        color: var(--danger-red);
-    }
-    
-    .badge-success {
-        background: #e8f5e9;
-        color: var(--success-green);
-    }
-    
-    .badge-warning {
-        background: #fff3e0;
-        color: var(--warning-orange);
-    }
-    
-    /* Modal styles */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-    
-    .modal-overlay.active {
-        display: flex;
-    }
-    
-    .modal-content {
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        max-width: 500px;
-        width: 90%;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
-    
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-    
-    .modal-header h3 {
-        margin: 0;
-        color: var(--danger-red);
-    }
-    
-    .modal-close {
-        background: none;
-        border: none;
-        font-size: 1.5rem;
-        cursor: pointer;
-        color: #666;
-    }
-    
-    .form-group {
-        margin-bottom: 1.25rem;
-    }
-    
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-        color: #333;
-    }
-    
-    .form-group input,
-    .form-group textarea,
-    .form-group select {
-        width: 100%;
-        padding: 0.75rem;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        font-size: 0.95rem;
-    }
-    
-    .form-group textarea {
-        min-height: 100px;
-        resize: vertical;
-    }
-    
-    .form-group .helper-text {
-        font-size: 0.8rem;
-        color: #666;
-        margin-top: 0.25rem;
-    }
-    
-    .warning-box {
-        background: #fff3e0;
-        border: 1px solid var(--warning-orange);
-        border-radius: 6px;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-        display: flex;
-        gap: 0.75rem;
-    }
-    
-    .warning-box i {
-        color: var(--warning-orange);
-        font-size: 1.25rem;
-    }
-    
-    .btn-group {
-        display: flex;
-        gap: 1rem;
-        margin-top: 1.5rem;
-    }
-    
-    .btn {
-        padding: 0.75rem 1.5rem;
-        border-radius: 6px;
-        border: none;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    
-    .btn-danger {
-        background: var(--danger-red);
-        color: white;
-    }
-    
-    .btn-secondary {
-        background: #6c757d;
-        color: white;
-    }
-    
-    .btn-success {
-        background: var(--success-green);
-        color: white;
-    }
-    
-    .btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-    
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .stat-card {
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 8px;
-        text-align: center;
-    }
-    
-    .stat-card .number {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--nigeria-green);
-    }
-    
-    .stat-card.danger .number {
-        color: var(--danger-red);
-    }
-    
-    .stat-card .label {
-        font-size: 0.85rem;
-        color: #666;
-    }
-    
-    /* Loading spinner */
-    .loading {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 2px solid #f3f3f3;
-        border-top: 2px solid var(--nigeria-green);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    
-    /* Toast notifications */
-    .toast-container {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 2000;
-    }
-    
-    .toast {
-        background: #333;
-        color: white;
-        padding: 1rem 1.5rem;
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        animation: slideIn 0.3s ease;
-    }
-    
-    .toast.success {
-        background: var(--success-green);
-    }
-    
-    .toast.error {
-        background: var(--danger-red);
-    }
-    
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
+    :root { --ng-green: #008751; --ng-green-dark: #006741; --ng-green-light: #e6f5ed; }
+    .btn-primary { background: var(--ng-green); color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; border: none; cursor: pointer; }
+    .btn-primary:hover { background: var(--ng-green-dark); }
+    .btn-danger { background: #dc2626; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.375rem; border: none; cursor: pointer; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-secondary { background: white; color: #374151; border: 1px solid #d1d5db; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; }
+    .btn-secondary:hover { background: #f9fafb; }
+    .btn-success { background: var(--ng-green); color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; border: none; cursor: pointer; }
+    .btn-success:hover { background: var(--ng-green-dark); }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { background: var(--ng-green-light); color: var(--ng-green-dark); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; padding: 0.75rem 1rem; text-align: left; }
+    .data-table td { padding: 0.875rem 1rem; font-size: 0.875rem; border-bottom: 1px solid #f3f4f6; }
+    .data-table tr:hover td { background: #fafbfc; }
+    .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #dbeafe; color: #1e40af; }
+    .stat-card { background: white; border-radius: 0.75rem; padding: 1.25rem; border: 1px solid #e5e7eb; }
+    .section-card { background: white; border-radius: 0.75rem; border: 1px solid #e5e7eb; margin-bottom: 1.5rem; }
+    .section-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; }
+    .section-header h3 { font-size: 1rem; font-weight: 600; color: #111827; margin: 0; }
+    .section-body { padding: 1.5rem; }
+    .control-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .control-item { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; }
+    .control-item:hover { border-color: var(--ng-green); box-shadow: 0 2px 8px rgba(0,135,81,0.1); }
+    .control-item.disabled { background: #fef2f2; border-color: #fecaca; }
+    .control-info h4 { margin: 0 0 0.25rem 0; font-size: 0.875rem; font-weight: 600; color: #111827; }
+    .control-info p { margin: 0; font-size: 0.75rem; color: #6b7280; }
+    .toggle-btn { padding: 0.375rem 0.75rem; border-radius: 0.375rem; border: none; font-weight: 500; cursor: pointer; font-size: 0.75rem; }
+    .toggle-btn.enable { background: var(--ng-green); color: white; }
+    .toggle-btn.enable:hover { background: var(--ng-green-dark); }
+    .toggle-btn.disable { background: #dc2626; color: white; }
+    .toggle-btn.disable:hover { background: #b91c1c; }
+    .status-banner { padding: 1rem 1.5rem; border-radius: 0.75rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .status-banner.normal { background: var(--ng-green-light); border: 1px solid var(--ng-green); }
+    .status-banner.warning { background: #fef3c7; border: 1px solid #f59e0b; }
+    .status-banner.danger { background: #fee2e2; border: 1px solid #dc2626; }
+    .status-badge { padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 600; font-size: 0.75rem; }
+    .status-badge.normal { background: var(--ng-green); color: white; }
+    .status-badge.warning { background: #f59e0b; color: white; }
+    .status-badge.danger { background: #dc2626; color: white; }
+    .warning-box { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; display: flex; gap: 0.75rem; align-items: flex-start; }
+    .warning-box svg { flex-shrink: 0; width: 1.25rem; height: 1.25rem; color: #f59e0b; }
+    [x-cloak] { display: none !important; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid p-4">
+<div x-data="emergencyControlsPage()" class="min-h-screen bg-gray-50">
     <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
-    
-    <!-- Header -->
-    <div class="emergency-header">
-        <h1>
-            <i class="fas fa-exclamation-triangle"></i>
-            Emergency Controls
-        </h1>
-        <p class="subtitle">
-            <i class="fas fa-shield-alt"></i>
-            Super Admin Only - All actions are fully audited
-        </p>
+    <div x-show="toast.show" x-transition x-cloak class="fixed top-4 right-4 z-50">
+        <div :class="toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'" class="text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <span x-text="toast.message"></span>
+        </div>
     </div>
-    
-    <!-- Current Platform Status -->
-    <div class="status-card {% if platform_status.is_read_only or platform_status.is_maintenance_mode %}active-danger{% elif platform_status.disabled_features|length > 0 %}active-warning{% else %}normal{% endif %}">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h3 style="margin: 0;">
-                <i class="fas fa-heartbeat"></i>
-                Platform Status
-            </h3>
-            <div>
+
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900">Emergency Controls</h1>
+                    <p class="text-sm text-gray-500">Super Admin Only - All actions are fully audited</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">Platform Status:</span>
                 {% if platform_status.is_maintenance_mode %}
-                    <span class="status-indicator active">
-                        <i class="fas fa-tools"></i> MAINTENANCE MODE
-                    </span>
+                <span class="status-badge danger">MAINTENANCE MODE</span>
                 {% elif platform_status.is_read_only %}
-                    <span class="status-indicator active">
-                        <i class="fas fa-lock"></i> READ-ONLY MODE
-                    </span>
+                <span class="status-badge danger">READ-ONLY MODE</span>
                 {% elif platform_status.disabled_features|length > 0 %}
-                    <span class="status-indicator" style="background: var(--warning-orange); color: white;">
-                        <i class="fas fa-exclamation"></i> {{ platform_status.disabled_features|length }} FEATURES DISABLED
-                    </span>
+                <span class="status-badge warning">{{ platform_status.disabled_features|length }} FEATURES DISABLED</span>
                 {% else %}
-                    <span class="status-indicator inactive">
-                        <i class="fas fa-check-circle"></i> NORMAL OPERATIONS
-                    </span>
+                <span class="status-badge normal">NORMAL OPERATIONS</span>
                 {% endif %}
             </div>
         </div>
-        
-        <div class="stats-grid">
-            <div class="stat-card {% if active_controls_count > 0 %}danger{% endif %}">
-                <div class="number">{{ active_controls_count }}</div>
-                <div class="label">Active Controls</div>
-            </div>
-            <div class="stat-card {% if suspended_tenants_count > 0 %}danger{% endif %}">
-                <div class="number">{{ suspended_tenants_count }}</div>
-                <div class="label">Suspended Tenants</div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="p-6">
+        <!-- Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Active Controls</p>
+                <p class="text-2xl font-bold {% if active_controls_count > 0 %}text-red-600{% else %}text-gray-900{% endif %}">{{ active_controls_count }}</p>
             </div>
             <div class="stat-card">
-                <div class="number">{{ platform_status.disabled_features|length }}</div>
-                <div class="label">Disabled Features</div>
+                <p class="text-sm text-gray-500">Suspended Tenants</p>
+                <p class="text-2xl font-bold {% if suspended_tenants_count > 0 %}text-red-600{% else %}text-gray-900{% endif %}">{{ suspended_tenants_count }}</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Disabled Features</p>
+                <p class="text-2xl font-bold {% if platform_status.disabled_features|length > 0 %}text-yellow-600{% else %}text-gray-900{% endif %}">{{ platform_status.disabled_features|length }}</p>
+            </div>
+            <div class="stat-card">
+                <p class="text-sm text-gray-500">Login Status</p>
+                <p class="text-2xl font-bold {% if platform_status.is_login_locked %}text-red-600{% else %}text-green-600{% endif %}">{% if platform_status.is_login_locked %}LOCKED{% else %}OPEN{% endif %}</p>
             </div>
         </div>
-        
+
         {% if platform_status.maintenance_message %}
-        <div class="warning-box">
-            <i class="fas fa-info-circle"></i>
+        <!-- Maintenance Message Banner -->
+        <div class="status-banner danger mb-6">
             <div>
-                <strong>Maintenance Message:</strong><br>
-                {{ platform_status.maintenance_message }}
+                <p class="font-semibold text-red-800">Maintenance Message Active</p>
+                <p class="text-sm text-red-700">{{ platform_status.maintenance_message }}</p>
                 {% if platform_status.maintenance_expected_end %}
-                <br><small>Expected end: {{ platform_status.maintenance_expected_end }}</small>
+                <p class="text-xs text-red-600 mt-1">Expected end: {{ platform_status.maintenance_expected_end }}</p>
                 {% endif %}
             </div>
         </div>
         {% endif %}
-    </div>
-    
-    <!-- Platform-Wide Controls -->
-    <div class="control-section">
-        <h3>
-            <i class="fas fa-globe"></i>
-            Platform-Wide Controls
-        </h3>
-        
-        <div class="control-grid">
-            <!-- Read-Only Mode -->
-            <div class="control-item {% if platform_status.is_read_only %}disabled{% endif %}">
-                <div class="control-info">
-                    <h4><i class="fas fa-lock"></i> Read-Only Mode</h4>
-                    <p>Block all write operations</p>
-                </div>
-                {% if platform_status.is_read_only %}
-                    <button class="toggle-btn enable" onclick="showDisableReadOnlyModal()">
-                        <i class="fas fa-unlock"></i> Disable
-                    </button>
-                {% else %}
-                    <button class="toggle-btn disable" onclick="showEnableReadOnlyModal()">
-                        <i class="fas fa-lock"></i> Enable
-                    </button>
-                {% endif %}
+
+        <!-- Platform-Wide Controls -->
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Platform-Wide Controls</h3>
             </div>
-            
-            <!-- Maintenance Mode -->
-            <div class="control-item {% if platform_status.is_maintenance_mode %}disabled{% endif %}">
-                <div class="control-info">
-                    <h4><i class="fas fa-tools"></i> Maintenance Mode</h4>
-                    <p>Block all non-admin access</p>
-                </div>
-                {% if platform_status.is_maintenance_mode %}
-                    <button class="toggle-btn enable" onclick="showDisableMaintenanceModal()">
-                        <i class="fas fa-play"></i> End
-                    </button>
-                {% else %}
-                    <button class="toggle-btn disable" onclick="showEnableMaintenanceModal()">
-                        <i class="fas fa-stop"></i> Start
-                    </button>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <!-- Feature Kill Switches -->
-    <div class="control-section">
-        <h3>
-            <i class="fas fa-power-off"></i>
-            Feature Kill Switches
-        </h3>
-        
-        <div class="control-grid">
-            {% for feature in available_features %}
-            <div class="control-item {% if feature.key in platform_status.disabled_features %}disabled{% endif %}">
-                <div class="control-info">
-                    <h4>{{ feature.name }}</h4>
-                    <p>{{ feature.description }}</p>
-                </div>
-                {% if feature.key in platform_status.disabled_features %}
-                    <button class="toggle-btn enable" onclick="showEnableFeatureModal('{{ feature.key }}', '{{ feature.name }}')">
-                        <i class="fas fa-toggle-on"></i> Enable
-                    </button>
-                {% else %}
-                    <button class="toggle-btn disable" onclick="showDisableFeatureModal('{{ feature.key }}', '{{ feature.name }}')">
-                        <i class="fas fa-toggle-off"></i> Disable
-                    </button>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    
-    <!-- Emergency Tenant Suspension -->
-    <div class="control-section">
-        <h3>
-            <i class="fas fa-building"></i>
-            Emergency Tenant Suspension
-        </h3>
-        
-        <div style="margin-bottom: 1rem;">
-            <button class="btn btn-danger" onclick="showSuspendTenantModal()">
-                <i class="fas fa-ban"></i> Suspend Tenant
-            </button>
-        </div>
-        
-        {% if suspended_tenants %}
-        <table class="tenant-table">
-            <thead>
-                <tr>
-                    <th>Tenant Name</th>
-                    <th>Suspended At</th>
-                    <th>Reason</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for tenant in suspended_tenants %}
-                <tr>
-                    <td><strong>{{ tenant.name }}</strong></td>
-                    <td>{{ tenant.suspended_at|default('N/A') }}</td>
-                    <td>{{ tenant.reason|truncate(50) }}</td>
-                    <td>
-                        <button class="toggle-btn enable" onclick="showLiftSuspensionModal('{{ tenant.id }}', '{{ tenant.name }}')">
-                            <i class="fas fa-unlock"></i> Lift
-                        </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p style="color: #666; text-align: center; padding: 2rem;">
-            <i class="fas fa-check-circle" style="color: var(--success-green);"></i>
-            No tenants are currently emergency suspended.
-        </p>
-        {% endif %}
-    </div>
-    
-    <!-- Recent Activity -->
-    <div class="control-section">
-        <h3>
-            <i class="fas fa-history"></i>
-            Recent Emergency Actions
-        </h3>
-        
-        <div class="history-list">
-            {% for control in recent_controls %}
-            <div class="history-item">
-                <div class="history-info">
-                    <h4>
-                        {{ control.action_type.replace('_', ' ').title() }}
-                        {% if control.is_active %}
-                            <span class="badge badge-danger">ACTIVE</span>
+            <div class="section-body">
+                <div class="control-grid">
+                    <!-- Read-Only Mode -->
+                    <div class="control-item {% if platform_status.is_read_only %}disabled{% endif %}">
+                        <div class="control-info">
+                            <h4>Read-Only Mode</h4>
+                            <p>Block all write operations</p>
+                        </div>
+                        {% if platform_status.is_read_only %}
+                        <button class="toggle-btn enable" @click="showDisableReadOnlyModal()">Disable</button>
                         {% else %}
-                            <span class="badge badge-success">RESOLVED</span>
+                        <button class="toggle-btn disable" @click="showEnableReadOnlyModal()">Enable</button>
                         {% endif %}
-                    </h4>
-                    <p>
-                        {% if control.target_id %}
-                            Target: {{ control.target_type }} - {{ control.target_id }}
-                        {% else %}
-                            Target: {{ control.target_type }}
-                        {% endif %}
-                        <br>
-                        Reason: {{ control.reason|truncate(100) }}
-                    </p>
-                </div>
-                <div class="history-meta">
-                    <div>{{ control.started_at }}</div>
-                    {% if control.ended_at %}
-                    <div style="color: var(--success-green);">
-                        Ended: {{ control.ended_at }}
                     </div>
-                    {% endif %}
+                    
+                    <!-- Maintenance Mode -->
+                    <div class="control-item {% if platform_status.is_maintenance_mode %}disabled{% endif %}">
+                        <div class="control-info">
+                            <h4>Maintenance Mode</h4>
+                            <p>Block all non-admin access</p>
+                        </div>
+                        {% if platform_status.is_maintenance_mode %}
+                        <button class="toggle-btn enable" @click="showDisableMaintenanceModal()">End</button>
+                        {% else %}
+                        <button class="toggle-btn disable" @click="showEnableMaintenanceModal()">Start</button>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Login Lockdown -->
+                    <div class="control-item {% if platform_status.is_login_locked %}disabled{% endif %}">
+                        <div class="control-info">
+                            <h4>Login Lockdown</h4>
+                            <p>Block non-admin logins</p>
+                        </div>
+                        {% if platform_status.is_login_locked %}
+                        <button class="toggle-btn enable" @click="showDisableLoginLockdownModal()">Unlock</button>
+                        {% else %}
+                        <button class="toggle-btn disable" @click="showEnableLoginLockdownModal()">Lock</button>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-            {% else %}
-            <p style="color: #666; text-align: center; padding: 2rem;">
-                No emergency actions recorded yet.
-            </p>
-            {% endfor %}
         </div>
-    </div>
-</div>
 
-<!-- Modals -->
+        <!-- Feature Kill Switches -->
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Feature Kill Switches</h3>
+                <span class="text-sm text-gray-500">Toggle individual features on/off</span>
+            </div>
+            <div class="section-body">
+                <div class="control-grid">
+                    {% for feature in available_features %}
+                    <div class="control-item {% if feature.key in platform_status.disabled_features %}disabled{% endif %}">
+                        <div class="control-info">
+                            <h4>{{ feature.name }}</h4>
+                            <p>{{ feature.description }}</p>
+                        </div>
+                        {% if feature.key in platform_status.disabled_features %}
+                        <button class="toggle-btn enable" @click="showEnableFeatureModal('{{ feature.key }}', '{{ feature.name }}')">Enable</button>
+                        {% else %}
+                        <button class="toggle-btn disable" @click="showDisableFeatureModal('{{ feature.key }}', '{{ feature.name }}')">Disable</button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
 
-<!-- Enable Read-Only Mode Modal -->
-<div class="modal-overlay" id="enableReadOnlyModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-lock"></i> Enable Read-Only Mode</h3>
-            <button class="modal-close" onclick="closeModal('enableReadOnlyModal')">&times;</button>
-        </div>
-        
-        <div class="warning-box">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div>
-                <strong>Warning!</strong> This will block ALL write operations platform-wide.
-                Only read operations will be permitted.
-            </div>
-        </div>
-        
-        <form id="enableReadOnlyForm">
-            <div class="form-group">
-                <label for="readOnlyReason">Reason (Required) *</label>
-                <textarea id="readOnlyReason" name="reason" required minlength="10" maxlength="1000"
-                    placeholder="Explain why read-only mode is being enabled..."></textarea>
-                <p class="helper-text">Minimum 10 characters. Be specific about the reason.</p>
-            </div>
-            
-            <div class="form-group">
-                <label for="readOnlyMessage">User Message (Optional)</label>
-                <input type="text" id="readOnlyMessage" name="message" maxlength="500"
-                    placeholder="Message to display to users...">
-            </div>
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('enableReadOnlyModal')">Cancel</button>
-                <button type="submit" class="btn btn-danger">
-                    <i class="fas fa-lock"></i> Enable Read-Only Mode
+        <!-- Emergency Tenant Suspension -->
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Emergency Tenant Suspension</h3>
+                <button class="btn-danger" @click="showSuspendTenantModal()">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                    Suspend Tenant
                 </button>
             </div>
-        </form>
+            <div class="section-body">
+                {% if suspended_tenants %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Tenant</th>
+                            <th>Suspended At</th>
+                            <th>Reason</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tenant in suspended_tenants %}
+                        <tr>
+                            <td class="font-medium">{{ tenant.name }}</td>
+                            <td class="text-gray-500">{{ tenant.suspended_at }}</td>
+                            <td class="text-gray-600">{{ tenant.reason[:50] }}{% if tenant.reason|length > 50 %}...{% endif %}</td>
+                            <td>
+                                <button class="toggle-btn enable" @click="showLiftSuspensionModal('{{ tenant.id }}', '{{ tenant.name }}')">Lift Suspension</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center py-8 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <p>No tenants are currently emergency suspended.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Emergency Actions -->
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Recent Emergency Actions</h3>
+            </div>
+            <div class="section-body">
+                {% if recent_controls %}
+                <div class="space-y-3 max-h-96 overflow-y-auto">
+                    {% for control in recent_controls %}
+                    <div class="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-gray-900">{{ control.action_type.replace('_', ' ').title() }}</span>
+                                {% if control.is_active %}
+                                <span class="badge badge-danger">ACTIVE</span>
+                                {% else %}
+                                <span class="badge badge-success">RESOLVED</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">
+                                {% if control.target_id %}Target: {{ control.target_type }} - {{ control.target_id[:8] }}...{% else %}Target: {{ control.target_type }}{% endif %}
+                            </p>
+                            <p class="text-sm text-gray-500">{{ control.reason[:80] }}{% if control.reason|length > 80 %}...{% endif %}</p>
+                        </div>
+                        <div class="text-right text-xs text-gray-500">
+                            <div>{{ control.started_at }}</div>
+                            {% if control.ended_at %}
+                            <div class="text-green-600">Ended: {{ control.ended_at }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-8 text-gray-500">
+                    <p>No emergency actions recorded yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Enable Read-Only Mode Modal -->
+    <div x-show="modals.enableReadOnly" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.enableReadOnly = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Enable Read-Only Mode</h3>
+                    <button @click="modals.enableReadOnly = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <div class="warning-box">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div class="text-sm text-yellow-800">
+                        <strong>Warning!</strong> This will block ALL write operations platform-wide. Only read operations will be permitted.
+                    </div>
+                </div>
+                <form @submit.prevent="submitEnableReadOnly()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.readOnly.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why read-only mode is being enabled..."></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">User Message (Optional)</label>
+                        <input type="text" x-model="forms.readOnly.message" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Message to display to users...">
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.enableReadOnly = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-danger" :disabled="loading">Enable Read-Only Mode</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disable Read-Only Mode Modal -->
+    <div x-show="modals.disableReadOnly" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.disableReadOnly = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Disable Read-Only Mode</h3>
+                    <button @click="modals.disableReadOnly = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <form @submit.prevent="submitDisableReadOnly()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.disableReadOnly.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why read-only mode is being disabled..."></textarea>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.disableReadOnly = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-success" :disabled="loading">Disable Read-Only Mode</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enable Maintenance Mode Modal -->
+    <div x-show="modals.enableMaintenance" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.enableMaintenance = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Enable Maintenance Mode</h3>
+                    <button @click="modals.enableMaintenance = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <div class="warning-box">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div class="text-sm text-yellow-800">
+                        <strong>Warning!</strong> This will block ALL non-admin users from accessing the platform.
+                    </div>
+                </div>
+                <form @submit.prevent="submitEnableMaintenance()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.maintenance.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why maintenance is needed..."></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">User Message (Required) *</label>
+                        <input type="text" x-model="forms.maintenance.message" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Message to display to users...">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Expected End Time (Optional)</label>
+                        <input type="datetime-local" x-model="forms.maintenance.expectedEnd" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.enableMaintenance = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-danger" :disabled="loading">Start Maintenance</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disable Maintenance Mode Modal -->
+    <div x-show="modals.disableMaintenance" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.disableMaintenance = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">End Maintenance Mode</h3>
+                    <button @click="modals.disableMaintenance = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <form @submit.prevent="submitDisableMaintenance()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.disableMaintenance.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why maintenance is ending..."></textarea>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.disableMaintenance = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-success" :disabled="loading">End Maintenance</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enable Login Lockdown Modal -->
+    <div x-show="modals.enableLoginLockdown" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.enableLoginLockdown = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Enable Login Lockdown</h3>
+                    <button @click="modals.enableLoginLockdown = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <div class="warning-box">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div class="text-sm text-yellow-800">
+                        <strong>Warning!</strong> This will prevent all non-admin users from logging in.
+                    </div>
+                </div>
+                <form @submit.prevent="submitEnableLoginLockdown()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.loginLockdown.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why login lockdown is being enabled..."></textarea>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.enableLoginLockdown = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-danger" :disabled="loading">Lock Logins</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disable Login Lockdown Modal -->
+    <div x-show="modals.disableLoginLockdown" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.disableLoginLockdown = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Disable Login Lockdown</h3>
+                    <button @click="modals.disableLoginLockdown = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <form @submit.prevent="submitDisableLoginLockdown()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.disableLoginLockdown.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why login lockdown is being disabled..."></textarea>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.disableLoginLockdown = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-success" :disabled="loading">Unlock Logins</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feature Toggle Modal -->
+    <div x-show="modals.feature" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.feature = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900" x-text="forms.feature.action === 'disable' ? 'Disable ' + forms.feature.name : 'Enable ' + forms.feature.name"></h3>
+                    <button @click="modals.feature = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <div x-show="forms.feature.action === 'disable'" class="warning-box">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div class="text-sm text-yellow-800">
+                        <strong>Warning!</strong> This will disable the <span x-text="forms.feature.name"></span> feature for ALL users.
+                    </div>
+                </div>
+                <form @submit.prevent="submitFeatureToggle()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.feature.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why this feature is being toggled..."></textarea>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.feature = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" :class="forms.feature.action === 'disable' ? 'btn-danger' : 'btn-success'" :disabled="loading" x-text="forms.feature.action === 'disable' ? 'Disable Feature' : 'Enable Feature'"></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Suspend Tenant Modal -->
+    <div x-show="modals.suspendTenant" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.suspendTenant = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Emergency Suspend Tenant</h3>
+                    <button @click="modals.suspendTenant = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <div class="warning-box">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div class="text-sm text-yellow-800">
+                        <strong>Warning!</strong> This will immediately block ALL access for the tenant's users.
+                    </div>
+                </div>
+                <form @submit.prevent="submitSuspendTenant()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tenant ID *</label>
+                        <input type="text" x-model="forms.suspend.tenantId" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Enter tenant UUID...">
+                        <p class="text-xs text-gray-500 mt-1">You can find tenant IDs in the Tenants section.</p>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.suspend.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why this tenant is being suspended..."></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" x-model="forms.suspend.notifyUsers" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                            Notify tenant users via email
+                        </label>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.suspendTenant = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-danger" :disabled="loading">Suspend Tenant</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lift Suspension Modal -->
+    <div x-show="modals.liftSuspension" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="modals.liftSuspension = false"></div>
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Lift Emergency Suspension</h3>
+                    <button @click="modals.liftSuspension = false" class="text-gray-400 hover:text-gray-600">x</button>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">Lifting suspension for: <strong x-text="forms.lift.tenantName"></strong></p>
+                <form @submit.prevent="submitLiftSuspension()">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason (Required) *</label>
+                        <textarea x-model="forms.lift.reason" required minlength="10" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Explain why suspension is being lifted..."></textarea>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" @click="modals.liftSuspension = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-success" :disabled="loading">Lift Suspension</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
-
-<!-- Disable Read-Only Mode Modal -->
-<div class="modal-overlay" id="disableReadOnlyModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-unlock"></i> Disable Read-Only Mode</h3>
-            <button class="modal-close" onclick="closeModal('disableReadOnlyModal')">&times;</button>
-        </div>
-        
-        <form id="disableReadOnlyForm">
-            <div class="form-group">
-                <label for="disableReadOnlyReason">Reason (Required) *</label>
-                <textarea id="disableReadOnlyReason" name="reason" required minlength="10" maxlength="1000"
-                    placeholder="Explain why read-only mode is being disabled..."></textarea>
-            </div>
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('disableReadOnlyModal')">Cancel</button>
-                <button type="submit" class="btn btn-success">
-                    <i class="fas fa-unlock"></i> Disable Read-Only Mode
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Enable Maintenance Mode Modal -->
-<div class="modal-overlay" id="enableMaintenanceModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-tools"></i> Enable Maintenance Mode</h3>
-            <button class="modal-close" onclick="closeModal('enableMaintenanceModal')">&times;</button>
-        </div>
-        
-        <div class="warning-box">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div>
-                <strong>Warning!</strong> This will block ALL non-admin users from accessing the platform.
-            </div>
-        </div>
-        
-        <form id="enableMaintenanceForm">
-            <div class="form-group">
-                <label for="maintenanceReason">Reason (Required) *</label>
-                <textarea id="maintenanceReason" name="reason" required minlength="10" maxlength="1000"
-                    placeholder="Explain why maintenance is needed..."></textarea>
-            </div>
-            
-            <div class="form-group">
-                <label for="maintenanceMessage">User Message (Required) *</label>
-                <input type="text" id="maintenanceMessage" name="message" required minlength="5" maxlength="500"
-                    placeholder="Message to display to users...">
-            </div>
-            
-            <div class="form-group">
-                <label for="maintenanceExpectedEnd">Expected End Time (Optional)</label>
-                <input type="datetime-local" id="maintenanceExpectedEnd" name="expected_end">
-            </div>
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('enableMaintenanceModal')">Cancel</button>
-                <button type="submit" class="btn btn-danger">
-                    <i class="fas fa-tools"></i> Start Maintenance
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Disable Maintenance Mode Modal -->
-<div class="modal-overlay" id="disableMaintenanceModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-play"></i> End Maintenance Mode</h3>
-            <button class="modal-close" onclick="closeModal('disableMaintenanceModal')">&times;</button>
-        </div>
-        
-        <form id="disableMaintenanceForm">
-            <div class="form-group">
-                <label for="disableMaintenanceReason">Reason (Required) *</label>
-                <textarea id="disableMaintenanceReason" name="reason" required minlength="10" maxlength="1000"
-                    placeholder="Explain why maintenance is ending..."></textarea>
-            </div>
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('disableMaintenanceModal')">Cancel</button>
-                <button type="submit" class="btn btn-success">
-                    <i class="fas fa-play"></i> End Maintenance
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Feature Kill Switch Modal -->
-<div class="modal-overlay" id="featureModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="featureModalTitle"><i class="fas fa-power-off"></i> Toggle Feature</h3>
-            <button class="modal-close" onclick="closeModal('featureModal')">&times;</button>
-        </div>
-        
-        <div class="warning-box" id="featureWarningBox">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div id="featureWarningText"></div>
-        </div>
-        
-        <form id="featureForm">
-            <input type="hidden" id="featureKey" name="feature_key">
-            <input type="hidden" id="featureAction" name="action">
-            
-            <div class="form-group">
-                <label for="featureReason">Reason (Required) *</label>
-                <textarea id="featureReason" name="reason" required minlength="10" maxlength="1000"
-                    placeholder="Explain why this feature is being toggled..."></textarea>
-            </div>
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('featureModal')">Cancel</button>
-                <button type="submit" class="btn" id="featureSubmitBtn">Confirm</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Suspend Tenant Modal -->
-<div class="modal-overlay" id="suspendTenantModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-ban"></i> Emergency Suspend Tenant</h3>
-            <button class="modal-close" onclick="closeModal('suspendTenantModal')">&times;</button>
-        </div>
-        
-        <div class="warning-box">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div>
-                <strong>Warning!</strong> This will immediately block ALL access for the tenant's users.
-            </div>
-        </div>
-        
-        <form id="suspendTenantForm">
-            <div class="form-group">
-                <label for="tenantId">Tenant ID *</label>
-                <input type="text" id="tenantId" name="tenant_id" required
-                    placeholder="Enter tenant UUID...">
-                <p class="helper-text">You can find tenant IDs in the Tenants section.</p>
-            </div>
-            
-            <div class="form-group">
-                <label for="suspendReason">Reason (Required) *</label>
-                <textarea id="suspendReason" name="reason" required minlength="10" maxlength="1000"
-                    placeholder="Explain why this tenant is being suspended..."></textarea>
-            </div>
-            
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="notifyUsers" name="notify_users" checked>
-                    Notify tenant users via email
-                </label>
-            </div>
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('suspendTenantModal')">Cancel</button>
-                <button type="submit" class="btn btn-danger">
-                    <i class="fas fa-ban"></i> Suspend Tenant
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Lift Suspension Modal -->
-<div class="modal-overlay" id="liftSuspensionModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-unlock"></i> Lift Emergency Suspension</h3>
-            <button class="modal-close" onclick="closeModal('liftSuspensionModal')">&times;</button>
-        </div>
-        
-        <p id="liftSuspensionInfo"></p>
-        
-        <form id="liftSuspensionForm">
-            <input type="hidden" id="liftTenantId" name="tenant_id">
-            
-            <div class="form-group">
-                <label for="liftReason">Reason (Required) *</label>
-                <textarea id="liftReason" name="reason" required minlength="10" maxlength="1000"
-                    placeholder="Explain why suspension is being lifted..."></textarea>
-            </div>
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('liftSuspensionModal')">Cancel</button>
-                <button type="submit" class="btn btn-success">
-                    <i class="fas fa-unlock"></i> Lift Suspension
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    const API_BASE = '/api/v1/admin/emergency';
-    
-    // Modal functions
-    function showModal(modalId) {
-        document.getElementById(modalId).classList.add('active');
-    }
-    
-    function closeModal(modalId) {
-        document.getElementById(modalId).classList.remove('active');
-    }
-    
-    // Toast notifications
-    function showToast(message, type = 'success') {
-        const container = document.getElementById('toastContainer');
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
-            <span>${message}</span>
-        `;
-        container.appendChild(toast);
+function emergencyControlsPage() {
+    return {
+        loading: false,
+        toast: { show: false, message: '', type: 'success' },
+        modals: {
+            enableReadOnly: false,
+            disableReadOnly: false,
+            enableMaintenance: false,
+            disableMaintenance: false,
+            enableLoginLockdown: false,
+            disableLoginLockdown: false,
+            feature: false,
+            suspendTenant: false,
+            liftSuspension: false
+        },
+        forms: {
+            readOnly: { reason: '', message: '' },
+            disableReadOnly: { reason: '' },
+            maintenance: { reason: '', message: '', expectedEnd: '' },
+            disableMaintenance: { reason: '' },
+            loginLockdown: { reason: '' },
+            disableLoginLockdown: { reason: '' },
+            feature: { key: '', name: '', action: '', reason: '' },
+            suspend: { tenantId: '', reason: '', notifyUsers: true },
+            lift: { tenantId: '', tenantName: '', reason: '' }
+        },
+
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 4000);
+        },
+
+        showEnableReadOnlyModal() { this.modals.enableReadOnly = true; },
+        showDisableReadOnlyModal() { this.modals.disableReadOnly = true; },
+        showEnableMaintenanceModal() { this.modals.enableMaintenance = true; },
+        showDisableMaintenanceModal() { this.modals.disableMaintenance = true; },
+        showEnableLoginLockdownModal() { this.modals.enableLoginLockdown = true; },
+        showDisableLoginLockdownModal() { this.modals.disableLoginLockdown = true; },
+        showSuspendTenantModal() { this.modals.suspendTenant = true; },
         
-        setTimeout(() => {
-            toast.remove();
-        }, 5000);
-    }
-    
-    // Read-Only Mode
-    function showEnableReadOnlyModal() {
-        showModal('enableReadOnlyModal');
-    }
-    
-    function showDisableReadOnlyModal() {
-        showModal('disableReadOnlyModal');
-    }
-    
-    document.getElementById('enableReadOnlyForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`${API_BASE}/read-only-mode/enable`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    reason: formData.get('reason'),
-                    message: formData.get('message') || null
-                })
-            });
-            
-            if (response.ok) {
-                showToast('Read-only mode enabled successfully');
-                closeModal('enableReadOnlyModal');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                const error = await response.json();
-                showToast(error.detail || 'Failed to enable read-only mode', 'error');
-            }
-        } catch (err) {
-            showToast('Network error. Please try again.', 'error');
+        showDisableFeatureModal(key, name) {
+            this.forms.feature = { key, name, action: 'disable', reason: '' };
+            this.modals.feature = true;
+        },
+        showEnableFeatureModal(key, name) {
+            this.forms.feature = { key, name, action: 'enable', reason: '' };
+            this.modals.feature = true;
+        },
+        showLiftSuspensionModal(tenantId, tenantName) {
+            this.forms.lift = { tenantId, tenantName, reason: '' };
+            this.modals.liftSuspension = true;
+        },
+
+        async submitEnableReadOnly() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/v1/admin/emergency/read-only-mode/enable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: this.forms.readOnly.reason, message: this.forms.readOnly.message || null })
+                });
+                if (res.ok) {
+                    this.showToast('Read-only mode enabled successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to enable read-only mode', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitDisableReadOnly() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/v1/admin/emergency/read-only-mode/disable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: this.forms.disableReadOnly.reason })
+                });
+                if (res.ok) {
+                    this.showToast('Read-only mode disabled successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to disable read-only mode', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitEnableMaintenance() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/v1/admin/emergency/maintenance-mode/enable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reason: this.forms.maintenance.reason,
+                        message: this.forms.maintenance.message,
+                        expected_end: this.forms.maintenance.expectedEnd || null
+                    })
+                });
+                if (res.ok) {
+                    this.showToast('Maintenance mode enabled successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to enable maintenance mode', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitDisableMaintenance() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/v1/admin/emergency/maintenance-mode/disable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: this.forms.disableMaintenance.reason })
+                });
+                if (res.ok) {
+                    this.showToast('Maintenance mode disabled successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to disable maintenance mode', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitEnableLoginLockdown() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/v1/admin/emergency/login-lockdown/enable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: this.forms.loginLockdown.reason })
+                });
+                if (res.ok) {
+                    this.showToast('Login lockdown enabled successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to enable login lockdown', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitDisableLoginLockdown() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/v1/admin/emergency/login-lockdown/disable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: this.forms.disableLoginLockdown.reason })
+                });
+                if (res.ok) {
+                    this.showToast('Login lockdown disabled successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to disable login lockdown', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitFeatureToggle() {
+            this.loading = true;
+            try {
+                const res = await fetch(`/api/v1/admin/emergency/kill-switch/${this.forms.feature.key}/${this.forms.feature.action}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: this.forms.feature.reason })
+                });
+                if (res.ok) {
+                    this.showToast(`Feature ${this.forms.feature.action}d successfully`);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || `Failed to ${this.forms.feature.action} feature`, 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitSuspendTenant() {
+            this.loading = true;
+            try {
+                const res = await fetch(`/api/v1/admin/emergency/tenant/${this.forms.suspend.tenantId}/emergency-suspend`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reason: this.forms.suspend.reason,
+                        notify_users: this.forms.suspend.notifyUsers
+                    })
+                });
+                if (res.ok) {
+                    this.showToast('Tenant suspended successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to suspend tenant', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
+        },
+
+        async submitLiftSuspension() {
+            this.loading = true;
+            try {
+                const res = await fetch(`/api/v1/admin/emergency/tenant/${this.forms.lift.tenantId}/lift-suspension`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: this.forms.lift.reason })
+                });
+                if (res.ok) {
+                    this.showToast('Suspension lifted successfully');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    const err = await res.json();
+                    this.showToast(err.detail || 'Failed to lift suspension', 'error');
+                }
+            } catch (e) { this.showToast('Network error', 'error'); }
+            this.loading = false;
         }
-    });
-    
-    document.getElementById('disableReadOnlyForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`${API_BASE}/read-only-mode/disable`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: formData.get('reason') })
-            });
-            
-            if (response.ok) {
-                showToast('Read-only mode disabled successfully');
-                closeModal('disableReadOnlyModal');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                const error = await response.json();
-                showToast(error.detail || 'Failed to disable read-only mode', 'error');
-            }
-        } catch (err) {
-            showToast('Network error. Please try again.', 'error');
-        }
-    });
-    
-    // Maintenance Mode
-    function showEnableMaintenanceModal() {
-        showModal('enableMaintenanceModal');
-    }
-    
-    function showDisableMaintenanceModal() {
-        showModal('disableMaintenanceModal');
-    }
-    
-    document.getElementById('enableMaintenanceForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`${API_BASE}/maintenance-mode/enable`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    reason: formData.get('reason'),
-                    message: formData.get('message'),
-                    expected_end: formData.get('expected_end') || null
-                })
-            });
-            
-            if (response.ok) {
-                showToast('Maintenance mode enabled successfully');
-                closeModal('enableMaintenanceModal');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                const error = await response.json();
-                showToast(error.detail || 'Failed to enable maintenance mode', 'error');
-            }
-        } catch (err) {
-            showToast('Network error. Please try again.', 'error');
-        }
-    });
-    
-    document.getElementById('disableMaintenanceForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`${API_BASE}/maintenance-mode/disable`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: formData.get('reason') })
-            });
-            
-            if (response.ok) {
-                showToast('Maintenance mode disabled successfully');
-                closeModal('disableMaintenanceModal');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                const error = await response.json();
-                showToast(error.detail || 'Failed to disable maintenance mode', 'error');
-            }
-        } catch (err) {
-            showToast('Network error. Please try again.', 'error');
-        }
-    });
-    
-    // Feature Kill Switches
-    function showDisableFeatureModal(featureKey, featureName) {
-        document.getElementById('featureModalTitle').innerHTML = `<i class="fas fa-toggle-off"></i> Disable ${featureName}`;
-        document.getElementById('featureWarningText').innerHTML = `<strong>Warning!</strong> This will disable the <strong>${featureName}</strong> feature for ALL users.`;
-        document.getElementById('featureKey').value = featureKey;
-        document.getElementById('featureAction').value = 'disable';
-        document.getElementById('featureSubmitBtn').className = 'btn btn-danger';
-        document.getElementById('featureSubmitBtn').innerHTML = '<i class="fas fa-toggle-off"></i> Disable Feature';
-        showModal('featureModal');
-    }
-    
-    function showEnableFeatureModal(featureKey, featureName) {
-        document.getElementById('featureModalTitle').innerHTML = `<i class="fas fa-toggle-on"></i> Enable ${featureName}`;
-        document.getElementById('featureWarningBox').style.display = 'none';
-        document.getElementById('featureKey').value = featureKey;
-        document.getElementById('featureAction').value = 'enable';
-        document.getElementById('featureSubmitBtn').className = 'btn btn-success';
-        document.getElementById('featureSubmitBtn').innerHTML = '<i class="fas fa-toggle-on"></i> Enable Feature';
-        showModal('featureModal');
-    }
-    
-    document.getElementById('featureForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const featureKey = formData.get('feature_key');
-        const action = formData.get('action');
-        
-        try {
-            const response = await fetch(`${API_BASE}/kill-switch/${featureKey}/${action}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: formData.get('reason') })
-            });
-            
-            if (response.ok) {
-                showToast(`Feature ${action}d successfully`);
-                closeModal('featureModal');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                const error = await response.json();
-                showToast(error.detail || `Failed to ${action} feature`, 'error');
-            }
-        } catch (err) {
-            showToast('Network error. Please try again.', 'error');
-        }
-    });
-    
-    // Tenant Suspension
-    function showSuspendTenantModal() {
-        showModal('suspendTenantModal');
-    }
-    
-    function showLiftSuspensionModal(tenantId, tenantName) {
-        document.getElementById('liftTenantId').value = tenantId;
-        document.getElementById('liftSuspensionInfo').innerHTML = `Lifting suspension for: <strong>${tenantName}</strong>`;
-        showModal('liftSuspensionModal');
-    }
-    
-    document.getElementById('suspendTenantForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`${API_BASE}/tenant/${formData.get('tenant_id')}/emergency-suspend`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    reason: formData.get('reason'),
-                    notify_users: document.getElementById('notifyUsers').checked
-                })
-            });
-            
-            if (response.ok) {
-                showToast('Tenant suspended successfully');
-                closeModal('suspendTenantModal');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                const error = await response.json();
-                showToast(error.detail || 'Failed to suspend tenant', 'error');
-            }
-        } catch (err) {
-            showToast('Network error. Please try again.', 'error');
-        }
-    });
-    
-    document.getElementById('liftSuspensionForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`${API_BASE}/tenant/${formData.get('tenant_id')}/lift-suspension`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: formData.get('reason') })
-            });
-            
-            if (response.ok) {
-                showToast('Suspension lifted successfully');
-                closeModal('liftSuspensionModal');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                const error = await response.json();
-                showToast(error.detail || 'Failed to lift suspension', 'error');
-            }
-        } catch (err) {
-            showToast('Network error. Please try again.', 'error');
-        }
-    });
-    
-    // Close modal on overlay click
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('active');
-            }
-        });
-    });
-    
-    // Close modal on Escape key
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
-                modal.classList.remove('active');
-            });
-        }
-    });
+    };
+}
 </script>
 {% endblock %}

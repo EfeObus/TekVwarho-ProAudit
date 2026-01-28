@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+
+{% block title %}Foreign Exchange Management - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    .rate-card { transition: all 0.2s; }
+    .rate-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    .gain { color: #059669; }
+    .loss { color: #dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="fxManagement()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Foreign Exchange Management</h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Manage exchange rates, calculate FX gains/losses, and run period-end revaluations (IAS 21)
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0 flex space-x-3">
+                <a href="/accounting" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Back to Accounting
+                </a>
+                <button @click="showRateModal = true" 
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Add Exchange Rate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-8">
+            <button @click="activeTab = 'rates'" 
+                    :class="activeTab === 'rates' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Exchange Rates
+            </button>
+            <button @click="activeTab = 'converter'" 
+                    :class="activeTab === 'converter' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Currency Converter
+            </button>
+            <button @click="activeTab = 'exposure'" 
+                    :class="activeTab === 'exposure' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                FX Exposure
+            </button>
+            <button @click="activeTab = 'revaluation'" 
+                    :class="activeTab === 'revaluation' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Period-End Revaluation
+            </button>
+            <button @click="activeTab = 'reports'" 
+                    :class="activeTab === 'reports' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                FX Reports
+            </button>
+        </nav>
+    </div>
+
+    <!-- Loading State -->
+    <template x-if="loading">
+        <div class="text-center py-12">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading...</p>
+        </div>
+    </template>
+
+    <!-- Exchange Rates Tab -->
+    <div x-show="activeTab === 'rates' && !loading" x-cloak>
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Current Exchange Rates</h3>
+                <div class="flex space-x-2">
+                    <select x-model="baseCurrency" @change="loadRates()" 
+                            class="rounded-md border-gray-300 text-sm focus:border-green-500 focus:ring-green-500">
+                        <option value="NGN">NGN (Nigerian Naira)</option>
+                        <option value="USD">USD (US Dollar)</option>
+                        <option value="EUR">EUR (Euro)</option>
+                        <option value="GBP">GBP (British Pound)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">To</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rate</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Effective Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="rate in exchangeRates" :key="rate.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="rate.from_currency"></td>
+                                <td class="px-6 py-4 text-sm text-gray-900" x-text="rate.to_currency"></td>
+                                <td class="px-6 py-4 text-sm text-right font-mono" x-text="rate.rate?.toFixed(4)"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500" x-text="formatDate(rate.effective_date)"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500" x-text="rate.source || 'Manual'"></td>
+                            </tr>
+                        </template>
+                        <template x-if="exchangeRates.length === 0">
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                    No exchange rates found. Add your first rate to get started.
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Currency Converter Tab -->
+    <div x-show="activeTab === 'converter' && !loading" x-cloak>
+        <div class="max-w-xl mx-auto">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Currency Converter</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Amount</label>
+                        <input type="number" x-model="converter.amount" step="0.01" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-lg">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">From</label>
+                            <select x-model="converter.from" 
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="USD">USD - US Dollar</option>
+                                <option value="EUR">EUR - Euro</option>
+                                <option value="GBP">GBP - British Pound</option>
+                                <option value="NGN">NGN - Nigerian Naira</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">To</label>
+                            <select x-model="converter.to" 
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="NGN">NGN - Nigerian Naira</option>
+                                <option value="USD">USD - US Dollar</option>
+                                <option value="EUR">EUR - Euro</option>
+                                <option value="GBP">GBP - British Pound</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button @click="convertCurrency()" 
+                            class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Convert
+                    </button>
+                    <template x-if="converter.result !== null">
+                        <div class="p-4 bg-green-50 rounded-lg text-center">
+                            <p class="text-sm text-gray-600">
+                                <span x-text="formatNumber(converter.amount)"></span> <span x-text="converter.from"></span> =
+                            </p>
+                            <p class="text-2xl font-bold text-green-700">
+                                <span x-text="formatNumber(converter.result)"></span> <span x-text="converter.to"></span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-2">
+                                Rate: 1 <span x-text="converter.from"></span> = <span x-text="converter.rate?.toFixed(4)"></span> <span x-text="converter.to"></span>
+                            </p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FX Exposure Tab -->
+    <div x-show="activeTab === 'exposure' && !loading" x-cloak>
+        <div class="space-y-6">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-sm font-medium text-gray-500">Total FX Assets</h4>
+                    <p class="text-2xl font-bold text-gray-900 mt-2" x-text="formatCurrency(exposure.total_assets)"></p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-sm font-medium text-gray-500">Total FX Liabilities</h4>
+                    <p class="text-2xl font-bold text-gray-900 mt-2" x-text="formatCurrency(exposure.total_liabilities)"></p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-sm font-medium text-gray-500">Net FX Exposure</h4>
+                    <p class="text-2xl font-bold mt-2" 
+                       :class="exposure.net_exposure >= 0 ? 'text-green-600' : 'text-red-600'"
+                       x-text="formatCurrency(exposure.net_exposure)"></p>
+                </div>
+            </div>
+
+            <!-- Exposure by Currency -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Exposure by Currency</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Assets</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Liabilities</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Exposure</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">NGN Equivalent</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="item in exposure.by_currency || []" :key="item.currency">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="item.currency"></td>
+                                    <td class="px-6 py-4 text-sm text-right" x-text="formatNumber(item.assets)"></td>
+                                    <td class="px-6 py-4 text-sm text-right" x-text="formatNumber(item.liabilities)"></td>
+                                    <td class="px-6 py-4 text-sm text-right font-medium"
+                                        :class="item.net >= 0 ? 'gain' : 'loss'"
+                                        x-text="formatNumber(item.net)"></td>
+                                    <td class="px-6 py-4 text-sm text-right" x-text="formatCurrency(item.ngn_equivalent)"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Period-End Revaluation Tab -->
+    <div x-show="activeTab === 'revaluation' && !loading" x-cloak>
+        <div class="space-y-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Run Period-End FX Revaluation</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Revalue foreign currency monetary items to closing rate per IAS 21. 
+                    This will calculate unrealized FX gains/losses and create journal entries.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Revaluation Date</label>
+                        <input type="date" x-model="revaluation.date" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Description</label>
+                        <input type="text" x-model="revaluation.description" placeholder="Month-end FX revaluation"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                    </div>
+                </div>
+                <button @click="runRevaluation()" :disabled="revaluation.running"
+                        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                    <span x-show="!revaluation.running">Run Revaluation</span>
+                    <span x-show="revaluation.running">Processing...</span>
+                </button>
+            </div>
+
+            <!-- Revaluation Results -->
+            <template x-if="revaluation.result">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-4">Revaluation Results</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-500">Total Gain</p>
+                            <p class="text-xl font-bold gain" x-text="formatCurrency(revaluation.result.total_gain)"></p>
+                        </div>
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-500">Total Loss</p>
+                            <p class="text-xl font-bold loss" x-text="formatCurrency(revaluation.result.total_loss)"></p>
+                        </div>
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-500">Net Effect</p>
+                            <p class="text-xl font-bold" 
+                               :class="revaluation.result.net_effect >= 0 ? 'gain' : 'loss'"
+                               x-text="formatCurrency(revaluation.result.net_effect)"></p>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600">
+                        <span class="font-medium">Journal Entry Created:</span> 
+                        <span x-text="revaluation.result.journal_entry_id || 'N/A'"></span>
+                    </p>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- FX Reports Tab -->
+    <div x-show="activeTab === 'reports' && !loading" x-cloak>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">FX Gain/Loss Report</h3>
+                <p class="text-sm text-gray-600 mb-4">View realized and unrealized FX gains and losses for a period.</p>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Start Date</label>
+                            <input type="date" x-model="fxReport.startDate"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">End Date</label>
+                            <input type="date" x-model="fxReport.endDate"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                    </div>
+                    <button @click="loadFxReport()" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Generate Report
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">FX Accounts Summary</h3>
+                <p class="text-sm text-gray-600 mb-4">View all accounts with foreign currency balances.</p>
+                <button @click="loadFxAccounts()" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                    View FX Accounts
+                </button>
+            </div>
+        </div>
+
+        <!-- Report Results -->
+        <template x-if="fxReport.data">
+            <div class="mt-6 bg-white rounded-lg shadow p-6">
+                <h4 class="text-lg font-semibold text-gray-900 mb-4">FX Gain/Loss Summary</h4>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="p-4 bg-green-50 rounded-lg">
+                        <p class="text-sm text-gray-500">Realized Gains</p>
+                        <p class="text-xl font-bold gain" x-text="formatCurrency(fxReport.data.realized_gains)"></p>
+                    </div>
+                    <div class="p-4 bg-red-50 rounded-lg">
+                        <p class="text-sm text-gray-500">Realized Losses</p>
+                        <p class="text-xl font-bold loss" x-text="formatCurrency(fxReport.data.realized_losses)"></p>
+                    </div>
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-gray-500">Unrealized Gains</p>
+                        <p class="text-xl font-bold gain" x-text="formatCurrency(fxReport.data.unrealized_gains)"></p>
+                    </div>
+                    <div class="p-4 bg-yellow-50 rounded-lg">
+                        <p class="text-sm text-gray-500">Unrealized Losses</p>
+                        <p class="text-xl font-bold loss" x-text="formatCurrency(fxReport.data.unrealized_losses)"></p>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Add Exchange Rate Modal -->
+    <div x-show="showRateModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showRateModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Add Exchange Rate</h3>
+                <form @submit.prevent="addExchangeRate()">
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">From Currency</label>
+                                <select x-model="rateForm.from_currency" required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                    <option value="GBP">GBP</option>
+                                    <option value="NGN">NGN</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">To Currency</label>
+                                <select x-model="rateForm.to_currency" required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                    <option value="NGN">NGN</option>
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                    <option value="GBP">GBP</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Rate</label>
+                            <input type="number" x-model="rateForm.rate" step="0.0001" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Effective Date</label>
+                            <input type="date" x-model="rateForm.effective_date" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showRateModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="saving" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                            Add Rate
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function fxManagement() {
+    return {
+        entityId: localStorage.getItem('currentEntityId'),
+        loading: true,
+        saving: false,
+        activeTab: 'rates',
+        baseCurrency: 'NGN',
+        exchangeRates: [],
+        showRateModal: false,
+        rateForm: { from_currency: 'USD', to_currency: 'NGN', rate: '', effective_date: new Date().toISOString().split('T')[0] },
+        converter: { amount: 100, from: 'USD', to: 'NGN', result: null, rate: null },
+        exposure: { total_assets: 0, total_liabilities: 0, net_exposure: 0, by_currency: [] },
+        revaluation: { date: new Date().toISOString().split('T')[0], description: '', running: false, result: null },
+        fxReport: { startDate: '', endDate: '', data: null },
+
+        async init() {
+            const today = new Date();
+            const startOfYear = new Date(today.getFullYear(), 0, 1);
+            this.fxReport.startDate = startOfYear.toISOString().split('T')[0];
+            this.fxReport.endDate = today.toISOString().split('T')[0];
+            
+            await this.loadRates();
+            await this.loadExposure();
+        },
+
+        async loadRates() {
+            this.loading = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/fx/exchange-rates?base_currency=${this.baseCurrency}`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.exchangeRates = data.rates || data || [];
+                }
+            } catch (error) {
+                console.error('Failed to load exchange rates:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async addExchangeRate() {
+            this.saving = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/fx/exchange-rates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.rateForm)
+                });
+                if (response.ok) {
+                    this.showRateModal = false;
+                    this.rateForm = { from_currency: 'USD', to_currency: 'NGN', rate: '', effective_date: new Date().toISOString().split('T')[0] };
+                    await this.loadRates();
+                    alert('Exchange rate added successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to add exchange rate');
+                }
+            } catch (error) {
+                console.error('Failed to add exchange rate:', error);
+                alert('Failed to add exchange rate');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async convertCurrency() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/fx/convert`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        amount: parseFloat(this.converter.amount),
+                        from_currency: this.converter.from,
+                        to_currency: this.converter.to
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.converter.result = data.converted_amount || data.result;
+                    this.converter.rate = data.rate;
+                } else {
+                    alert('Conversion failed. Check exchange rates.');
+                }
+            } catch (error) {
+                console.error('Failed to convert currency:', error);
+            }
+        },
+
+        async loadExposure() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/fx/exposure`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.exposure = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load FX exposure:', error);
+            }
+        },
+
+        async runRevaluation() {
+            this.revaluation.running = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/fx/period-end-revaluation`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        as_of_date: this.revaluation.date,
+                        description: this.revaluation.description
+                    })
+                });
+                if (response.ok) {
+                    this.revaluation.result = await response.json();
+                    alert('Revaluation completed successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Revaluation failed');
+                }
+            } catch (error) {
+                console.error('Failed to run revaluation:', error);
+                alert('Revaluation failed');
+            } finally {
+                this.revaluation.running = false;
+            }
+        },
+
+        async loadFxReport() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/fx/reports/gain-loss?start_date=${this.fxReport.startDate}&end_date=${this.fxReport.endDate}`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.fxReport.data = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load FX report:', error);
+            }
+        },
+
+        async loadFxAccounts() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/fx/reports/fx-accounts`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`Found ${data.accounts?.length || 0} FX accounts. Feature details coming soon.`);
+                }
+            } catch (error) {
+                console.error('Failed to load FX accounts:', error);
+            }
+        },
+
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount || 0);
+        },
+
+        formatNumber(amount) {
+            return new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount || 0);
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+    };
+}
+</script>
+{% endblock %}

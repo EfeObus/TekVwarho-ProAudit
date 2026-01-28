@@ -1,8 +1,22 @@
 # Advanced Accounting Module Documentation
 
+> **Document Version:** 1.3  
+> **Last Updated:** January 27, 2026  
+> **SKU Requirement:** Various (Professional to Enterprise)  
+> **API Prefix:** `/api/v1/advanced/*`
+
+---
+
 ## Overview
 
 The TekVwarho ProAudit Advanced Accounting Module provides enterprise-grade financial management capabilities specifically designed for Nigerian businesses operating under the 2026 Tax Reform regulations. This module encompasses Zero-Touch Autonomous Accounting, Multi-Entity Consolidation, Tax Intelligence, and comprehensive audit compliance features.
+
+> **SKU Gating Notes:**
+> - **Intercompany Transactions:** Enterprise tier (`Feature.INTERCOMPANY`)
+> - **Multi-Entity Management:** Enterprise tier (`Feature.MULTI_ENTITY`)
+> - **Consolidation:** Enterprise tier (`Feature.CONSOLIDATION`)
+> - **WORM Audit Vault:** Enterprise tier (`Feature.WORM_VAULT`)
+> - **AI Transaction Labelling:** Intelligence Add-on (`Feature.ML_ANOMALY_DETECTION`)
 
 ---
 

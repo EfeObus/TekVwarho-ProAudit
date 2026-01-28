@@ -71,6 +71,9 @@ TIER_FEATURES: Dict[SKUTier, Set[Feature]] = {
         Feature.MULTI_USER_RBAC,
         Feature.INVENTORY_ADVANCED,
         Feature.DASHBOARD_ADVANCED,
+        Feature.MULTI_CURRENCY,        # FX, multi-currency transactions
+        Feature.BUDGET_MANAGEMENT,     # Budget creation and tracking
+        Feature.BUDGET_VARIANCE,       # Budget vs Actual analysis
     },
     SKUTier.ENTERPRISE: {
         # Includes all PROFESSIONAL features
@@ -96,6 +99,9 @@ TIER_FEATURES: Dict[SKUTier, Set[Feature]] = {
         Feature.MULTI_USER_RBAC,
         Feature.INVENTORY_ADVANCED,
         Feature.DASHBOARD_ADVANCED,
+        Feature.MULTI_CURRENCY,        # FX, multi-currency transactions
+        Feature.BUDGET_MANAGEMENT,     # Budget creation and tracking
+        Feature.BUDGET_VARIANCE,       # Budget vs Actual analysis
         # ENTERPRISE features
         Feature.WORM_VAULT,
         Feature.INTERCOMPANY,

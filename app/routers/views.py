@@ -435,6 +435,78 @@ async def accounting_page(
     return response
 
 
+@router.get("/budgets", response_class=HTMLResponse)
+async def budgets_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Budget Management page - Create and track budgets with variance analysis."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("budget_management.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/fx", response_class=HTMLResponse)
+async def fx_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """FX Management page - Exchange rates, FX gains/losses, and revaluation."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("fx_management.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/year-end", response_class=HTMLResponse)
+async def year_end_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Year-End Closing page - Period closing and opening balances."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("year_end.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
+@router.get("/consolidation", response_class=HTMLResponse)
+async def consolidation_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Consolidation page - Group financial statements and intercompany eliminations."""
+    user, entity_id, redirect = await require_auth(request, db, require_entity=True)
+    if redirect:
+        return redirect
+    
+    response = templates.TemplateResponse("consolidation.html", {
+        "request": request,
+        **get_auth_context(user, entity_id),
+    })
+    set_entity_cookie_if_needed(response, request, entity_id)
+    return response
+
+
 @router.get("/fixed-assets", response_class=HTMLResponse)
 async def fixed_assets_page(
     request: Request,
@@ -930,7 +1002,8 @@ async def admin_user_search_page(
     db: AsyncSession = Depends(get_db),
 ):
     """User search page (Super Admin and Admin only)."""
-    from app.models.user import PlatformRole
+    from app.models.user import PlatformRole, UserRole
+    from app.services.admin_user_search_service import AdminUserSearchService
     
     user, entity_id, redirect = await require_auth(request, db, require_entity=False)
     if redirect:
@@ -942,8 +1015,32 @@ async def admin_user_search_page(
     if user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
     
+    # Fetch user stats
+    try:
+        service = AdminUserSearchService(db)
+        stats = await service.get_user_stats()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching user stats: {e}")
+        stats = {
+            "total_users": 0,
+            "active_users": 0,
+            "verified_users": 0,
+            "platform_staff": 0,
+            "organization_users": 0,
+            "recent_signups_7d": 0
+        }
+    
+    # Role options for dropdowns
+    platform_roles = [role.value for role in PlatformRole]
+    org_roles = [role.value for role in UserRole]
+    
     return templates.TemplateResponse("admin_user_search.html", {
         "request": request,
+        "stats": stats,
+        "platform_roles": platform_roles,
+        "org_roles": org_roles,
         **get_auth_context(user, entity_id),
     })
 
@@ -955,6 +1052,7 @@ async def admin_platform_staff_page(
 ):
     """Platform staff management page (Super Admin and Admin only)."""
     from app.models.user import PlatformRole
+    from app.services.platform_staff_service import PlatformStaffService
     
     user, entity_id, redirect = await require_auth(request, db, require_entity=False)
     if redirect:
@@ -966,8 +1064,30 @@ async def admin_platform_staff_page(
     if user.platform_role not in [PlatformRole.SUPER_ADMIN, PlatformRole.ADMIN]:
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
     
+    # Fetch actual data from database
+    service = PlatformStaffService(db)
+    
+    try:
+        # Get staff list
+        staff_data = await service.list_platform_staff(page=1, page_size=50)
+        staff_list = staff_data.get("staff", [])
+        pagination = staff_data.get("pagination", {})
+        
+        # Get stats
+        stats = await service.get_staff_stats()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching platform staff data: {e}")
+        staff_list = []
+        pagination = {"page": 1, "page_size": 20, "total_count": 0, "total_pages": 0}
+        stats = {"total_staff": 0, "active_staff": 0, "inactive_staff": 0, "staff_by_role": {}}
+    
     return templates.TemplateResponse("admin_platform_staff.html", {
         "request": request,
+        "staff": staff_list,
+        "stats": stats,
+        "pagination": pagination,
         **get_auth_context(user, entity_id),
     })
 

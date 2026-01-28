@@ -1,8 +1,8 @@
 # TekVwarho ProAudit - Commercial SKU Structure
 
-> **Document Version:** 1.2  
+> **Document Version:** 1.3  
 > **Effective Date:** January 22, 2026  
-> **Last Updated:** January 24, 2026  
+> **Last Updated:** January 27, 2026  
 > **Currency:** Nigerian Naira (₦)
 
 ---
@@ -32,6 +32,8 @@ TekVwarho ProAudit is offered in **four distinct product tiers** designed to ser
 | Fixed Assets | No | Yes | Yes | — |
 | Expense Claims | No | Yes | Yes | — |
 | E-Invoicing / NRS | No | Yes | Yes | — |
+| **Multi-Currency / FX** | No | Yes | Yes | — |
+| **Budget Management** | No | Yes | Yes | — |
 | Advanced Reports | No | Yes | Yes | — |
 | Rule-based Alerts | No | Yes | Yes | — |
 | Multi-user RBAC | No | Yes | Yes | — |
@@ -183,6 +185,24 @@ TekVwarho ProAudit is offered in **four distinct product tiers** designed to ser
 - NRS (Nigerian Revenue Service) compliance
 - Digital signatures on invoices
 - Compliance reporting
+
+#### Multi-Currency / Foreign Exchange (FX)
+- Multi-currency transaction support
+- Exchange rate management
+- FX gain/loss calculation (realized & unrealized)
+- Period-end revaluation
+- FX exposure reporting
+- IAS 21 compliant implementation
+- Currency conversion API
+
+#### Budget Management
+- Budget creation and management
+- Multi-period budgets (monthly, quarterly, annual)
+- Budget vs. Actual variance analysis
+- Department/project-level budgeting
+- Budget approval workflows (M-of-N support)
+- Budget forecasting and projections
+- Budget revision tracking
 
 #### Advanced Reporting
 - Custom report builder
@@ -406,6 +426,7 @@ FEATURE_CUSTOMER_MANAGEMENT
 FEATURE_VENDOR_MANAGEMENT
 FEATURE_BASIC_INVOICING
 FEATURE_AUDIT_LOGS_STANDARD
+FEATURE_INVENTORY_BASIC
 ```
 
 ### Professional Features (Tier 2)
@@ -416,9 +437,14 @@ FEATURE_FIXED_ASSETS
 FEATURE_EXPENSE_CLAIMS
 FEATURE_E_INVOICING
 FEATURE_NRS_COMPLIANCE
+FEATURE_MULTI_CURRENCY           # FX, multi-currency transactions
+FEATURE_BUDGET_MANAGEMENT        # Budget creation and tracking
+FEATURE_BUDGET_VARIANCE          # Budget vs Actual analysis
 FEATURE_ADVANCED_REPORTS
 FEATURE_RULE_BASED_ALERTS
 FEATURE_MULTI_USER_RBAC
+FEATURE_INVENTORY_ADVANCED
+FEATURE_DASHBOARD_ADVANCED
 ```
 
 ### Enterprise Features (Tier 3)
@@ -430,9 +456,12 @@ FEATURE_ATTESTATION
 FEATURE_DIGITAL_SIGNATURES
 FEATURE_SOX_COMPLIANCE
 FEATURE_IFRS_COMPLIANCE
+FEATURE_FRCN_COMPLIANCE           # Nigerian FRCN reporting
 FEATURE_SEGREGATION_OF_DUTIES
 FEATURE_FULL_API_ACCESS
 FEATURE_PRIORITY_SUPPORT
+FEATURE_AUDIT_VAULT_EXTENDED
+FEATURE_CONSOLIDATION
 ```
 
 ### Intelligence Features (Tier 4)
@@ -445,6 +474,7 @@ FEATURE_NLP_PROCESSING
 FEATURE_OCR_EXTRACTION
 FEATURE_FRAUD_DETECTION
 FEATURE_CUSTOM_ML_TRAINING
+FEATURE_BEHAVIORAL_ANALYTICS
 ```
 
 ---

@@ -1,0 +1,593 @@
+{% extends "base.html" %}
+
+{% block title %}Year-End Closing - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    .step-card { transition: all 0.2s; }
+    .step-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    .step-complete { border-left: 4px solid #059669; }
+    .step-pending { border-left: 4px solid #d97706; }
+    .step-not-started { border-left: 4px solid #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="yearEndClosing()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Year-End Closing</h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Close accounting periods, generate opening balances, and maintain clean financial records
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0 flex space-x-3">
+                <a href="/accounting" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Back to Accounting
+                </a>
+                <button @click="showClosingModal = true" 
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Start Period Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-8">
+            <button @click="activeTab = 'periods'" 
+                    :class="activeTab === 'periods' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Accounting Periods
+            </button>
+            <button @click="activeTab = 'checklist'" 
+                    :class="activeTab === 'checklist' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Closing Checklist
+            </button>
+            <button @click="activeTab = 'balances'" 
+                    :class="activeTab === 'balances' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Opening Balances
+            </button>
+            <button @click="activeTab = 'history'" 
+                    :class="activeTab === 'history' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Closing History
+            </button>
+        </nav>
+    </div>
+
+    <!-- Loading State -->
+    <template x-if="loading">
+        <div class="text-center py-12">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading...</p>
+        </div>
+    </template>
+
+    <!-- Accounting Periods Tab -->
+    <div x-show="activeTab === 'periods' && !loading" x-cloak>
+        <div class="space-y-6">
+            <!-- Current Period Card -->
+            <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-medium opacity-80">Current Period</h3>
+                        <p class="text-3xl font-bold mt-1" x-text="currentPeriod?.name || 'Not Set'"></p>
+                        <p class="text-sm opacity-80 mt-1" x-text="currentPeriod ? formatDate(currentPeriod.start_date) + ' - ' + formatDate(currentPeriod.end_date) : ''"></p>
+                    </div>
+                    <div class="text-right">
+                        <span class="px-3 py-1 rounded-full text-sm" 
+                              :class="currentPeriod?.status === 'open' ? 'bg-white/20' : 'bg-yellow-500'"
+                              x-text="currentPeriod?.status?.toUpperCase() || 'N/A'"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Periods Table -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Fiscal Periods</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="period in periods" :key="period.id">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="period.name"></td>
+                                    <td class="px-6 py-4 text-sm text-gray-500" x-text="formatDate(period.start_date)"></td>
+                                    <td class="px-6 py-4 text-sm text-gray-500" x-text="formatDate(period.end_date)"></td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="{
+                                                  'bg-green-100 text-green-800': period.status === 'open',
+                                                  'bg-gray-100 text-gray-800': period.status === 'closed',
+                                                  'bg-yellow-100 text-yellow-800': period.status === 'closing'
+                                              }"
+                                              x-text="period.status?.toUpperCase()"></span>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <template x-if="period.status === 'open'">
+                                            <button @click="initiatePeriodClose(period)" class="text-green-600 hover:text-green-800 text-sm font-medium">
+                                                Close Period
+                                            </button>
+                                        </template>
+                                        <template x-if="period.status === 'closed'">
+                                            <button @click="reopenPeriod(period)" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                                Reopen
+                                            </button>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-if="periods.length === 0">
+                                <tr>
+                                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                        No accounting periods found. Create a fiscal year to get started.
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Closing Checklist Tab -->
+    <div x-show="activeTab === 'checklist' && !loading" x-cloak>
+        <div class="space-y-4">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Year-End Closing Checklist</h3>
+                    <span class="text-sm text-gray-500" x-text="getChecklistProgress()"></span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5 mb-6">
+                    <div class="bg-green-600 h-2.5 rounded-full" :style="'width: ' + checklistProgressPercent + '%'"></div>
+                </div>
+            </div>
+
+            <template x-for="(item, index) in checklist" :key="index">
+                <div class="step-card bg-white rounded-lg shadow p-4" 
+                     :class="{ 'step-complete': item.completed, 'step-pending': item.status === 'in_progress', 'step-not-started': !item.completed && item.status !== 'in_progress' }">
+                    <div class="flex items-start space-x-4">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center"
+                                 :class="item.completed ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'">
+                                <template x-if="item.completed">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </template>
+                                <template x-if="!item.completed">
+                                    <span x-text="index + 1"></span>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <h4 class="text-sm font-medium text-gray-900" x-text="item.name"></h4>
+                                <span class="text-xs px-2 py-1 rounded"
+                                      :class="{
+                                          'bg-green-100 text-green-700': item.completed,
+                                          'bg-yellow-100 text-yellow-700': item.status === 'in_progress',
+                                          'bg-gray-100 text-gray-700': !item.completed && item.status !== 'in_progress'
+                                      }"
+                                      x-text="item.completed ? 'Complete' : (item.status === 'in_progress' ? 'In Progress' : 'Pending')"></span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1" x-text="item.description"></p>
+                            <template x-if="!item.completed">
+                                <div class="mt-3">
+                                    <button @click="executeChecklistItem(item, index)" 
+                                            class="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                                            :disabled="item.processing">
+                                        <span x-show="!item.processing">Execute</span>
+                                        <span x-show="item.processing">Processing...</span>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Opening Balances Tab -->
+    <div x-show="activeTab === 'balances' && !loading" x-cloak>
+        <div class="space-y-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Generate Opening Balances</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Create opening balance entries for a new fiscal year by carrying forward balance sheet accounts
+                    and closing income statement accounts to retained earnings.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">From Period</label>
+                        <select x-model="openingBalances.fromPeriod" 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="">Select Period</option>
+                            <template x-for="period in periods" :key="period.id">
+                                <option :value="period.id" x-text="period.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">New Period Start Date</label>
+                        <input type="date" x-model="openingBalances.newPeriodDate" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Retained Earnings Account</label>
+                    <select x-model="openingBalances.retainedEarningsAccount" 
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        <option value="">Select Account</option>
+                        <template x-for="account in equityAccounts" :key="account.id">
+                            <option :value="account.id" x-text="account.account_code + ' - ' + account.name"></option>
+                        </template>
+                    </select>
+                </div>
+                <button @click="generateOpeningBalances()" :disabled="openingBalances.processing"
+                        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                    <span x-show="!openingBalances.processing">Generate Opening Balances</span>
+                    <span x-show="openingBalances.processing">Processing...</span>
+                </button>
+            </div>
+
+            <!-- Opening Balances Preview -->
+            <template x-if="openingBalances.preview">
+                <div class="bg-white rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-900">Opening Balances Preview</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="line in openingBalances.preview.lines" :key="line.account_id">
+                                    <tr>
+                                        <td class="px-6 py-4 text-sm text-gray-900" x-text="line.account_name"></td>
+                                        <td class="px-6 py-4 text-sm text-right" x-text="line.debit ? formatCurrency(line.debit) : '-'"></td>
+                                        <td class="px-6 py-4 text-sm text-right" x-text="line.credit ? formatCurrency(line.credit) : '-'"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                            <tfoot class="bg-gray-50">
+                                <tr class="font-semibold">
+                                    <td class="px-6 py-4 text-sm">Totals</td>
+                                    <td class="px-6 py-4 text-sm text-right" x-text="formatCurrency(openingBalances.preview.total_debit)"></td>
+                                    <td class="px-6 py-4 text-sm text-right" x-text="formatCurrency(openingBalances.preview.total_credit)"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Closing History Tab -->
+    <div x-show="activeTab === 'history' && !loading" x-cloak>
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Closing History</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Closed Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Closed By</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Journal Entry</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="record in closingHistory" :key="record.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="record.period_name"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500" x-text="formatDate(record.closed_at)"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500" x-text="record.closed_by || 'System'"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500" x-text="record.journal_entry_id || 'N/A'"></td>
+                                <td class="px-6 py-4 text-center">
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                        Completed
+                                    </span>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="closingHistory.length === 0">
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                    No closing history found.
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Period Close Modal -->
+    <div x-show="showClosingModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showClosingModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Close Accounting Period</h3>
+                <form @submit.prevent="closePeriod()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Select Period to Close</label>
+                            <select x-model="closeForm.period_id" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="">Select Period</option>
+                                <template x-for="period in periods.filter(p => p.status === 'open')" :key="period.id">
+                                    <option :value="period.id" x-text="period.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Closing Date</label>
+                            <input type="date" x-model="closeForm.closing_date" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Notes</label>
+                            <textarea x-model="closeForm.notes" rows="3"
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+                                      placeholder="Optional closing notes..."></textarea>
+                        </div>
+                        <div class="p-4 bg-yellow-50 rounded-lg">
+                            <p class="text-sm text-yellow-700">
+                                <strong>Warning:</strong> Closing a period will prevent any new transactions from being posted to that period. 
+                                Make sure all adjustments have been made before proceeding.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showClosingModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="closing" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                            <span x-show="!closing">Close Period</span>
+                            <span x-show="closing">Closing...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function yearEndClosing() {
+    return {
+        entityId: localStorage.getItem('currentEntityId'),
+        loading: true,
+        closing: false,
+        activeTab: 'periods',
+        currentPeriod: null,
+        periods: [],
+        closingHistory: [],
+        equityAccounts: [],
+        showClosingModal: false,
+        closeForm: { period_id: '', closing_date: new Date().toISOString().split('T')[0], notes: '' },
+        openingBalances: { fromPeriod: '', newPeriodDate: '', retainedEarningsAccount: '', processing: false, preview: null },
+        checklist: [
+            { name: 'Reconcile Bank Accounts', description: 'Ensure all bank statements are reconciled', completed: false, action: 'reconcile_banks' },
+            { name: 'Review Outstanding AR', description: 'Review and adjust accounts receivable aging', completed: false, action: 'review_ar' },
+            { name: 'Review Outstanding AP', description: 'Review and adjust accounts payable aging', completed: false, action: 'review_ap' },
+            { name: 'Post Depreciation', description: 'Post final depreciation entries for the period', completed: false, action: 'post_depreciation' },
+            { name: 'Accrue Expenses', description: 'Post all accrued expense entries', completed: false, action: 'accrue_expenses' },
+            { name: 'Revalue Foreign Currency', description: 'Perform FX revaluation per IAS 21', completed: false, action: 'fx_revaluation' },
+            { name: 'Close Income/Expense', description: 'Close income statement accounts to retained earnings', completed: false, action: 'close_income' },
+            { name: 'Final Review', description: 'Review trial balance and financial statements', completed: false, action: 'final_review' }
+        ],
+        checklistProgressPercent: 0,
+
+        async init() {
+            await Promise.all([
+                this.loadPeriods(),
+                this.loadClosingHistory(),
+                this.loadEquityAccounts()
+            ]);
+            this.loading = false;
+        },
+
+        async loadPeriods() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/year-end/periods`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.periods = data.periods || data || [];
+                    this.currentPeriod = this.periods.find(p => p.status === 'open') || this.periods[0];
+                }
+            } catch (error) {
+                console.error('Failed to load periods:', error);
+            }
+        },
+
+        async loadClosingHistory() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/year-end/history`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.closingHistory = data.history || data || [];
+                }
+            } catch (error) {
+                console.error('Failed to load closing history:', error);
+            }
+        },
+
+        async loadEquityAccounts() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/accounts?account_type=equity`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.equityAccounts = data.accounts || data || [];
+                }
+            } catch (error) {
+                console.error('Failed to load equity accounts:', error);
+            }
+        },
+
+        async closePeriod() {
+            this.closing = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/year-end/close-period`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.closeForm)
+                });
+                if (response.ok) {
+                    this.showClosingModal = false;
+                    await this.loadPeriods();
+                    await this.loadClosingHistory();
+                    alert('Period closed successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to close period');
+                }
+            } catch (error) {
+                console.error('Failed to close period:', error);
+                alert('Failed to close period');
+            } finally {
+                this.closing = false;
+            }
+        },
+
+        async reopenPeriod(period) {
+            if (!confirm(`Are you sure you want to reopen ${period.name}? This may affect financial reports.`)) return;
+            
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/year-end/reopen-period/${period.id}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    await this.loadPeriods();
+                    alert('Period reopened successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to reopen period');
+                }
+            } catch (error) {
+                console.error('Failed to reopen period:', error);
+            }
+        },
+
+        initiatePeriodClose(period) {
+            this.closeForm.period_id = period.id;
+            this.showClosingModal = true;
+        },
+
+        async executeChecklistItem(item, index) {
+            item.processing = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/year-end/checklist/${item.action}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.checklist[index].completed = true;
+                    this.updateChecklistProgress();
+                } else {
+                    alert('Action could not be completed. Please check manually.');
+                }
+            } catch (error) {
+                console.error('Failed to execute checklist item:', error);
+            } finally {
+                item.processing = false;
+            }
+        },
+
+        updateChecklistProgress() {
+            const completed = this.checklist.filter(item => item.completed).length;
+            this.checklistProgressPercent = Math.round((completed / this.checklist.length) * 100);
+        },
+
+        getChecklistProgress() {
+            const completed = this.checklist.filter(item => item.completed).length;
+            return `${completed} of ${this.checklist.length} completed`;
+        },
+
+        async generateOpeningBalances() {
+            if (!this.openingBalances.fromPeriod || !this.openingBalances.newPeriodDate) {
+                alert('Please select a period and date');
+                return;
+            }
+            
+            this.openingBalances.processing = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/year-end/opening-balances`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        from_period_id: this.openingBalances.fromPeriod,
+                        new_period_date: this.openingBalances.newPeriodDate,
+                        retained_earnings_account_id: this.openingBalances.retainedEarningsAccount
+                    })
+                });
+                if (response.ok) {
+                    this.openingBalances.preview = await response.json();
+                    alert('Opening balances generated successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to generate opening balances');
+                }
+            } catch (error) {
+                console.error('Failed to generate opening balances:', error);
+            } finally {
+                this.openingBalances.processing = false;
+            }
+        },
+
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount || 0);
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+    };
+}
+</script>
+{% endblock %}

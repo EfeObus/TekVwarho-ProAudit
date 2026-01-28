@@ -67,7 +67,7 @@ class SKUPricing(BaseModel):
     __tablename__ = "sku_pricing"
     
     sku_tier: Mapped[SKUTier] = mapped_column(
-        SQLEnum(SKUTier),
+        SQLEnum(SKUTier, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         index=True,
     )
@@ -140,14 +140,14 @@ class TenantSKU(BaseModel):
     
     # Current SKU tier (CORE, PROFESSIONAL, ENTERPRISE)
     tier: Mapped[SKUTier] = mapped_column(
-        SQLEnum(SKUTier),
+        SQLEnum(SKUTier, values_callable=lambda x: [e.value for e in x]),
         default=SKUTier.CORE,
         nullable=False,
     )
     
     # Intelligence add-on (NONE, STANDARD, ADVANCED)
     intelligence_addon: Mapped[Optional[IntelligenceAddon]] = mapped_column(
-        SQLEnum(IntelligenceAddon),
+        SQLEnum(IntelligenceAddon, values_callable=lambda x: [e.value for e in x]),
         default=IntelligenceAddon.NONE,
         nullable=True,
     )
@@ -218,7 +218,7 @@ class TenantSKU(BaseModel):
         comment="Reason for cancellation"
     )
     scheduled_downgrade_tier: Mapped[Optional[SKUTier]] = mapped_column(
-        SQLEnum(SKUTier),
+        SQLEnum(SKUTier, values_callable=lambda x: [e.value for e in x]),
         nullable=True,
         comment="Tier to downgrade to at period end (usually CORE)"
     )

@@ -753,6 +753,38 @@ app.include_router(ml_ai.router, prefix="/api/v1/ml", tags=["Machine Learning & 
 # Chart of Accounts & General Ledger (Core Accounting Engine)
 app.include_router(accounting.router, tags=["Accounting"])
 
+# Foreign Exchange (FX) - Multi-Currency Operations
+from app.routers import fx as fx_router
+app.include_router(fx_router.router, tags=["Foreign Exchange"])
+
+# Multi-Entity Consolidation - Group Financial Statements
+from app.routers import consolidation as consolidation_router
+app.include_router(consolidation_router.router, tags=["Consolidation"])
+
+# Advanced Accounting - Entity Groups, Consolidated Views (Frontend Compatibility)
+from app.routers import advanced as advanced_router
+app.include_router(advanced_router.router, tags=["Advanced Accounting"])
+
+# Budget Management - Budget vs Actual, Variance Analysis
+from app.routers import budget as budget_router
+app.include_router(budget_router.router, tags=["Budget Management"])
+
+# Year-End Closing - Automated Year-End Closing, Period Locking, Opening Balances
+from app.routers import year_end as year_end_router
+app.include_router(year_end_router.router, tags=["Year-End Closing"])
+
+# Financial Report Export - PDF, Excel, CSV for Balance Sheet, Income Statement, Trial Balance, GL
+from app.routers import report_export as report_export_router
+app.include_router(report_export_router.router, tags=["Report Export"])
+
+# Report Templates - Customizable report templates per tenant
+from app.routers import report_template as report_template_router
+app.include_router(report_template_router.router, prefix="/api/v1/entities", tags=["Report Templates"])
+
+# WebSocket - Real-time notifications
+from app.routers import websocket as websocket_router
+app.include_router(websocket_router.router, tags=["WebSocket"])
+
 # Evidence Collection (Document Upload, Screenshots, Transaction Snapshots, Confirmations)
 app.include_router(evidence_routes.router, tags=["Evidence Collection"])
 

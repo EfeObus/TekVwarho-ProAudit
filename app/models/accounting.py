@@ -126,6 +126,10 @@ class JournalEntryType(str, Enum):
     PREPAYMENT = "prepayment"
     TRANSFER = "transfer"
     SYSTEM = "system"
+    # FX Gain/Loss types
+    FX_REVALUATION = "fx_revaluation"
+    FX_REALIZED_GAIN_LOSS = "fx_realized_gain_loss"
+    FX_UNREALIZED_GAIN_LOSS = "fx_unrealized_gain_loss"
 
 
 class FiscalPeriodStatus(str, Enum):
@@ -833,3 +837,203 @@ class GLIntegrationLog(BaseModel):
         Index('ix_gli_source', 'source_module', 'source_document_id'),
         Index('ix_gli_journal', 'journal_entry_id'),
     )
+
+
+# =============================================================================
+# MULTI-CURRENCY FX GAIN/LOSS
+# =============================================================================
+
+class FXRevaluationType(str, Enum):
+    """Type of FX revaluation."""
+    REALIZED = "realized"         # Actual conversion (payment/receipt)
+    UNREALIZED = "unrealized"     # Period-end revaluation
+    SETTLEMENT = "settlement"     # Final settlement of FC balance
+
+
+class FXAccountType(str, Enum):
+    """Types of accounts that can have FX exposure."""
+    BANK = "bank"                 # Foreign currency bank accounts
+    RECEIVABLE = "receivable"     # Foreign currency AR
+    PAYABLE = "payable"           # Foreign currency AP
+    LOAN = "loan"                 # Foreign currency loans
+    INTERCOMPANY = "intercompany" # Intercompany balances
+
+
+class FXRevaluation(BaseModel):
+    """
+    Foreign Exchange Revaluation Records.
+    
+    Tracks realized and unrealized FX gains/losses for:
+    - Foreign currency bank accounts (domiciliary accounts)
+    - Foreign currency AR/AP balances
+    - Intercompany balances
+    
+    Nigerian IFRS compliance: IAS 21 - Effects of Changes in Foreign Exchange Rates
+    """
+    
+    __tablename__ = "fx_revaluations"
+    
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("business_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    
+    # Revaluation identification
+    revaluation_date: Mapped[date] = mapped_column(Date, nullable=False)
+    revaluation_type: Mapped[FXRevaluationType] = mapped_column(
+        SQLEnum(FXRevaluationType),
+        nullable=False,
+    )
+    
+    # Source account
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chart_of_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    fx_account_type: Mapped[FXAccountType] = mapped_column(
+        SQLEnum(FXAccountType),
+        nullable=False,
+    )
+    
+    # Currency details
+    foreign_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    functional_currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
+    
+    # Original booking
+    original_fc_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        nullable=False,
+        comment="Original amount in foreign currency",
+    )
+    original_exchange_rate: Mapped[Decimal] = mapped_column(
+        Numeric(precision=12, scale=6),
+        nullable=False,
+        comment="Exchange rate at original booking",
+    )
+    original_ngn_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        nullable=False,
+        comment="Original NGN equivalent",
+    )
+    
+    # Revaluation
+    revaluation_rate: Mapped[Decimal] = mapped_column(
+        Numeric(precision=12, scale=6),
+        nullable=False,
+        comment="Exchange rate at revaluation date",
+    )
+    revalued_ngn_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        nullable=False,
+        comment="NGN equivalent at revaluation rate",
+    )
+    
+    # FX gain/loss
+    fx_gain_loss: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        nullable=False,
+        comment="Positive = gain, Negative = loss",
+    )
+    is_gain: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    
+    # Journal entry link
+    journal_entry_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("journal_entries.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    
+    # Reference document (for realized gains/losses)
+    source_document_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    source_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), nullable=True,
+    )
+    
+    # Fiscal period
+    fiscal_period_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("fiscal_periods.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    
+    # Audit
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Relationships
+    entity: Mapped["BusinessEntity"] = relationship("BusinessEntity")
+    account: Mapped["ChartOfAccounts"] = relationship("ChartOfAccounts")
+    journal_entry: Mapped[Optional["JournalEntry"]] = relationship("JournalEntry")
+    fiscal_period: Mapped[Optional["FiscalPeriod"]] = relationship("FiscalPeriod")
+    
+    __table_args__ = (
+        Index('ix_fx_reval_entity_date', 'entity_id', 'revaluation_date'),
+        Index('ix_fx_reval_account', 'account_id', 'revaluation_date'),
+        Index('ix_fx_reval_type', 'revaluation_type', 'revaluation_date'),
+    )
+
+
+class FXExposureSummary(BaseModel):
+    """
+    Summarizes FX exposure by currency for reporting.
+    Maintained through triggers or batch updates.
+    """
+    
+    __tablename__ = "fx_exposure_summaries"
+    
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("business_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    
+    # As of date
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    
+    # Currency
+    foreign_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    
+    # Exposure by type
+    bank_fc_balance: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), default=Decimal("0.00"), nullable=False
+    )
+    receivable_fc_balance: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), default=Decimal("0.00"), nullable=False
+    )
+    payable_fc_balance: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), default=Decimal("0.00"), nullable=False
+    )
+    loan_fc_balance: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), default=Decimal("0.00"), nullable=False
+    )
+    
+    # Net exposure
+    net_fc_exposure: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), nullable=False,
+        comment="Assets - Liabilities in FC",
+    )
+    
+    # Current rate and NGN equivalent
+    current_rate: Mapped[Decimal] = mapped_column(
+        Numeric(precision=12, scale=6), nullable=False
+    )
+    net_ngn_exposure: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), nullable=False
+    )
+    
+    # YTD gain/loss
+    ytd_realized_gain_loss: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), default=Decimal("0.00"), nullable=False
+    )
+    ytd_unrealized_gain_loss: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2), default=Decimal("0.00"), nullable=False
+    )
+    
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'as_of_date', 'foreign_currency', name='uq_fx_exposure_date_currency'),
+        Index('ix_fx_exposure_entity', 'entity_id', 'as_of_date'),
+    )
+

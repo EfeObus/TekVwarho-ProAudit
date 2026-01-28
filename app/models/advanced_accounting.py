@@ -360,6 +360,12 @@ class WHTCreditNote(BaseModel):
 class Budget(BaseModel):
     """
     Budget definition for Budget vs Actual analysis
+    
+    Supports:
+    - Multiple period types (monthly, quarterly, annual)
+    - Version control with revision tracking
+    - Approval workflow integration
+    - Forecasting with actuals rollover
     """
     __tablename__ = "budgets"
     
@@ -377,23 +383,132 @@ class Budget(BaseModel):
     total_expense_budget = Column(Numeric(18, 2), default=0)
     total_capex_budget = Column(Numeric(18, 2), default=0)
     
-    status = Column(String(20), default="draft")  # draft, approved, active, closed
+    status = Column(String(20), default="draft")  # draft, pending_approval, approved, active, locked, closed
     approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     
+    # =========================================================================
+    # REVISION TRACKING
+    # =========================================================================
+    version = Column(Integer, default=1, nullable=False, comment="Budget revision version")
+    parent_budget_id = Column(UUID(as_uuid=True), ForeignKey("budgets.id"), nullable=True,
+        comment="Previous version of this budget (for revision chain)")
+    revision_reason = Column(Text, nullable=True, comment="Reason for revision")
+    revision_date = Column(DateTime, nullable=True, comment="When revision was created")
+    is_current_version = Column(Boolean, default=True, comment="Is this the active version")
+    
+    # =========================================================================
+    # APPROVAL WORKFLOW INTEGRATION
+    # =========================================================================
+    approval_workflow_id = Column(UUID(as_uuid=True), ForeignKey("approval_workflows.id"), nullable=True,
+        comment="Linked approval workflow for this budget")
+    approval_request_id = Column(UUID(as_uuid=True), ForeignKey("approval_requests.id"), nullable=True,
+        comment="Current approval request if pending")
+    required_approvers = Column(Integer, default=1, comment="Number of approvals required")
+    current_approvals = Column(Integer, default=0, comment="Current approval count")
+    approval_notes = Column(JSON, nullable=True, comment="History of approval comments")
+    
+    # =========================================================================
+    # FORECASTING SUPPORT
+    # =========================================================================
+    is_forecast = Column(Boolean, default=False, comment="Is this a forecast vs original budget")
+    base_budget_id = Column(UUID(as_uuid=True), ForeignKey("budgets.id"), nullable=True,
+        comment="Original budget this forecast is based on")
+    forecast_method = Column(String(50), nullable=True,
+        comment="Method: rolling, year-to-go, full-year. Determines how forecast is calculated")
+    last_forecast_date = Column(Date, nullable=True, comment="Date of last forecast update")
+    actuals_through_date = Column(Date, nullable=True, 
+        comment="Date through which actuals are included in forecast")
+    
+    # =========================================================================
+    # VARIANCE THRESHOLDS
+    # =========================================================================
+    variance_threshold_pct = Column(Numeric(5, 2), default=10.00,
+        comment="Alert if variance exceeds this % of budget")
+    variance_threshold_amt = Column(Numeric(18, 2), nullable=True,
+        comment="Alert if variance exceeds this absolute amount")
+    
+    # =========================================================================
+    # CURRENCY (FOR MULTI-CURRENCY BUDGETS)
+    # =========================================================================
+    currency = Column(String(3), default="NGN", comment="Budget currency")
+    exchange_rate_date = Column(Date, nullable=True, comment="Rate date for multi-currency conversion")
+    
     # Relationships
-    line_items = relationship("BudgetLineItem", back_populates="budget", cascade="all, delete-orphan")
+    line_items = relationship("BudgetLineItem", back_populates="budget", cascade="all, delete-orphan",
+        foreign_keys="BudgetLineItem.budget_id")
+    periods = relationship("BudgetPeriod", back_populates="budget", cascade="all, delete-orphan")
     
     __table_args__ = (
-        UniqueConstraint('entity_id', 'fiscal_year', 'name', name='uq_budget_entity_year_name'),
+        UniqueConstraint('entity_id', 'fiscal_year', 'name', 'version', name='uq_budget_entity_year_name_ver'),
+        Index('ix_budget_entity_year', 'entity_id', 'fiscal_year'),
+        Index('ix_budget_status', 'status'),
+        Index('ix_budget_current_version', 'entity_id', 'is_current_version'),
+    )
+
+
+class BudgetPeriod(BaseModel):
+    """
+    Individual budget periods for flexible period support.
+    
+    Allows:
+    - Monthly, quarterly, or custom periods
+    - Period-level forecasting
+    - Period-level locking
+    """
+    __tablename__ = "budget_periods"
+    
+    budget_id = Column(UUID(as_uuid=True), ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False)
+    
+    period_number = Column(Integer, nullable=False, comment="Period sequence (1-12 for monthly, 1-4 for quarterly)")
+    period_name = Column(String(50), nullable=False, comment="E.g., 'January 2026', 'Q1 2026'")
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    
+    # Period-level amounts (summary)
+    budgeted_revenue = Column(Numeric(18, 2), default=0)
+    budgeted_expense = Column(Numeric(18, 2), default=0)
+    budgeted_capex = Column(Numeric(18, 2), default=0)
+    budgeted_net_income = Column(Numeric(18, 2), default=0)
+    
+    # Actuals (updated as transactions post)
+    actual_revenue = Column(Numeric(18, 2), default=0)
+    actual_expense = Column(Numeric(18, 2), default=0)
+    actual_capex = Column(Numeric(18, 2), default=0)
+    actual_net_income = Column(Numeric(18, 2), default=0)
+    
+    # Forecast (may differ from original budget)
+    forecast_revenue = Column(Numeric(18, 2), nullable=True)
+    forecast_expense = Column(Numeric(18, 2), nullable=True)
+    forecast_capex = Column(Numeric(18, 2), nullable=True)
+    forecast_net_income = Column(Numeric(18, 2), nullable=True)
+    
+    # Variance
+    revenue_variance = Column(Numeric(18, 2), default=0, comment="Actual - Budget")
+    expense_variance = Column(Numeric(18, 2), default=0)
+    revenue_variance_pct = Column(Numeric(8, 4), default=0, comment="Variance as % of budget")
+    expense_variance_pct = Column(Numeric(8, 4), default=0)
+    
+    # Status
+    is_locked = Column(Boolean, default=False, comment="Prevent further changes to this period")
+    is_closed = Column(Boolean, default=False, comment="Period has been closed for reporting")
+    last_actuals_sync = Column(DateTime, nullable=True, comment="When actuals were last synced")
+    
+    budget = relationship("Budget", back_populates="periods")
+    
+    __table_args__ = (
+        UniqueConstraint('budget_id', 'period_number', name='uq_budget_period'),
+        Index('ix_budget_period_dates', 'start_date', 'end_date'),
     )
 
 
 class BudgetLineItem(BaseModel):
     """
     Individual budget line items by category/account
+    
+    Supports both fixed monthly columns and flexible period allocations
     """
     __tablename__ = "budget_line_items"
     
@@ -404,6 +519,10 @@ class BudgetLineItem(BaseModel):
     account_code = Column(String(50), nullable=True)
     account_name = Column(String(255), nullable=False)
     line_type = Column(String(20), nullable=False)  # revenue, expense, capex
+    
+    # GL Account linkage for variance analysis
+    gl_account_id = Column(UUID(as_uuid=True), ForeignKey("chart_of_accounts.id"), nullable=True,
+        comment="Link to GL account for automatic variance calculation")
     
     # Monthly allocations (for monthly budgets)
     jan_amount = Column(Numeric(18, 2), default=0)
@@ -421,12 +540,43 @@ class BudgetLineItem(BaseModel):
     
     total_budget = Column(Numeric(18, 2), default=0)
     
+    # Flexible period allocations (JSON for quarterly/custom periods)
+    period_allocations = Column(JSON, nullable=True,
+        comment="Flexible allocations: {'Q1': 100000, 'Q2': 150000, ...} or {'P1': 50000, 'P2': 75000, ...}")
+    
+    # Actual amounts (updated as transactions post)
+    jan_actual = Column(Numeric(18, 2), default=0)
+    feb_actual = Column(Numeric(18, 2), default=0)
+    mar_actual = Column(Numeric(18, 2), default=0)
+    apr_actual = Column(Numeric(18, 2), default=0)
+    may_actual = Column(Numeric(18, 2), default=0)
+    jun_actual = Column(Numeric(18, 2), default=0)
+    jul_actual = Column(Numeric(18, 2), default=0)
+    aug_actual = Column(Numeric(18, 2), default=0)
+    sep_actual = Column(Numeric(18, 2), default=0)
+    oct_actual = Column(Numeric(18, 2), default=0)
+    nov_actual = Column(Numeric(18, 2), default=0)
+    dec_actual = Column(Numeric(18, 2), default=0)
+    
+    total_actual = Column(Numeric(18, 2), default=0)
+    
+    # Variance fields
+    total_variance = Column(Numeric(18, 2), default=0, comment="Actual - Budget (negative = under budget)")
+    variance_pct = Column(Numeric(8, 4), default=0, comment="Variance as % of budget")
+    is_favorable = Column(Boolean, nullable=True, comment="True if variance is favorable")
+    
+    # Forecasting
+    forecast_amount = Column(Numeric(18, 2), nullable=True, comment="Year-end forecast")
+    forecast_variance = Column(Numeric(18, 2), nullable=True, comment="Forecast vs Budget variance")
+    
     notes = Column(Text, nullable=True)
     
-    budget = relationship("Budget", back_populates="line_items")
+    budget = relationship("Budget", back_populates="line_items", foreign_keys=[budget_id])
     
     __table_args__ = (
         Index('ix_budget_item_budget', 'budget_id'),
+        Index('ix_budget_item_account', 'account_code'),
+        Index('ix_budget_item_gl', 'gl_account_id'),
     )
 
 
@@ -625,6 +775,12 @@ class EntityGroup(BaseModel):
 class EntityGroupMember(BaseModel):
     """
     Members of an entity group for consolidation
+    
+    IAS 21 Currency Translation Support:
+    - functional_currency: The currency of the primary economic environment
+    - cumulative_translation_adjustment: Running total of translation differences (OCI)
+    - last_translation_date: Date of most recent currency translation
+    - last_translation_rate: Exchange rate used in most recent translation
     """
     __tablename__ = "entity_group_members"
     
@@ -635,6 +791,24 @@ class EntityGroupMember(BaseModel):
     consolidation_method = Column(String(20), default="full")  # full, proportional, equity
     
     is_parent = Column(Boolean, default=False)
+    
+    # ===========================================
+    # IAS 21 CURRENCY TRANSLATION FIELDS
+    # ===========================================
+    functional_currency = Column(String(3), default="NGN", nullable=True, comment="Entity's functional currency")
+    cumulative_translation_adjustment = Column(Numeric(18, 2), default=0, nullable=True, 
+        comment="CTA - goes to OCI (Other Comprehensive Income)")
+    last_translation_date = Column(Date, nullable=True, comment="Date of most recent translation")
+    last_translation_rate = Column(Numeric(18, 6), nullable=True, comment="Closing rate used in last translation")
+    average_rate_period = Column(Numeric(18, 6), nullable=True, comment="Average rate for income statement translation")
+    
+    # Translation method: current_rate (standard) or temporal (for hyperinflationary economies)
+    translation_method = Column(String(20), default="current_rate", nullable=True,
+        comment="IAS 21 translation method: current_rate or temporal")
+    
+    # Historical rate tracking for equity items
+    historical_equity_rate = Column(Numeric(18, 6), nullable=True, 
+        comment="Historical rate for translating equity opening balances")
     
     group = relationship("EntityGroup", back_populates="members")
     
@@ -672,4 +846,65 @@ class IntercompanyTransaction(BaseModel):
     __table_args__ = (
         Index('ix_interco_group', 'group_id'),
         Index('ix_interco_entities', 'from_entity_id', 'to_entity_id'),
+    )
+
+
+class CurrencyTranslationHistory(BaseModel):
+    """
+    Historical record of currency translations for foreign subsidiaries.
+    
+    IAS 21 Compliance:
+    - Records each translation event with rates used
+    - Tracks translation adjustments that go to OCI
+    - Supports both current rate and temporal methods
+    """
+    __tablename__ = "currency_translation_history"
+    
+    group_id = Column(UUID(as_uuid=True), ForeignKey("entity_groups.id"), nullable=False)
+    member_id = Column(UUID(as_uuid=True), ForeignKey("entity_group_members.id"), nullable=False)
+    entity_id = Column(UUID(as_uuid=True), ForeignKey("business_entities.id"), nullable=False)
+    
+    # Period information
+    translation_date = Column(Date, nullable=False)
+    fiscal_period_id = Column(UUID(as_uuid=True), ForeignKey("fiscal_periods.id"), nullable=True)
+    
+    # Currency pair
+    functional_currency = Column(String(3), nullable=False, comment="Subsidiary's functional currency")
+    presentation_currency = Column(String(3), nullable=False, comment="Group's presentation currency")
+    
+    # Exchange rates used
+    closing_rate = Column(Numeric(18, 6), nullable=False, comment="Rate at balance sheet date")
+    average_rate = Column(Numeric(18, 6), nullable=False, comment="Average rate for income statement")
+    historical_equity_rate = Column(Numeric(18, 6), nullable=True, comment="Historical rate for equity")
+    
+    # Pre-translation amounts (in functional currency)
+    pre_translation_assets = Column(Numeric(18, 2), default=0)
+    pre_translation_liabilities = Column(Numeric(18, 2), default=0)
+    pre_translation_equity = Column(Numeric(18, 2), default=0)
+    pre_translation_revenue = Column(Numeric(18, 2), default=0)
+    pre_translation_expenses = Column(Numeric(18, 2), default=0)
+    pre_translation_net_income = Column(Numeric(18, 2), default=0)
+    
+    # Post-translation amounts (in presentation currency)
+    post_translation_assets = Column(Numeric(18, 2), default=0)
+    post_translation_liabilities = Column(Numeric(18, 2), default=0)
+    post_translation_equity = Column(Numeric(18, 2), default=0)
+    post_translation_revenue = Column(Numeric(18, 2), default=0)
+    post_translation_expenses = Column(Numeric(18, 2), default=0)
+    post_translation_net_income = Column(Numeric(18, 2), default=0)
+    
+    # Translation adjustments (goes to OCI)
+    translation_adjustment = Column(Numeric(18, 2), default=0,
+        comment="Current period translation difference")
+    cumulative_translation_adjustment = Column(Numeric(18, 2), default=0,
+        comment="Running total CTA balance")
+    
+    # Metadata
+    translation_method = Column(String(20), default="current_rate")  # current_rate or temporal
+    notes = Column(Text, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    
+    __table_args__ = (
+        Index('ix_translation_group_period', 'group_id', 'translation_date'),
+        Index('ix_translation_entity', 'entity_id', 'translation_date'),
     )

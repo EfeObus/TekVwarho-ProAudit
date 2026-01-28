@@ -35,6 +35,16 @@ class ApprovalWorkflowService:
     Multi-signature approval workflow service
     """
     
+    def __init__(self, db: AsyncSession = None):
+        """
+        Initialize the approval workflow service.
+        
+        Args:
+            db: Optional AsyncSession. If not provided, methods requiring
+                database access will need to have it passed explicitly.
+        """
+        self.db = db
+    
     # Default workflow configurations
     DEFAULT_WORKFLOWS = {
         "bulk_payment": {
@@ -71,7 +81,43 @@ class ApprovalWorkflowService:
             "required_approvers": 2,
             "threshold_amount": Decimal("500000"),
             "escalation_hours": 24
-        }
+        },
+        # FX-specific workflow types
+        "fx_transaction": {
+            "name": "FX Transaction Approval",
+            "description": "Requires approval for high-value foreign currency transactions",
+            "required_approvers": 2,
+            "threshold_amount": Decimal("5000000"),  # 5M NGN equivalent
+            "escalation_hours": 12
+        },
+        "fx_rate_override": {
+            "name": "FX Rate Override Approval",
+            "description": "Requires Treasury Manager approval for manual rate overrides",
+            "required_approvers": 1,
+            "threshold_amount": None,
+            "escalation_hours": 4
+        },
+        "fx_exposure_hedge": {
+            "name": "FX Hedging Approval",
+            "description": "Requires CFO approval for FX hedging decisions",
+            "required_approvers": 2,
+            "threshold_amount": Decimal("10000000"),  # 10M NGN
+            "escalation_hours": 24
+        },
+        "expense_claim": {
+            "name": "Expense Claim Approval",
+            "description": "Requires manager approval for expense claims over threshold",
+            "required_approvers": 1,
+            "threshold_amount": Decimal("100000"),  # 100K NGN
+            "escalation_hours": 48
+        },
+        "expense_claim_fx": {
+            "name": "Foreign Currency Expense Claim",
+            "description": "Requires 2 approvers for foreign currency expense claims",
+            "required_approvers": 2,
+            "threshold_amount": Decimal("50000"),  # 50K NGN equivalent
+            "escalation_hours": 24
+        },
     }
     
     async def create_workflow(
@@ -672,6 +718,165 @@ class ApprovalWorkflowService:
         # Additional actions based on resource type could be added here
         # e.g., trigger payment execution, submit tax filing, etc.
         logger.info(f"Approved action for {request.resource_type} {request.resource_id}")
+    
+    # ========== Integration Methods for Service-to-Service Calls ==========
+    
+    async def create_approval_request(
+        self,
+        entity_id: UUID,
+        workflow_type: str,
+        request_id: UUID,
+        request_data: Dict[str, Any],
+        requested_by_id: UUID,
+    ) -> Dict[str, Any]:
+        """
+        Create an approval request for integration with other services.
+        
+        This is a simplified wrapper around submit_for_approval for 
+        service-to-service calls (e.g., expense claims, FX transactions).
+        
+        Args:
+            entity_id: The entity ID
+            workflow_type: Type of workflow (expense_claim, expense_claim_fx, etc.)
+            request_id: ID of the resource being approved (e.g., claim_id)
+            request_data: Metadata about the request
+            requested_by_id: User who submitted the request
+            
+        Returns:
+            Dict with approval request details
+        """
+        # Extract amount from request data
+        amount = None
+        if "total_amount" in request_data:
+            try:
+                amount = Decimal(request_data["total_amount"])
+            except (ValueError, TypeError):
+                pass
+        
+        # Submit for approval using existing method
+        approval_request = await self.submit_for_approval(
+            db=self.db,
+            entity_id=entity_id,
+            workflow_type=workflow_type,
+            resource_type=workflow_type.replace("_", "-"),
+            resource_id=request_id,
+            amount=amount,
+            submitted_by=requested_by_id,
+            context=request_data
+        )
+        
+        return {
+            "request_id": str(approval_request.id),
+            "workflow_type": workflow_type,
+            "status": approval_request.status.value,
+            "expires_at": approval_request.expires_at.isoformat() if approval_request.expires_at else None,
+        }
+    
+    async def approve_request(
+        self,
+        request_id: UUID,
+        approver_id: UUID,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Record an approval for a request (integration method).
+        
+        Returns the current approval status.
+        """
+        # Find the approval request by resource_id
+        query = select(ApprovalRequest).where(
+            ApprovalRequest.resource_id == request_id
+        ).options(
+            selectinload(ApprovalRequest.workflow).selectinload(ApprovalWorkflow.approvers)
+        )
+        result = await self.db.execute(query)
+        approval_request = result.scalar_one_or_none()
+        
+        if not approval_request:
+            raise ValueError(f"No approval request found for resource {request_id}")
+        
+        # Use the existing approve method
+        await self.approve(
+            db=self.db,
+            request_id=approval_request.id,
+            approver_id=approver_id,
+            comments=notes
+        )
+        
+        # Refresh and return status
+        await self.db.refresh(approval_request)
+        
+        return {
+            "request_id": str(approval_request.id),
+            "status": approval_request.status.value,
+            "completed_at": approval_request.completed_at.isoformat() if approval_request.completed_at else None,
+        }
+    
+    async def get_request_status(
+        self,
+        request_id: UUID,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get the approval workflow status for a resource.
+        
+        Args:
+            request_id: The resource ID (e.g., claim_id, transaction_id)
+            
+        Returns:
+            Dict with workflow status, approvals count, approvers, etc.
+        """
+        # Find approval request by resource_id
+        query = select(ApprovalRequest).where(
+            ApprovalRequest.resource_id == request_id
+        ).options(
+            selectinload(ApprovalRequest.workflow).selectinload(ApprovalWorkflow.approvers),
+            selectinload(ApprovalRequest.decisions)
+        )
+        result = await self.db.execute(query)
+        approval_request = result.scalar_one_or_none()
+        
+        if not approval_request:
+            return None
+        
+        # Build approval history
+        approval_history = []
+        approvals_received = 0
+        for decision in approval_request.decisions:
+            approval_history.append({
+                "approver_id": str(decision.approver_id),
+                "decision": decision.decision,
+                "comments": decision.comments,
+                "decided_at": decision.decided_at.isoformat() if decision.decided_at else None,
+            })
+            if decision.decision == "approved":
+                approvals_received += 1
+        
+        # Build approvers list
+        approvers = []
+        for approver in approval_request.workflow.approvers:
+            approvers.append({
+                "user_id": str(approver.user_id),
+                "role": approver.role,
+                "is_required": approver.is_required,
+                "has_decided": any(
+                    str(d.approver_id) == str(approver.user_id) 
+                    for d in approval_request.decisions
+                ),
+            })
+        
+        return {
+            "request_id": str(approval_request.id),
+            "resource_id": str(approval_request.resource_id),
+            "workflow_type": approval_request.workflow.workflow_type,
+            "status": approval_request.status.value,
+            "approvals_required": approval_request.workflow.required_approvers,
+            "approvals_received": approvals_received,
+            "approvers": approvers,
+            "approval_history": approval_history,
+            "escalation_at": approval_request.expires_at.isoformat() if approval_request.expires_at else None,
+            "submitted_at": approval_request.created_at.isoformat() if approval_request.created_at else None,
+            "completed_at": approval_request.completed_at.isoformat() if approval_request.completed_at else None,
+        }
 
 
 # Singleton instance

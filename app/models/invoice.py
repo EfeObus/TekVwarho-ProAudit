@@ -88,31 +88,113 @@ class Invoice(BaseModel, AuditMixin):
     invoice_date: Mapped[date] = mapped_column(Date, nullable=False)
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     
-    # Amounts
+    # ===========================================
+    # MULTI-CURRENCY SUPPORT (IAS 21 COMPLIANT)
+    # ===========================================
+    
+    # Currency of the invoice (original transaction currency)
+    currency: Mapped[str] = mapped_column(
+        String(3),
+        default="NGN",
+        nullable=False,
+        comment="Invoice currency code (e.g., USD, EUR, GBP, NGN)",
+    )
+    
+    # Exchange rate at invoice date (foreign currency to NGN)
+    exchange_rate: Mapped[Decimal] = mapped_column(
+        Numeric(precision=12, scale=6),
+        default=Decimal("1.000000"),
+        nullable=False,
+        comment="Exchange rate at invoice date: 1 FC = X NGN",
+    )
+    
+    # Exchange rate source
+    exchange_rate_source: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Rate source: CBN, manual, spot, contract",
+    )
+    
+    # Amounts in original currency (FC = Foreign Currency)
     subtotal: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
         default=Decimal("0.00"),
+        comment="Subtotal in invoice currency",
     )
     vat_amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
         default=Decimal("0.00"),
+        comment="VAT in invoice currency",
     )
     discount_amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
         default=Decimal("0.00"),
+        comment="Discount in invoice currency",
     )
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
         default=Decimal("0.00"),
+        comment="Total in invoice currency",
     )
     amount_paid: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2),
         nullable=False,
         default=Decimal("0.00"),
+        comment="Amount paid in invoice currency",
+    )
+    
+    # Functional currency amounts (NGN - for financial reporting)
+    functional_subtotal: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Subtotal converted to NGN at booking rate",
+    )
+    functional_vat_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="VAT converted to NGN at booking rate",
+    )
+    functional_total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Total converted to NGN at booking rate",
+    )
+    functional_amount_paid: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Amount paid converted to NGN (may differ due to FX gain/loss)",
+    )
+    
+    # FX gain/loss tracking
+    realized_fx_gain_loss: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Realized FX gain/loss on payments received",
+    )
+    unrealized_fx_gain_loss: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Unrealized FX gain/loss at reporting date",
+    )
+    last_revaluation_date: Mapped[Optional[date]] = mapped_column(
+        Date,
+        nullable=True,
+        comment="Last FX revaluation date for this invoice",
+    )
+    last_revaluation_rate: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(precision=12, scale=6),
+        nullable=True,
+        comment="Exchange rate used in last revaluation",
     )
     
     # VAT
@@ -271,8 +353,13 @@ class Invoice(BaseModel, AuditMixin):
     
     @property
     def balance_due(self) -> Decimal:
-        """Calculate remaining balance."""
+        """Calculate remaining balance in original currency."""
         return self.total_amount - self.amount_paid
+    
+    @property
+    def functional_balance_due(self) -> Decimal:
+        """Calculate remaining balance in functional currency (NGN)."""
+        return self.functional_total_amount - self.functional_amount_paid
     
     @property
     def is_fully_paid(self) -> bool:
@@ -280,9 +367,19 @@ class Invoice(BaseModel, AuditMixin):
         return self.balance_due <= Decimal("0")
     
     @property
+    def is_foreign_currency(self) -> bool:
+        """Check if invoice is in foreign currency."""
+        return self.currency != "NGN"
+    
+    @property
     def is_b2b(self) -> bool:
         """Check if this is a B2B invoice (requires NRS e-invoicing)."""
         return self.customer is not None and self.customer.is_business
+    
+    @property
+    def needs_fx_revaluation(self) -> bool:
+        """Check if invoice needs FX revaluation (foreign currency with open balance)."""
+        return self.is_foreign_currency and not self.is_fully_paid
     
     def __repr__(self) -> str:
         return f"<Invoice(id={self.id}, number={self.invoice_number}, status={self.status})>"

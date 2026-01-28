@@ -1,0 +1,662 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Consolidation - TekVwarho ProAudit{% endblock %}
+
+{% block head %}
+<style>
+    .entity-card { transition: all 0.2s; }
+    .entity-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    .elimination { background-color: #fef3c7; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" x-data="consolidation()" x-init="init()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Financial Consolidation</h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Consolidate multi-entity group financial statements per IFRS 10 with intercompany eliminations
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0 flex space-x-3">
+                <a href="/accounting" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Back to Accounting
+                </a>
+                <button @click="showConsolidationModal = true" 
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path>
+                    </svg>
+                    Run Consolidation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-8">
+            <button @click="activeTab = 'overview'" 
+                    :class="activeTab === 'overview' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Group Overview
+            </button>
+            <button @click="activeTab = 'entities'" 
+                    :class="activeTab === 'entities' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Subsidiaries
+            </button>
+            <button @click="activeTab = 'eliminations'" 
+                    :class="activeTab === 'eliminations' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Intercompany Eliminations
+            </button>
+            <button @click="activeTab = 'statements'" 
+                    :class="activeTab === 'statements' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Consolidated Statements
+            </button>
+            <button @click="activeTab = 'translation'" 
+                    :class="activeTab === 'translation' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Currency Translation
+            </button>
+        </nav>
+    </div>
+
+    <!-- Loading State -->
+    <template x-if="loading">
+        <div class="text-center py-12">
+            <div class="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading...</p>
+        </div>
+    </template>
+
+    <!-- Group Overview Tab -->
+    <div x-show="activeTab === 'overview' && !loading" x-cloak>
+        <div class="space-y-6">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-sm font-medium text-gray-500">Total Entities</h4>
+                    <p class="text-2xl font-bold text-gray-900 mt-2" x-text="groupSummary.total_entities || 0"></p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-sm font-medium text-gray-500">Group Total Assets</h4>
+                    <p class="text-2xl font-bold text-gray-900 mt-2" x-text="formatCurrency(groupSummary.total_assets)"></p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-sm font-medium text-gray-500">Group Revenue</h4>
+                    <p class="text-2xl font-bold text-green-600 mt-2" x-text="formatCurrency(groupSummary.total_revenue)"></p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-sm font-medium text-gray-500">Intercompany Balance</h4>
+                    <p class="text-2xl font-bold text-orange-600 mt-2" x-text="formatCurrency(groupSummary.intercompany_balance)"></p>
+                </div>
+            </div>
+
+            <!-- Last Consolidation Info -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Last Consolidation</h3>
+                <template x-if="lastConsolidation">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Date</p>
+                            <p class="font-medium" x-text="formatDate(lastConsolidation.run_date)"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Period</p>
+                            <p class="font-medium" x-text="lastConsolidation.period_name"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Status</p>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" x-text="lastConsolidation.status"></span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="!lastConsolidation">
+                    <p class="text-gray-500">No consolidation has been run yet.</p>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subsidiaries Tab -->
+    <div x-show="activeTab === 'entities' && !loading" x-cloak>
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Group Entities</h3>
+                <button @click="showEntityModal = true" class="text-sm px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700">
+                    + Add Subsidiary
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entity</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Relationship</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ownership %</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Functional Currency</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="entity in subsidiaries" :key="entity.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4">
+                                    <div class="text-sm font-medium text-gray-900" x-text="entity.name"></div>
+                                    <div class="text-sm text-gray-500" x-text="entity.code"></div>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500" x-text="entity.relationship || 'Subsidiary'"></td>
+                                <td class="px-6 py-4 text-sm text-right" x-text="entity.ownership_percentage + '%'"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500" x-text="entity.functional_currency || 'NGN'"></td>
+                                <td class="px-6 py-4 text-center">
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                          :class="entity.consolidation_status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                                          x-text="entity.consolidation_status || 'Active'"></span>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="subsidiaries.length === 0">
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                    No subsidiaries found. Add your first subsidiary to begin consolidation.
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Intercompany Eliminations Tab -->
+    <div x-show="activeTab === 'eliminations' && !loading" x-cloak>
+        <div class="space-y-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Identify Intercompany Transactions</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Scan for intercompany receivables, payables, revenue, and expenses that need to be eliminated during consolidation.
+                </p>
+                <button @click="scanIntercompany()" :disabled="scanning" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                    <span x-show="!scanning">Scan for Intercompany Items</span>
+                    <span x-show="scanning">Scanning...</span>
+                </button>
+            </div>
+
+            <!-- Eliminations Table -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Pending Eliminations</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From Entity</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">To Entity</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="elim in eliminations" :key="elim.id">
+                                <tr class="hover:bg-gray-50" :class="{ 'elimination': elim.status === 'pending' }">
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="elim.type"></td>
+                                    <td class="px-6 py-4 text-sm text-gray-500" x-text="elim.from_entity_name"></td>
+                                    <td class="px-6 py-4 text-sm text-gray-500" x-text="elim.to_entity_name"></td>
+                                    <td class="px-6 py-4 text-sm text-right font-mono" x-text="formatCurrency(elim.amount)"></td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="{
+                                                  'bg-yellow-100 text-yellow-800': elim.status === 'pending',
+                                                  'bg-green-100 text-green-800': elim.status === 'eliminated'
+                                              }"
+                                              x-text="elim.status"></span>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <template x-if="elim.status === 'pending'">
+                                            <button @click="createElimination(elim)" class="text-green-600 hover:text-green-800 text-sm font-medium">
+                                                Eliminate
+                                            </button>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-if="eliminations.length === 0">
+                                <tr>
+                                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                                        No intercompany items found. Run a scan to identify eliminations.
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Consolidated Statements Tab -->
+    <div x-show="activeTab === 'statements' && !loading" x-cloak>
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Consolidated Balance Sheet -->
+                <div class="bg-white rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-900">Consolidated Balance Sheet</h3>
+                        <button @click="loadConsolidatedBS()" class="text-sm text-green-600 hover:text-green-800">
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="p-6">
+                        <template x-if="consolidatedBS">
+                            <div class="space-y-4">
+                                <div class="flex justify-between py-2 border-b">
+                                    <span class="font-medium">Total Assets</span>
+                                    <span class="font-mono" x-text="formatCurrency(consolidatedBS.total_assets)"></span>
+                                </div>
+                                <div class="flex justify-between py-2 border-b">
+                                    <span class="font-medium">Total Liabilities</span>
+                                    <span class="font-mono" x-text="formatCurrency(consolidatedBS.total_liabilities)"></span>
+                                </div>
+                                <div class="flex justify-between py-2 border-b">
+                                    <span class="font-medium">Total Equity</span>
+                                    <span class="font-mono" x-text="formatCurrency(consolidatedBS.total_equity)"></span>
+                                </div>
+                                <div class="flex justify-between py-2 text-sm text-gray-500">
+                                    <span>Minority Interest</span>
+                                    <span class="font-mono" x-text="formatCurrency(consolidatedBS.minority_interest)"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!consolidatedBS">
+                            <p class="text-gray-500 text-center py-4">Run consolidation to view the balance sheet.</p>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Consolidated Income Statement -->
+                <div class="bg-white rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-900">Consolidated P&L</h3>
+                        <button @click="loadConsolidatedPL()" class="text-sm text-green-600 hover:text-green-800">
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="p-6">
+                        <template x-if="consolidatedPL">
+                            <div class="space-y-4">
+                                <div class="flex justify-between py-2 border-b">
+                                    <span class="font-medium">Total Revenue</span>
+                                    <span class="font-mono text-green-600" x-text="formatCurrency(consolidatedPL.total_revenue)"></span>
+                                </div>
+                                <div class="flex justify-between py-2 border-b">
+                                    <span class="font-medium">Total Expenses</span>
+                                    <span class="font-mono text-red-600" x-text="formatCurrency(consolidatedPL.total_expenses)"></span>
+                                </div>
+                                <div class="flex justify-between py-2 border-b">
+                                    <span class="font-medium">Operating Income</span>
+                                    <span class="font-mono" x-text="formatCurrency(consolidatedPL.operating_income)"></span>
+                                </div>
+                                <div class="flex justify-between py-2 font-semibold">
+                                    <span>Net Income</span>
+                                    <span class="font-mono" :class="consolidatedPL.net_income >= 0 ? 'text-green-600' : 'text-red-600'"
+                                          x-text="formatCurrency(consolidatedPL.net_income)"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!consolidatedPL">
+                            <p class="text-gray-500 text-center py-4">Run consolidation to view P&L.</p>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Currency Translation Tab -->
+    <div x-show="activeTab === 'translation' && !loading" x-cloak>
+        <div class="space-y-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Foreign Subsidiary Translation (IAS 21)</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Translate foreign subsidiary financial statements to the group's presentation currency.
+                    Assets/liabilities at closing rate, income/expenses at average rate.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Subsidiary</label>
+                        <select x-model="translation.entity_id" 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="">Select Subsidiary</option>
+                            <template x-for="entity in subsidiaries.filter(e => e.functional_currency !== 'NGN')" :key="entity.id">
+                                <option :value="entity.id" x-text="entity.name + ' (' + entity.functional_currency + ')'"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Period End Date</label>
+                        <input type="date" x-model="translation.date" 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Presentation Currency</label>
+                        <select x-model="translation.target_currency" 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="NGN">NGN - Nigerian Naira</option>
+                            <option value="USD">USD - US Dollar</option>
+                        </select>
+                    </div>
+                </div>
+                <button @click="runTranslation()" :disabled="translation.running"
+                        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                    <span x-show="!translation.running">Run Translation</span>
+                    <span x-show="translation.running">Processing...</span>
+                </button>
+            </div>
+
+            <!-- Translation Results -->
+            <template x-if="translation.result">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-4">Translation Results</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h5 class="font-medium text-gray-900 mb-2">Rates Applied</h5>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">Closing Rate</span>
+                                    <span class="font-mono" x-text="translation.result.closing_rate"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-500">Average Rate</span>
+                                    <span class="font-mono" x-text="translation.result.average_rate"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h5 class="font-medium text-gray-900 mb-2">Translation Adjustment</h5>
+                            <p class="text-2xl font-bold" 
+                               :class="translation.result.translation_adjustment >= 0 ? 'text-green-600' : 'text-red-600'"
+                               x-text="formatCurrency(translation.result.translation_adjustment)"></p>
+                            <p class="text-xs text-gray-500 mt-1">Recorded in Other Comprehensive Income</p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Run Consolidation Modal -->
+    <div x-show="showConsolidationModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showConsolidationModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Run Group Consolidation</h3>
+                <form @submit.prevent="runConsolidation()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Consolidation Date</label>
+                            <input type="date" x-model="consolidationForm.date" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Period</label>
+                            <input type="text" x-model="consolidationForm.period_name" placeholder="e.g., Q4 2024"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="consolidationForm.include_eliminations" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                <span class="ml-2 text-sm text-gray-700">Include intercompany eliminations</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="consolidationForm.include_translation" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                <span class="ml-2 text-sm text-gray-700">Include currency translation</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showConsolidationModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="running" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+                            <span x-show="!running">Run Consolidation</span>
+                            <span x-show="running">Running...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function consolidation() {
+    return {
+        entityId: localStorage.getItem('currentEntityId'),
+        loading: true,
+        running: false,
+        scanning: false,
+        activeTab: 'overview',
+        groupSummary: {},
+        subsidiaries: [],
+        eliminations: [],
+        consolidatedBS: null,
+        consolidatedPL: null,
+        lastConsolidation: null,
+        showConsolidationModal: false,
+        showEntityModal: false,
+        consolidationForm: { 
+            date: new Date().toISOString().split('T')[0], 
+            period_name: '', 
+            include_eliminations: true, 
+            include_translation: true 
+        },
+        translation: { entity_id: '', date: new Date().toISOString().split('T')[0], target_currency: 'NGN', running: false, result: null },
+
+        async init() {
+            await Promise.all([
+                this.loadGroupSummary(),
+                this.loadSubsidiaries(),
+                this.loadEliminations(),
+                this.loadLastConsolidation()
+            ]);
+            this.loading = false;
+        },
+
+        async loadGroupSummary() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/summary`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.groupSummary = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load group summary:', error);
+            }
+        },
+
+        async loadSubsidiaries() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/subsidiaries`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.subsidiaries = data.subsidiaries || data || [];
+                }
+            } catch (error) {
+                console.error('Failed to load subsidiaries:', error);
+            }
+        },
+
+        async loadEliminations() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/eliminations`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.eliminations = data.eliminations || data || [];
+                }
+            } catch (error) {
+                console.error('Failed to load eliminations:', error);
+            }
+        },
+
+        async loadLastConsolidation() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/history?limit=1`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.lastConsolidation = data.history?.[0] || data?.[0] || null;
+                }
+            } catch (error) {
+                console.error('Failed to load consolidation history:', error);
+            }
+        },
+
+        async scanIntercompany() {
+            this.scanning = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/scan-intercompany`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    await this.loadEliminations();
+                    alert('Intercompany scan complete!');
+                }
+            } catch (error) {
+                console.error('Failed to scan intercompany:', error);
+            } finally {
+                this.scanning = false;
+            }
+        },
+
+        async createElimination(elim) {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/eliminations/${elim.id}/process`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    await this.loadEliminations();
+                    alert('Elimination entry created!');
+                }
+            } catch (error) {
+                console.error('Failed to create elimination:', error);
+            }
+        },
+
+        async runConsolidation() {
+            this.running = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(this.consolidationForm)
+                });
+                if (response.ok) {
+                    this.showConsolidationModal = false;
+                    await this.loadGroupSummary();
+                    await this.loadLastConsolidation();
+                    await this.loadConsolidatedBS();
+                    await this.loadConsolidatedPL();
+                    alert('Consolidation completed successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Consolidation failed');
+                }
+            } catch (error) {
+                console.error('Failed to run consolidation:', error);
+                alert('Consolidation failed');
+            } finally {
+                this.running = false;
+            }
+        },
+
+        async loadConsolidatedBS() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/balance-sheet`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.consolidatedBS = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load consolidated BS:', error);
+            }
+        },
+
+        async loadConsolidatedPL() {
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/income-statement`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    this.consolidatedPL = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to load consolidated P&L:', error);
+            }
+        },
+
+        async runTranslation() {
+            if (!this.translation.entity_id) {
+                alert('Please select a subsidiary');
+                return;
+            }
+            this.translation.running = true;
+            try {
+                const response = await authFetch(`/api/v1/entities/${this.entityId}/consolidation/translate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        subsidiary_id: this.translation.entity_id,
+                        as_of_date: this.translation.date,
+                        target_currency: this.translation.target_currency
+                    })
+                });
+                if (response.ok) {
+                    this.translation.result = await response.json();
+                    alert('Translation completed!');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Translation failed');
+                }
+            } catch (error) {
+                console.error('Failed to run translation:', error);
+            } finally {
+                this.translation.running = false;
+            }
+        },
+
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount || 0);
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+    };
+}
+</script>
+{% endblock %}

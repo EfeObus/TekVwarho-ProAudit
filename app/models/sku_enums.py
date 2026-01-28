@@ -76,6 +76,9 @@ class Feature(str, Enum):
     MULTI_USER_RBAC = "multi_user_rbac"
     INVENTORY_ADVANCED = "inventory_advanced"
     DASHBOARD_ADVANCED = "dashboard_advanced"
+    MULTI_CURRENCY = "multi_currency"           # FX, multi-currency transactions
+    BUDGET_MANAGEMENT = "budget_management"     # Budget creation and tracking
+    BUDGET_VARIANCE = "budget_variance"         # Budget vs Actual analysis
     
     # ===========================================
     # ENTERPRISE TIER FEATURES (₦1,000,000-5,000,000+/mo)
