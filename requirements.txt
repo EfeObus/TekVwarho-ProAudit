@@ -71,3 +71,9 @@ azure-core>=1.30.0
 
 # Async file operations
 aiofiles>=23.0.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Cryptography (explicit, also pulled by python-jose)
+cryptography>=41.0.0
