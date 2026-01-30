@@ -51,13 +51,17 @@ from app.models import (
 
 
 def create_tables():
-    """Create all tables in Railway database."""
+    """Create all tables in the database."""
+    import os
     
-    # Railway database URL (sync version for create_all)
-    DATABASE_URL = "postgresql://postgres:eKFYCXhJUxqIFcXQjZnLmZlQBBNEbsNy@turntable.proxy.rlwy.net:28165/railway"
+    # Use DATABASE_URL from environment if available, otherwise use Railway default
+    DATABASE_URL = os.environ.get(
+        'DATABASE_URL',
+        "postgresql://postgres:eKFYCXhJUxqIFcXQjZnLmZlQBBNEbsNy@turntable.proxy.rlwy.net:28165/railway"
+    )
     
     print("=" * 60)
-    print("TekVwarho ProAudit - Railway Database Setup")
+    print("TekVwarho ProAudit - Database Setup")
     print("=" * 60)
     
     # Create sync engine
