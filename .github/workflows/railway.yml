@@ -24,7 +24,7 @@ jobs:
       
       - name: Deploy to Railway
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_SECRET_TOKEN }}
         run: railway up --service tekvwarho-proaudit
       
       - name: Notify deployment success
