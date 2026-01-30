@@ -27,12 +27,16 @@ pwd_context = CryptContext(
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a hashed password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    # bcrypt only uses first 72 bytes - truncate to avoid ValueError in bcrypt 4.2+
+    truncated_password = plain_password[:72] if plain_password else plain_password
+    return pwd_context.verify(truncated_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """Hash a password for storing."""
-    return pwd_context.hash(password)
+    # bcrypt only uses first 72 bytes - truncate to avoid ValueError in bcrypt 4.2+
+    truncated_password = password[:72] if password else password
+    return pwd_context.hash(truncated_password)
 
 
 def generate_random_password(length: int = 12) -> str:
