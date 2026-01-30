@@ -1,14 +1,24 @@
 # =============================================
 # TekVwarho ProAudit - Railway Deployment
-# Deploys to Railway on push to main branch
+# =============================================
+# 
+# NOTE: For easiest deployment, use Railway's native GitHub integration:
+# 1. Go to railway.app/dashboard
+# 2. New Project → Deploy from GitHub repo
+# 3. Select this repo - Railway auto-deploys on push
+#
+# This workflow is kept for manual/advanced deployments
 # =============================================
 
 name: Deploy to Railway
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      service_id:
+        description: 'Railway Service ID (from Railway dashboard)'
+        required: true
+        type: string
 
 jobs:
   deploy:
@@ -25,7 +35,7 @@ jobs:
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_SECRET_TOKEN }}
-        run: railway up --service tekvwarho-proaudit
+        run: railway up --service ${{ github.event.inputs.service_id }}
       
       - name: Notify deployment success
         if: success()
