@@ -16,7 +16,13 @@ from app.config import settings
 
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Note: bcrypt 4.2+ requires truncate_error=False to avoid errors on passwords
+# that could theoretically exceed 72 bytes when encoded
+pwd_context = CryptContext(
+    schemes=["bcrypt"], 
+    deprecated="auto",
+    bcrypt__truncate_error=False
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
