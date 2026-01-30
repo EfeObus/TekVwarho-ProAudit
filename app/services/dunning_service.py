@@ -117,31 +117,10 @@ class DunningService:
         if not tenant_sku:
             raise ValueError(f"No TenantSKU found for organization {organization_id}")
         
-        # Initialize or update dunning metadata
-        dunning_data = tenant_sku.custom_metadata or {}
-        if "dunning" not in dunning_data:
-            dunning_data["dunning"] = {
-                "first_failure_at": now.isoformat(),
-                "last_retry_at": None,
-                "retry_count": 0,
-                "level": DunningLevel.INITIAL.value,
-                "amount_naira": amount_naira,
-                "failure_reasons": [reason],
-                "transaction_references": [transaction_reference] if transaction_reference else [],
-            }
-        else:
-            # Update existing dunning record
-            dunning_data["dunning"]["retry_count"] += 1
-            dunning_data["dunning"]["last_retry_at"] = now.isoformat()
-            if reason not in dunning_data["dunning"].get("failure_reasons", []):
-                dunning_data["dunning"]["failure_reasons"].append(reason)
-            if transaction_reference:
-                refs = dunning_data["dunning"].get("transaction_references", [])
-                if transaction_reference not in refs:
-                    refs.append(transaction_reference)
-                    dunning_data["dunning"]["transaction_references"] = refs
-        
-        tenant_sku.custom_metadata = dunning_data
+        # TenantSKU doesn't have custom_metadata - mark as pending cancellation instead
+        # This sets up the dunning state using existing fields
+        tenant_sku.cancel_at_period_end = True
+        tenant_sku.suspension_reason = reason
         await self.db.flush()
         
         logger.info(f"Recorded payment failure for org {organization_id}: {reason}")
@@ -163,28 +142,36 @@ class DunningService:
         if not tenant_sku:
             return None
         
-        dunning_data = (tenant_sku.custom_metadata or {}).get("dunning")
-        if not dunning_data:
+        # TenantSKU doesn't have custom_metadata - dunning info should come from 
+        # subscription status, not metadata. Return None if no dunning situation.
+        # Check if in dunning by looking at suspension/cancellation state
+        if not tenant_sku.suspended_at and not tenant_sku.cancel_at_period_end:
             return None
         
         return self._create_dunning_record(tenant_sku)
     
     async def get_active_dunning_records(self) -> List[DunningRecord]:
-        """Get all organizations currently in dunning."""
+        """Get all organizations currently in dunning (suspended or pending cancellation)."""
         from app.models.sku import TenantSKU
         
+        # TenantSKU doesn't have custom_metadata - look for suspended/cancellation state instead
         result = await self.db.execute(
             select(TenantSKU)
             .where(TenantSKU.is_active == True)
-            .where(TenantSKU.custom_metadata != None)
+            .where(
+                or_(
+                    TenantSKU.suspended_at != None,
+                    TenantSKU.cancel_at_period_end == True
+                )
+            )
         )
         tenant_skus = result.scalars().all()
         
         records = []
         for tenant_sku in tenant_skus:
-            dunning_data = (tenant_sku.custom_metadata or {}).get("dunning")
-            if dunning_data and dunning_data.get("level") != DunningLevel.SUSPENDED.value:
-                records.append(self._create_dunning_record(tenant_sku))
+            # Only include non-suspended records (suspended ones are final state)
+            if not tenant_sku.suspended_at:
+                records.append(self._create_dunning_record_safe(tenant_sku))
         
         return records
     
@@ -212,49 +199,14 @@ class DunningService:
         if not tenant_sku:
             return False, None
         
-        dunning_data = (tenant_sku.custom_metadata or {}).get("dunning")
-        if not dunning_data:
-            return False, None
+        # TenantSKU doesn't have custom_metadata - check suspension state instead
+        if tenant_sku.suspended_at:
+            return False, None  # Already suspended
         
-        now = datetime.utcnow()
-        first_failure = datetime.fromisoformat(dunning_data["first_failure_at"])
-        last_retry = dunning_data.get("last_retry_at")
-        if last_retry:
-            last_retry = datetime.fromisoformat(last_retry)
+        if tenant_sku.cancel_at_period_end:
+            return True, "suspend"  # Should be suspended
         
-        days_since_failure = (now - first_failure).days
-        retry_count = dunning_data.get("retry_count", 0)
-        current_level = DunningLevel(dunning_data.get("level", DunningLevel.INITIAL.value))
-        
-        # Check if already suspended
-        if current_level == DunningLevel.SUSPENDED:
-            return False, None
-        
-        # Check if max retries reached
-        if retry_count >= MAX_RETRY_ATTEMPTS:
-            if days_since_failure >= GRACE_PERIOD_DAYS:
-                return True, "suspend"
-            return False, None
-        
-        # Determine next action based on schedule
-        next_action = None
-        for (days, retries), action_info in sorted(DUNNING_SCHEDULE.items()):
-            if days_since_failure >= days and retry_count < retries:
-                next_action = action_info["action"]
-                break
-        
-        if next_action == "suspend":
-            return True, "suspend"
-        elif next_action == "retry":
-            # Check if enough time has passed since last retry (minimum 24 hours)
-            if last_retry:
-                hours_since_retry = (now - last_retry).total_seconds() / 3600
-                if hours_since_retry < 24:
-                    return False, None
-            return True, "retry"
-        elif next_action == "notify":
-            return True, "escalate"
-        
+        # No dunning situation if not suspended or pending cancellation
         return False, None
     
     async def record_retry_attempt(
@@ -265,8 +217,6 @@ class DunningService:
         """Record a payment retry attempt."""
         from app.models.sku import TenantSKU
         
-        now = datetime.utcnow()
-        
         result = await self.db.execute(
             select(TenantSKU).where(TenantSKU.organization_id == organization_id)
         )
@@ -275,18 +225,14 @@ class DunningService:
         if not tenant_sku:
             return
         
-        dunning_data = tenant_sku.custom_metadata or {}
-        if "dunning" in dunning_data:
-            dunning_data["dunning"]["last_retry_at"] = now.isoformat()
-            dunning_data["dunning"]["retry_count"] = dunning_data["dunning"].get("retry_count", 0) + 1
-            
-            if success:
-                # Clear dunning on successful payment
-                del dunning_data["dunning"]
-                logger.info(f"Payment recovered for org {organization_id}, cleared dunning")
-            
-            tenant_sku.custom_metadata = dunning_data
+        # TenantSKU doesn't have custom_metadata
+        # On success, clear dunning state
+        if success:
+            tenant_sku.cancel_at_period_end = False
+            tenant_sku.suspended_at = None
+            tenant_sku.suspension_reason = None
             await self.db.flush()
+            logger.info(f"Payment recovered for org {organization_id}, cleared dunning")
     
     async def escalate_dunning_level(
         self,
@@ -303,33 +249,23 @@ class DunningService:
         if not tenant_sku:
             raise ValueError(f"No TenantSKU found for organization {organization_id}")
         
-        dunning_data = tenant_sku.custom_metadata or {}
-        if "dunning" not in dunning_data:
-            raise ValueError(f"No dunning record for organization {organization_id}")
-        
-        current_level = DunningLevel(dunning_data["dunning"].get("level", DunningLevel.INITIAL.value))
-        
-        # Escalation order
-        escalation_order = [
-            DunningLevel.INITIAL,
-            DunningLevel.WARNING,
-            DunningLevel.URGENT,
-            DunningLevel.FINAL,
-            DunningLevel.SUSPENDED,
-        ]
-        
-        current_index = escalation_order.index(current_level)
-        if current_index < len(escalation_order) - 1:
-            new_level = escalation_order[current_index + 1]
-            dunning_data["dunning"]["level"] = new_level.value
-            dunning_data["dunning"]["escalated_at"] = datetime.utcnow().isoformat()
-            tenant_sku.custom_metadata = dunning_data
+        # TenantSKU doesn't have custom_metadata - use suspension state for escalation
+        # Escalation: cancel_at_period_end=True -> suspended_at=now
+        if tenant_sku.suspended_at:
+            return DunningLevel.SUSPENDED
+        elif tenant_sku.cancel_at_period_end:
+            # Escalate to suspended
+            tenant_sku.suspended_at = datetime.utcnow()
+            tenant_sku.is_active = False
             await self.db.flush()
-            
-            logger.info(f"Escalated dunning for org {organization_id}: {current_level.value} -> {new_level.value}")
-            return new_level
-        
-        return current_level
+            logger.info(f"Escalated dunning for org {organization_id}: final -> suspended")
+            return DunningLevel.SUSPENDED
+        else:
+            # Start dunning
+            tenant_sku.cancel_at_period_end = True
+            await self.db.flush()
+            logger.info(f"Escalated dunning for org {organization_id}: none -> initial")
+            return DunningLevel.INITIAL
     
     async def clear_dunning(
         self,
@@ -347,34 +283,27 @@ class DunningService:
         if not tenant_sku:
             return
         
-        dunning_data = tenant_sku.custom_metadata or {}
-        if "dunning" in dunning_data:
-            # Archive dunning record
-            dunning_data["dunning_history"] = dunning_data.get("dunning_history", [])
-            dunning_data["dunning_history"].append({
-                **dunning_data["dunning"],
-                "cleared_at": datetime.utcnow().isoformat(),
-                "cleared_reason": reason,
-            })
-            del dunning_data["dunning"]
-            
-            tenant_sku.custom_metadata = dunning_data
-            
-            # Reactivate if suspended
-            if tenant_sku.suspended_at:
-                tenant_sku.suspended_at = None
-                tenant_sku.suspension_reason = None
-                tenant_sku.is_active = True
-            
-            await self.db.flush()
-            logger.info(f"Cleared dunning for org {organization_id}: {reason}")
+        # TenantSKU doesn't have custom_metadata - clear dunning using existing fields
+        tenant_sku.cancel_at_period_end = False
+        tenant_sku.suspended_at = None
+        tenant_sku.suspension_reason = None
+        tenant_sku.is_active = True
+        
+        await self.db.flush()
+        logger.info(f"Cleared dunning for org {organization_id}: {reason}")
     
     async def get_dunning_summary(self) -> Dict[str, Any]:
         """Get summary of all dunning activity."""
         from app.models.sku import TenantSKU
         
+        # TenantSKU doesn't have custom_metadata - query based on suspension state
         result = await self.db.execute(
-            select(TenantSKU).where(TenantSKU.custom_metadata != None)
+            select(TenantSKU).where(
+                or_(
+                    TenantSKU.suspended_at != None,
+                    TenantSKU.cancel_at_period_end == True
+                )
+            )
         )
         tenant_skus = result.scalars().all()
         
@@ -393,16 +322,18 @@ class DunningService:
         
         total_days = 0
         for tenant_sku in tenant_skus:
-            dunning_data = (tenant_sku.custom_metadata or {}).get("dunning")
-            if dunning_data:
-                level = dunning_data.get("level", DunningLevel.INITIAL.value)
-                summary["total_in_dunning"] += 1
-                summary["by_level"][level] = summary["by_level"].get(level, 0) + 1
-                summary["total_amount_at_risk"] += dunning_data.get("amount_naira", 0)
+            if tenant_sku.suspended_at:
+                level = DunningLevel.SUSPENDED.value
+                days = (datetime.utcnow() - tenant_sku.suspended_at).days
+            elif tenant_sku.cancel_at_period_end:
+                level = DunningLevel.FINAL.value
+                days = 0  # Unknown start date
+            else:
+                continue
                 
-                first_failure = datetime.fromisoformat(dunning_data["first_failure_at"])
-                days = (datetime.utcnow() - first_failure).days
-                total_days += days
+            summary["total_in_dunning"] += 1
+            summary["by_level"][level] = summary["by_level"].get(level, 0) + 1
+            total_days += days
         
         if summary["total_in_dunning"] > 0:
             summary["average_days_in_dunning"] = total_days / summary["total_in_dunning"]
@@ -411,24 +342,35 @@ class DunningService:
     
     def _create_dunning_record(self, tenant_sku) -> DunningRecord:
         """Create DunningRecord from TenantSKU."""
-        dunning_data = (tenant_sku.custom_metadata or {}).get("dunning", {})
+        # TenantSKU doesn't have custom_metadata - use safe defaults
+        return self._create_dunning_record_safe(tenant_sku)
+    
+    def _create_dunning_record_safe(self, tenant_sku) -> DunningRecord:
+        """Create DunningRecord from TenantSKU without relying on custom_metadata."""
+        now = datetime.utcnow()
         
-        first_failure = datetime.fromisoformat(dunning_data.get("first_failure_at", datetime.utcnow().isoformat()))
-        days_elapsed = (datetime.utcnow() - first_failure).days
+        # Determine level based on tenant state
+        if tenant_sku.suspended_at:
+            level = DunningLevel.SUSPENDED
+            first_failure = tenant_sku.suspended_at
+        elif tenant_sku.cancel_at_period_end:
+            level = DunningLevel.FINAL
+            first_failure = now - timedelta(days=14)  # Estimate
+        else:
+            level = DunningLevel.INITIAL
+            first_failure = now
+        
+        days_elapsed = (now - first_failure).days if first_failure else 0
         days_until_suspension = max(0, GRACE_PERIOD_DAYS - days_elapsed)
-        
-        last_retry = dunning_data.get("last_retry_at")
-        if last_retry:
-            last_retry = datetime.fromisoformat(last_retry)
         
         return DunningRecord(
             organization_id=tenant_sku.organization_id,
-            level=DunningLevel(dunning_data.get("level", DunningLevel.INITIAL.value)),
-            amount_naira=dunning_data.get("amount_naira", 0),
-            first_failure_at=first_failure,
-            last_retry_at=last_retry,
-            retry_count=dunning_data.get("retry_count", 0),
-            next_retry_at=None,  # Calculated on demand
+            level=level,
+            amount_naira=0,
+            first_failure_at=first_failure or now,
+            last_retry_at=None,
+            retry_count=0,
+            next_retry_at=None,
             days_until_suspension=days_until_suspension,
-            notes="; ".join(dunning_data.get("failure_reasons", [])),
+            notes=tenant_sku.suspension_reason if tenant_sku.suspended_at else None,
         )

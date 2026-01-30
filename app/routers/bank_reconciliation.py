@@ -53,10 +53,14 @@ from app.schemas.bank_reconciliation import (
     ReconciliationSummaryReport,
 )
 
-router = APIRouter(prefix="/bank-reconciliation", tags=["Bank Reconciliation"])
-
 # Feature gate for bank reconciliation - requires Professional tier or higher
 bank_recon_feature_gate = require_feature([Feature.BANK_RECONCILIATION])
+
+router = APIRouter(
+    prefix="/bank-reconciliation",
+    tags=["Bank Reconciliation"],
+    dependencies=[Depends(bank_recon_feature_gate)],
+)
 
 
 # Helper to get entity

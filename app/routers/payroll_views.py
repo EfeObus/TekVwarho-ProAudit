@@ -13,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.models.user import User
 from app.services.auth_service import AuthService
+from app.services.feature_flags import FeatureFlagService, Feature
+from app.models.sku import TenantSKU, SKUTier
+from app.config.sku_config import get_features_for_tier
+from sqlalchemy import select
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -69,6 +73,43 @@ async def require_auth_for_payroll(
     return user, entity_id, None
 
 
+async def check_payroll_feature_access(
+    request: Request,
+    db: AsyncSession,
+    user: User,
+) -> bool:
+    """
+    Check if user has access to payroll feature.
+    Platform staff always have access.
+    Returns True if access granted, False otherwise.
+    """
+    # Platform staff bypass feature checks
+    if user.is_platform_staff:
+        return True
+    
+    if not user.organization_id:
+        return False
+    
+    # Get tenant SKU
+    result = await db.execute(
+        select(TenantSKU).where(
+            TenantSKU.organization_id == user.organization_id,
+            TenantSKU.is_active == True,
+        )
+    )
+    tenant_sku = result.scalar_one_or_none()
+    
+    if not tenant_sku:
+        # No SKU = default to CORE
+        tier = SKUTier.CORE
+    else:
+        tier = tenant_sku.tier
+    
+    # Check if PAYROLL feature is enabled for this tier
+    enabled_features = get_features_for_tier(tier)
+    return Feature.PAYROLL in enabled_features
+
+
 @router.get("/payroll", response_class=HTMLResponse)
 async def payroll_page(
     request: Request,
@@ -78,6 +119,17 @@ async def payroll_page(
     user, entity_id, redirect = await require_auth_for_payroll(request, db)
     if redirect:
         return redirect
+    
+    # SKU Feature Gate: PAYROLL required (Professional+ tier)
+    has_access = await check_payroll_feature_access(request, db, user)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            "user": user,
+            "entity_id": str(entity_id),
+            "feature_name": "Payroll",
+            "required_tier": "Professional",
+        }, status_code=403)
     
     response = templates.TemplateResponse(
         "payroll.html",

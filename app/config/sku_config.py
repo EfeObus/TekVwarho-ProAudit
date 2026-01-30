@@ -63,6 +63,9 @@ class Feature(str, Enum):
     MULTI_USER_RBAC = "multi_user_rbac"
     INVENTORY_ADVANCED = "inventory_advanced"
     DASHBOARD_ADVANCED = "dashboard_advanced"
+    MULTI_CURRENCY = "multi_currency"             # FX, multi-currency transactions
+    BUDGET_MANAGEMENT = "budget_management"       # Budget creation and tracking
+    BUDGET_VARIANCE = "budget_variance"           # Budget vs Actual analysis
     # Enterprise features
     WORM_VAULT = "worm_vault"
     INTERCOMPANY = "intercompany"
@@ -352,6 +355,9 @@ PROFESSIONAL_FEATURES: Set[Feature] = CORE_FEATURES | {
     Feature.MULTI_USER_RBAC,
     Feature.INVENTORY_ADVANCED,
     Feature.DASHBOARD_ADVANCED,
+    Feature.MULTI_CURRENCY,        # FX, multi-currency transactions
+    Feature.BUDGET_MANAGEMENT,     # Budget creation and tracking
+    Feature.BUDGET_VARIANCE,       # Budget vs Actual analysis
 }
 
 ENTERPRISE_FEATURES: Set[Feature] = PROFESSIONAL_FEATURES | {

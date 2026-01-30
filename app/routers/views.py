@@ -19,9 +19,50 @@ from app.dependencies import get_optional_user
 from app.models.user import User
 from app.services.dashboard_service import DashboardService
 from app.services.auth_service import AuthService
+from app.services.feature_flags import FeatureFlagService, Feature
+from app.models.sku import TenantSKU, SKUTier
+from app.config.sku_config import get_features_for_tier
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+
+async def check_view_feature_access(
+    request: Request,
+    db: AsyncSession,
+    user: User,
+    required_feature: Feature,
+) -> bool:
+    """
+    Check if user has access to a feature for view routes.
+    Platform staff always have access.
+    Returns True if access granted, False otherwise.
+    """
+    # Platform staff bypass feature checks
+    if user.is_platform_staff:
+        return True
+    
+    if not user.organization_id:
+        return False
+    
+    # Get tenant SKU
+    result = await db.execute(
+        select(TenantSKU).where(
+            TenantSKU.organization_id == user.organization_id,
+            TenantSKU.is_active == True,
+        )
+    )
+    tenant_sku = result.scalar_one_or_none()
+    
+    if not tenant_sku:
+        # No SKU = default to CORE
+        tier = SKUTier.CORE
+    else:
+        tier = tenant_sku.tier
+    
+    # Check if feature is enabled for this tier
+    enabled_features = get_features_for_tier(tier)
+    return required_feature in enabled_features
 
 
 def get_entity_id_from_session(request: Request) -> Optional[uuid.UUID]:
@@ -445,6 +486,16 @@ async def budgets_page(
     if redirect:
         return redirect
     
+    # SKU Feature Gate: BUDGET_MANAGEMENT required (Professional+ tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.BUDGET_MANAGEMENT)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "Budget Management",
+            "required_tier": "Professional",
+        }, status_code=403)
+    
     response = templates.TemplateResponse("budget_management.html", {
         "request": request,
         **get_auth_context(user, entity_id),
@@ -462,6 +513,16 @@ async def fx_page(
     user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
+    
+    # SKU Feature Gate: MULTI_CURRENCY required (Professional+ tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.MULTI_CURRENCY)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "FX Management",
+            "required_tier": "Professional",
+        }, status_code=403)
     
     response = templates.TemplateResponse("fx_management.html", {
         "request": request,
@@ -481,6 +542,16 @@ async def year_end_page(
     if redirect:
         return redirect
     
+    # SKU Feature Gate: ADVANCED_REPORTS required (Professional+ tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.ADVANCED_REPORTS)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "Year-End Closing",
+            "required_tier": "Professional",
+        }, status_code=403)
+    
     response = templates.TemplateResponse("year_end.html", {
         "request": request,
         **get_auth_context(user, entity_id),
@@ -498,6 +569,16 @@ async def consolidation_page(
     user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
+    
+    # SKU Feature Gate: CONSOLIDATION required (Enterprise tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.CONSOLIDATION)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "Consolidation",
+            "required_tier": "Enterprise",
+        }, status_code=403)
     
     response = templates.TemplateResponse("consolidation.html", {
         "request": request,
@@ -517,6 +598,16 @@ async def fixed_assets_page(
     if redirect:
         return redirect
     
+    # SKU Feature Gate: FIXED_ASSETS required (Professional+ tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.FIXED_ASSETS)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "Fixed Assets",
+            "required_tier": "Professional",
+        }, status_code=403)
+    
     response = templates.TemplateResponse("fixed_assets.html", {
         "request": request,
         **get_auth_context(user, entity_id),
@@ -535,6 +626,16 @@ async def bank_reconciliation_page(
     if redirect:
         return redirect
     
+    # SKU Feature Gate: BANK_RECONCILIATION required (Professional+ tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.BANK_RECONCILIATION)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "Bank Reconciliation",
+            "required_tier": "Professional",
+        }, status_code=403)
+    
     response = templates.TemplateResponse("bank_reconciliation.html", {
         "request": request,
         **get_auth_context(user, entity_id),
@@ -552,6 +653,16 @@ async def expense_claims_page(
     user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
+    
+    # SKU Feature Gate: EXPENSE_CLAIMS required (Professional+ tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.EXPENSE_CLAIMS)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "Expense Claims",
+            "required_tier": "Professional",
+        }, status_code=403)
     
     response = templates.TemplateResponse("expense_claims.html", {
         "request": request,
@@ -1334,6 +1445,16 @@ async def business_insights_page(
     user, entity_id, redirect = await require_auth(request, db, require_entity=True)
     if redirect:
         return redirect
+    
+    # SKU Feature Gate: ADVANCED_REPORTS required (Professional+ tier)
+    has_access = await check_view_feature_access(request, db, user, Feature.ADVANCED_REPORTS)
+    if not has_access:
+        return templates.TemplateResponse("feature_locked.html", {
+            "request": request,
+            **get_auth_context(user, entity_id),
+            "feature_name": "Business Insights",
+            "required_tier": "Professional",
+        }, status_code=403)
     
     response = templates.TemplateResponse("business_insights.html", {
         "request": request,

@@ -19,11 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, require_feature
 from app.models.user import User
 from app.models.entity import BusinessType
 from app.models.invoice import BuyerStatus
 from app.models.tax_2026 import VATRecoveryType, ReliefType, ReliefStatus, CreditNoteStatus
+from app.models.sku import Feature
 from app.services.buyer_review_service import BuyerReviewService
 from app.services.vat_recovery_service import VATRecoveryService
 from app.services.development_levy_service import DevelopmentLevyService
@@ -54,8 +55,14 @@ from app.services.peppol_export_service import (
 )
 from app.schemas.auth import MessageResponse
 
+# Feature gate for 2026 tax reform features (PROFESSIONAL tier - NRS compliance)
+tax_2026_feature_gate = require_feature([Feature.NRS_COMPLIANCE])
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/api/v1/tax-2026",
+    tags=["2026 Tax Reform"],
+    dependencies=[Depends(tax_2026_feature_gate)],
+)
 
 
 # ===========================================

@@ -20,13 +20,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models.user import User
 from app.models.entity import BusinessEntity
+from app.models.sku import Feature
 from app.services.year_end_closing_service import YearEndClosingService
 
+# Feature gate for year-end closing (PROFESSIONAL tier - advanced reports)
+year_end_feature_gate = require_feature([Feature.ADVANCED_REPORTS])
 
-router = APIRouter(prefix="/api/v1/year-end", tags=["Year-End Closing"])
+router = APIRouter(
+    prefix="/api/v1/year-end",
+    tags=["Year-End Closing"],
+    dependencies=[Depends(year_end_feature_gate)],
+)
 
 
 # =============================================================================

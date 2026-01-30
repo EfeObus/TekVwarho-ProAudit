@@ -128,7 +128,7 @@
                     <!-- Plan -->
                     <div class="bg-gray-50 rounded-lg p-4">
                         <p class="text-sm text-gray-500 mb-1">Current Plan</p>
-                        <p class="text-lg font-bold text-gray-900" x-text="subscription.tier_display || 'Core'"></p>
+                        <p class="text-lg font-bold text-gray-900" x-text="subscription.tier_display || subscription.tier || 'Core'"></p>
                         <span x-show="subscription.is_trial" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-2">
                             Trial
                         </span>

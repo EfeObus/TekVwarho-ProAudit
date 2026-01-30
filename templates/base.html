@@ -216,10 +216,38 @@
                                 <hr class="my-1 border-gray-100">
                                 <p class="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Finance</p>
                                 <a href="/accounting" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Accounting</a>
+                                {% if request.state.sku_features and 'budget_management' in request.state.sku_features %}
                                 <a href="/budgets" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Budget Management</a>
+                                {% else %}
+                                <a href="/pricing?feature=budget_management" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Budget Management</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
+                                {% if request.state.sku_features and 'multi_currency' in request.state.sku_features %}
                                 <a href="/fx" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">FX Management</a>
+                                {% else %}
+                                <a href="/pricing?feature=multi_currency" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>FX Management</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
+                                {% if request.state.sku_features and 'advanced_reports' in request.state.sku_features %}
                                 <a href="/year-end" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Year-End Closing</a>
+                                {% else %}
+                                <a href="/pricing?feature=advanced_reports" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Year-End Closing</span>
+                                    <span class="ml-auto text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">PRO</span>
+                                </a>
+                                {% endif %}
+                                {% if request.state.sku_features and 'consolidation' in request.state.sku_features %}
                                 <a href="/consolidation" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Consolidation</a>
+                                {% else %}
+                                <a href="/pricing?feature=consolidation" class="block px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 flex items-center">
+                                    <span>Consolidation</span>
+                                    <span class="ml-auto text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">ENT</span>
+                                </a>
+                                {% endif %}
                                 {% if request.state.sku_features and 'bank_reconciliation' in request.state.sku_features %}
                                 <a href="/bank-reconciliation" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Bank Reconciliation</a>
                                 {% else %}

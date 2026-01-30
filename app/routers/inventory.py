@@ -12,10 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user, require_within_usage_limit, record_usage_event
+from app.dependencies import get_current_active_user, require_within_usage_limit, record_usage_event, require_feature
 from app.models.user import User
 from app.models.audit_consolidated import AuditAction
-from app.models.sku import UsageMetricType
+from app.models.sku import UsageMetricType, Feature
 from app.services.entity_service import EntityService
 from app.services.inventory_service import InventoryService
 from app.services.audit_service import AuditService
@@ -37,8 +37,10 @@ from app.schemas.inventory import (
 )
 from app.schemas.auth import MessageResponse
 
+# Feature gate for inventory (CORE tier - basic inventory access)
+inventory_feature_gate = require_feature([Feature.INVENTORY_BASIC])
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(inventory_feature_gate)])
 
 
 # ===========================================

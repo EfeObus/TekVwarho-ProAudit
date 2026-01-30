@@ -1,0 +1,79 @@
+# =============================================
+# TekVwarho ProAudit - PR Auto Labeler Configuration
+# Used by the labeler GitHub Action
+# =============================================
+
+# API changes
+api:
+  - 'app/routers/**/*'
+  - 'app/schemas/**/*'
+
+# Database changes
+database:
+  - 'alembic/**/*'
+  - 'app/models/**/*'
+  - 'app/database.py'
+
+# Frontend / UI changes
+frontend:
+  - 'templates/**/*'
+  - 'static/**/*'
+
+# Configuration changes
+config:
+  - '*.ini'
+  - '*.toml'
+  - '*.yml'
+  - '*.yaml'
+  - 'app/config/**/*'
+  - '.env.example'
+
+# Documentation
+documentation:
+  - 'docs/**/*'
+  - '*.md'
+  - 'README*'
+
+# Tests
+tests:
+  - 'tests/**/*'
+  - 'conftest.py'
+
+# CI/CD
+ci-cd:
+  - '.github/**/*'
+  - 'Dockerfile'
+  - 'docker-compose*.yml'
+
+# Security
+security:
+  - 'app/services/auth_service.py'
+  - 'app/utils/security.py'
+  - 'app/middleware/**/*'
+
+# Billing / Payments
+billing:
+  - 'app/services/billing*.py'
+  - 'app/services/payment*.py'
+  - 'app/routers/billing*.py'
+  - 'app/models/billing*.py'
+  - 'app/models/sku*.py'
+
+# Payroll
+payroll:
+  - 'app/services/payroll*.py'
+  - 'app/routers/payroll*.py'
+  - 'app/models/payroll*.py'
+
+# Audit / Compliance
+audit:
+  - 'app/services/audit*.py'
+  - 'app/routers/audit*.py'
+  - 'app/models/audit*.py'
+
+# Dependencies
+dependencies:
+  - 'requirements*.txt'
+  - 'pyproject.toml'
+  - 'setup.py'
+  - 'setup.cfg'

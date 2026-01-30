@@ -26,8 +26,9 @@ import uuid
 import os
 
 from app.database import get_db
-from app.dependencies import get_current_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_entity_id, require_feature
 from app.models import User
+from app.models.sku import Feature
 from app.models.audit_consolidated import (
     AuditEvidence, EvidenceType,
     AuditRun, AuditFinding,
@@ -40,7 +41,14 @@ from app.services.evidence_collection_service import (
 )
 from app.utils.permissions import has_organization_permission, OrganizationPermission
 
-router = APIRouter(prefix="/api/evidence", tags=["Evidence Collection"])
+# Feature gate for evidence collection (ENTERPRISE tier - audit vault extended)
+evidence_feature_gate = require_feature([Feature.AUDIT_VAULT_EXTENDED])
+
+router = APIRouter(
+    prefix="/api/evidence",
+    tags=["Evidence Collection"],
+    dependencies=[Depends(evidence_feature_gate)],
+)
 
 
 # ==========================================

@@ -27,7 +27,14 @@ from app.models.sku import Feature
 from app.services.audit_service import AuditService
 from app.models.audit_consolidated import AuditAction
 
-router = APIRouter(prefix="/api/v1/advanced", tags=["Advanced Accounting"])
+# Feature gate for advanced accounting (PROFESSIONAL tier)
+advanced_accounting_feature_gate = require_feature([Feature.ADVANCED_REPORTS])
+
+router = APIRouter(
+    prefix="/api/v1/advanced",
+    tags=["Advanced Accounting"],
+    dependencies=[Depends(advanced_accounting_feature_gate)],
+)
 
 
 # ============================================================================

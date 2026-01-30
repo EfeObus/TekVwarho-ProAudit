@@ -20,15 +20,22 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, require_feature
 from app.models.user import User
+from app.models.sku import Feature
 from app.services.self_assessment_service import SelfAssessmentService
 from app.services.entity_service import EntityService
 from app.services.audit_service import AuditService
 from app.models.audit_consolidated import AuditAction
 
+# Feature gate for tax self-assessment (PROFESSIONAL tier - NRS compliance)
+self_assessment_feature_gate = require_feature([Feature.NRS_COMPLIANCE])
 
-router = APIRouter(prefix="/self-assessment", tags=["Self-Assessment"])
+router = APIRouter(
+    prefix="/self-assessment",
+    tags=["Self-Assessment"],
+    dependencies=[Depends(self_assessment_feature_gate)],
+)
 
 
 # ===========================================

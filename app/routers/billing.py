@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, EmailStr
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.models.organization import Organization
 from app.models.sku import SKUTier, IntelligenceAddon, PaymentTransaction
 from app.services.billing_service import (
     BillingService,
@@ -415,21 +416,45 @@ async def get_current_subscription(
     info = await service.get_subscription_info(current_user.organization_id)
     
     if not info:
-        # Return default Core tier info with limits (Issue #53)
+        # No TenantSKU record - fallback to organization's subscription_tier
+        # instead of hardcoding "Core" (Issue #53 fix)
+        result = await db.execute(
+            select(Organization).where(Organization.id == current_user.organization_id)
+        )
+        org = result.scalar_one_or_none()
+        
+        # Determine fallback tier from organization table
+        fallback_tier = SKUTier.CORE
+        if org and org.subscription_tier:
+            tier_str = str(org.subscription_tier).upper()
+            if tier_str == "ENTERPRISE":
+                fallback_tier = SKUTier.ENTERPRISE
+            elif tier_str == "PROFESSIONAL":
+                fallback_tier = SKUTier.PROFESSIONAL
+        
+        tier_display = {
+            SKUTier.CORE: "Core",
+            SKUTier.PROFESSIONAL: "Professional",
+            SKUTier.ENTERPRISE: "Enterprise",
+        }.get(fallback_tier, "Core")
+        
+        # Get pricing for the tier
+        tier_pricing = TIER_PRICING.get(fallback_tier, TIER_PRICING[SKUTier.CORE])
+        
         return SubscriptionResponse(
-            tier="core",
-            tier_display="Core",
+            tier=fallback_tier.value,
+            tier_display=tier_display,
             intelligence_addon=None,
             billing_cycle="monthly",
-            status="trial",
-            is_trial=True,
-            trial_days_remaining=14,
+            status="active" if fallback_tier != SKUTier.CORE else "trial",
+            is_trial=fallback_tier == SKUTier.CORE,
+            trial_days_remaining=14 if fallback_tier == SKUTier.CORE else None,
             current_period_start=None,
             current_period_end=None,
             next_billing_date=None,
-            amount_naira=50000,
-            amount_formatted="₦50,000",
-            tier_limits=_get_tier_limits_response(SKUTier.CORE),
+            amount_naira=tier_pricing.get("monthly", 50000),
+            amount_formatted=f"₦{tier_pricing.get('monthly', 50000):,}",
+            tier_limits=_get_tier_limits_response(fallback_tier),
         )
     
     # Calculate trial days remaining

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import require_super_admin
+from app.dependencies import require_super_admin, require_feature
 from app.models.user import User
 from app.models.risk_signal import (
     RiskSeverity,
@@ -21,10 +21,17 @@ from app.models.risk_signal import (
     RiskStatus,
     RiskSignalType,
 )
+from app.models.sku import Feature
 from app.services.risk_signal_service import RiskSignalService
 
+# Feature gate for risk signals (ENTERPRISE tier - WORM vault for compliance)
+risk_signals_feature_gate = require_feature([Feature.WORM_VAULT])
 
-router = APIRouter(prefix="/risk-signals", tags=["Risk Signals"])
+router = APIRouter(
+    prefix="/risk-signals",
+    tags=["Risk Signals"],
+    dependencies=[Depends(risk_signals_feature_gate)],
+)
 
 
 # ===========================================

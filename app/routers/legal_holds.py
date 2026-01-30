@@ -14,13 +14,20 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import require_super_admin
+from app.dependencies import require_super_admin, require_feature
 from app.models.user import User
 from app.models.legal_hold import LegalHoldStatus, LegalHoldType, DataScope
+from app.models.sku import Feature
 from app.services.legal_hold_service import LegalHoldService
 
+# Feature gate for legal holds (ENTERPRISE tier - WORM vault access)
+legal_holds_feature_gate = require_feature([Feature.WORM_VAULT])
 
-router = APIRouter(prefix="/legal-holds", tags=["Legal Holds"])
+router = APIRouter(
+    prefix="/legal-holds",
+    tags=["Legal Holds"],
+    dependencies=[Depends(legal_holds_feature_gate)],
+)
 
 
 # ===========================================

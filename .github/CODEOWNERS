@@ -1,0 +1,36 @@
+# =============================================
+# TekVwarho ProAudit - Code Owners
+# Automatic reviewers for pull requests
+# =============================================
+
+# Default reviewers for everything
+* @tekvwarho/core-team
+
+# Database changes require DBA review
+alembic/ @tekvwarho/dba-team @tekvwarho/core-team
+app/models/ @tekvwarho/dba-team @tekvwarho/core-team
+app/database.py @tekvwarho/dba-team @tekvwarho/core-team
+
+# Security-related changes require security review
+app/services/auth_service.py @tekvwarho/security-team
+app/utils/security.py @tekvwarho/security-team
+app/middleware/ @tekvwarho/security-team
+
+# Billing and payment changes require finance review
+app/services/billing*.py @tekvwarho/finance-team @tekvwarho/core-team
+app/services/payment*.py @tekvwarho/finance-team @tekvwarho/core-team
+app/routers/billing*.py @tekvwarho/finance-team @tekvwarho/core-team
+
+# CI/CD changes require DevOps review
+.github/ @tekvwarho/devops-team
+Dockerfile @tekvwarho/devops-team
+docker-compose*.yml @tekvwarho/devops-team
+
+# Documentation
+docs/ @tekvwarho/docs-team
+*.md @tekvwarho/docs-team
+
+# Configuration changes
+*.toml @tekvwarho/core-team
+*.ini @tekvwarho/core-team
+.env.example @tekvwarho/core-team @tekvwarho/security-team

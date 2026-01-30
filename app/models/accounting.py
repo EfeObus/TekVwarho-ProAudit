@@ -253,6 +253,12 @@ class ChartOfAccounts(BaseModel, AuditMixin):
         comment="operating, investing, financing",
     )
     
+    # Multi-Currency Support (for FX/domiciliary accounts)
+    currency: Mapped[str] = mapped_column(
+        String(3), default="NGN", nullable=False,
+        comment="Currency code (ISO 4217) - NGN, USD, EUR, GBP, etc.",
+    )
+    
     # Sorting
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     

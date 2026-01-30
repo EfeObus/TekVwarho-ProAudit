@@ -21,8 +21,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.dependencies import get_current_user, get_current_active_user, get_current_entity_id
+from app.dependencies import get_current_user, get_current_active_user, get_current_entity_id, require_feature
 from app.models.user import User
+from app.models.sku_enums import Feature
 from app.models.payroll import Employee
 from app.services.payroll_advanced_service import PayrollAdvancedService
 from app.services.audit_service import AuditService
@@ -57,8 +58,10 @@ from app.schemas.payroll_advanced import (
     ResolveGhostWorkerRequest,
 )
 
+# Feature gate for advanced payroll - requires Professional tier or higher
+payroll_advanced_feature_gate = require_feature([Feature.PAYROLL_ADVANCED])
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(payroll_advanced_feature_gate)])
 
 
 # ===========================================
