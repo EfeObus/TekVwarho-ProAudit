@@ -34,12 +34,22 @@ class Settings(BaseSettings):
     # DATABASE CONFIGURATION
     # ===========================================
     database_url: str  # Required - must be set in .env
-    database_url_async: str  # Required - must be set in .env
-    postgres_user: str  # Required - must be set in .env
-    postgres_password: str  # Required - must be set in .env
+    database_url_async: Optional[str] = None  # Auto-derived from database_url if not set
+    postgres_user: str = "postgres"
+    postgres_password: str = ""
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_db: str = "tekvwarho_proaudit"
+    
+    @property
+    def async_database_url(self) -> str:
+        """Get async database URL, deriving from sync URL if not explicitly set."""
+        if self.database_url_async:
+            return self.database_url_async
+        # Convert postgresql:// to postgresql+asyncpg://
+        if self.database_url.startswith("postgresql://"):
+            return self.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return self.database_url
     
     # ===========================================
     # JWT AUTHENTICATION

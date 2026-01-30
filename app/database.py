@@ -26,9 +26,9 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=convention)
 
 
-# Create async engine
+# Create async engine - use the property that auto-derives async URL
 engine = create_async_engine(
-    settings.database_url_async,
+    settings.async_database_url,
     echo=settings.debug,  # Log SQL queries in debug mode
     pool_pre_ping=True,   # Verify connections before use
     pool_size=5,
