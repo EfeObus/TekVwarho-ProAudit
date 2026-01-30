@@ -67,4 +67,7 @@ Pillow>=10.2.0
 
 # Azure Document Intelligence (Optional)
 azure-ai-documentintelligence>=1.0.0b1
-azure-core>=1.30.0aiofiles>=23.0.0
+azure-core>=1.30.0
+
+# Async file operations
+aiofiles>=23.0.0
