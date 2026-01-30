@@ -29,7 +29,12 @@ from app.models.audit_consolidated import AuditLog
 logger = logging.getLogger(__name__)
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Note: bcrypt 4.2+ requires truncate_error=False to avoid errors
+pwd_context = CryptContext(
+    schemes=["bcrypt"], 
+    deprecated="auto",
+    bcrypt__truncate_error=False
+)
 
 
 class PlatformStaffService:
