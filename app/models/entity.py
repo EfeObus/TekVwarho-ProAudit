@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from app.models.advanced_accounting import AccountingDimension
     from app.models.payroll import Employee, PayrollRun
     from app.models.bank_reconciliation import BankAccount
+    from app.models.report_template import ReportTemplate
 
 
 class BusinessType(str, Enum):

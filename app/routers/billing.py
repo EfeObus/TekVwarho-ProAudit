@@ -1615,10 +1615,10 @@ async def get_my_usage(
     has_critical = False
     
     for metric_name, metric_data in usage_summary.get("metrics", {}).items():
-        status = metric_data.get("status", "ok")
-        if status == "warning":
+        metric_status = metric_data.get("status", "ok")
+        if metric_status == "warning":
             has_warnings = True
-        elif status in ("critical", "exceeded"):
+        elif metric_status in ("critical", "exceeded"):
             has_critical = True
         
         metrics.append(UsageMetricResponse(
@@ -1627,7 +1627,7 @@ async def get_my_usage(
             current=metric_data.get("current", 0),
             limit=metric_data.get("limit", "unlimited"),
             percentage=metric_data.get("percentage", 0),
-            status=status,
+            status=metric_status,
         ))
     
     return MyUsageResponse(

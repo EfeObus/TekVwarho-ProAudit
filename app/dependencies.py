@@ -11,11 +11,14 @@ This module provides dependency injection for:
 5. Feature gating based on SKU tier
 """
 
+import logging
 import uuid
 from uuid import UUID
 from typing import List, Optional, Union, Dict, Any
 
 from fastapi import Depends, HTTPException, status, Request
+
+logger = logging.getLogger(__name__)
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

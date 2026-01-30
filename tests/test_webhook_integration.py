@@ -28,7 +28,10 @@ from app.models.sku import (
     PaymentTransaction,
 )
 from app.models.sku_enums import BillingCycle
-from app.services.billing_service import BillingService
+from app.services.billing_service import BillingService, PaymentStatus
+
+# Alias for tests
+TransactionStatus = PaymentStatus
 from app.config import settings
 
 

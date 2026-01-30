@@ -9,13 +9,16 @@ import hashlib
 import json
 from datetime import datetime, date
 from decimal import Decimal
-from typing import Optional, List, Dict, Any, Tuple
+from typing import TYPE_CHECKING, Optional, List, Dict, Any, Tuple
 from uuid import UUID
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.orm import selectinload
+
+if TYPE_CHECKING:
+    from app.models.advanced_accounting import LedgerEntry
 
 logger = logging.getLogger(__name__)
 

@@ -13,6 +13,8 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from typing import TYPE_CHECKING
+
 from app.models.user import User, PlatformRole, UserRole
 from app.models.organization import Organization, VerificationStatus
 from app.utils.security import get_password_hash
@@ -22,6 +24,9 @@ from app.utils.permissions import (
     is_platform_role_higher_or_equal,
 )
 from app.config import settings
+
+if TYPE_CHECKING:
+    from app.models.entity import BusinessEntity
 
 
 class StaffManagementService:

@@ -28,6 +28,14 @@ from app.models.entity import BusinessEntity, BusinessType
 from app.models.transaction import Transaction, TransactionType
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.fixed_asset import FixedAsset, AssetStatus
+from enum import Enum
+
+
+class InvoiceType(str, Enum):
+    """Invoice type for filtering."""
+    INVOICE = "invoice"
+    CREDIT_NOTE = "credit_note"
+    DEBIT_NOTE = "debit_note"
 
 
 # ===========================================
