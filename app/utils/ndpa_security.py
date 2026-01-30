@@ -302,6 +302,38 @@ class PIIMasker:
 # GEO-FENCING UTILITIES
 # ============================================================================
 
+# Allowed countries for access (Nigeria + diaspora locations)
+# Country codes follow ISO 3166-1 alpha-2 standard
+ALLOWED_COUNTRIES = [
+    # Primary market
+    "NG",  # Nigeria
+    
+    # North America (diaspora)
+    "CA",  # Canada
+    "US",  # United States
+    
+    # Europe (diaspora)
+    "GB",  # United Kingdom
+    "DE",  # Germany
+    "FR",  # France
+    "NL",  # Netherlands
+    "IE",  # Ireland
+    "IT",  # Italy
+    "ES",  # Spain
+    "PT",  # Portugal
+    "BE",  # Belgium
+    "AT",  # Austria
+    "CH",  # Switzerland
+    "SE",  # Sweden
+    "NO",  # Norway
+    "DK",  # Denmark
+    "FI",  # Finland
+    "PL",  # Poland
+    "CZ",  # Czech Republic
+    "GR",  # Greece
+    "LU",  # Luxembourg
+]
+
 # Nigerian IP ranges (AFRINIC allocations)
 NIGERIAN_IP_RANGES = [
     "41.58.0.0/15",      # MTN Nigeria
@@ -346,12 +378,14 @@ class GeoLocation:
 class GeoFencingService:
     """
     Geo-fencing service for Nigeria-first access control.
+    Supports access from Nigeria and diaspora countries (CA, US, Europe).
     """
     
     def __init__(self):
         self._nigerian_networks = [
             ipaddress.ip_network(cidr) for cidr in NIGERIAN_IP_RANGES
         ]
+        self._country_cache: Dict[str, str] = {}  # IP -> country code cache
     
     def is_nigerian_ip(self, ip: str) -> bool:
         """Check if IP is within Nigerian ranges."""
@@ -363,6 +397,49 @@ class GeoFencingService:
             return False
         except ValueError:
             return False
+    
+    def is_private_ip(self, ip: str) -> bool:
+        """Check if IP is a private/local address."""
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+            return ip_obj.is_private or ip_obj.is_loopback
+        except ValueError:
+            return False
+    
+    async def get_country_code(self, ip: str) -> str:
+        """
+        Get country code for an IP address using free ip-api.com service.
+        Returns 'XX' if lookup fails.
+        """
+        # Check cache first
+        if ip in self._country_cache:
+            return self._country_cache[ip]
+        
+        # Private IPs are considered local/allowed
+        if self.is_private_ip(ip):
+            self._country_cache[ip] = "LOCAL"
+            return "LOCAL"
+        
+        # Nigerian IP ranges - return NG directly
+        if self.is_nigerian_ip(ip):
+            self._country_cache[ip] = "NG"
+            return "NG"
+        
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"http://ip-api.com/json/{ip}?fields=countryCode")
+                if response.status_code == 200:
+                    data = response.json()
+                    country = data.get("countryCode", "XX")
+                    self._country_cache[ip] = country
+                    return country
+        except Exception:
+            pass
+        
+        # Fallback: If lookup fails, allow access (fail-open for better UX)
+        # This ensures users aren't blocked due to API issues
+        return "XX"
     
     def get_client_ip(self, request) -> str:
         """Extract real client IP from request."""
@@ -385,14 +462,39 @@ class GeoFencingService:
         user_id: Optional[str] = None,
         is_diaspora_authorized: bool = False,
     ) -> Tuple[bool, str, int]:
-        """Check if access should be granted based on geolocation."""
+        """
+        Check if access should be granted based on geolocation.
+        
+        Allows access from:
+        - Nigeria (primary market)
+        - Canada, USA, Europe (diaspora locations)
+        - Private/local IPs (development)
+        """
+        # Fast path: Nigerian IP ranges
         if self.is_nigerian_ip(ip):
             return True, "Nigerian IP", 0
         
+        # Private/local IPs always allowed (development)
+        if self.is_private_ip(ip):
+            return True, "Local/development IP", 0
+        
+        # Diaspora-authorized users (premium feature)
         if is_diaspora_authorized:
             return True, "Authorized diaspora user", 20
         
-        return False, "Access restricted to Nigerian IPs", 100
+        # Check country code for diaspora countries
+        country_code = await self.get_country_code(ip)
+        
+        # Unknown country - fail-open for better UX
+        if country_code == "XX":
+            return True, "Geolocation unavailable - access granted", 10
+        
+        # Check if country is in allowed list
+        if country_code in ALLOWED_COUNTRIES or country_code == "LOCAL":
+            risk_score = 0 if country_code == "NG" else 15  # Slightly higher risk for diaspora
+            return True, f"Access from {country_code}", risk_score
+        
+        return False, f"Access restricted - country {country_code} not in allowed list", 100
 
 
 # ============================================================================
