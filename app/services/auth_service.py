@@ -300,8 +300,11 @@ class AuthService:
         token_data = {
             "sub": str(user.id),
             "email": user.email,
-            "org_id": str(user.organization_id),
-            "role": user.role.value,
+            "org_id": str(user.organization_id) if user.organization_id else None,
+            "role": user.role.value if user.role else None,
+            # Include platform staff info for proper authorization
+            "is_platform_staff": user.is_platform_staff,
+            "platform_role": user.platform_role.value if user.platform_role else None,
         }
         
         access_token = create_access_token(token_data)

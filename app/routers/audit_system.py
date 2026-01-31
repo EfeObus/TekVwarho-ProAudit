@@ -189,7 +189,7 @@ async def check_auditor_permissions(
     return {
         "user_id": current_user.id,
         "username": current_user.username,
-        "role": current_user.role.value,
+        "role": current_user.role.value if current_user.role else (current_user.platform_role.value if current_user.platform_role else None),
         "is_auditor": is_auditor,
         "allowed_actions": enforcer.ALLOWED_ACTIONS if is_auditor else ["all"],
         "forbidden_actions": enforcer.FORBIDDEN_ACTIONS if is_auditor else [],
@@ -225,7 +225,7 @@ async def validate_auditor_action(
         "resource_type": resource_type,
         "resource_id": resource_id,
         "denial_reason": denial_reason,
-        "user_role": current_user.role.value
+        "user_role": current_user.role.value if current_user.role else (current_user.platform_role.value if current_user.platform_role else None)
     }
 
 

@@ -20,10 +20,33 @@ class EntityService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
+    def _is_admin_or_owner(self, user: User) -> bool:
+        """Check if user is an admin or owner (or platform staff)."""
+        # Platform staff have elevated access
+        if user.is_platform_staff:
+            return True
+        # Check organization role
+        if user.role and user.role.value in ["owner", "admin"]:
+            return True
+        return False
+    
+    def _is_owner(self, user: User) -> bool:
+        """Check if user is an owner (or superadmin)."""
+        # Platform superadmins have owner-level access
+        if user.is_platform_staff and user.platform_role and user.platform_role.value == "SUPER_ADMIN":
+            return True
+        # Check organization role
+        if user.role and user.role.value == "owner":
+            return True
+        return False
+    
     async def get_entities_for_user(self, user: User) -> List[BusinessEntity]:
         """Get all entities the user has access to."""
-        if user.role.value == "owner" or user.role.value == "admin":
-            # Owners and admins can see all entities in their organization
+        if self._is_admin_or_owner(user):
+            # Owners, admins, and platform staff can see all entities in their organization
+            # For platform staff without org, return empty (they should use specific entity access)
+            if not user.organization_id:
+                return []
             result = await self.db.execute(
                 select(BusinessEntity)
                 .where(BusinessEntity.organization_id == user.organization_id)
@@ -75,7 +98,7 @@ class EntityService:
             return None
         
         # Check user access
-        if user.role.value not in ["owner", "admin"]:
+        if not self._is_admin_or_owner(user):
             entity_ids = [access.entity_id for access in user.entity_access]
             if entity_id not in entity_ids:
                 return None
@@ -172,7 +195,7 @@ class EntityService:
         entity_id: uuid.UUID,
     ) -> bool:
         """Check if user has write access to entity."""
-        if user.role.value in ["owner", "admin"]:
+        if self._is_admin_or_owner(user):
             return True
         
         for access in user.entity_access:
@@ -187,7 +210,7 @@ class EntityService:
         entity_id: uuid.UUID,
     ) -> bool:
         """Check if user has delete access to entity."""
-        if user.role.value == "owner":
+        if self._is_owner(user):
             return True
         
         for access in user.entity_access:
