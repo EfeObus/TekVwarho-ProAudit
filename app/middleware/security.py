@@ -242,6 +242,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth/register",
         "/health",
         "/api",
+        "/select-entity",  # Entity selection just sets a cookie
     ]
     
     def __init__(
