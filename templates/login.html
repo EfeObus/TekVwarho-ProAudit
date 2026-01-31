@@ -135,7 +135,9 @@ function loginForm() {
                     
                     // ALSO set cookie client-side as backup (server already sets it)
                     // This ensures the cookie is definitely set before redirect
-                    document.cookie = `access_token=${data.tokens.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+                    const isSecure = window.location.protocol === 'https:';
+                    const securePart = isSecure ? '; Secure' : '';
+                    document.cookie = `access_token=${data.tokens.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${securePart}`;
                     
                     // Check if user must reset password (newly onboarded staff)
                     if (data.user.must_reset_password) {

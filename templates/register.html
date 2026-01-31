@@ -918,7 +918,9 @@ function registerForm() {
                     // Store tokens
                     localStorage.setItem('token', data.tokens.access_token);
                     localStorage.setItem('refresh_token', data.tokens.refresh_token);
-                    document.cookie = `access_token=${data.tokens.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+                    const isSecure = window.location.protocol === 'https:';
+                    const securePart = isSecure ? '; Secure' : '';
+                    document.cookie = `access_token=${data.tokens.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${securePart}`;
                     
                     this.success = 'Account created successfully! Redirecting...';
                     
