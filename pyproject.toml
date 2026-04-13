@@ -43,7 +43,7 @@ dependencies = [
     
     # PDF Generation
     "weasyprint>=60.2",
-    "reportlab>=4.0.8",
+    "reportlab>=4.4.10",
     
     # QR Code
     "qrcode[pil]>=7.4.2",
